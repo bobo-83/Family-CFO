@@ -218,6 +218,44 @@
       }
     },
     "%@ GB": {},
+    "%@ available": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ pasiekiama"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Còn trống %@"
+          }
+        }
+      }
+    },
+    "%@ available of %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@ available of %2$@"
+          }
+        },
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pasiekiama %1$@ iš %2$@"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Còn trống %1$@ trên %2$@"
+          }
+        }
+      }
+    },
     "%@ bills still due": {
       "localizations": {
         "lt": {
@@ -252,6 +290,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ tiền mặt + %@ lương dự kiến − %@ khoản chi = %@"
+          }
+        }
+      }
+    },
+    "%@ configured target oldest date, %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@ configured target oldest date, %2$@"
+          }
+        },
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ sukonfigūruota seniausia tikslinė data, %2$@"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ngày mục tiêu cũ nhất đã cấu hình của %1$@: %2$@"
           }
         }
       }
@@ -408,6 +468,28 @@
         }
       }
     },
+    "%@ newest readable backup currently visible, %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@ newest readable backup currently visible, %2$@"
+          }
+        },
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ naujausia šiuo metu matoma perskaitoma atsarginė kopija, %2$@"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bản sao lưu đọc được mới nhất hiện thấy của %1$@: %2$@"
+          }
+        }
+      }
+    },
     "%@ of %@": {
       "localizations": {
         "en": {
@@ -474,6 +556,28 @@
         }
       }
     },
+    "%@ oldest readable backup currently visible, %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@ oldest readable backup currently visible, %2$@"
+          }
+        },
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ seniausia šiuo metu matoma perskaitoma atsarginė kopija, %2$@"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bản sao lưu đọc được cũ nhất hiện thấy của %1$@: %2$@"
+          }
+        }
+      }
+    },
     "%@ payroll": {
       "localizations": {
         "lt": {
@@ -490,6 +594,28 @@
         }
       }
     },
+    "%@ pending after activation: %lld backups · %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@ pending after activation: %2$lld backups · %3$@"
+          }
+        },
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ po aktyvinimo laukia: %2$lld kop. · %3$@"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ chờ sau khi kích hoạt: %2$lld bản sao lưu · %3$@"
+          }
+        }
+      }
+    },
     "%@ planned savings": {
       "localizations": {
         "lt": {
@@ -502,6 +628,66 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ tiết kiệm dự kiến"
+          }
+        }
+      }
+    },
+    "%@ policy: %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@ policy: %2$@"
+          }
+        },
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ politika: %2$@"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chính sách %1$@: %2$@"
+          }
+        }
+      }
+    },
+    "%@ recovery state: %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@ recovery state: %2$@"
+          }
+        },
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ atkūrimo būsena: %2$@"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trạng thái khôi phục %1$@: %2$@"
+          }
+        }
+      }
+    },
+    "%@ reserved": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rezervuota %@"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã dành riêng %@"
           }
         }
       }
@@ -770,6 +956,76 @@
           "stringUnit": {
             "state": "translated",
             "value": "góp %@/tháng"
+          }
+        }
+      }
+    },
+    "%@: %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@: %2$@"
+          }
+        },
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@: %2$@"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@: %2$@"
+          }
+        }
+      }
+    },
+    "%@: each retention horizon must be at least the one before it.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@: kiekvienas saugojimo laikotarpis turi būti ne trumpesnis už ankstesnį."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@: mỗi khoảng lưu giữ phải ít nhất bằng khoảng trước đó."
+          }
+        }
+      }
+    },
+    "%@: retention days must be between 1 and 3650.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@: saugojimo dienų skaičius turi būti nuo 1 iki 3650."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@: số ngày lưu giữ phải từ 1 đến 3650."
+          }
+        }
+      }
+    },
+    "%@: sizes cannot be negative.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@: dydžiai negali būti neigiami."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@: dung lượng không được âm."
           }
         }
       }
@@ -1147,6 +1403,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Đã khớp %1$lld trong %2$lld khoản chi"
+          }
+        }
+      }
+    },
+    "%lld over · %lld warning": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld viršyta · %lld įspėjimas"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld vượt ngân sách · %lld cảnh báo"
           }
         }
       }
@@ -2833,6 +3105,22 @@
         }
       }
     },
+    "Automatic pruning is paused until a system administrator reviews and activates this policy.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatinis šalinimas pristabdytas, kol sistemos administratorius peržiūrės ir aktyvins šią politiką."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Việc tự động xóa tạm dừng cho đến khi quản trị viên hệ thống xem xét và kích hoạt chính sách này."
+          }
+        }
+      }
+    },
     "Away from home, connect through your household's own VPN or tailnet — the server is never exposed to the internet.": {
       "localizations": {
         "lt": {
@@ -2989,6 +3277,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sự cố sao lưu"
+          }
+        }
+      }
+    },
+    "Backup settings are still loading.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atsarginių kopijų nuostatos vis dar įkeliamos."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cài đặt sao lưu vẫn đang tải."
+          }
+        }
+      }
+    },
+    "Backup settings changed on the box.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atsarginių kopijų nuostatos serveryje pasikeitė."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cài đặt sao lưu trên máy chủ đã thay đổi."
           }
         }
       }
@@ -3217,6 +3537,22 @@
         }
       }
     },
+    "Bills still due": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dar neapmokėtos sąskaitos"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hóa đơn vẫn đến hạn"
+          }
+        }
+      }
+    },
     "Bills, due dates and Safe to Spend use this zone to decide what “today” means.": {
       "localizations": {
         "lt": {
@@ -3393,6 +3729,22 @@
         }
       }
     },
+    "Building": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kuriama"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang tạo"
+          }
+        }
+      }
+    },
     "Camera": {
       "localizations": {
         "lt": {
@@ -3533,6 +3885,70 @@
           "stringUnit": {
             "state": "translated",
             "value": "Hủy"
+          }
+        }
+      }
+    },
+    "Candidate observation: %@": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kandidato stebėjimas: %@"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quan sát ứng viên: %@"
+          }
+        }
+      }
+    },
+    "Capacity": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Talpa"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dung lượng"
+          }
+        }
+      }
+    },
+    "Capacity could not be measured; backups will still be attempted.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Talpos išmatuoti nepavyko; vis tiek bus bandoma kurti atsargines kopijas."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không đo được dung lượng; hệ thống vẫn sẽ thử sao lưu."
+          }
+        }
+      }
+    },
+    "Capacity is unavailable for this destination.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Šios paskirties talpa nepasiekiama."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không thể xem dung lượng của đích này."
           }
         }
       }
@@ -4117,6 +4533,22 @@
         }
       }
     },
+    "Complete": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Baigtas"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hoàn tất"
+          }
+        }
+      }
+    },
     "Completed": {
       "localizations": {
         "lt": {
@@ -4145,6 +4577,54 @@
           "stringUnit": {
             "state": "translated",
             "value": "Độ tin cậy %lld%%"
+          }
+        }
+      }
+    },
+    "Configured policy": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sukonfigūruota politika"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chính sách đã cấu hình"
+          }
+        }
+      }
+    },
+    "Configured target": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sukonfigūruotas tikslas"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mục tiêu đã cấu hình"
+          }
+        }
+      }
+    },
+    "Configured target oldest date": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sukonfigūruota seniausia tikslinė data"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ngày mục tiêu cũ nhất đã cấu hình"
           }
         }
       }
@@ -4213,6 +4693,22 @@
         }
       }
     },
+    "Confirms that automatic policy and capacity pruning may run during the next maintenance pass.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Patvirtina, kad automatinis šalinimas pagal politiką ir talpą gali būti vykdomas per kitą priežiūrą."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xác nhận rằng việc tự động xóa theo chính sách và dung lượng có thể chạy trong lần bảo trì tiếp theo."
+          }
+        }
+      }
+    },
     "Connected": {
       "localizations": {
         "lt": {
@@ -4225,6 +4721,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Đã kết nối"
+          }
+        }
+      }
+    },
+    "Constrained": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apribota"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bị giới hạn"
           }
         }
       }
@@ -4539,22 +5051,6 @@
         }
       }
     },
-    "Could not verify whether this app matches the box because one reported version is invalid. Check for an update before continuing.": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Nepavyko patikrinti, ar ši programėlė atitinka serverį, nes viena nurodyta versija yra netinkama. Prieš tęsdami patikrinkite, ar yra naujinys."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Không thể xác minh ứng dụng này có khớp với máy hay không vì một phiên bản được báo cáo không hợp lệ. Hãy kiểm tra bản cập nhật trước khi tiếp tục."
-          }
-        }
-      }
-    },
     "Could not reach the server: make sure this phone is on the same network (or tailnet) as your Family CFO box.": {
       "localizations": {
         "lt": {
@@ -4567,6 +5063,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Không kết nối được với máy chủ: hãy chắc chắn điện thoại này ở cùng mạng (hoặc tailnet) với máy Family CFO của bạn."
+          }
+        }
+      }
+    },
+    "Could not verify whether this app matches the box because one reported version is invalid. Check for an update before continuing.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Nepavyko patikrinti, ar ši programėlė atitinka serverį, nes viena nurodyta versija yra netinkama. Prieš tęsdami patikrinkite, ar yra naujinys."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Không thể xác minh ứng dụng này có khớp với máy hay không vì một phiên bản được báo cáo không hợp lệ. Hãy kiểm tra bản cập nhật trước khi tiếp tục."
           }
         }
       }
@@ -4759,6 +5271,54 @@
           "stringUnit": {
             "state": "translated",
             "value": "Được tính theo mức hằng tháng trong \"Khoản bạn đang tiết kiệm\", và được \"Còn để chi tiêu tháng này\" giữ riêng."
+          }
+        }
+      }
+    },
+    "Coverage": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aprėptis"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mức bao phủ"
+          }
+        }
+      }
+    },
+    "Coverage is still building toward the configured target.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aprėptis vis dar kuriama iki sukonfigūruoto tikslo."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mức bao phủ vẫn đang tăng dần đến mục tiêu đã cấu hình."
+          }
+        }
+      }
+    },
+    "Coverage unavailable": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Padengimo įvertinimas nepasiekiamas"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không thể xác định khả năng chi trả"
           }
         }
       }
@@ -5019,6 +5579,22 @@
         }
       }
     },
+    "Current box revision: %@": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dabartinė serverio versija: %@"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Phiên bản cài đặt hiện tại trên máy chủ: %@"
+          }
+        }
+      }
+    },
     "Current password": {
       "localizations": {
         "lt": {
@@ -5115,6 +5691,22 @@
         }
       }
     },
+    "Days": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dienos"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ngày"
+          }
+        }
+      }
+    },
     "Debts": {
       "localizations": {
         "lt": {
@@ -5191,6 +5783,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Khoản tiết kiệm hằng tháng bạn khai được \"Còn để chi tiêu tháng này\" ở Tổng quan giữ riêng — nên tiền chi tiêu không âm thầm ăn mất kế hoạch."
+          }
+        }
+      }
+    },
+    "Degraded": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pablogėjusi"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suy giảm"
           }
         }
       }
@@ -5367,6 +5975,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tiền vào — có phải thu nhập?"
+          }
+        }
+      }
+    },
+    "Destination and schedule changes save as you go. Retention changes use the separate activation button below. The password is encrypted on the box and never shown again.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paskirties ir tvarkaraščio pakeitimai išsaugomi automatiškai. Saugojimo pakeitimus aktyvinkite atskiru mygtuku žemiau. Slaptažodis serveryje užšifruojamas ir daugiau nerodomas."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thay đổi đích và lịch được lưu tự động. Thay đổi lưu giữ dùng nút kích hoạt riêng bên dưới. Mật khẩu được mã hóa trên máy chủ và không hiển thị lại."
           }
         }
       }
@@ -6043,18 +6667,34 @@
         }
       }
     },
-    "Encrypted backups kept on the box (the last 7). Restoring replaces everything currently in the app.": {
+    "Empty": {
       "localizations": {
         "lt": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Užšifruotos atsarginės kopijos, saugomos serveryje (paskutinės 7). Atkūrimas pakeičia viską, kas šiuo metu yra programėlėje."
+            "state": "translated",
+            "value": "Tuščia"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bản sao lưu đã mã hóa được giữ trên máy (7 bản gần nhất). Khôi phục sẽ thay thế toàn bộ dữ liệu hiện có trong ứng dụng."
+            "value": "Trống"
+          }
+        }
+      }
+    },
+    "Encrypted backups kept on the box. See Retention and capacity for the configured policy and Recovery window for currently observed candidates. Restoring replaces everything currently in the app.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Užšifruotos atsarginės kopijos laikomos serveryje. Sukonfigūruotą politiką žr. „Saugojimas ir talpa“, o dabar matomus kandidatus – „Atkūrimo intervalas“. Atkuriant pakeičiami visi dabartiniai programos duomenys."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Các bản sao lưu mã hóa được giữ trên máy chủ. Xem chính sách đã cấu hình trong Lưu giữ và dung lượng, và các ứng viên đang quan sát trong Cửa sổ khôi phục. Khôi phục sẽ thay thế mọi dữ liệu hiện có trong ứng dụng."
           }
         }
       }
@@ -6231,6 +6871,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "Mọi câu trả lời đều dựa trên số liệu thật của hộ gia đình bạn."
+          }
+        }
+      }
+    },
+    "Every backup for %lld days · one daily through %lld days · one weekly through %lld days": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Every backup for %1$lld days · one daily through %2$lld days · one weekly through %3$lld days"
+          }
+        },
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Visos kopijos %1$lld d. · po vieną kasdien iki %2$lld d. · po vieną kas savaitę iki %3$lld d."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mọi bản sao trong %1$lld ngày · mỗi ngày một bản đến %2$lld ngày · mỗi tuần một bản đến %3$lld ngày"
           }
         }
       }
@@ -6758,6 +7420,22 @@
         }
       }
     },
+    "GB": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GB"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GB"
+          }
+        }
+      }
+    },
     "Gated — needs a Hugging Face license agreement": {
       "localizations": {
         "lt": {
@@ -6902,18 +7580,18 @@
         }
       }
     },
-    "Held in %@ · not counted in %@ totals": {
+    "Grouped by the Synology file time, newest first — tap a day for its files. That time can reflect upload time rather than the exact snapshot time. Restoring replaces everything currently in the app.": {
       "localizations": {
         "lt": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Laikoma %@ · neįskaičiuota į %@ sumas"
+            "state": "translated",
+            "value": "Sugrupuota pagal Synology failo laiką, naujausi pirmiausia — palieskite dieną, kad matytumėte jos failus. Šis laikas gali rodyti įkėlimo, o ne tikslų momentinės kopijos laiką. Atkuriant pakeičiami visi dabartiniai programos duomenys."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Giữ bằng %@ · không tính vào tổng %@"
+            "value": "Nhóm theo thời gian tệp Synology, mới nhất trước — chạm vào một ngày để xem các tệp. Thời gian này có thể là lúc tải lên thay vì thời điểm chụp chính xác. Khôi phục sẽ thay thế mọi dữ liệu hiện có trong ứng dụng."
           }
         }
       }
@@ -7010,6 +7688,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "Lưu ý"
+          }
+        }
+      }
+    },
+    "Healthy": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tvarkinga"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tốt"
+          }
+        }
+      }
+    },
+    "Held in %@ · not counted in %@ totals": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Laikoma %@ · neįskaičiuota į %@ sumas"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Giữ bằng %@ · không tính vào tổng %@"
           }
         }
       }
@@ -7372,6 +8082,22 @@
         }
       }
     },
+    "Income received": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gautos pajamos"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thu nhập đã nhận"
+          }
+        }
+      }
+    },
     "Income sources": {
       "localizations": {
         "lt": {
@@ -7384,6 +8110,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "Nguồn thu nhập"
+          }
+        }
+      }
+    },
+    "Incomplete": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neužbaigta"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chưa đầy đủ"
+          }
+        }
+      }
+    },
+    "Insufficient": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nepakanka"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không đủ"
           }
         }
       }
@@ -7528,6 +8286,86 @@
           "stringUnit": {
             "state": "translated",
             "value": "Giữ là chuyển khoản"
+          }
+        }
+      }
+    },
+    "Keep at least this much space free": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Palikti bent tiek laisvos vietos"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Giữ trống ít nhất"
+          }
+        }
+      }
+    },
+    "Keep every backup": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saugoti kiekvieną kopiją"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Giữ mọi bản sao lưu"
+          }
+        }
+      }
+    },
+    "Keep every backup for": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saugoti kiekvieną kopiją"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Giữ mọi bản sao lưu trong"
+          }
+        }
+      }
+    },
+    "Keep one per day through": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saugoti po vieną per dieną iki"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Giữ mỗi ngày một bản đến"
+          }
+        }
+      }
+    },
+    "Keep one per week through": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saugoti po vieną per savaitę iki"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Giữ mỗi tuần một bản đến"
           }
         }
       }
@@ -7837,22 +8675,6 @@
         }
       }
     },
-    "Liquid balance": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Likvidus likutis"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Số dư thanh khoản"
-          }
-        }
-      }
-    },
     "Link a bank from the dashboard, or add a loan from the Debts tab.": {
       "localizations": {
         "lt": {
@@ -7881,6 +8703,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tài sản linh hoạt"
+          }
+        }
+      }
+    },
+    "Liquid balance": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Likvidus likutis"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Số dư thanh khoản"
           }
         }
       }
@@ -7945,6 +8783,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Đang tải tài khoản…"
+          }
+        }
+      }
+    },
+    "Loading recovery status…": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Įkeliama atkūrimo būsena…"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang tải trạng thái khôi phục…"
           }
         }
       }
@@ -8237,6 +9091,22 @@
         }
       }
     },
+    "Maximum total size": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Didžiausias bendras dydis"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tổng dung lượng tối đa"
+          }
+        }
+      }
+    },
     "Median answer time": {
       "localizations": {
         "lt": {
@@ -8281,6 +9151,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "Người bán"
+          }
+        }
+      }
+    },
+    "Metadata mismatches: %lld · protected anomalies: %lld · compatibility unknown: %lld · incompatible: %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Metadata mismatches: %1$lld · protected anomalies: %2$lld · compatibility unknown: %3$lld · incompatible: %4$lld"
+          }
+        },
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Metaduomenų neatitikimai: %1$lld · apsaugotos anomalijos: %2$lld · suderinamumas nežinomas: %3$lld · nesuderinamos: %4$lld"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Siêu dữ liệu không khớp: %1$lld · bất thường được bảo vệ: %2$lld · chưa rõ tương thích: %3$lld · không tương thích: %4$lld"
           }
         }
       }
@@ -8867,6 +9759,22 @@
         }
       }
     },
+    "Newest readable backup currently visible": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Naujausia šiuo metu matoma perskaitoma kopija"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bản sao lưu đọc được mới nhất hiện thấy"
+          }
+        }
+      }
+    },
     "Next 12 months at live price: %@": {
       "localizations": {
         "lt": {
@@ -9267,6 +10175,38 @@
         }
       }
     },
+    "No off-box destination is configured.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nesukonfigūruota išorinė paskirtis."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chưa cấu hình đích ngoài máy chủ."
+          }
+        }
+      }
+    },
+    "No readable backups are currently visible.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Šiuo metu nematyti perskaitomų atsarginių kopijų."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hiện không thấy bản sao lưu nào đọc được."
+          }
+        }
+      }
+    },
     "No recovery key yet. Without one, losing every password and paired phone loses the data. Create it and store it beside your backup key.": {
       "localizations": {
         "lt": {
@@ -9363,6 +10303,38 @@
         }
       }
     },
+    "Not applicable": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Netaikoma"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không áp dụng"
+          }
+        }
+      }
+    },
+    "Not configured": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nesukonfigūruota"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chưa cấu hình"
+          }
+        }
+      }
+    },
     "Not counted in %@ totals: %@": {
       "localizations": {
         "lt": {
@@ -9391,6 +10363,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Không phải quỹ khẩn cấp"
+          }
+        }
+      }
+    },
+    "Not fully known": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nevisiškai žinoma"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chưa biết đầy đủ"
           }
         }
       }
@@ -9705,6 +10693,22 @@
         }
       }
     },
+    "Observed %@": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stebėta %@"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quan sát lúc %@"
+          }
+        }
+      }
+    },
     "Off": {
       "localizations": {
         "lt": {
@@ -9737,6 +10741,38 @@
         }
       }
     },
+    "Older household settings differed. Review the box-global policy before activation.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Senesnės namų ūkio nuostatos skyrėsi. Prieš aktyvindami peržiūrėkite bendrą serverio politiką."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Các cài đặt hộ gia đình cũ khác nhau. Hãy xem lại chính sách toàn máy chủ trước khi kích hoạt."
+          }
+        }
+      }
+    },
+    "Oldest readable backup currently visible": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seniausia šiuo metu matoma perskaitoma kopija"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bản sao lưu đọc được cũ nhất hiện thấy"
+          }
+        }
+      }
+    },
     "On": {
       "localizations": {
         "lt": {
@@ -9765,6 +10801,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Trên Hugging Face"
+          }
+        }
+      }
+    },
+    "On-box backup list unavailable": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Šiame įrenginyje esančių atsarginių kopijų sąrašas nepasiekiamas"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Danh sách sao lưu trên hộp không khả dụng"
           }
         }
       }
@@ -9835,6 +10887,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Đúng tiến độ — %1$@ · dự kiến %2$@"
+          }
+        }
+      }
+    },
+    "On-box inventory is unavailable, so its recovery window is unknown.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Serverio kopijų sąrašas nepasiekiamas, todėl atkūrimo intervalas nežinomas."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không thể xem kho bản sao lưu trên máy chủ, nên chưa biết cửa sổ khôi phục."
           }
         }
       }
@@ -10396,6 +11464,54 @@
         }
       }
     },
+    "Partial": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dalinis"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Một phần"
+          }
+        }
+      }
+    },
+    "Partial total—%lld stored amounts could not be read and were left out.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dalinė suma — %lld išsaugotų sumų nepavyko perskaityti, todėl jos neįtrauktos."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tổng một phần — không thể đọc %lld khoản tiền đã lưu nên các khoản đó không được tính."
+          }
+        }
+      }
+    },
+    "Partial total—1 stored amount could not be read and was left out.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dalinė suma — 1 išsaugotos sumos nepavyko perskaityti, todėl ji neįtraukta."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tổng một phần — không thể đọc 1 khoản tiền đã lưu nên khoản đó không được tính."
+          }
+        }
+      }
+    },
     "Password": {
       "localizations": {
         "lt": {
@@ -10505,6 +11621,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tiền trả mỗi tháng"
+          }
+        }
+      }
+    },
+    "Payment status unavailable": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mokėjimo būsena nepasiekiama"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không thể xác định trạng thái thanh toán"
+          }
+        }
+      }
+    },
+    "Payments": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mokėjimai"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Khoản thanh toán"
           }
         }
       }
@@ -10880,6 +12028,22 @@
         }
       }
     },
+    "Policy, maximum size, and reserved free space stay as a draft until you activate them. Activation does not delete during this request; the next locked maintenance pass applies the policy.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Politika, didžiausias dydis ir rezervuota laisva vieta lieka juodraščiu, kol juos aktyvinsite. Ši užklausa nieko nešalina; politika taikoma per kitą užrakintą priežiūrą."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chính sách, dung lượng tối đa và chỗ trống dành riêng vẫn là bản nháp cho đến khi bạn kích hoạt. Yêu cầu này không xóa gì; lần bảo trì có khóa tiếp theo sẽ áp dụng chính sách."
+          }
+        }
+      }
+    },
     "Possible duplicate": {
       "localizations": {
         "lt": {
@@ -10960,6 +12124,22 @@
         }
       }
     },
+    "Projection unavailable": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prognozė nepasiekiama"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không thể lập dự báo"
+          }
+        }
+      }
+    },
     "Quarterly": {
       "localizations": {
         "lt": {
@@ -11020,6 +12200,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "Đọc to"
+          }
+        }
+      }
+    },
+    "Read probe": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skaitymo patikra"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kiểm tra đọc"
+          }
+        }
+      }
+    },
+    "Readable backups": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Perskaitomos kopijos"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bản sao lưu đọc được"
           }
         }
       }
@@ -11242,6 +12454,22 @@
         }
       }
     },
+    "Recovery coverage cannot currently be established.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Šiuo metu atkūrimo aprėpties nustatyti negalima."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hiện chưa thể xác định mức bao phủ khôi phục."
+          }
+        }
+      }
+    },
     "Recovery key copied.": {
       "localizations": {
         "lt": {
@@ -11286,6 +12514,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "Đã tạo khóa khôi phục."
+          }
+        }
+      }
+    },
+    "Recovery status unavailable": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atkūrimo būsena nepasiekiama"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không có trạng thái khôi phục"
+          }
+        }
+      }
+    },
+    "Recovery window": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atkūrimo intervalas"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cửa sổ khôi phục"
           }
         }
       }
@@ -11674,6 +12934,22 @@
         }
       }
     },
+    "Restore Synology backup file timestamped %@": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atkurti Synology atsarginės kopijos failą, kurio laikas %@"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Khôi phục tệp sao lưu Synology có dấu thời gian %@"
+          }
+        }
+      }
+    },
     "Restore from Synology": {
       "localizations": {
         "lt": {
@@ -11702,6 +12978,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Khóa để khôi phục"
+          }
+        }
+      }
+    },
+    "Restore on-box backup from %@": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atkurti šiame įrenginyje esančią atsarginę kopiją iš %@"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Khôi phục bản sao lưu trên hộp từ %@"
           }
         }
       }
@@ -11766,6 +13058,54 @@
           "stringUnit": {
             "state": "translated",
             "value": "Khôi phục sang một máy mới cần cả hai khóa — hãy cất chung trong trình quản lý mật khẩu."
+          }
+        }
+      }
+    },
+    "Retention and capacity": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saugojimas ir talpa"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lưu giữ và dung lượng"
+          }
+        }
+      }
+    },
+    "Retention mode": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saugojimo režimas"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chế độ lưu giữ"
+          }
+        }
+      }
+    },
+    "Retention validation error: %@": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saugojimo tikrinimo klaida: %@"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lỗi kiểm tra lưu giữ: %@"
           }
         }
       }
@@ -12058,6 +13398,22 @@
         }
       }
     },
+    "Save and activate retention": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Išsaugoti ir aktyvinti saugojimą"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lưu và kích hoạt lưu giữ"
+          }
+        }
+      }
+    },
     "Saved automatically.": {
       "localizations": {
         "lt": {
@@ -12070,6 +13426,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tự động lưu."
+          }
+        }
+      }
+    },
+    "Saving and activating…": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Išsaugoma ir aktyvinama…"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang lưu và kích hoạt…"
           }
         }
       }
@@ -12786,6 +14158,22 @@
         }
       }
     },
+    "Shortened": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sutrumpinta"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bị rút ngắn"
+          }
+        }
+      }
+    },
     "Show advisor disclaimer": {
       "localizations": {
         "lt": {
@@ -12962,6 +14350,22 @@
         }
       }
     },
+    "Some stored financial data could not be read. Repair it on the dashboard, then try again.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kai kurių išsaugotų finansinių duomenų nepavyko perskaityti. Pataisykite juos valdymo skydelyje ir bandykite dar kartą."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không thể đọc một số dữ liệu tài chính đã lưu. Hãy sửa dữ liệu trên bảng điều khiển rồi thử lại."
+          }
+        }
+      }
+    },
     "Something went wrong": {
       "localizations": {
         "lt": {
@@ -13012,6 +14416,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "Chi tiêu"
+          }
+        }
+      }
+    },
+    "Spending categories · %@": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Išlaidų kategorijos · %@"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Danh mục chi tiêu · %@"
+          }
+        }
+      }
+    },
+    "Spending plan": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Išlaidų planas"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kế hoạch chi tiêu"
           }
         }
       }
@@ -13204,6 +14640,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ngừng theo dõi"
+          }
+        }
+      }
+    },
+    "Storage limits shortened the configured recovery window.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saugyklos ribos sutrumpino sukonfigūruotą atkūrimo intervalą."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Giới hạn lưu trữ đã rút ngắn cửa sổ khôi phục đã cấu hình."
           }
         }
       }
@@ -13530,6 +14982,22 @@
         }
       }
     },
+    "Synology": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„Synology“"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Synology"
+          }
+        }
+      }
+    },
     "Synology (SMB)": {},
     "Synology address": {
       "localizations": {
@@ -13543,6 +15011,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "Địa chỉ Synology"
+          }
+        }
+      }
+    },
+    "Synology backup list unavailable": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Synology atsarginių kopijų sąrašas nepasiekiamas"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Danh sách sao lưu Synology không khả dụng"
+          }
+        }
+      }
+    },
+    "Synology inventory is unavailable, so its recovery window is unknown.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„Synology“ kopijų sąrašas nepasiekiamas, todėl jo atkūrimo intervalas nežinomas."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không thể xem kho bản sao lưu Synology, nên chưa biết cửa sổ khôi phục."
           }
         }
       }
@@ -13591,22 +15091,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Quản trị hệ thống"
-          }
-        }
-      }
-    },
-    "The household currency isn't known yet, so nothing was saved.": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Namų ūkio valiuta dar nežinoma, todėl nieko neišsaugota."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Chưa biết đơn vị tiền tệ của hộ gia đình, nên chưa lưu gì."
           }
         }
       }
@@ -13863,6 +15347,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ngày mục tiêu"
+          }
+        }
+      }
+    },
+    "Target met": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tikslas pasiektas"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã đạt mục tiêu"
           }
         }
       }
@@ -14279,6 +15779,22 @@
         }
       }
     },
+    "The box has newer settings. Your unsaved draft is preserved.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Serveryje yra naujesnės nuostatos. Neišsaugotas juodraštis išsaugotas."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Máy chủ có cài đặt mới hơn. Bản nháp chưa lưu của bạn được giữ nguyên."
+          }
+        }
+      }
+    },
     "The box keeps a spare of your data key again, so overnight work runs without anyone signed in.": {
       "localizations": {
         "lt": {
@@ -14375,6 +15891,22 @@
         }
       }
     },
+    "The configured recovery coverage is incomplete.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sukonfigūruota atkūrimo aprėptis neužbaigta."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mức bao phủ khôi phục đã cấu hình chưa đầy đủ."
+          }
+        }
+      }
+    },
     "The connection dropped while the advisor was still working. The answer may still be saved — check this conversation again in a minute.": {
       "localizations": {
         "lt": {
@@ -14403,6 +15935,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Toàn bộ số tiền mà chu kỳ đã đóng này yêu cầu — không phải số dư đang chạy hôm nay."
+          }
+        }
+      }
+    },
+    "The household currency isn't known yet, so nothing was saved.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Namų ūkio valiuta dar nežinoma, todėl nieko neišsaugota."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chưa biết đơn vị tiền tệ của hộ gia đình, nên chưa lưu gì."
           }
         }
       }
@@ -14471,6 +16019,22 @@
         }
       }
     },
+    "The oldest Synology candidate uses the remote file's modified time because matching job metadata is unavailable.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seniausiam „Synology“ kandidatui naudojamas nuotolinio failo keitimo laikas, nes nėra atitinkamų užduoties metaduomenų."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ứng viên Synology cũ nhất dùng thời gian sửa đổi của tệp từ xa vì không có siêu dữ liệu công việc tương ứng."
+          }
+        }
+      }
+    },
     "The owner gets a one-time join link — they pick their own password on the dashboard and run the household themselves.": {
       "localizations": {
         "lt": {
@@ -14535,6 +16099,22 @@
         }
       }
     },
+    "The request timed out while the advisor was still working. The answer may still be saved — check this conversation again in a minute.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Užklausos laikas baigėsi, kol patarėjas dar dirbo. Atsakymas vis tiek gali būti išsaugotas — po minutės dar kartą atidarykite šį pokalbį."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Yêu cầu đã hết thời gian chờ khi cố vấn vẫn đang xử lý. Câu trả lời có thể vẫn được lưu — hãy kiểm tra lại cuộc trò chuyện này sau một phút."
+          }
+        }
+      }
+    },
     "The scan only fills in the form below. Nothing is saved until you tap Add earner — check every figure first.": {
       "localizations": {
         "lt": {
@@ -14547,6 +16127,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Bản quét chỉ điền sẵn biểu mẫu bên dưới. Không có gì được lưu cho đến khi bạn chạm Thêm người có thu nhập — hãy kiểm tra từng con số trước."
+          }
+        }
+      }
+    },
+    "The schedule is box-global. Turning it off stops scheduled creation, but maintenance and manual backups remain available.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tvarkaraštis taikomas visam serveriui. Jį išjungus suplanuotos kopijos nekuriamos, bet priežiūra ir rankinės kopijos lieka pasiekiamos."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lịch áp dụng cho toàn máy chủ. Tắt lịch sẽ dừng tạo bản sao theo lịch, nhưng bảo trì và sao lưu thủ công vẫn dùng được."
           }
         }
       }
@@ -14595,22 +16191,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Máy chủ trả về trạng thái không mong đợi (%lld)."
-          }
-        }
-      }
-    },
-    "The request timed out while the advisor was still working. The answer may still be saved — check this conversation again in a minute.": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Užklausos laikas baigėsi, kol patarėjas dar dirbo. Atsakymas vis tiek gali būti išsaugotas — po minutės dar kartą atidarykite šį pokalbį."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Yêu cầu đã hết thời gian chờ khi cố vấn vẫn đang xử lý. Câu trả lời có thể vẫn được lưu — hãy kiểm tra lại cuộc trò chuyện này sau một phút."
           }
         }
       }
@@ -14857,6 +16437,22 @@
         }
       }
     },
+    "These are visible, read-probed recovery candidates—not guaranteed restore points. Archive integrity, the backup key, household recovery key, decryption, migrations, and a complete database restore are checked only during restore.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tai matomi, skaitymu patikrinti atkūrimo kandidatai, o ne garantuoti atkūrimo taškai. Archyvo vientisumas, atsarginės kopijos raktas, namų ūkio atkūrimo raktas, iššifravimas, migracijos ir visas duomenų bazės atkūrimas tikrinami tik atkuriant."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đây là các ứng viên khôi phục đang thấy và đã kiểm tra đọc, không phải điểm khôi phục được bảo đảm. Tính toàn vẹn kho lưu trữ, khóa sao lưu, khóa khôi phục hộ gia đình, giải mã, di chuyển dữ liệu và khôi phục đầy đủ cơ sở dữ liệu chỉ được kiểm tra khi khôi phục."
+          }
+        }
+      }
+    },
     "These charges came through more than once with the same account, date, amount, and merchant. Keep them if it's a real repeat, or dispute / delete a charge you didn't make.": {
       "localizations": {
         "lt": {
@@ -15081,6 +16677,22 @@
         }
       }
     },
+    "This overwrites the current database and documents with the selected Synology file timestamped %@. The share's file time can reflect upload time rather than the exact snapshot time. It can't be undone.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tai perrašys dabartinę duomenų bazę ir dokumentus pasirinktu Synology failu, kurio laikas %@. Bendrinamo aplanko failo laikas gali rodyti įkėlimo, o ne tikslų momentinės kopijos laiką. Veiksmo anuliuoti negalima."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thao tác này sẽ ghi đè cơ sở dữ liệu và tài liệu hiện tại bằng tệp Synology đã chọn có dấu thời gian %@. Thời gian tệp trên thư mục chia sẻ có thể là lúc tải lên thay vì thời điểm chụp chính xác. Không thể hoàn tác."
+          }
+        }
+      }
+    },
     "This pairing code has expired. Generate a fresh one on the dashboard's Devices page.": {
       "localizations": {
         "lt": {
@@ -15179,6 +16791,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Mã cổ phiếu (vd. XYZ)"
+          }
+        }
+      }
+    },
+    "Tiered": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pakopinis"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Theo tầng"
           }
         }
       }
@@ -15600,6 +17228,54 @@
         }
       }
     },
+    "Unavailable": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nepasiekiama"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không khả dụng"
+          }
+        }
+      }
+    },
+    "Unavailable because %lld stored amounts could not be read.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nepasiekiama, nes nepavyko perskaityti %lld išsaugotų sumų."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không khả dụng vì không thể đọc %lld khoản tiền đã lưu."
+          }
+        }
+      }
+    },
+    "Unavailable because 1 stored amount could not be read.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nepasiekiama, nes nepavyko perskaityti 1 išsaugotos sumos."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không khả dụng vì không thể đọc 1 khoản tiền đã lưu."
+          }
+        }
+      }
+    },
     "Uncategorize": {
       "localizations": {
         "lt": {
@@ -15952,6 +17628,22 @@
         }
       }
     },
+    "Use current box settings": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Naudoti dabartines serverio nuostatas"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dùng cài đặt hiện tại trên máy chủ"
+          }
+        }
+      }
+    },
     "Use pasted payload": {
       "localizations": {
         "lt": {
@@ -16236,6 +17928,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Người xem"
+          }
+        }
+      }
+    },
+    "Visible managed backups": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Matomos valdomos kopijos"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bản sao lưu được quản lý đang thấy"
           }
         }
       }
@@ -16999,6 +18707,22 @@
         }
       }
     },
+    "days": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "dienų"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ngày"
+          }
+        }
+      }
+    },
     "declared": {
       "localizations": {
         "lt": {
@@ -17465,6 +19189,22 @@
         }
       }
     },
+    "next backup estimate %@": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "kitos kopijos įvertis %@"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ước tính bản sao lưu tiếp theo %@"
+          }
+        }
+      }
+    },
     "no payments or paydays expected in the next %lld days": {
       "localizations": {
         "lt": {
@@ -17659,6 +19399,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "đã thấy 1 lần"
+          }
+        }
+      }
+    },
+    "size unknown": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "dydis nežinomas"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "chưa rõ dung lượng"
           }
         }
       }
@@ -17931,246 +19687,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "🧮 Tóm tắt tự động — bật bộ máy AI để có bản diễn giải."
-          }
-        }
-      }
-    },
-    "Partial total—1 stored amount could not be read and was left out.": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dalinė suma — 1 išsaugotos sumos nepavyko perskaityti, todėl ji neįtraukta."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tổng một phần — không thể đọc 1 khoản tiền đã lưu nên khoản đó không được tính."
-          }
-        }
-      }
-    },
-    "Partial total—%lld stored amounts could not be read and were left out.": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dalinė suma — %lld išsaugotų sumų nepavyko perskaityti, todėl jos neįtrauktos."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tổng một phần — không thể đọc %lld khoản tiền đã lưu nên các khoản đó không được tính."
-          }
-        }
-      }
-    },
-    "Unavailable because 1 stored amount could not be read.": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nepasiekiama, nes nepavyko perskaityti 1 išsaugotos sumos."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Không khả dụng vì không thể đọc 1 khoản tiền đã lưu."
-          }
-        }
-      }
-    },
-    "Unavailable because %lld stored amounts could not be read.": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nepasiekiama, nes nepavyko perskaityti %lld išsaugotų sumų."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Không khả dụng vì không thể đọc %lld khoản tiền đã lưu."
-          }
-        }
-      }
-    },
-    "Unavailable": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nepasiekiama"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Không khả dụng"
-          }
-        }
-      }
-    },
-    "%lld over · %lld warning": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld viršyta · %lld įspėjimas"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld vượt ngân sách · %lld cảnh báo"
-          }
-        }
-      }
-    },
-    "Bills still due": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dar neapmokėtos sąskaitos"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hóa đơn vẫn đến hạn"
-          }
-        }
-      }
-    },
-    "Coverage unavailable": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Padengimo įvertinimas nepasiekiamas"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Không thể xác định khả năng chi trả"
-          }
-        }
-      }
-    },
-    "Income received": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Gautos pajamos"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Thu nhập đã nhận"
-          }
-        }
-      }
-    },
-    "Payment status unavailable": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mokėjimo būsena nepasiekiama"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Không thể xác định trạng thái thanh toán"
-          }
-        }
-      }
-    },
-    "Payments": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mokėjimai"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Khoản thanh toán"
-          }
-        }
-      }
-    },
-    "Projection unavailable": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Prognozė nepasiekiama"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Không thể lập dự báo"
-          }
-        }
-      }
-    },
-    "Some stored financial data could not be read. Repair it on the dashboard, then try again.": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kai kurių išsaugotų finansinių duomenų nepavyko perskaityti. Pataisykite juos valdymo skydelyje ir bandykite dar kartą."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Không thể đọc một số dữ liệu tài chính đã lưu. Hãy sửa dữ liệu trên bảng điều khiển rồi thử lại."
-          }
-        }
-      }
-    },
-    "Spending categories · %@": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Išlaidų kategorijos · %@"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Danh mục chi tiêu · %@"
-          }
-        }
-      }
-    },
-    "Spending plan": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Išlaidų planas"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kế hoạch chi tiêu"
           }
         }
       }

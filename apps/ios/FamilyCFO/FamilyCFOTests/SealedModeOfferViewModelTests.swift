@@ -26,6 +26,9 @@ final class MockKeyStatusBackupAPI: BackupAPI, @unchecked Sendable {
     nonisolated func updateConfig(_ update: BackupConfigDraft) async throws
         -> Components.Schemas.BackupConfig
     { throw APIError.server(500) }
+    nonisolated func recoveryStatus() async throws -> Components.Schemas.BackupRecoveryStatus {
+        throw APIError.server(500)
+    }
     nonisolated func checkConnection(_ draft: BackupConfigDraft) async throws
         -> Components.Schemas.BackupDestinationCheckResponse
     { throw APIError.server(500) }
