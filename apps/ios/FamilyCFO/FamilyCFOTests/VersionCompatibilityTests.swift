@@ -60,8 +60,9 @@ struct OverviewVersionMismatchTests {
             householdId: "hh-1",
             displayName: "demo-household",
             currency: "USD",
-            netWorth: .init(amountMinor: 0, currency: "USD"),
-            emergencyFundMonths: 0
+            netWorth: testQualified(0),
+            emergencyFundMonths: 0,
+            savingsContributions: testSavingsSet()
         )
     }
 

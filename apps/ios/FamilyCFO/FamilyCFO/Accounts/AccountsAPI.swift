@@ -280,6 +280,8 @@ struct LiveAccountsAPI: AccountsAPI {
             return try response.body.json.statements ?? []
         case .unauthorized:
             throw APIError.unauthorized
+        case .conflict:
+            throw APIError.incompleteData
         case .undocumented(let status, _):
             throw APIError.server(status)
         }
@@ -306,6 +308,8 @@ struct LiveAccountsAPI: AccountsAPI {
             throw APIError.server(403)
         case .notFound:
             throw APIError.server(404)
+        case .conflict:
+            throw APIError.incompleteData
         case .unprocessableContent:
             // The server refuses a statement on anything but a credit card.
             throw APIError.server(422)
@@ -320,6 +324,8 @@ struct LiveAccountsAPI: AccountsAPI {
         ) {
         case .ok:
             return
+        case .conflict:
+            throw APIError.incompleteData
         case .unauthorized:
             throw APIError.unauthorized
         case .forbidden:
@@ -337,6 +343,8 @@ struct LiveAccountsAPI: AccountsAPI {
             return
         case .notFound:
             return  // already gone
+        case .conflict:
+            throw APIError.incompleteData
         case .unauthorized:
             throw APIError.unauthorized
         case .forbidden:
@@ -388,6 +396,8 @@ struct LiveAccountsAPI: AccountsAPI {
         ) {
         case .ok(let response):
             return try response.body.json
+        case .conflict:
+            throw APIError.incompleteData
         case .unauthorized:
             throw APIError.unauthorized
         case .notFound:
@@ -405,6 +415,8 @@ struct LiveAccountsAPI: AccountsAPI {
         ) {
         case .ok(let response):
             return try response.body.json
+        case .conflict:
+            throw APIError.incompleteData
         case .unauthorized:
             throw APIError.unauthorized
         case .forbidden:

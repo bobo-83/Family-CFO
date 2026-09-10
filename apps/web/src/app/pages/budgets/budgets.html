@@ -13,52 +13,71 @@
   <p class="page-empty" i18n="Empty state|No budget envelopes have been created">No budgets yet.</p>
 } @else {
   @if (summary(); as s) {
-    <div class="budget-summary" [attr.data-hot]="s.percentUsed >= 80">
-      <strong i18n="Budget summary|Total of every envelope's monthly limit">Budgeted {{ s.limit }} a month</strong>
-      <span i18n="Budget summary|Total spent across every envelope and the share of the limit used">{{ s.spent }} spent — {{ s.percentUsed }}% used</span>
+    <div class="budget-summary" [attr.data-hot]="s.over_count !== null && s.over_count > 0">
+      <strong i18n="Budget summary|Total of every envelope's monthly limit">Budgeted {{ formatMoney(s.total_budgeted) }} a month</strong>
+      <span i18n="Budget summary|Server total spent across every envelope">{{ formatQualifiedMoney(s.total_spent) }} spent</span>
+      @if (partialMoneyNote(s.total_spent); as note) {
+        <span class="qualified-note" role="status">{{ note }}</span>
+      }
+      @if (s.over_count === null || s.warning_count === null) {
+        <span class="qualified-note" role="status">{{ unavailableLabel }}</span>
+      } @else if (s.over_count > 0) {
+        <span i18n="Budget summary status|Number of envelopes over their limits">{{ s.over_count }} over budget</span>
+      } @else if (s.warning_count > 0) {
+        <span i18n="Budget summary status|Number of envelopes near their limits">{{ s.warning_count }} almost at the limit</span>
+      }
     </div>
   }
   <div class="budget-list">
     @for (budget of budgets(); track budget.id) {
-      <mat-card appearance="outlined" class="budget" [attr.data-status]="budget.status">
+      <mat-card appearance="outlined" class="budget" [attr.data-status]="budget.status ?? 'unavailable'">
         <mat-card-content>
         <div class="budget__head">
           <span class="budget__name">{{ budget.category_name }}</span>
-          <span class="budget__status budget__status--{{ budget.status }}">
-            @switch (budget.status) {
-              @case ('over') {
-                <ng-container i18n="Budget status|Spending has passed this envelope's limit">Over budget</ng-container>
+          @if (budget.status; as status) {
+            <span class="budget__status budget__status--{{ status }}">
+              @switch (status) {
+                @case ('over') {
+                  <ng-container i18n="Budget status|Spending has passed this envelope's limit">Over budget</ng-container>
+                }
+                @case ('warning') {
+                  <ng-container i18n="Budget status|Spending is close to this envelope's limit">Almost there</ng-container>
+                }
+                @default {
+                  <ng-container i18n="Budget status|Spending is comfortably inside this envelope's limit">On track</ng-container>
+                }
               }
-              @case ('warning') {
-                <ng-container i18n="Budget status|Spending is close to this envelope's limit">Almost there</ng-container>
-              }
-              @default {
-                <ng-container i18n="Budget status|Spending is comfortably inside this envelope's limit">On track</ng-container>
-              }
-            }
-          </span>
-        </div>
-        <div
-          class="budget__bar"
-          role="progressbar"
-          [attr.aria-valuenow]="budget.percent_used"
-          aria-valuemin="0"
-          aria-valuemax="100"
-        >
-          <div
-            class="budget__bar-fill budget__bar-fill--{{ budget.status }}"
-            [style.width.%]="barWidth(budget)"
-          ></div>
-        </div>
-        <div class="budget__numbers">
-          <ng-container i18n="Budget totals|Amount spent out of this envelope's limit, and the share used">{{ formatMoney(budget.spent) }} of {{ formatMoney(budget.limit) }} ·
-          {{ budget.percent_used }}%</ng-container>
-          @if (budget.remaining.amount_minor >= 0) {
-            <ng-container i18n="Budget remainder|Money still available in this envelope">· {{ formatMoney(budget.remaining) }} left</ng-container>
+            </span>
           } @else {
-            <ng-container i18n="Budget remainder|Amount spent beyond this envelope's limit">· over by {{ formatMoney({ amount_minor: -budget.remaining.amount_minor, currency: budget.remaining.currency }) }}</ng-container>
+            <span class="budget__status">{{ unavailableLabel }}</span>
           }
         </div>
+        @if (budget.percent_used !== null && budget.status !== null) {
+          <div
+            class="budget__bar"
+            role="progressbar"
+            [attr.aria-valuenow]="budget.percent_used"
+            aria-valuemin="0"
+            aria-valuemax="100"
+          >
+            <div
+              class="budget__bar-fill budget__bar-fill--{{ budget.status }}"
+              [style.width.%]="barWidth(budget)"
+            ></div>
+          </div>
+        }
+        <div class="budget__numbers">
+          <ng-container i18n="Budget totals|Amount spent out of this envelope's limit">{{ formatQualifiedMoney(budget.spent) }} of {{ formatMoney(budget.limit) }}</ng-container>
+          @if (budget.percent_used !== null) {
+            · {{ budget.percent_used }}%
+          }
+          @if (budget.remaining; as remaining) {
+            <ng-container i18n="Budget remainder|Signed money remaining in this envelope">· {{ formatQualifiedMoney(remaining) }} remaining</ng-container>
+          }
+        </div>
+        @if (partialMoneyNote(budget.spent); as note) {
+          <div class="qualified-note" role="status">{{ note }}</div>
+        }
         @if (canWrite()) {
           <div class="budget__actions">
             <mat-form-field appearance="outline" subscriptSizing="dynamic" class="budget__limit-edit">

@@ -38,6 +38,8 @@ class VectorStoreAdapter(Protocol):
 
     def delete_household(self, household_id: str) -> None: ...
 
+    def delete_household_kind(self, household_id: str, kind: str) -> None: ...
+
     def upsert(self, points: list[VectorPoint]) -> None: ...
 
     def search(self, vector: list[float], household_id: str, limit: int) -> list[VectorHit]: ...
@@ -75,6 +77,20 @@ class QdrantVectorStore:
             json={
                 "filter": {
                     "must": [{"key": "household_id", "match": {"value": household_id}}]
+                }
+            },
+        )
+        response.raise_for_status()
+
+    def delete_household_kind(self, household_id: str, kind: str) -> None:
+        response = self._client.post(
+            self._url("/points/delete?wait=true"),
+            json={
+                "filter": {
+                    "must": [
+                        {"key": "household_id", "match": {"value": household_id}},
+                        {"key": "kind", "match": {"value": kind}},
+                    ]
                 }
             },
         )
@@ -129,6 +145,16 @@ class InMemoryVectorStore:
             point_id: point
             for point_id, point in self.points.items()
             if point.payload.get("household_id") != household_id
+        }
+
+    def delete_household_kind(self, household_id: str, kind: str) -> None:
+        self.points = {
+            point_id: point
+            for point_id, point in self.points.items()
+            if not (
+                point.payload.get("household_id") == household_id
+                and point.payload.get("kind") == kind
+            )
         }
 
     def upsert(self, points: list[VectorPoint]) -> None:

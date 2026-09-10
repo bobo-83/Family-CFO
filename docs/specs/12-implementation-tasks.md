@@ -1668,6 +1668,111 @@ Advisor tool access: the six total-owning tools disclose what they leave out;
 `get_accounts` (#130) already listed and flagged the account. No new domain.
 
 
+## M124: Qualified Incomplete Monetary Aggregates (#119)
+
+Issue #119 is governed by ADR 0076 and the accepted design in
+`docs/plans/incomplete-monetary-aggregates-2026-09-08.md`. Work is intentionally
+split so documentation precedes behavior and each later owner verifies its own
+boundary.
+
+### Item 1 — Documentation Gate (documentation owner)
+
+- [x] Create and accept ADR 0076: qualified additive leaves, unavailable
+      decisions, storage-cell identity/set deduplication, strict boundaries,
+      privacy, client parity, coordinated versioning, and rejected alternatives.
+- [x] Update Spec Kit artifacts in required order, PRD through this task list.
+- [x] Record no SQL migration, no Docker/runtime topology or cloud dependency,
+      no new advisor domain, no mixed contract mode, and macOS-only Apple work.
+- [x] Stop before Python, OpenAPI, version/build metadata, generated clients,
+      web, or Swift changes; Items 2–5 own them.
+
+### Item 2 — Backend Qualification, Contract, and Release Metadata (backend/contract owner)
+
+- [ ] Add immutable request-local unreadable-source, qualified value/row, and
+      metadata-preserving candidate types; keep `_dec_amount` strict and catch
+      only `SealedAmountUnreadableError` at the aggregate cell boundary.
+- [ ] Inventory every sealed transaction/card-statement amount read and classify
+      it as qualified or deliberately strict. Apply non-amount predicates first,
+      preserve candidate metadata through attribution/detection, use one-pass
+      category totals, and select an authoritative statement before balance
+      decode.
+- [ ] Thread source sets through household, budgets/mutations, timeline, outlook,
+      plan, savings, income/tax, yearly, and calculation-attempt services. Invoke
+      deterministic calculations only for empty dependency sets and persist at
+      most one application-versioned incomplete attempt where persistence
+      already exists.
+- [ ] Update FastAPI schemas and authoritative OpenAPI with exact ADR 0076 field
+      shapes/null-zero-empty semantics and strict 409 responses. Strengthen
+      recursive parity checks for `$ref`, requiredness, nullability, array items,
+      and enums.
+- [ ] Move `0.158` to expected `0.159` (or the next unused minor), reset all
+      component builds, add the immutable fixture, and regenerate both clients
+      atomically. Do not add a migration or Docker change.
+- [ ] **Backend verification owner:** run strict and qualified corruption tests,
+      all affected endpoint/service suites, count deduplication and scope cases,
+      one-write/cancellation persistence, privacy capture, count-0 regression,
+      OpenAPI, lint, and coverage from the repository environment. Report exact
+      commands and results.
+
+### Item 3 — Advisor and Background Consumers (advisor/worker owner)
+
+- [x] Reuse the Item 2 services in every existing affected tool; serialize
+      `value`/`incomplete_count`, exclude the count from grounding, preserve ADR
+      0075 currency disclosure, and return structured `incomplete_data` rather
+      than reconstructing or recommending from null decisions.
+- [x] Gate study/review/narrative work before runtime/fallback and persistence;
+      scan past incomplete months. Isolate strict report/index failures by
+      household/job, and catch vector failures before wipe so prior vectors
+      survive scheduled retry.
+- [x] **Advisor/worker verification owner:** prove partial counts never ground
+      money, unsafe advice/rankings are absent, declared facts survive unstable
+      inference, no incomplete memory/hash/review is written, workers do not
+      starve later work, and logs/payloads reveal no source identity.
+
+### Item 4 — Web Client and Surfaces (web owner)
+
+- [ ] Regenerate the web client; add shared qualified/unavailable presentation;
+      update Overview, Budgets and mutation refreshes, Bills timeline, Income/Tax,
+      fixtures, and every other production consumer of changed fields.
+- [ ] Remove local aggregate/decision recomposition and consume server
+      `SpendingByCategory.total` and `BudgetListResponse.summary`. Preserve
+      request/session ownership and unaffected sibling rendering.
+- [ ] Add localized, accessible partial/unavailable copy and remove misleading
+      status/progress/style/navigation when a decision is unavailable.
+- [ ] **Web verification owner:** run generated-client drift and compatibility,
+      unit tests, production build, i18n, accessibility and affected browser
+      coverage; explicitly test count 0, partial nonzero/zero, pluralization,
+      unavailable decisions, sibling survival, and absence of local arithmetic.
+
+### Item 5 — Apple Phone, Watch, and Widgets (Apple owner; macOS/Xcode only)
+
+- [ ] Regenerate Swift from the same contract; never hand-edit generated files.
+      Update all phone/iPad, Watch, widget, Bills, Budgets, Income/Tax, and
+      Overview consumers plus primitive snapshot mappings and catalogs.
+- [ ] Consume server category/budget totals; never recompute qualified decisions.
+      Preserve optional backward-compatible primitive cache fields and clear
+      stale safety values on successful unavailable responses.
+- [ ] Refactor Overview loading around household/session, month, and monotonic
+      generation ownership; optional outlook/plan failure must not discard valid
+      context, and every post-await state/cache/notification/widget side effect
+      must reject stale work.
+- [ ] **Apple verification owner:** on macOS run Swift generation/compatibility
+      checks and the Xcode iOS/watchOS test matrix, including VoiceOver,
+      count/availability presentation, primitive cache compatibility and stale
+      clearing, same-month reverse completion, cancellation, session replacement,
+      optional failure, and post-await side-effect suppression.
+
+### Coordinated Release Gate (release owner; depends on Items 2–5)
+
+- [ ] Verify one contract version across API, worker, web, iOS, immutable fixture,
+      and generated clients; enumerate every strict decoder call and every
+      changed generated-model consumer.
+- [ ] Run the normal and synthetic-corruption matrices in ordinary and CI key
+      configurations without asking for or handling secrets. Confirm no
+      migration/Docker diff and no generated-client drift.
+- [ ] Deploy API and clients together; roll back together. Mixed `0.158`/new
+      artifacts are unsupported.
+
 ## Backlog: Annual Report
 
 The PRD (`docs/specs/01-prd.md`) lists "weekly, monthly, and annual reports" as a functional requirement, but the M8 roadmap bullets (`docs/specs/11-milestone-roadmap.md`) name only weekly and monthly, so M8's spec gate scoped annual out rather than silently dropping it. No milestone currently owns it.

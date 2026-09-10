@@ -1,0 +1,29 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "$": { "localizations": { "lt": { "stringUnit": { "state": "translated", "value": "$" } }, "vi": { "stringUnit": { "state": "translated", "value": "$" } } } },
+    "%@ left": { "localizations": { "lt": { "stringUnit": { "state": "translated", "value": "%@ liko" } }, "vi": { "stringUnit": { "state": "translated", "value": "Còn %@" } } } },
+    "%@, %@": { "localizations": { "lt": { "stringUnit": { "state": "translated", "value": "%@, %@" } }, "vi": { "stringUnit": { "state": "translated", "value": "%@, %@" } } } },
+    "%@, %@. %@": { "localizations": { "lt": { "stringUnit": { "state": "translated", "value": "%@, %@. %@" } }, "vi": { "stringUnit": { "state": "translated", "value": "%@, %@. %@" } } } },
+    "%lld near limit": { "localizations": { "lt": { "stringUnit": { "state": "translated", "value": "%lld arti limito" } }, "vi": { "stringUnit": { "state": "translated", "value": "%lld gần chạm giới hạn" } } } },
+    "%lld over budget": { "localizations": { "lt": { "stringUnit": { "state": "translated", "value": "%lld virš biudžeto" } }, "vi": { "stringUnit": { "state": "translated", "value": "%lld vượt ngân sách" } } } },
+    "Budget %@": { "localizations": { "lt": { "stringUnit": { "state": "translated", "value": "Biudžetas %@" } }, "vi": { "stringUnit": { "state": "translated", "value": "Ngân sách %@" } } } },
+    "Budgets": { "localizations": { "lt": { "stringUnit": { "state": "translated", "value": "Biudžetai" } }, "vi": { "stringUnit": { "state": "translated", "value": "Ngân sách" } } } },
+    "Income: %@": { "localizations": { "lt": { "stringUnit": { "state": "translated", "value": "Pajamos: %@" } }, "vi": { "stringUnit": { "state": "translated", "value": "Thu nhập: %@" } } } },
+    "Left to spend": { "localizations": { "lt": { "stringUnit": { "state": "translated", "value": "Liko išleisti" } }, "vi": { "stringUnit": { "state": "translated", "value": "Còn để chi tiêu" } } } },
+    "Left to spend (or safe to spend) from your own box, at a glance.": { "localizations": { "lt": { "stringUnit": { "state": "translated", "value": "Vienu žvilgsniu matykite, kiek liko ar saugu išleisti pagal jūsų serverį." } }, "vi": { "stringUnit": { "state": "translated", "value": "Xem nhanh số tiền còn lại hoặc an toàn để chi tiêu từ máy chủ của bạn." } } } },
+    "Money glance": { "localizations": { "lt": { "stringUnit": { "state": "translated", "value": "Pinigų apžvalga" } }, "vi": { "stringUnit": { "state": "translated", "value": "Tổng quan tiền bạc" } } } },
+    "Net worth": { "localizations": { "lt": { "stringUnit": { "state": "translated", "value": "Grynoji vertė" } }, "vi": { "stringUnit": { "state": "translated", "value": "Giá trị ròng" } } } },
+    "On track": { "localizations": { "lt": { "stringUnit": { "state": "translated", "value": "Viskas pagal planą" } }, "vi": { "stringUnit": { "state": "translated", "value": "Đúng tiến độ" } } } },
+    "Open Family CFO": { "localizations": { "lt": { "stringUnit": { "state": "translated", "value": "Atidaryti Family CFO" } }, "vi": { "stringUnit": { "state": "translated", "value": "Mở Family CFO" } } } },
+    "Partial total—%lld stored amounts could not be read and were left out.": { "localizations": { "lt": { "stringUnit": { "state": "translated", "value": "Dalinė suma — %lld išsaugotų sumų nepavyko perskaityti, todėl jos neįtrauktos." } }, "vi": { "stringUnit": { "state": "translated", "value": "Tổng một phần — không thể đọc %lld khoản tiền đã lưu nên các khoản đó không được tính." } } } },
+    "Partial total—1 stored amount could not be read and was left out.": { "localizations": { "lt": { "stringUnit": { "state": "translated", "value": "Dalinė suma — 1 išsaugotos sumos nepavyko perskaityti, todėl ji neįtraukta." } }, "vi": { "stringUnit": { "state": "translated", "value": "Tổng một phần — không thể đọc 1 khoản tiền đã lưu nên khoản đó không được tính." } } } },
+    "Safe to spend": { "localizations": { "lt": { "stringUnit": { "state": "translated", "value": "Saugu išleisti" } }, "vi": { "stringUnit": { "state": "translated", "value": "An toàn để chi tiêu" } } } },
+    "Spending: %@": { "localizations": { "lt": { "stringUnit": { "state": "translated", "value": "Išlaidos: %@" } }, "vi": { "stringUnit": { "state": "translated", "value": "Chi tiêu: %@" } } } },
+    "Unavailable": { "localizations": { "lt": { "stringUnit": { "state": "translated", "value": "Nepasiekiama" } }, "vi": { "stringUnit": { "state": "translated", "value": "Không khả dụng" } } } },
+    "Unavailable—%lld stored amounts could not be read.": { "localizations": { "lt": { "stringUnit": { "state": "translated", "value": "Nepasiekiama — nepavyko perskaityti %lld išsaugotų sumų." } }, "vi": { "stringUnit": { "state": "translated", "value": "Không khả dụng — không thể đọc %lld khoản tiền đã lưu." } } } },
+    "Unavailable—1 stored amount could not be read.": { "localizations": { "lt": { "stringUnit": { "state": "translated", "value": "Nepasiekiama — nepavyko perskaityti 1 išsaugotos sumos." } }, "vi": { "stringUnit": { "state": "translated", "value": "Không khả dụng — không thể đọc 1 khoản tiền đã lưu." } } } },
+    "Your server-calculated monthly budget status, from your own box.": { "localizations": { "lt": { "stringUnit": { "state": "translated", "value": "Jūsų serverio apskaičiuota mėnesio biudžeto būklė." } }, "vi": { "stringUnit": { "state": "translated", "value": "Tình trạng ngân sách tháng do máy chủ của bạn tính toán." } } } }
+  },
+  "version": "1.0"
+}

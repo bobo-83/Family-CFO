@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import WatchConnectivity
+import WidgetKit
 
 /// The watch's little world: the credential relayed from the phone
 /// (WatchConnectivity application context), persisted so the app works
@@ -13,8 +14,17 @@ final class WatchModel {
     private(set) var certificateSHA256: String?
     private(set) var token: String?
     private(set) var householdName: String?
+    /// Atomic owner key for every Watch load. It advances once after all pairing
+    /// fields have been replaced and the resulting session identity changed.
+    private(set) var sessionRevision: UInt64 = 0
 
     var isPaired: Bool { apiBaseURL != nil && token != nil }
+
+    /// Request-start provenance for Watch loads and primitive snapshots. The
+    /// token stays in memory and is used only as an equality key.
+    var sessionIdentity: String? {
+        Self.sessionIdentity(apiBaseURL: apiBaseURL, token: token)
+    }
 
     /// M95: the streamed chat response's advertised recovery horizon,
     /// captured by the middleware and read back when a stream fails mid-turn.
@@ -56,18 +66,45 @@ final class WatchModel {
     }
 
     func apply(_ context: [String: String], persist: Bool = true) {
-        apiBaseURL = context["apiBaseURL"].flatMap(URL.init(string:))
+        let previousIdentity = sessionIdentity
+        let nextBaseURL = context["apiBaseURL"].flatMap(URL.init(string:))
         // #86: the phone relays "" when the box's certificate is CA-signed and
         // nothing was pinned — application context carries strings, not
         // optionals. An empty pin is no pin; keeping it as "" pinned the watch
         // to a hash no certificate can have, so the watch alone refused every
         // request while the phone was happily connected.
-        certificateSHA256 = CertificatePin.normalizedPin(context["certificateSHA256"])
-        token = context["token"].flatMap { $0.isEmpty ? nil : $0 }
-        householdName = context["householdName"]
+        let nextCertificateSHA256 = CertificatePin.normalizedPin(context["certificateSHA256"])
+        let nextToken = context["token"].flatMap { $0.isEmpty ? nil : $0 }
+        let nextHouseholdName = context["householdName"]
+        let nextIdentity = Self.sessionIdentity(apiBaseURL: nextBaseURL, token: nextToken)
+
+        // Replace the component fields from one parsed context, then publish a
+        // single revision change for task ownership. Views key work to the
+        // revision rather than observing intermediate URL/token combinations.
+        apiBaseURL = nextBaseURL
+        certificateSHA256 = nextCertificateSHA256
+        token = nextToken
+        householdName = nextHouseholdName
+
+        let identityChanged = WatchSessionTransition.changed(
+            from: previousIdentity, to: nextIdentity)
+        if WatchSessionTransition.shouldClearSnapshot(
+            from: previousIdentity, to: nextIdentity, persist: persist)
+        {
+            // The primitive cache has no embedded session identity, so it must
+            // not remain visible across sign-out, token rotation, or re-pairing.
+            WatchFaceSnapshotStore().clear()
+            WidgetCenter.shared.reloadAllTimelines()
+        }
+        if identityChanged { sessionRevision &+= 1 }
         if persist, let data = try? JSONEncoder().encode(context) {
             UserDefaults.standard.set(data, forKey: Self.defaultsKey)
         }
+    }
+
+    private static func sessionIdentity(apiBaseURL: URL?, token: String?) -> String? {
+        guard let apiBaseURL, let token else { return nil }
+        return "\(apiBaseURL.absoluteString):\(token)"
     }
 
     /// ADR 0067 v6: a 401 usually means the phone rotated the session while
@@ -76,9 +113,12 @@ final class WatchModel {
     /// Ask the phone for its CURRENT pairing over the live channel — waking
     /// its app in the background if needed — and apply the reply. Returns
     /// true when a different token landed, i.e. a retry is worth it.
-    func requestFreshCredential() async -> Bool {
+    func requestFreshCredential(expectedIdentity: String) async -> Bool {
+        guard sessionIdentity == expectedIdentity else { return false }
         let stale = token
-        guard let context = await connectivity.requestContext() else { return false }
+        guard let context = await connectivity.requestContext(),
+            sessionIdentity == expectedIdentity, !Task.isCancelled
+        else { return false }
         apply(context)
         return token != nil && token != stale
     }

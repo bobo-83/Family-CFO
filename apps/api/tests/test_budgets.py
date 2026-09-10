@@ -5,8 +5,20 @@ from datetime import date, timedelta
 import pytest
 
 from family_cfo_api import fixtures, repository
+from family_cfo_api.api import budgets as budgets_api
+from family_cfo_api.api import household as household_api
+from family_cfo_api.qualified_amounts import (
+    CategorySpendingTotals,
+    Qualified,
+    UnreadableAmountSource,
+)
 
 _HH = fixtures.DEMO_HOUSEHOLD_ID
+
+
+def _qminor(value: dict) -> int:
+    assert value["incomplete_count"] == 0
+    return value["value"]["amount_minor"]
 
 
 def _headers(token: str) -> dict[str, str]:
@@ -95,19 +107,19 @@ async def test_status_thresholds_track_current_month_spend(
         return next(b for b in budgets if b["category_id"] == category_id)
 
     assert (await status())["status"] == "under"
-    assert (await status())["spent"]["amount_minor"] == 0
+    assert _qminor((await status())["spent"]) == 0
 
     _spend(demo_engine, category_id, today, -8_000)  # 80% -> warning
     entry = await status()
     assert entry["status"] == "warning"
     assert entry["percent_used"] == 80
-    assert entry["remaining"]["amount_minor"] == 2_000
+    assert _qminor(entry["remaining"]) == 2_000
 
     _spend(demo_engine, category_id, today, -4_000)  # 120% -> over
     entry = await status()
     assert entry["status"] == "over"
     assert entry["percent_used"] == 120
-    assert entry["remaining"]["amount_minor"] == -2_000
+    assert _qminor(entry["remaining"]) == -2_000
 
 
 @pytest.mark.anyio
@@ -135,7 +147,78 @@ async def test_budget_summary_on_household_context(demo_client, demo_token, demo
     assert summary["over_count"] == 1
     assert summary["warning_count"] == 0
     assert summary["total_budgeted"]["amount_minor"] == 105_000
-    assert summary["total_spent"]["amount_minor"] == 6_000
+    assert _qminor(summary["total_spent"]) == 6_000
+
+
+def test_empty_budget_response_remains_exact_despite_unrelated_spending(
+    demo_engine, monkeypatch
+) -> None:
+    source = UnreadableAmountSource(_HH, "transactions", "unrelated", "amount_minor")
+    partial = Qualified(9_999, frozenset({source}))
+    totals = CategorySpendingTotals(
+        by_category={"unselected": partial},
+        categorized_total=partial,
+        uncategorized=Qualified.complete(0),
+        overall=partial,
+    )
+    monkeypatch.setattr(
+        repository, "category_spending_totals", lambda *_args, **_kwargs: totals
+    )
+
+    response = budgets_api.assemble_budget_response(demo_engine, _HH, "USD")
+
+    assert response.budgets == []
+    assert response.summary.envelope_count == 0
+    assert response.summary.total_spent.value.amount_minor == 0
+    assert response.summary.total_spent.incomplete_count == 0
+
+
+def test_budget_list_and_household_summary_share_one_spending_snapshot(
+    demo_engine, monkeypatch
+) -> None:
+    first_category = repository.create_category(demo_engine, _HH, "Snapshot A")
+    second_category = repository.create_category(demo_engine, _HH, "Snapshot B")
+    repository.create_budget(demo_engine, _HH, first_category.id, 5_000, "USD")
+    repository.create_budget(demo_engine, _HH, second_category.id, 10_000, "USD")
+    snapshots = [
+        CategorySpendingTotals(
+            by_category={
+                first_category.id: Qualified.complete(6_000),
+                second_category.id: Qualified.complete(1_000),
+            },
+            categorized_total=Qualified.complete(7_000),
+            uncategorized=Qualified.complete(0),
+            overall=Qualified.complete(7_000),
+        ),
+        CategorySpendingTotals(
+            by_category={},
+            categorized_total=Qualified.complete(0),
+            uncategorized=Qualified.complete(0),
+            overall=Qualified.complete(0),
+        ),
+    ]
+    calls: list[int] = []
+
+    def alternating(*_args, **_kwargs):
+        calls.append(1)
+        return snapshots[min(len(calls) - 1, 1)]
+
+    monkeypatch.setattr(repository, "category_spending_totals", alternating)
+
+    response = budgets_api.assemble_budget_response(demo_engine, _HH, "USD")
+
+    assert len(calls) == 1
+    assert [budget.spent.value.amount_minor for budget in response.budgets] == [6_000, 1_000]
+    assert response.summary.total_spent.value.amount_minor == 7_000
+    assert response.summary.over_count == 1
+
+    calls.clear()
+    summary = household_api._budget_summary(demo_engine, _HH, "USD")
+
+    assert len(calls) == 1
+    assert summary is not None
+    assert summary.total_spent.value.amount_minor == 7_000
+    assert summary.over_count == 1
 
 
 @pytest.mark.anyio

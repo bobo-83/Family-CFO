@@ -29,14 +29,48 @@ function loadInitialState(): StoredAuthState | null {
  */
 export const authState = signal<StoredAuthState | null>(loadInitialState());
 
+type AuthStateListener = (state: StoredAuthState | null) => void;
+const authStateListeners = new Set<AuthStateListener>();
+
+/** Subscribe to synchronous login, replacement, and logout transitions. */
+export function subscribeToAuthState(listener: AuthStateListener): () => void {
+  authStateListeners.add(listener);
+  return () => authStateListeners.delete(listener);
+}
+
+function notifyAuthStateListeners(state: StoredAuthState | null): void {
+  for (const listener of [...authStateListeners]) {
+    try {
+      listener(state);
+    } catch {
+      // Auth transitions must reach every listener even if one listener fails.
+    }
+  }
+}
+
+function persistAuthState(state: StoredAuthState | null): void {
+  try {
+    if (state) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } else {
+      localStorage.removeItem(STORAGE_KEY);
+    }
+  } catch {
+    // Storage is only a reload cache. Its failure must not block the live auth
+    // transition or synchronous session-owner invalidation.
+  }
+}
+
 export function setAuthState(state: StoredAuthState): void {
   authState.set(state);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  persistAuthState(state);
+  notifyAuthStateListeners(state);
 }
 
 export function clearAuthState(): void {
   authState.set(null);
-  localStorage.removeItem(STORAGE_KEY);
+  persistAuthState(null);
+  notifyAuthStateListeners(null);
 }
 
 export function getToken(): string | null {
@@ -49,4 +83,3 @@ export function getToken(): string | null {
  * level for the same reason as `authState`: the fetch interceptor that sets
  * it runs outside Angular's DI graph.
  */
-

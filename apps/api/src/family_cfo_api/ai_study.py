@@ -29,6 +29,7 @@ from family_cfo_api import repository
 from family_cfo_api.ai_memory import parse_extracted_memories
 from family_cfo_api.ai_runtime_selection import resolve_ai_config, select_tool_runtime
 from family_cfo_api.config import Settings
+from family_cfo_api.qualified_amounts import Qualified, union_sources
 
 logger = logging.getLogger(__name__)
 
@@ -100,25 +101,42 @@ def complete_months(engine: Engine, household_id: str, *, today: date | None = N
     return months
 
 
-def build_month_digest(engine: Engine, household_id: str, currency: str, month: str) -> dict:
-    """The deterministic facts of one month, straight from Postgres."""
+def build_month_digest(
+    engine: Engine, household_id: str, currency: str, month: str
+) -> Qualified[dict]:
+    """The deterministic facts of one month plus all omitted-source provenance."""
     start, end = month_bounds(month)
-    category_names = {c.id: c.name for c in repository.list_categories(engine, household_id)}
-    by_category = repository.sum_spending_by_category(engine, household_id, start, end, currency)
-    return {
+    category_names = {
+        category.id: category.name
+        for category in repository.list_categories(engine, household_id)
+    }
+    categories = repository.category_spending_totals(
+        engine, household_id, start, end, currency
+    )
+    income = repository.sum_income(engine, household_id, start, end, currency)
+    spending = repository.sum_spending(engine, household_id, start, end, currency)
+    merchants = repository.top_spending_merchants(
+        engine, household_id, start, end, currency, limit=8
+    )
+    digest = {
         "month": month,
         "currency": currency,
-        "income_minor": repository.sum_income(engine, household_id, start, end, currency),
-        "spending_minor": repository.sum_spending(engine, household_id, start, end, currency),
+        "income_minor": income.value,
+        "spending_minor": spending.value,
         "spending_by_category": {
-            category_names.get(category_id, "Other"): amount
-            for category_id, amount in sorted(by_category.items(), key=lambda kv: -kv[1])
+            category_names.get(category_id, "Other"): amount.value
+            for category_id, amount in sorted(
+                categories.by_category.items(), key=lambda item: -item[1].value
+            )
         },
         "top_merchants": {
-            m.merchant: m.amount_minor
-            for m in repository.top_spending_merchants(engine, household_id, start, end, currency, limit=8)
+            merchant.merchant: merchant.amount_minor for merchant in merchants.value
         },
     }
+    return Qualified(
+        digest,
+        union_sources(income, spending, categories.overall, merchants),
+    )
 
 
 def digest_fingerprint(digest: dict) -> str:
@@ -145,9 +163,18 @@ def _format_digest(digest: dict) -> str:
 
 def study_month(
     runtime, engine: Engine, household_id: str, currency: str, month: str, *, model: str | None = None
-) -> int:
-    """One study pass: digest → runtime → upserted insights. Returns how many."""
-    digest = build_month_digest(engine, household_id, currency, month)
+) -> int | None:
+    """Study a complete month; return None when unreadable inputs defer it."""
+    qualified_digest = build_month_digest(engine, household_id, currency, month)
+    if not qualified_digest.is_complete:
+        logger.info(
+            "study deferred: incomplete data household_id=%s month=%s incomplete_count=%d retryable=true",
+            household_id,
+            month,
+            qualified_digest.incomplete_count,
+        )
+        return None
+    digest = qualified_digest.value
     completion = runtime.complete(
         [
             RuntimeMessage(role="system", content=_STUDY_SYSTEM_PROMPT),
@@ -210,11 +237,31 @@ def _next_month_to_study(
         return None
     studied = {m.month: m.digest_hash for m in repository.list_study_months(engine, household_id)}
     for month in reversed(months):
-        if month not in studied:
-            return month
-    for month in reversed(months):
+        if month in studied:
+            continue
         digest = build_month_digest(engine, household_id, currency, month)
-        if digest_fingerprint(digest) != studied[month]:
+        if not digest.is_complete:
+            logger.info(
+                "study deferred: incomplete data household_id=%s month=%s incomplete_count=%d retryable=true",
+                household_id,
+                month,
+                digest.incomplete_count,
+            )
+            continue
+        return month
+    for month in reversed(months):
+        if month not in studied:
+            continue
+        digest = build_month_digest(engine, household_id, currency, month)
+        if not digest.is_complete:
+            logger.info(
+                "study deferred: incomplete data household_id=%s month=%s incomplete_count=%d retryable=true",
+                household_id,
+                month,
+                digest.incomplete_count,
+            )
+            continue
+        if digest_fingerprint(digest.value) != studied[month]:
             return month
     return None
 
@@ -259,12 +306,13 @@ def run_study_tick(
                     count = study_month(
                         runtime, engine, household_id, currency, month, model=config.model
                     )
-                    logger.info(
-                        "studied month household_id=%s month=%s insights=%d",
-                        household_id,
-                        month,
-                        count,
-                    )
+                    if count is not None:
+                        logger.info(
+                            "studied month household_id=%s month=%s insights=%d",
+                            household_id,
+                            month,
+                            count,
+                        )
             finally:
                 runtime.close()
         except RuntimeUnavailableError:

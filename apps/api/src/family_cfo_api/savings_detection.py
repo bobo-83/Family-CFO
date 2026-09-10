@@ -418,28 +418,96 @@ def monthly_equivalent_minor(candidate: ContributionCandidate) -> int:
     return round(candidate.amount_minor * per_year / 12)
 
 
-def detect_for_household(
+def qualified_detect_for_household(
     engine, household_id: str, *, today: date | None = None
-) -> list[ContributionCandidate]:
-    """Run detection over a household's real ledger. Thin: the rules live in
-    detect_contributions, which stays pure and directly testable."""
+):
+    """Return declared facts and gate automatic detection on complete candidates."""
     from family_cfo_api import repository
+    from family_cfo_api.qualified_amounts import Qualified, union_sources
 
     today = today or date.today()
     since = today - timedelta(days=LOOKBACK_DAYS)
-    records = repository.list_transactions(
-        engine, household_id, limit=1_000_000, start=since, end=today
+    amount_candidates = list(
+        repository.iter_transaction_amount_candidates(
+            engine, household_id, start=since, end=today
+        )
     )
+    sources = union_sources(
+        *(candidate.incomplete_sources for candidate in amount_candidates)
+    )
+    if not sources:
+        return Qualified.complete(
+            _detect_for_household_from_candidates(
+                engine, household_id, amount_candidates, today=today
+            )
+        )
+
+    names = repository.account_name_map(engine, household_id)
+    types = repository.account_type_map(engine, household_id)
+    declared: list[ContributionCandidate] = []
+    for record in repository.list_savings_contributions(engine, household_id):
+        declared.append(
+            ContributionCandidate(
+                source_account_id=record.source_account_id,
+                destination_account_id=record.destination_account_id,
+                destination_name=names.get(record.destination_account_id, "Savings"),
+                destination_type=types.get(record.destination_account_id, "savings"),
+                amount_minor=record.amount_minor,
+                currency=record.currency,
+                frequency=record.frequency,
+                occurrences=0,
+                last_seen=today,
+                next_expected=_next_due(today, record.frequency),
+                inferred=False,
+                declared=True,
+                contribution_id=record.id,
+                goal_id=record.goal_id,
+            )
+        )
+    declared.sort(key=lambda candidate: candidate.amount_minor, reverse=True)
+    return Qualified(declared, sources)
+
+
+def detect_for_household(
+    engine, household_id: str, *, today: date | None = None
+) -> list[ContributionCandidate]:
+    """Run detection over a household's complete real-ledger candidate set."""
+    from family_cfo_api import household_crypto, repository
+    from family_cfo_api.qualified_amounts import union_sources
+
+    today = today or date.today()
+    since = today - timedelta(days=LOOKBACK_DAYS)
+    amount_candidates = list(
+        repository.iter_transaction_amount_candidates(
+            engine, household_id, start=since, end=today
+        )
+    )
+    if union_sources(
+        *(candidate.incomplete_sources for candidate in amount_candidates)
+    ):
+        raise household_crypto.SealedAmountUnreadableError(household_id)
+    return _detect_for_household_from_candidates(
+        engine, household_id, amount_candidates, today=today
+    )
+
+
+def _detect_for_household_from_candidates(
+    engine, household_id: str, amount_candidates, *, today: date
+) -> list[ContributionCandidate]:
+    """Apply the pure savings detector to one already-exhaustive candidate set."""
+    from family_cfo_api import repository
+
     entries = [
         LedgerEntry(
-            transaction_id=record.id,
-            account_id=record.account_id,
-            occurred_at=record.occurred_at,
-            amount_minor=record.amount_minor,
-            currency=record.currency,
-            label=record.merchant or record.description,
+            transaction_id=candidate.metadata.id,
+            account_id=candidate.metadata.account_id,
+            occurred_at=candidate.metadata.occurred_at,
+            amount_minor=candidate.amount,
+            currency=candidate.metadata.currency,
+            label=candidate.metadata.merchant or candidate.metadata.description,
         )
-        for record in records
+        for candidate in amount_candidates
+        if candidate.amount is not None
     ]
     # name/type maps, NOT list_account_balances: that one inner-joins balance
     # snapshots, so a newly linked 529 with no balance yet would be invisible

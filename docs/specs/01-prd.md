@@ -86,3 +86,39 @@ Every recommendation includes:
 - Initial API contract covers health, pairing, household context, purchase analysis, chat, imports, goals, and reports.
 - Financial calculations are specified separately from LLM behavior.
 - Security model covers pairing, authentication, local storage, backups, and secrets.
+
+## Qualified Incomplete Monetary Aggregates (M124, issue #119)
+
+When a selected sealed transaction or card-statement amount cannot be read, a
+read-side aggregate must preserve useful readable facts without presenting an
+unsafe answer as exact (ADR 0076).
+
+Product requirements:
+
+- Additive descriptive monetary leaves return their readable sum plus the count
+  of relevant unreadable stored amount cells. Partial zero is visibly partial;
+  it is never an empty-state or lower-bound claim.
+- Any affordability, coverage, status, percentage, ranking, forecast, tax,
+  savings, budget, cash-flow, or other decision that could change because of an
+  omission is unavailable. Unaffected sibling sections remain usable.
+- Raw/detail, export, equality/filter, indexing, write-comparison, and unstable
+  candidate/ranking operations with no honest partial product retain the
+  documented `sealed_amount_unreadable` refusal.
+- The API owns every aggregate and derived decision. Web, iPhone/iPad, Watch,
+  widgets, and the advisor present the same result and never reconstruct a null
+  decision or sum qualified values/counts locally.
+- Partial and unavailable states are explicit, localized, accessible, and free
+  of positive/negative styling, progress, or navigation that implies a decision.
+- The advisor may explain a partial descriptive value only with its limitation
+  and must not recommend spending, affordability, coverage, tax, budget health,
+  savings cuts, or runway from incomplete inputs.
+- Omission disclosures reveal counts only. They never reveal ciphertext,
+  plaintext, sealed names, guessed amounts, or source table/row/column identity.
+
+Non-goals are repairing or guessing damaged values, changing the locked-household
+meaning, adding a migration/cloud dependency/encryption format/Docker topology,
+or supporting mixed old/new API and client artifacts. Acceptance requires the
+normal count-0 path to match existing behavior, the synthetic corruption and
+privacy matrices to pass, strict 409 and locked 423 boundaries to remain
+distinct, and the coordinated contract/client release to pass compatibility and
+platform tests.

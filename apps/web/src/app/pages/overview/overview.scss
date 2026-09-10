@@ -550,6 +550,11 @@
   color: var(--mat-sys-on-surface-variant, #666);
 }
 
+.yearly__partial {
+  font-size: 9px;
+  color: var(--mat-sys-on-surface-variant, #666);
+}
+
 .yearly__focus,
 .yearly__totals {
   display: flex;

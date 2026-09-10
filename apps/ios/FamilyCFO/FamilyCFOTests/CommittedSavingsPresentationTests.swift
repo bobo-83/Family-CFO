@@ -13,6 +13,7 @@ struct CommittedSavingsPresentationTests {
     private func safeToSpend(
         committed: Int64?,
         reserved: Bool?,
+        incompleteCount: Int = 0,
         items: [Components.Schemas.NamedAmount] = []
     ) -> Components.Schemas.SafeToSpend {
         .init(
@@ -20,11 +21,13 @@ struct CommittedSavingsPresentationTests {
             emergencyFundReserved: money(0),
             billsDue: money(0),
             minimumDebtPayments: money(0),
-            committedTotal: money(0),
-            safeToSpend: money(100_000),
+            subscriptionDetection: testAvailability(),
+            committedTotal: testQualified(0),
+            safeToSpend: testQualified(100_000),
             totalDebt: money(0),
             warnings: [],
-            committedSavings: committed.map { .init(value1: money($0)) },
+            committedSavings: committed.map { testQualified($0, incompleteCount: incompleteCount) },
+            savingsDetection: testAvailability(),
             committedSavingsItems: items.isEmpty ? nil : items,
             committedSavingsReserved: reserved)
     }
@@ -49,24 +52,32 @@ struct CommittedSavingsPresentationTests {
         #expect(presentation == .none)
     }
 
+    @Test func partialZeroIsNotTreatedAsAnExactAbsence() {
+        let presentation = CommittedSavingsPresentation(
+            safeToSpend(committed: 0, reserved: false, incompleteCount: 2))
+        #expect(
+            presentation == .informational(
+                amount: testQualified(0, incompleteCount: 2), items: []))
+    }
+
     /// Reserved off (the default) → shown beside, never subtracted.
     @Test func reservedOffIsInformational() {
         let presentation = CommittedSavingsPresentation(
             safeToSpend(committed: 50_000, reserved: false, items: items))
-        #expect(presentation == .informational(amount: money(50_000), items: items))
+        #expect(presentation == .informational(amount: testQualified(50_000), items: items))
     }
 
     /// A context from before the flag shipped omits it — default (informational).
     @Test func missingReservedFlagIsInformational() {
         let presentation = CommittedSavingsPresentation(
             safeToSpend(committed: 50_000, reserved: nil, items: items))
-        #expect(presentation == .informational(amount: money(50_000), items: items))
+        #expect(presentation == .informational(amount: testQualified(50_000), items: items))
     }
 
     /// Reserved on → subtracted like a bill, listed among the committed rows.
     @Test func reservedOnIsReserved() {
         let presentation = CommittedSavingsPresentation(
             safeToSpend(committed: 50_000, reserved: true, items: items))
-        #expect(presentation == .reserved(amount: money(50_000), items: items))
+        #expect(presentation == .reserved(amount: testQualified(50_000), items: items))
     }
 }

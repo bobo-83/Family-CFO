@@ -1,10 +1,11 @@
 from datetime import date
 
+import pytest
 from family_cfo_financial_engine import Money
 from sqlalchemy import insert
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import fixtures, models, report_generation, repository
+from family_cfo_api import fixtures, household_crypto, models, report_generation, repository
 from family_cfo_api.explanation import DeterministicExplanationAdapter
 
 # A reference date far from any real "today" the test suite might run on, so the
@@ -197,6 +198,75 @@ def test_generate_report_flags_risk_win_and_unusual_spending(demo_engine: Engine
     assert goal_summary["calculation_ref"].startswith("financial_calculations:")
 
 
+def test_strict_goal_read_failure_writes_no_calculation_or_report(
+    demo_engine: Engine, monkeypatch
+) -> None:
+    calculations: list[object] = []
+    reports: list[object] = []
+
+    def unreadable_goals(*_args, **_kwargs):
+        raise household_crypto.SealedAmountUnreadableError(fixtures.DEMO_HOUSEHOLD_ID)
+
+    monkeypatch.setattr(repository, "list_goals", unreadable_goals)
+    monkeypatch.setattr(
+        repository,
+        "record_calculation",
+        lambda *_args, **_kwargs: calculations.append(object()),
+    )
+    monkeypatch.setattr(
+        repository,
+        "upsert_report",
+        lambda *_args, **_kwargs: reports.append(object()),
+    )
+
+    with pytest.raises(household_crypto.SealedAmountUnreadableError):
+        report_generation.generate_report(
+            demo_engine,
+            fixtures.DEMO_HOUSEHOLD_ID,
+            "weekly",
+            DeterministicExplanationAdapter(),
+            reference_date=_REFERENCE_DATE,
+        )
+
+    assert calculations == []
+    assert reports == []
+
+
+def test_late_goal_calculation_failure_writes_no_calculation_or_report(
+    demo_engine: Engine, monkeypatch
+) -> None:
+    calculations: list[object] = []
+    reports: list[object] = []
+
+    monkeypatch.setattr(
+        report_generation,
+        "calculate_goal_progress",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("calculation failed")),
+    )
+    monkeypatch.setattr(
+        repository,
+        "record_calculation",
+        lambda *_args, **_kwargs: calculations.append(object()),
+    )
+    monkeypatch.setattr(
+        repository,
+        "upsert_report",
+        lambda *_args, **_kwargs: reports.append(object()),
+    )
+
+    with pytest.raises(RuntimeError, match="calculation failed"):
+        report_generation.generate_report(
+            demo_engine,
+            fixtures.DEMO_HOUSEHOLD_ID,
+            "weekly",
+            DeterministicExplanationAdapter(),
+            reference_date=_REFERENCE_DATE,
+        )
+
+    assert calculations == []
+    assert reports == []
+
+
 def test_generate_report_is_idempotent_for_same_period(demo_engine: Engine) -> None:
     _seed_report_transactions(demo_engine)
 
@@ -227,6 +297,68 @@ def test_generate_report_unknown_household_raises(demo_engine: Engine) -> None:
         raise AssertionError("expected ValueError")
     except ValueError:
         pass
+
+
+def test_scheduled_reports_defer_unreadable_household_before_runtime_and_continue(
+    demo_engine: Engine, monkeypatch, caplog
+) -> None:
+    from types import SimpleNamespace
+
+    from family_cfo_api import household_crypto
+
+    caplog.set_level("INFO")
+    bad, good = "damaged-household", "complete-household"
+    selected: list[str] = []
+    persisted: list[str] = []
+    closed: list[str] = []
+
+    monkeypatch.setattr(repository, "list_households", lambda _engine: [bad, good])
+    monkeypatch.setattr(
+        repository,
+        "get_report_by_period",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        repository,
+        "get_household",
+        lambda _engine, household_id: SimpleNamespace(
+            id=household_id, base_currency="USD"
+        ),
+    )
+
+    def build(_engine, household_id, *_args, **_kwargs):
+        if household_id == bad:
+            raise household_crypto.SealedAmountUnreadableError(household_id)
+        return object()
+
+    class Runtime:
+        def close(self):
+            closed.append(good)
+
+    def select_runtime(_engine, household_id):
+        selected.append(household_id)
+        return object(), Runtime()
+
+    monkeypatch.setattr(report_generation, "_build_report_content", build)
+    monkeypatch.setattr(report_generation, "select_explanation_adapter", select_runtime)
+    monkeypatch.setattr(
+        report_generation,
+        "_persist_report_content",
+        lambda _engine, household_id, *_args: persisted.append(household_id),
+    )
+
+    generated = report_generation.run_scheduled_reports_once(
+        demo_engine, "monthly", reference_date=_REFERENCE_DATE
+    )
+
+    assert generated == 1
+    assert selected == [good]
+    assert persisted == [good]
+    assert closed == [good]
+    assert bad in caplog.text
+    assert "retryable=true" in caplog.text
+    assert "row" not in caplog.text
+    assert "amount_minor" not in caplog.text
 
 
 def test_run_scheduled_reports_once_skips_already_generated_period(demo_engine: Engine) -> None:

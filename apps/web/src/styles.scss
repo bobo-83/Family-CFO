@@ -215,6 +215,11 @@ table {
   margin-bottom: 1rem;
 }
 
+.qualified-note {
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+
 /* #11/#30: marks a figure that came from a recorded statement — the EXACT
    amount the issuer billed — so an estimated card balance is never mistaken
    for one. Global rather than per-page: the Bills timeline and the cash

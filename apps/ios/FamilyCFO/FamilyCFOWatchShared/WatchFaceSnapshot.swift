@@ -15,31 +15,44 @@ struct WatchFaceSnapshot: Codable, Equatable {
     var monthIncomeMinor: Int64?
     var monthSpendingMinor: Int64?
     var expectedIncomeMinor: Int64?
+    // Optional completeness metadata keeps old primitive snapshots decodable.
+    var netWorthIncompleteCount: Int? = nil
+    var monthIncomeIncompleteCount: Int? = nil
+    var monthSpendingIncompleteCount: Int? = nil
     var currency: String
     var capturedAt: Date
 
     /// The budget complications' slices (ADR 0067 v9), pre-sorted by usage
     /// (most at-risk first). Optional: an older cache still decodes.
     var budgets: [BudgetSlice]?
+    // Server-owned aggregate primitives. Do not rebuild them from `budgets`.
+    var budgetedMinor: Int64? = nil
+    var budgetSpentMinor: Int64? = nil
+    var budgetSpentIncompleteCount: Int? = nil
+    var budgetOverCount: Int? = nil
+    var budgetWarningCount: Int? = nil
 
     struct BudgetSlice: Codable, Equatable {
         var name: String
         var limitMinor: Int64
         var spentMinor: Int64
+        var spentIncompleteCount: Int? = nil
+        var percentUsed: Int? = nil
 
-        var fraction: Double {
-            limitMinor > 0 ? Double(spentMinor) / Double(limitMinor) : 0
+        /// Server-owned percentage. A missing decision must not become a zero ring.
+        var fraction: Double? {
+            percentUsed.map { Double($0) / 100 }
         }
     }
 
-    /// Whole-budget burn: total spent over total limit (may exceed 1 when
-    /// over budget — gauges clamp, tints don't). nil without budgets.
-    var budgetFraction: Double? {
-        guard let budgets, !budgets.isEmpty else { return nil }
-        let limit = budgets.reduce(Int64(0)) { $0 + $1.limitMinor }
-        guard limit > 0 else { return nil }
-        let spent = budgets.reduce(Int64(0)) { $0 + $1.spentMinor }
-        return Double(spent) / Double(limit)
+    var budgetStatusLabel: String? {
+        guard budgetSpentMinor != nil else { return nil }
+        guard let over = budgetOverCount, let warning = budgetWarningCount else {
+            return String(localized: "Unavailable")
+        }
+        if over > 0 { return String(localized: "\(over) over budget") }
+        if warning > 0 { return String(localized: "\(warning) near limit") }
+        return String(localized: "On track")
     }
 
     /// Must match the `com.apple.security.application-groups` entitlement on
@@ -69,15 +82,99 @@ struct WatchFaceSnapshotStore {
         guard let data = defaults.data(forKey: WatchFaceSnapshot.key) else { return nil }
         return try? JSONDecoder().decode(WatchFaceSnapshot.self, from: data)
     }
+
+    func clear() {
+        defaults.removeObject(forKey: WatchFaceSnapshot.key)
+    }
+}
+
+/// Pure session-boundary predicate shared with the phone test target. Pairing
+/// fields may be assigned one at a time, but Watch work advances only once the
+/// final identity differs from the prior identity.
+enum WatchSessionTransition {
+    static func changed(from previous: String?, to next: String?) -> Bool {
+        previous != next
+    }
+
+    static func shouldClearSnapshot(
+        from previous: String?, to next: String?, persist: Bool
+    ) -> Bool {
+        persist && changed(from: previous, to: next)
+    }
+}
+
+/// Truthful Watch copy for the two independent safe-to-spend detectors. Counts
+/// are deliberately kept per check because their unreadable source sets may
+/// overlap and cannot be added into a deduplicated total on the client.
+enum WatchSafeToSpendBlockers {
+    static func copy(
+        subscriptionIncompleteCount: Int?, savingsIncompleteCount: Int?
+    ) -> String? {
+        var blockers: [String] = []
+        if let count = subscriptionIncompleteCount {
+            blockers.append(
+                count == 1
+                    ? String(localized: "Subscription forecast unavailable because 1 stored amount could not be read.")
+                    : String(localized: "Subscription forecast unavailable because \(count) stored amounts could not be read."))
+        }
+        if let count = savingsIncompleteCount {
+            blockers.append(
+                count == 1
+                    ? String(localized: "Savings detection unavailable because 1 stored amount could not be read.")
+                    : String(localized: "Savings detection unavailable because \(count) stored amounts could not be read."))
+        }
+        if blockers.count > 1 {
+            blockers.append(String(localized: "Counts are per check and may overlap."))
+        }
+        return blockers.isEmpty ? nil : blockers.joined(separator: " ")
+    }
 }
 
 extension WatchFaceSnapshot {
+    /// A successful household-context response must replace any older optional
+    /// plan, outlook, or budget decisions before those slower requests finish.
+    /// This complete primitive snapshot is therefore safe to persist even when
+    /// optional enrichment is cancelled or never returns.
+    static func contextOnly(
+        safeToSpendMinor: Int64?,
+        netWorthMinor: Int64,
+        netWorthIncompleteCount: Int?,
+        currency: String,
+        capturedAt: Date = Date()
+    ) -> WatchFaceSnapshot {
+        WatchFaceSnapshot(
+            leftToSpendMinor: nil,
+            safeToSpendMinor: safeToSpendMinor,
+            lowestBalanceMinor: nil,
+            netWorthMinor: netWorthMinor,
+            monthIncomeMinor: nil,
+            monthSpendingMinor: nil,
+            expectedIncomeMinor: nil,
+            netWorthIncompleteCount: netWorthIncompleteCount,
+            monthIncomeIncompleteCount: nil,
+            monthSpendingIncompleteCount: nil,
+            currency: currency,
+            capturedAt: capturedAt,
+            budgets: nil,
+            budgetedMinor: nil,
+            budgetSpentMinor: nil,
+            budgetSpentIncompleteCount: nil,
+            budgetOverCount: nil,
+            budgetWarningCount: nil)
+    }
+
     /// The one number a face slot leads with: left to spend, else safe to
     /// spend, else net worth — the same priority as the Glance page's rows.
-    var headline: (label: String, amountMinor: Int64)? {
-        if let left = leftToSpendMinor { return ("Left to spend", left) }
-        if let safe = safeToSpendMinor { return ("Safe to spend", safe) }
-        if let netWorth = netWorthMinor { return ("Net worth", netWorth) }
+    var headline: (label: String, amountMinor: Int64, incompleteCount: Int)? {
+        if let left = leftToSpendMinor {
+            return (String(localized: "Left to spend"), left, 0)
+        }
+        if let safe = safeToSpendMinor {
+            return (String(localized: "Safe to spend"), safe, 0)
+        }
+        if let netWorth = netWorthMinor {
+            return (String(localized: "Net worth"), netWorth, netWorthIncompleteCount ?? 0)
+        }
         return nil
     }
 

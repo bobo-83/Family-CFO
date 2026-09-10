@@ -7837,6 +7837,22 @@
         }
       }
     },
+    "Liquid balance": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Likvidus likutis"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Số dư thanh khoản"
+          }
+        }
+      }
+    },
     "Link a bank from the dashboard, or add a loan from the Debts tab.": {
       "localizations": {
         "lt": {
@@ -17915,6 +17931,246 @@
           "stringUnit": {
             "state": "translated",
             "value": "🧮 Tóm tắt tự động — bật bộ máy AI để có bản diễn giải."
+          }
+        }
+      }
+    },
+    "Partial total—1 stored amount could not be read and was left out.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dalinė suma — 1 išsaugotos sumos nepavyko perskaityti, todėl ji neįtraukta."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tổng một phần — không thể đọc 1 khoản tiền đã lưu nên khoản đó không được tính."
+          }
+        }
+      }
+    },
+    "Partial total—%lld stored amounts could not be read and were left out.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dalinė suma — %lld išsaugotų sumų nepavyko perskaityti, todėl jos neįtrauktos."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tổng một phần — không thể đọc %lld khoản tiền đã lưu nên các khoản đó không được tính."
+          }
+        }
+      }
+    },
+    "Unavailable because 1 stored amount could not be read.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nepasiekiama, nes nepavyko perskaityti 1 išsaugotos sumos."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không khả dụng vì không thể đọc 1 khoản tiền đã lưu."
+          }
+        }
+      }
+    },
+    "Unavailable because %lld stored amounts could not be read.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nepasiekiama, nes nepavyko perskaityti %lld išsaugotų sumų."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không khả dụng vì không thể đọc %lld khoản tiền đã lưu."
+          }
+        }
+      }
+    },
+    "Unavailable": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nepasiekiama"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không khả dụng"
+          }
+        }
+      }
+    },
+    "%lld over · %lld warning": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld viršyta · %lld įspėjimas"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld vượt ngân sách · %lld cảnh báo"
+          }
+        }
+      }
+    },
+    "Bills still due": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dar neapmokėtos sąskaitos"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hóa đơn vẫn đến hạn"
+          }
+        }
+      }
+    },
+    "Coverage unavailable": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Padengimo įvertinimas nepasiekiamas"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không thể xác định khả năng chi trả"
+          }
+        }
+      }
+    },
+    "Income received": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gautos pajamos"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thu nhập đã nhận"
+          }
+        }
+      }
+    },
+    "Payment status unavailable": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mokėjimo būsena nepasiekiama"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không thể xác định trạng thái thanh toán"
+          }
+        }
+      }
+    },
+    "Payments": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mokėjimai"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Khoản thanh toán"
+          }
+        }
+      }
+    },
+    "Projection unavailable": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prognozė nepasiekiama"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không thể lập dự báo"
+          }
+        }
+      }
+    },
+    "Some stored financial data could not be read. Repair it on the dashboard, then try again.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kai kurių išsaugotų finansinių duomenų nepavyko perskaityti. Pataisykite juos valdymo skydelyje ir bandykite dar kartą."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không thể đọc một số dữ liệu tài chính đã lưu. Hãy sửa dữ liệu trên bảng điều khiển rồi thử lại."
+          }
+        }
+      }
+    },
+    "Spending categories · %@": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Išlaidų kategorijos · %@"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Danh mục chi tiêu · %@"
+          }
+        }
+      }
+    },
+    "Spending plan": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Išlaidų planas"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kế hoạch chi tiêu"
           }
         }
       }

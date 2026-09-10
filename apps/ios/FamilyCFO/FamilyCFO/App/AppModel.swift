@@ -38,6 +38,10 @@ final class AppModel {
 
     private(set) var phase: Phase = .loading
     private(set) var server: ServerConfig?
+    /// A non-secret namespace for session-owned local reminders. Rotating it
+    /// prevents an outgoing load from replacing or cancelling the new session's
+    /// notification for a coincidentally identical bill id.
+    private(set) var billNotificationScope = UUID().uuidString
     private(set) var credential: StoredCredential? {
         didSet {
             // #156: a new token is a new session — sign-in, pairing, sign-out —
@@ -45,6 +49,21 @@ final class AppModel {
             // token and must not drop the cached currency.
             if oldValue?.accessToken != credential?.accessToken {
                 householdCurrency.invalidate()
+                monthTransactions.invalidate()
+
+                billNotificationScope = UUID().uuidString
+                let currentScope = billNotificationScope
+                Task {
+                    await BillNotificationScheduler(
+                        scheduler: SystemNotificationScheduler()
+                    ).clear(exceptScope: currentScope)
+                }
+
+                // Primitive widget snapshots contain no session provenance. A
+                // session boundary therefore invalidates them immediately rather
+                // than letting another household's figures remain visible.
+                OverviewSnapshotStore().clear()
+                WidgetRefresher.reloadOverview()
             }
         }
     }
@@ -66,6 +85,11 @@ final class AppModel {
         guard let server, let credential else { return nil }
         return "\(server.householdID):\(credential.deviceID):\(credential.accessToken)"
     }
+
+    /// Request-start provenance for Apple aggregate loads. It intentionally
+    /// combines household and credential/session identity; a response created
+    /// before sign-out or re-pairing must never seed the new shell.
+    var householdSessionIdentity: String? { currencySessionKey }
 
     /// Shared bank-data freshness, shown identically on every synced screen (M103).
     let syncStatus = SyncStatusModel()

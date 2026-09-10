@@ -21,6 +21,12 @@ import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { apiErrorMessage } from '../../shared/api-error';
 import { formatMoney } from '../../shared/format-money';
+import {
+  availabilityNote,
+  formatQualifiedMoney,
+  partialMoneyNote,
+  unavailableLabel,
+} from '../../shared/qualified-money';
 
 @Component({
   selector: 'app-income-tax',
@@ -42,6 +48,10 @@ export class IncomeTax {
   private readonly auth = inject(AuthService);
 
   protected readonly formatMoney = formatMoney;
+  protected readonly availabilityNote = availabilityNote;
+  protected readonly formatQualifiedMoney = formatQualifiedMoney;
+  protected readonly partialMoneyNote = partialMoneyNote;
+  protected readonly unavailableLabel = unavailableLabel;
 
   /** Fallback name for a suspected-income deposit the bank left unlabelled. */
   protected readonly depositLabel = $localize`:Transaction name|Fallback name for a deposit with no merchant or description:Deposit`;
@@ -90,9 +100,11 @@ export class IncomeTax {
       return;
     }
     this.analysis.set(data);
-    this.filingStatus = data.tax.filing_status;
-    this.treatedAsNet = data.tax.income_treated_as_net;
-    this.state = data.tax.state ?? '';
+    if (data.tax) {
+      this.filingStatus = data.tax.filing_status;
+      this.treatedAsNet = data.tax.income_treated_as_net;
+      this.state = data.tax.state ?? '';
+    }
     // ADR 0049: the suspected-income review queue + categories load alongside.
     // M-rsu-grants: grant schedules + live quotes load with them.
     const [review, cats, grants] = await Promise.all([

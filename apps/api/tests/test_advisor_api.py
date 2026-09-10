@@ -67,6 +67,99 @@ async def test_analyze_purchase_returns_grounded_recommendation(demo_client, dem
 
 
 @pytest.mark.anyio
+async def test_analyze_purchase_incomplete_data_writes_nothing(
+    demo_client, demo_token, demo_engine, monkeypatch
+) -> None:
+    from family_cfo_api import advisor_qualification
+    from family_cfo_api.qualified_amounts import UnreadableAmountSource
+
+    source = UnreadableAmountSource(
+        fixtures.DEMO_HOUSEHOLD_ID, "transactions", "private-row", "amount_minor"
+    )
+    monkeypatch.setattr(
+        advisor_qualification,
+        "purchase_impact_incomplete_sources",
+        lambda *_args, **_kwargs: frozenset({source}),
+    )
+    tables = (
+        models.scenarios,
+        models.financial_calculations,
+        models.recommendations,
+    )
+    with demo_engine.connect() as conn:
+        before = [len(conn.execute(select(table)).all()) for table in tables]
+
+    response = await demo_client.post(
+        "/api/v1/advisor/purchase",
+        headers={"Authorization": f"Bearer {demo_token}"},
+        json={
+            "item": "a new laptop",
+            "price": {"amount_minor": 150_000, "currency": "USD"},
+        },
+    )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "sealed_amount_unreadable"
+    with demo_engine.connect() as conn:
+        after = [len(conn.execute(select(table)).all()) for table in tables]
+    assert after == before
+
+
+@pytest.mark.anyio
+async def test_analyze_purchase_service_gate_returns_strict_409_without_writes(
+    demo_client, demo_token, demo_engine, monkeypatch
+) -> None:
+    from family_cfo_financial_engine import Money
+
+    from family_cfo_api import advisor_qualification, finance_service
+    from family_cfo_api.qualified_amounts import Qualified, UnreadableAmountSource
+
+    source = UnreadableAmountSource(
+        fixtures.DEMO_HOUSEHOLD_ID, "transactions", "private-row", "amount_minor"
+    )
+    monkeypatch.setattr(
+        advisor_qualification,
+        "purchase_impact_incomplete_sources",
+        lambda *_args, **_kwargs: frozenset(),
+    )
+    monkeypatch.setattr(
+        finance_service,
+        "monthly_essential_expenses_with_exclusions",
+        lambda *_args, **_kwargs: (
+            Qualified(Money.zero("USD"), frozenset({source})),
+            [],
+        ),
+    )
+
+    def forbidden(*_args, **_kwargs):
+        raise AssertionError("purchase calculator must not run on incomplete inputs")
+
+    monkeypatch.setattr(finance_service, "calculate_purchase_impact", forbidden)
+    tables = (
+        models.scenarios,
+        models.financial_calculations,
+        models.recommendations,
+    )
+    with demo_engine.connect() as conn:
+        before = [len(conn.execute(select(table)).all()) for table in tables]
+
+    response = await demo_client.post(
+        "/api/v1/advisor/purchase",
+        headers={"Authorization": f"Bearer {demo_token}"},
+        json={
+            "item": "a new laptop",
+            "price": {"amount_minor": 150_000, "currency": "USD"},
+        },
+    )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "sealed_amount_unreadable"
+    with demo_engine.connect() as conn:
+        after = [len(conn.execute(select(table)).all()) for table in tables]
+    assert after == before
+
+
+@pytest.mark.anyio
 async def test_analyze_purchase_rejects_non_positive_price(demo_client, demo_token) -> None:
     response = await demo_client.post(
         "/api/v1/advisor/purchase",

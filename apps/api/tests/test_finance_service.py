@@ -87,9 +87,12 @@ def test_monthly_essential_expenses_adds_debt_minimums_and_spending_above_bills(
     result = finance_service.monthly_essential_expenses(demo_engine, hh, "USD", today=today)
 
     # bills 208_000 + debt minimum 40_000 + (avg spending 300_000 − bills 208_000)
-    assert result == Money(208_000 + 40_000 + (300_000 - 208_000), "USD")
+    assert result.value == Money(208_000 + 40_000 + (300_000 - 208_000), "USD")
+    assert result.incomplete_count == 0
     # The whole point: strictly more than bills alone (the old, over-optimistic base).
-    assert result.amount_minor > finance_service._monthly_bill_total(demo_engine, hh, "USD").amount_minor
+    assert result.value.amount_minor > finance_service._monthly_bill_total(
+        demo_engine, hh, "USD"
+    ).amount_minor
 
 
 def test_safe_to_spend_subtracts_bills_and_debt_not_just_the_emergency_fund(
@@ -216,7 +219,8 @@ def test_monthly_income_ignores_compensation_profiles(demo_engine: Engine) -> No
     )
 
     after = finance_service.monthly_income_total(demo_engine, hh, "USD")
-    assert after.amount_minor == before.amount_minor
+    assert after.value.amount_minor == before.value.amount_minor
+    assert after.incomplete_count == before.incomplete_count == 0
 
 
 def test_monthly_income_counts_categorized_income_inflows(demo_engine: Engine) -> None:
@@ -242,7 +246,8 @@ def test_monthly_income_counts_categorized_income_inflows(demo_engine: Engine) -
         )
 
     after = finance_service.monthly_income_total(demo_engine, hh, "USD", today=today)
-    assert after.amount_minor - before.amount_minor == 100_000
+    assert after.value.amount_minor - before.value.amount_minor == 100_000
+    assert after.incomplete_count == before.incomplete_count == 0
 
 
 def test_categorizing_one_transaction_fills_the_merchants_uncategorized_siblings(

@@ -48,6 +48,7 @@ struct LiveTransactionDetailAPI: TransactionDetailAPI {
         case .ok(let response): return try response.body.json.transactions
         case .unauthorized: throw APIError.unauthorized
         case .unprocessableContent: throw APIError.server(422)
+        case .conflict: throw APIError.incompleteData
         case .undocumented(let status, _): throw APIError.server(status)
         }
     }
@@ -81,6 +82,7 @@ struct LiveTransactionDetailAPI: TransactionDetailAPI {
         case .notFound: throw APIError.server(404)
         case .unauthorized: throw APIError.unauthorized
         case .forbidden: throw APIError.server(403)
+        case .conflict: throw APIError.incompleteData
         case .undocumented(let status, _): throw APIError.server(status)
         }
     }

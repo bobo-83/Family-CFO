@@ -38,7 +38,8 @@ def test_sum_spending_excludes_income_and_sums_outflows(demo_engine) -> None:
     _spend(demo_engine, account_id, day, 900_000, "Salary")  # income, must be ignored
 
     total = repository.sum_spending(demo_engine, _HH, date(2026, 6, 1), date(2026, 6, 30), "USD")
-    assert total == 7_500
+    assert total.value == 7_500
+    assert total.incomplete_count == 0
 
 
 def test_top_merchants_ranked_with_null_folded_to_other(demo_engine) -> None:
@@ -51,7 +52,7 @@ def test_top_merchants_ranked_with_null_folded_to_other(demo_engine) -> None:
     top = repository.top_spending_merchants(
         demo_engine, _HH, date(2026, 6, 1), date(2026, 6, 30), "USD", limit=5
     )
-    assert [(m.merchant, m.amount_minor) for m in top] == [
+    assert [(m.merchant, m.amount_minor) for m in top.value] == [
         ("Whole Foods", 14_000),
         ("Other", 6_000),
     ]
@@ -66,8 +67,8 @@ def test_month_to_date_compares_same_day_range(demo_engine) -> None:
     _spend(demo_engine, account_id, date(2027, 2, 20), -99_000, "C")
 
     insights = _spending_insights(demo_engine, _HH, "USD", today=date(2027, 3, 10))
-    assert insights.this_month.amount_minor == 30_000
-    assert insights.last_month.amount_minor == 10_000
+    assert insights.this_month.value.amount_minor == 30_000
+    assert insights.last_month.value.amount_minor == 10_000
     assert insights.change_percent == 200  # (300-100)/100
 
 
@@ -75,7 +76,7 @@ def test_change_percent_is_null_when_last_month_zero(demo_engine) -> None:
     account_id = _account(demo_engine)
     _spend(demo_engine, account_id, date(2027, 3, 2), -5_000, "A")
     insights = _spending_insights(demo_engine, _HH, "USD", today=date(2027, 3, 9))
-    assert insights.last_month.amount_minor == 0
+    assert insights.last_month.value.amount_minor == 0
     assert insights.change_percent is None
 
 

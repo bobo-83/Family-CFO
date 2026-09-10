@@ -45,7 +45,7 @@
       } @else {
         <div
           class="yearly__chart"
-          role="img"
+          role="group"
           i18n-aria-label="Year chart|Screen-reader name for the monthly income and spending bar chart"
           aria-label="Monthly income and spending"
         >
@@ -58,23 +58,41 @@
               [title]="m.month"
             >
               <span class="yearly__bars">
-                <span class="yearly__bar yearly__bar--income" [style.height.%]="yearBarHeight(m.income.amount_minor)"></span>
-                <span class="yearly__bar yearly__bar--spending" [style.height.%]="yearBarHeight(m.spending.amount_minor)"></span>
+                <span class="yearly__bar yearly__bar--income" [style.height.%]="yearBarHeight(m.income.value.amount_minor)"></span>
+                <span class="yearly__bar yearly__bar--spending" [style.height.%]="yearBarHeight(m.spending.value.amount_minor)"></span>
               </span>
               <span class="yearly__month">{{ yearMonthLabel(m.month) }}</span>
+              @if (m.income.incomplete_count > 0 || m.spending.incomplete_count > 0) {
+                <span class="yearly__partial" i18n="Year chart partial state|A month bar omits unreadable stored amounts">Partial data</span>
+              }
             </button>
           }
         </div>
         @if (yearFocused(); as focus) {
           <div class="yearly__focus" i18n="Year chart focus|Figures for the month tapped in the chart">
             <strong>{{ yearMonthLabel(focus.month) }}</strong>
-            · in {{ formatMoney(focus.income) }}
-            · out {{ formatMoney(focus.spending) }}
-            · kept {{ formatMoney(focus.net) }}
+            · in {{ formatQualifiedMoney(focus.income) }}
+            · out {{ formatQualifiedMoney(focus.spending) }}
+            @if (focus.net; as net) {
+              · kept {{ formatQualifiedMoney(net) }}
+            } @else {
+              · kept {{ unavailableLabel }}
+            }
             @if (focus.net_worth_eom; as networth) {
-              · net worth {{ formatMoney(networth) }}
+              · net worth {{ formatQualifiedMoney(networth) }}
             }
           </div>
+          @if (partialMoneyNote(focus.income); as note) {
+            <div class="qualified-note" role="status">{{ note }}</div>
+          }
+          @if (partialMoneyNote(focus.spending); as note) {
+            <div class="qualified-note" role="status">{{ note }}</div>
+          }
+          @if (focus.net_worth_eom; as networth) {
+            @if (partialMoneyNote(networth); as note) {
+              <div class="qualified-note" role="status">{{ note }}</div>
+            }
+          }
           @if (canChat()) {
             <!-- ADR 0068: the advisor explains what made the tapped bar up. -->
             <div class="yearly__focus-actions">
@@ -98,22 +116,32 @@
           }
         }
         <div class="yearly__totals">
-          <span i18n="Year totals|Money that came in over the whole year">In {{ formatMoney(year.total_income) }}</span>
-          <span i18n="Year totals|Money that went out over the whole year">Out {{ formatMoney(year.total_spending) }}</span>
-          <span i18n="Year totals|Money left over across the whole year">Kept {{ formatMoney(year.total_net) }}</span>
+          <span i18n="Year totals|Money that came in over the whole year">In {{ formatQualifiedMoney(year.total_income) }}</span>
+          <span i18n="Year totals|Money that went out over the whole year">Out {{ formatQualifiedMoney(year.total_spending) }}</span>
+          <span i18n="Year totals|Money left over across the whole year">
+            Kept {{ year.total_net ? formatQualifiedMoney(year.total_net) : unavailableLabel }}
+          </span>
         </div>
+        @if (partialMoneyNote(year.total_income); as note) {
+          <div class="qualified-note" role="status">{{ note }}</div>
+        }
+        @if (partialMoneyNote(year.total_spending); as note) {
+          <div class="qualified-note" role="status">{{ note }}</div>
+        }
         <div class="overview__card overview__card--wide yearly__review">
           <div class="yearly__review-head">
             <span class="overview__label" i18n="Year review card header|AI written summary of the year to date">The year so far</span>
-            <button mat-stroked-button type="button" (click)="generateYearReview()" [disabled]="yearGenerating()">
-              @if (yearGenerating()) {
-                <ng-container i18n="Year review action|Shown while the advisor writes the review">Writing…</ng-container>
-              } @else if (year.review) {
-                <ng-container i18n="Year review action|Writes the review again from the latest figures">Refresh</ng-container>
-              } @else {
-                <ng-container i18n="Year review action|Asks the advisor to write the year review">✨ Write it</ng-container>
-              }
-            </button>
+            @if (yearReviewAvailable(year)) {
+              <button mat-stroked-button type="button" (click)="generateYearReview()" [disabled]="yearGenerating()">
+                @if (yearGenerating()) {
+                  <ng-container i18n="Year review action|Shown while the advisor writes the review">Writing…</ng-container>
+                } @else if (year.review) {
+                  <ng-container i18n="Year review action|Writes the review again from the latest figures">Refresh</ng-container>
+                } @else {
+                  <ng-container i18n="Year review action|Asks the advisor to write the year review">✨ Write it</ng-container>
+                }
+              </button>
+            }
           </div>
           @if (year.review; as review) {
             <p>{{ review.summary }}</p>
@@ -131,11 +159,13 @@
                 <ng-container i18n="Year review byline|The review was computed, not written by an AI model">🧮 Computed summary — enable the AI runtime for a narrative.</ng-container>
               }
             </p>
-          } @else {
+          } @else if (yearReviewAvailable(year)) {
             <p class="page-hint" i18n="Year review empty state|Invites the member to generate the review">Ask the advisor to sum up the year and suggest improvements.</p>
+          } @else {
+            <p class="qualified-note" role="status" i18n="Year review unavailable|A year review cannot be generated from incomplete stored data">Unavailable until the unreadable stored amounts are repaired.</p>
           }
         </div>
-        @if (year.top_categories.length) {
+        @if (year.top_categories && year.top_categories.length) {
           <div class="overview__card overview__card--wide">
             <span class="overview__label" i18n="Year categories card header|Top spending categories of the year">Where it went</span>
             <ul class="yearly__categories">
@@ -324,53 +354,73 @@
               <span class="overview__detail overview__value--negative" i18n="Cash outlook headline detail|When cash runs out and how much must be raised">
                 cash runs short {{ cash.first_shortfall_date | date: 'MMM d' }}
                 @if (cash.shortfall; as gap) {
-                  — raise at least {{ formatMoney(gap) }}
+                  — raise at least {{ formatQualifiedMoney(gap) }}
                 }
               </span>
-            } @else if (cash.lowest_balance.amount_minor < 0) {
-              <span class="overview__detail overview__value--negative" i18n="Cash outlook verdict|The projected balance goes negative within the horizon">
-                ⚠ Your cash runs short over the next {{ cash.horizon_days }} days
-              </span>
+            } @else if (cash.lowest_balance; as lowest) {
+              @if (lowest.value.amount_minor < 0) {
+                <span class="overview__detail overview__value--negative" i18n="Cash outlook verdict|The projected balance goes negative within the horizon">
+                  ⚠ Your cash runs short over the next {{ cash.horizon_days }} days
+                </span>
+              } @else {
+                <span class="overview__detail overview__value--positive" i18n="Cash outlook verdict|The projected balance stays positive over the horizon">
+                  ✓ Cash covers everything due in the next {{ cash.horizon_days }} days
+                </span>
+              }
             } @else {
-              <span class="overview__detail overview__value--positive" i18n="Cash outlook verdict|The projected balance stays positive over the horizon">
-                ✓ Cash covers everything due in the next {{ cash.horizon_days }} days
+              <span class="overview__value">—</span>
+              <span class="qualified-note" role="status">{{ unavailableLabel }}</span>
+              @if (availabilityNote(cash.income_projection); as note) {
+                <span class="qualified-note" role="status">{{ note }}</span>
+              }
+            }
+            @if (cash.lowest_balance; as lowest) {
+              <span
+                class="overview__value"
+                [class.overview__value--negative]="lowest.value.amount_minor < 0"
+              >
+                {{ formatQualifiedMoney(lowest) }}
+              </span>
+              <span class="overview__value-context">
+                @if (cash.lowest_date) {
+                  <ng-container i18n="Cash outlook context|Explains the lowest projected balance and its date">lowest your cash reaches in the next {{ cash.horizon_days }} days ·
+                  {{ cash.lowest_date | date: 'MMM d' }}</ng-container>
+                } @else {
+                  <ng-container i18n="Cash outlook context|Nothing is scheduled inside the horizon">no payments or paydays expected in the next {{ cash.horizon_days }} days</ng-container>
+                }
               </span>
             }
-            <span
-              class="overview__value"
-              [class.overview__value--negative]="cash.lowest_balance.amount_minor < 0"
-            >
-              {{ formatMoney(cash.lowest_balance) }}
-            </span>
-            <span class="overview__value-context">
-              @if (cash.lowest_date) {
-                <ng-container i18n="Cash outlook context|Explains the lowest projected balance and its date">lowest your cash reaches in the next {{ cash.horizon_days }} days ·
-                {{ cash.lowest_date | date: 'MMM d' }}</ng-container>
-              } @else {
-                <ng-container i18n="Cash outlook context|Nothing is scheduled inside the horizon">no payments or paydays expected in the next {{ cash.horizon_days }} days</ng-container>
-              }
-            </span>
-            <span class="overview__detail" i18n="Cash outlook math|How the projected ending cash is worked out">
-              {{ formatMoney(cash.starting_cash) }} cash +
-              {{ formatMoney(cash.expected_income) }} expected paychecks −
-              {{ formatMoney(cash.obligations) }} payments =
-              {{ formatMoney(cash.ending_cash) }}
-            </span>
-            @if (outlookRows().length > 0) {
+            @if (cash.expected_income && cash.ending_cash) {
+              <span class="overview__detail" i18n="Cash outlook math|How the projected ending cash is worked out">
+                {{ formatMoney(cash.starting_cash) }} cash +
+                {{ formatQualifiedMoney(cash.expected_income) }} expected paychecks −
+                {{ formatQualifiedMoney(cash.obligations) }} payments =
+                {{ formatQualifiedMoney(cash.ending_cash) }}
+              </span>
+            } @else {
+              <span class="overview__detail" i18n="Cash outlook components|Readable starting cash and payment total when the projection is unavailable">
+                {{ formatMoney(cash.starting_cash) }} cash ·
+                {{ formatQualifiedMoney(cash.obligations) }} readable payments
+              </span>
+            }
+            @if (partialMoneyNote(cash.obligations); as note) {
+              <span class="qualified-note" role="status">{{ note }}</span>
+            }
+            @if (cash.events.length > 0) {
               <details class="outlook-card__details">
                 <summary i18n="Cash outlook drill-down|Opens the day-by-day projection table">Day by day</summary>
                 <table class="outlook-card__table">
-                  @for (row of outlookRows(); track $index) {
+                  @for (event of cash.events; track $index) {
                     <tr>
-                      <td class="outlook-card__date">{{ row.event.occurred_on | date: 'MMM d' }}</td>
-                      <td class="outlook-card__name">{{ row.event.name }}</td>
+                      <td class="outlook-card__date">{{ event.occurred_on | date: 'MMM d' }}</td>
+                      <td class="outlook-card__name">{{ event.name }}</td>
                       <td
                         class="outlook-card__amount"
-                        [class.overview__value--positive]="row.event.amount.amount_minor > 0"
+                        [class.overview__value--positive]="event.amount.amount_minor > 0"
                       >
-                        {{ row.event.amount.amount_minor > 0 ? '+' : ''
-                        }}{{ formatMoney(row.event.amount) }}
-                        @if (row.event.source === 'statement') {
+                        {{ event.amount.amount_minor > 0 ? '+' : ''
+                        }}{{ formatMoney(event.amount) }}
+                        @if (event.source === 'statement') {
                           <!-- #30: this row's figure is the exact amount the
                                issuer billed. Every other row — including any
                                projected future card payment — is an estimate
@@ -383,12 +433,6 @@
                             i18n-title="Amount provenance tooltip|Explains that the figure is the issuer's exact amount due"
                           >from statement</span>
                         }
-                      </td>
-                      <td
-                        class="outlook-card__balance"
-                        [class.overview__value--negative]="row.balance.amount_minor < 0"
-                      >
-                        {{ formatMoney(row.balance) }}
                       </td>
                     </tr>
                   }
@@ -410,39 +454,67 @@
         @if (plan.value(); as month) {
           <div class="overview__card overview__card--wide plan-card">
             <span class="overview__label" i18n="Spending plan card header|What is still free to spend this month">Left to spend this month</span>
-            <span
-              class="overview__value"
-              [class.overview__value--negative]="month.left_to_spend.amount_minor < 0"
-            >
-              {{ formatMoney(month.left_to_spend) }}
-            </span>
-            <span class="overview__value-context">
-              @if (month.left_to_spend.amount_minor >= 0) {
-                <ng-container i18n="Spending plan context|Daily allowance for the rest of the month">about {{ formatMoney(month.per_day) }}/day for the remaining
-                {month.days_remaining, plural, =1 {1 day} other {{{ month.days_remaining }} days}}</ng-container>
-              } @else {
-                <ng-container i18n="Spending plan context|Spending has exceeded this month's income">this month's spending has outrun this month's income — the gap is
-                drawing on cash you already had</ng-container>
+            @if (month.left_to_spend; as left) {
+              <span
+                class="overview__value"
+                [class.overview__value--negative]="left.value.amount_minor < 0"
+              >
+                {{ formatQualifiedMoney(left) }}
+              </span>
+              @if (month.per_day; as perDay) {
+                <span class="overview__value-context">
+                  @if (left.value.amount_minor >= 0) {
+                    <ng-container i18n="Spending plan context|Daily allowance for the rest of the month">about {{ formatQualifiedMoney(perDay) }}/day for the remaining
+                    {month.days_remaining, plural, =1 {1 day} other {{{ month.days_remaining }} days}}</ng-container>
+                  } @else {
+                    <ng-container i18n="Spending plan context|Spending has exceeded this month's income">this month's spending has outrun this month's income — the gap is
+                    drawing on cash you already had</ng-container>
+                  }
+                </span>
               }
-            </span>
-            <span class="overview__detail" i18n="Spending plan math|How the money left to spend this month is worked out">
-              {{ formatMoney(month.expected_income) }} expected income
-              ({{ formatMoney(month.income_received) }} received +
-              {{ formatMoney(month.income_projected) }} to come)
-              − {{ formatMoney(month.spent) }} spent
-              − {{ formatMoney(month.bills_remaining) }} bills still due
-              − {{ formatMoney(month.account_obligations) }} loan & lease payments
-              @if (month.planned_savings.amount_minor > 0) {
-                − {{ formatMoney(month.planned_savings) }} planned savings
+            } @else {
+              <span class="overview__value">—</span>
+              <span class="qualified-note" role="status">{{ unavailableLabel }}</span>
+              @if (availabilityNote(month.income_projection); as note) {
+                <span class="qualified-note" role="status">{{ note }}</span>
               }
-            </span>
+            }
+            @if (month.expected_income && month.income_projected) {
+              <span class="overview__detail" i18n="Spending plan math|How the money left to spend this month is worked out">
+                {{ formatQualifiedMoney(month.expected_income) }} expected income
+                ({{ formatQualifiedMoney(month.income_received) }} received +
+                {{ formatQualifiedMoney(month.income_projected) }} to come)
+                − {{ formatQualifiedMoney(month.spent) }} spent
+                − {{ formatQualifiedMoney(month.bills_remaining) }} bills still due
+                − {{ formatMoney(month.account_obligations) }} loan & lease payments
+                @if (month.planned_savings.amount_minor > 0) {
+                  − {{ formatMoney(month.planned_savings) }} planned savings
+                }
+              </span>
+            } @else {
+              <span class="overview__detail" i18n="Spending plan components|Readable received income, spending, and bills when the plan decision is unavailable">
+                {{ formatQualifiedMoney(month.income_received) }} received ·
+                {{ formatQualifiedMoney(month.spent) }} spent ·
+                {{ formatQualifiedMoney(month.bills_remaining) }} bills still due
+              </span>
+            }
+            @for (leaf of [month.income_received, month.spent, month.bills_remaining]; track $index) {
+              @if (partialMoneyNote(leaf); as note) {
+                <span class="qualified-note" role="status">{{ note }}</span>
+              }
+            }
           </div>
         }
 
         @if (context.safe_to_spend; as sts) {
           <div class="overview__card overview__card--wide">
             <span class="overview__label" i18n="Stress test card header|Worst-case cash left if every commitment were called today">Stress test</span>
-            <span class="overview__value">{{ formatMoney(sts.safe_to_spend) }}</span>
+            @if (sts.safe_to_spend; as available) {
+              <span class="overview__value">{{ formatQualifiedMoney(available) }}</span>
+            } @else {
+              <span class="overview__value">—</span>
+              <span class="qualified-note" role="status">{{ unavailableLabel }}</span>
+            }
             <span class="overview__value-context" i18n="Stress test explanation|Says what the worst-case figure assumes">
               If every commitment were called today — full card balances, all bills, the
               emergency fund held back — with no paycheck counted. Deliberately
@@ -453,10 +525,27 @@
               − {{ formatMoney(sts.emergency_fund_reserved) }} emergency fund
               − {{ formatMoney(sts.bills_due) }} bills due
               − {{ formatMoney(sts.minimum_debt_payments) }} min. debt payments
+              @if (sts.credit_card_payments; as cards) {
+                − {{ formatQualifiedMoney(cards) }} card payments
+              }
+              @if (sts.subscription_forecast; as subscriptions) {
+                − {{ formatQualifiedMoney(subscriptions) }} subscriptions
+              }
               @if (sts.committed_savings_reserved && sts.committed_savings; as committed) {
-                − {{ formatMoney(committed) }} committed savings
+                − {{ formatQualifiedMoney(committed) }} committed savings
               }
             </span>
+            @for (leaf of [sts.credit_card_payments, sts.subscription_forecast, sts.committed_savings]; track $index) {
+              @if (leaf && partialMoneyNote(leaf); as note) {
+                <span class="qualified-note" role="status">{{ note }}</span>
+              }
+            }
+            @if (availabilityNote(sts.subscription_detection); as note) {
+              <span class="qualified-note" role="status">{{ note }}</span>
+            }
+            @if (availabilityNote(sts.savings_detection); as note) {
+              <span class="qualified-note" role="status">{{ note }}</span>
+            }
             @if (sts.total_debt.amount_minor > 0) {
               <span class="overview__detail overview__value--negative" i18n="Stress test detail|Everything the household owes">
                 {{ formatMoney(sts.total_debt) }} total debt
@@ -498,7 +587,7 @@
                 <div class="overview__committed-savings">
                   <span class="overview__detail" i18n="Committed savings line|Savings shown beside the stress-test figure but not subtracted from it">
                     🏦 Committed savings (shown, not subtracted):
-                    {{ formatMoney(committed) }}
+                    {{ formatQualifiedMoney(committed) }}
                   </span>
                   <span class="overview__value-context">
                     <ng-container i18n="Committed savings footnote|The committed savings are not inside the stress-test figure">Not part of the number above.</ng-container>
@@ -514,7 +603,10 @@
 
         <div class="overview__card" data-testid="overview-net-worth-card">
           <span class="overview__label" i18n="Net worth card header|Everything owned minus everything owed">Net worth</span>
-          <span class="overview__value">{{ formatMoney(context.net_worth) }}</span>
+          <span class="overview__value">{{ formatQualifiedMoney(context.net_worth) }}</span>
+          @if (partialMoneyNote(context.net_worth); as note) {
+            <span class="qualified-note" role="status">{{ note }}</span>
+          }
           @if (outsideBaseCurrency(context); as outside) {
             <!-- #156 (ADR 0075): held in another currency, excluded and disclosed, never converted. -->
             <span
@@ -555,17 +647,27 @@
         @if (context.monthly_cash_flow; as cashFlow) {
           <div class="overview__card">
             <span class="overview__label" i18n="Cash flow card header|Money in against money out this month">Monthly cash flow</span>
-            <span
-              class="overview__value"
-              [class.overview__value--negative]="cashFlow.net.amount_minor < 0"
-              [class.overview__value--positive]="cashFlow.net.amount_minor > 0"
-            >
-              {{ formatMoney(cashFlow.net) }}
+            @if (cashFlow.net; as net) {
+              <span
+                class="overview__value"
+                [class.overview__value--negative]="net.value.amount_minor < 0"
+                [class.overview__value--positive]="net.value.amount_minor > 0"
+              >
+                {{ formatQualifiedMoney(net) }}
+              </span>
+            } @else {
+              <span class="overview__value">—</span>
+              <span class="qualified-note" role="status">{{ unavailableLabel }}</span>
+            }
+            <span class="overview__detail" i18n="Cash flow components|Income and spending for the month">
+              {{ formatQualifiedMoney(cashFlow.income) }} in · {{ formatQualifiedMoney(cashFlow.spending) }} spent
             </span>
-            <span class="overview__detail" i18n="Cash flow math|Income minus spending for the month">
-              {{ formatMoney(cashFlow.income) }} in − {{ formatMoney(cashFlow.spending) }} spent
-            </span>
-            @if (cashFlow.income.amount_minor === 0) {
+            @for (leaf of [cashFlow.income, cashFlow.spending]; track $index) {
+              @if (partialMoneyNote(leaf); as note) {
+                <span class="qualified-note" role="status">{{ note }}</span>
+              }
+            }
+            @if (cashFlow.income.value.amount_minor === 0 && cashFlow.income.incomplete_count === 0) {
               <span class="overview__hint" i18n="Cash flow empty state|No income has been recorded for the household">No income sources recorded yet.</span>
             }
             @if (context.savings_rate; as savings) {
@@ -581,7 +683,7 @@
                 >
                   Saving {{ savings.percent }}%
                   @if (savings.total_saved; as saved) {
-                    — {{ formatMoney(saved) }}/mo saved
+                    — {{ formatQualifiedMoney(saved) }}/mo saved
                   }
                 </span>
                 @if (savingsSources(savings); as sources) {
@@ -594,7 +696,7 @@
                   }
                 }
                 <span class="overview__value-context" i18n="Savings rate context|Average monthly spending over the last three months">
-                  · {{ formatMoney(savings.average_monthly_spending) }}/mo avg spend (last 3 mo)
+                  · {{ formatQualifiedMoney(savings.average_monthly_spending) }}/mo avg spend (last 3 mo)
                 </span>
                 @if (savings.payroll_profile_present === false) {
                   <span class="overview__hint overview__savings-note" i18n="Savings rate warning|Pre-tax payroll saving is missing so the rate is understated">
@@ -603,6 +705,20 @@
                     the rate may understate your saving.
                   </span>
                 }
+              } @else if (
+                savings.monthly_income.incomplete_count > 0 ||
+                savings.average_monthly_spending.incomplete_count > 0 ||
+                savings.transfer_detection.status === 'unavailable'
+              ) {
+                <span class="qualified-note" role="status">{{ unavailableLabel }}</span>
+              }
+              @for (leaf of [savings.monthly_income, savings.average_monthly_spending]; track $index) {
+                @if (partialMoneyNote(leaf); as note) {
+                  <span class="qualified-note" role="status">{{ note }}</span>
+                }
+              }
+              @if (availabilityNote(savings.transfer_detection); as note) {
+                <span class="qualified-note" role="status">{{ note }}</span>
               }
             }
           </div>
@@ -700,9 +816,6 @@
                   </li>
                 }
               </ul>
-              @if (savingsMonthlyTotal(contributions); as total) {
-                <span class="overview__saving-total" i18n="Savings total|Everything the household saves each month">About {{ formatMoney(total) }} a month</span>
-              }
             }
 
             @if (canWrite() && !declaring()) {
@@ -717,7 +830,11 @@
               </button>
             }
 
-            @if (contributions.length === 0 && !declaring()) {
+            @if (
+              contributions.length === 0 &&
+              !declaring() &&
+              context.savings_contributions.detection.status === 'complete'
+            ) {
               <span class="overview__hint" i18n="Savings empty state|Explains why no savings were detected and invites a declaration">
                 Nothing detected. Money moved into an account we don't sync — a 529, a
                 workplace plan — never reaches the ledger, so tell us about it here.
@@ -790,6 +907,10 @@
               <p class="page-error" role="alert">{{ message }}</p>
             }
 
+            @if (availabilityNote(context.savings_contributions.detection); as note) {
+              <span class="qualified-note" role="status">{{ note }}</span>
+            }
+
             @if (contributions.length > 0) {
               <span class="overview__hint">
                 {{ savingsFootnote }}
@@ -821,7 +942,7 @@
                 } @else {
                   (all cash — <a routerLink="/accounts">designate accounts</a> to be precise)
                 }
-                · expenses {{ formatMoney(fund.monthly_expenses) }}/month
+                · expenses {{ formatQualifiedMoney(fund.monthly_expenses) }}/month
               </span>
               @if (fund.goal_target; as goalTarget) {
                 <div class="overview__detail" i18n="Emergency fund detail|The household's own target for the fund">
@@ -829,9 +950,9 @@
                 </div>
               }
               @if (fund.gap_to_recommended; as gap) {
-                @if (gap.amount_minor > 0) {
+                @if (gap.value.amount_minor > 0) {
                   <span class="overview__detail overview__detail--action" i18n="Emergency fund gap|How much more is needed to reach the recommended months of cover">
-                    {{ formatMoney(gap) }} more to reach the
+                    {{ formatQualifiedMoney(gap) }} more to reach the
                     {{ fund.target_months_recommended }}-month goal
                   </span>
                 } @else {
@@ -842,10 +963,17 @@
               }
             } @else {
               <span class="overview__value">—</span>
-              <span class="overview__hint" i18n="Emergency fund empty state|Bills are needed before months of cover can be worked out">
-                <a routerLink="/bills">Add your recurring bills</a> so coverage can be measured
-                against your {{ fund.target_months_recommended }}-month target.
-              </span>
+              @if (fund.status === 'unavailable') {
+                <span class="qualified-note" role="status">{{ unavailableLabel }}</span>
+              } @else {
+                <span class="overview__hint" i18n="Emergency fund empty state|Bills are needed before months of cover can be worked out">
+                  <a routerLink="/bills">Add your recurring bills</a> so coverage can be measured
+                  against your {{ fund.target_months_recommended }}-month target.
+                </span>
+              }
+            }
+            @if (partialMoneyNote(fund.monthly_expenses); as note) {
+              <span class="qualified-note" role="status">{{ note }}</span>
             }
 
             @if (canWrite()) {
@@ -954,7 +1082,13 @@
               <ng-container i18n="Spending card header|What the household has spent so far this month">Spending this month</ng-container>
               <span class="overview__value-context" i18n="Spending card header note|The comparison is against the same days of last month">vs same period last month</span>
             </span>
-            <span class="overview__value">{{ formatMoney(spending.this_month) }}</span>
+            <span class="overview__value">{{ formatQualifiedMoney(spending.this_month) }}</span>
+            @if (partialMoneyNote(spending.this_month); as note) {
+              <span class="qualified-note" role="status">{{ note }}</span>
+            }
+            @if (partialMoneyNote(spending.last_month); as note) {
+              <span class="qualified-note" role="status">{{ note }}</span>
+            }
             @if (spending.change_percent !== null && spending.change_percent !== undefined) {
               <span
                 class="overview__detail"
@@ -964,8 +1098,13 @@
               >
                 {{ spending.change_percent > 0 ? '▲' : spending.change_percent < 0 ? '▼' : '' }}
                 {{ absPercent(spending.change_percent) }}% vs last month
-                ({{ formatMoney(spending.last_month) }})
+                ({{ formatQualifiedMoney(spending.last_month) }})
               </span>
+            } @else if (
+              spending.this_month.incomplete_count > 0 ||
+              spending.last_month.incomplete_count > 0
+            ) {
+              <span class="qualified-note" role="status">{{ unavailableLabel }}</span>
             } @else {
               <span class="overview__detail" i18n="Spending change empty state|There is nothing to compare against last month">No spending in the same period last month.</span>
             }
@@ -978,6 +1117,37 @@
                   </li>
                 }
               </ul>
+            } @else if (spending.top_merchants === null) {
+              <span class="qualified-note" role="status" i18n="Spending ranking unavailable|Merchant ranking cannot be determined from unreadable stored data">Merchant ranking unavailable.</span>
+            }
+          </div>
+        }
+
+        @if (context.spending_by_category; as categorySpending) {
+          <div class="overview__card overview__card--wide">
+            <span class="overview__label" i18n="Category spending card header|Spending grouped by category">Spending by category</span>
+            <span class="overview__value">{{ formatQualifiedMoney(categorySpending.total) }}</span>
+            @if (partialMoneyNote(categorySpending.total); as note) {
+              <span class="qualified-note" role="status">{{ note }}</span>
+            }
+            @if (categorySpending.categories?.length) {
+              <ul class="overview__breakdown">
+                @for (category of categorySpending.categories; track category.category_id) {
+                  <li>
+                    <span>{{ category.category_name }}</span>
+                    <span>{{ formatQualifiedMoney(category.amount) }}</span>
+                    @if (partialMoneyNote(category.amount); as note) {
+                      <span class="qualified-note" role="status">{{ note }}</span>
+                    }
+                  </li>
+                }
+              </ul>
+            }
+            <span class="overview__detail" i18n="Category spending uncategorized|Spending not assigned to a category">
+              Uncategorized: {{ formatQualifiedMoney(categorySpending.uncategorized) }}
+            </span>
+            @if (partialMoneyNote(categorySpending.uncategorized); as note) {
+              <span class="qualified-note" role="status">{{ note }}</span>
             }
           </div>
         }
@@ -985,7 +1155,10 @@
         @if (context.budget_summary; as budgets) {
           <div class="overview__card">
             <span class="overview__label" i18n="Budgets card header|Spending envelopes and how they are doing">Budgets</span>
-            @if (budgets.over_count > 0) {
+            @if (budgets.over_count === null || budgets.warning_count === null) {
+              <span class="overview__value">—</span>
+              <span class="qualified-note" role="status">{{ unavailableLabel }}</span>
+            } @else if (budgets.over_count > 0) {
               <span class="overview__value overview__value--negative" i18n="Budget verdict|How many envelopes have been overspent">
                 {{ budgets.over_count }} over budget
               </span>
@@ -997,11 +1170,14 @@
               <span class="overview__value overview__value--positive" i18n="Budget verdict|No envelope is over or near its limit">All on track</span>
             }
             <span class="overview__detail" i18n="Budget detail|Spent against budgeted across all envelopes">
-              {{ formatMoney(budgets.total_spent) }} of
+              {{ formatQualifiedMoney(budgets.total_spent) }} of
               {{ formatMoney(budgets.total_budgeted) }} across
               {{ budgets.envelope_count }} budgets ·
               <a routerLink="/budgets">manage</a>
             </span>
+            @if (partialMoneyNote(budgets.total_spent); as note) {
+              <span class="qualified-note" role="status">{{ note }}</span>
+            }
           </div>
         }
 

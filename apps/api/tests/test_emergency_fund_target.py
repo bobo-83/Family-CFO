@@ -25,9 +25,9 @@ async def test_setting_target_recomputes_summary(demo_client, demo_token) -> Non
     fund = updated.json()["emergency_fund"]
     assert fund["target_months_recommended"] == 3
     # Gap now measures against 3 months of expenses, not 6.
-    monthly = fund["monthly_expenses"]["amount_minor"]
+    monthly = fund["monthly_expenses"]["value"]["amount_minor"]
     reserved = fund["reserved"]["amount_minor"]
-    assert fund["gap_to_recommended"]["amount_minor"] == max(0, 3 * monthly - reserved)
+    assert fund["gap_to_recommended"]["value"]["amount_minor"] == max(0, 3 * monthly - reserved)
 
 
 @pytest.mark.anyio

@@ -9,6 +9,8 @@ import Foundation
 /// say "as of ...".
 struct OverviewSnapshot: Codable, Equatable {
     var netWorthMinor: Int64
+    /// Optional so caches written before qualified totals continue to decode.
+    var netWorthIncompleteCount: Int? = nil
     var currency: String
     var emergencyFundStatus: String
     var emergencyFundMonths: Double?
@@ -53,5 +55,15 @@ extension OverviewSnapshot {
     var netWorthFormatted: String {
         (Decimal(netWorthMinor) / 100)
             .formatted(.currency(code: currency).precision(.fractionLength(0)))
+    }
+
+    var netWorthPartialDisclosure: String? {
+        guard let count = netWorthIncompleteCount, count > 0 else { return nil }
+        if count == 1 {
+            return String(
+                localized: "Partial total—1 stored amount could not be read and was left out.")
+        }
+        return String(
+            localized: "Partial total—\(count) stored amounts could not be read and were left out.")
     }
 }

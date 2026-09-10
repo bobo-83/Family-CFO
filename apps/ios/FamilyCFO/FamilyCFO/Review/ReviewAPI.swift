@@ -70,6 +70,8 @@ struct LiveReviewAPI: ReviewAPI {
             throw APIError.unauthorized
         case .unprocessableContent:
             throw APIError.server(422)
+        case .conflict:
+            throw APIError.incompleteData
         case .undocumented(let status, _):
             throw APIError.server(status)
         }
@@ -83,6 +85,8 @@ struct LiveReviewAPI: ReviewAPI {
         ) {
         case .ok, .notFound:
             return
+        case .conflict:
+            throw APIError.incompleteData
         case .unauthorized:
             throw APIError.unauthorized
         case .forbidden:
@@ -167,6 +171,8 @@ struct LiveReviewAPI: ReviewAPI {
         case .notFound:
             // Already gone; the queue will simply no longer show it.
             return
+        case .conflict:
+            throw APIError.incompleteData
         case .undocumented(let status, _):
             throw APIError.server(status)
         }
@@ -182,6 +188,8 @@ struct LiveReviewAPI: ReviewAPI {
             throw APIError.unauthorized
         case .forbidden:
             throw APIError.server(403)
+        case .conflict:
+            throw APIError.incompleteData
         case .undocumented(let status, _):
             throw APIError.server(status)
         }

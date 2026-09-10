@@ -95,14 +95,14 @@ async def test_statement_replaces_the_balance_estimate_in_safe_to_spend(
     # alone doesn't move the balance snapshot).
     repository.record_account_balance(demo_engine, card, -900_00)
     before = (await demo_client.get("/api/v1/household", headers=headers)).json()
-    committed_before = before["safe_to_spend"]["committed_total"]["amount_minor"]
+    committed_before = before["safe_to_spend"]["committed_total"]["value"]["amount_minor"]
 
     # The statement says a SMALLER amount is actually due this cycle.
     await _record(
         demo_client, headers, card, minor=300_00, due=date.today() + timedelta(days=10)
     )
     after = (await demo_client.get("/api/v1/household", headers=headers)).json()
-    committed_after = after["safe_to_spend"]["committed_total"]["amount_minor"]
+    committed_after = after["safe_to_spend"]["committed_total"]["value"]["amount_minor"]
 
     # Committed changes by the DIFFERENCE, not by the statement amount added on
     # top: the card contributes 300.00 instead of its 900.00 balance.

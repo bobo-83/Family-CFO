@@ -128,6 +128,7 @@ def _require_account(
     response_model=TransactionListResponse,
     responses={
         401: {"description": "Unauthorized", "model": ErrorResponse},
+        409: {"description": "A stored transaction amount is unreadable", "model": ErrorResponse},
         422: {"description": "Invalid month", "model": ErrorResponse},
     },
     summary="List transactions (recent, or every one in a given YYYY-MM month)",
@@ -178,6 +179,7 @@ async def list_transactions(
     response_model=TransactionListResponse,
     responses={
         401: {"description": "Unauthorized", "model": ErrorResponse},
+        409: {"description": "A stored transaction amount is unreadable", "model": ErrorResponse},
         422: {"description": "Unknown kind", "model": ErrorResponse},
     },
     summary="Transactions to review — duplicates (default), transfers, or credits/refunds",
@@ -298,6 +300,7 @@ async def create_transaction(
         401: {"description": "Unauthorized", "model": ErrorResponse},
         403: {"description": "Role does not permit this action", "model": ErrorResponse},
         404: {"description": "Transaction not found", "model": ErrorResponse},
+        409: {"description": "The stored transaction amount is unreadable", "model": ErrorResponse},
     },
     summary="Update a transaction",
 )
@@ -394,6 +397,7 @@ def _describe_update(
         401: {"description": "Unauthorized", "model": ErrorResponse},
         403: {"description": "Role does not permit this action", "model": ErrorResponse},
         404: {"description": "Transaction not found", "model": ErrorResponse},
+        409: {"description": "The stored transaction amount is unreadable", "model": ErrorResponse},
     },
     summary="Delete a transaction",
 )

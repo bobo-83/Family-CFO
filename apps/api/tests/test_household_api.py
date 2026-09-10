@@ -17,5 +17,8 @@ async def test_get_household_context_returns_computed_summary(demo_client, demo_
     assert response.status_code == 200
     body = response.json()
     assert body["currency"] == "USD"
-    assert body["net_worth"] == {"amount_minor": -298_000_000, "currency": "USD"}
+    assert body["net_worth"] == {
+        "value": {"amount_minor": -298_000_000, "currency": "USD"},
+        "incomplete_count": 0,
+    }
     assert body["emergency_fund_months"] == pytest.approx(2_000_000 / 208_000)

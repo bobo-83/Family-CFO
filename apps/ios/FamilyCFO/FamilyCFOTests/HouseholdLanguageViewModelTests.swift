@@ -10,10 +10,11 @@ struct HouseholdLanguageViewModelTests {
         .init(
             householdId: "hh-1",
             displayName: "demo-household",
-            language: language,
             currency: "USD",
-            netWorth: .init(amountMinor: 0, currency: "USD"),
-            emergencyFundMonths: 4.5
+            language: language,
+            netWorth: testQualified(0),
+            emergencyFundMonths: 4.5,
+            savingsContributions: testSavingsSet()
         )
     }
 

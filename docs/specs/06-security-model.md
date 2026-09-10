@@ -85,6 +85,29 @@ If a change cannot work without a secret passing through a prompt, that is a
 design defect and the design must change — not the rule. If a secret is
 disclosed regardless, treat it as an incident: say so, and rotate it.
 
+## Incomplete Aggregate Privacy Boundary (M124, ADR 0076)
+
+Qualified aggregates do not change authentication, authorization, encryption,
+network, or household-isolation boundaries. `HouseholdLockedError` remains HTTP
+423; aggregate qualification catches only the known unreadable-cell exception
+and must not turn a locked household, database failure, crypto failure,
+cancellation, or unexpected error into a partial response.
+
+Unreadable source identity `(household_id, table, row_id, column)` exists only
+inside the current request so counts can be deduplicated and scoped. Public
+responses, advisor payloads, calculation JSON, reviews, memories, warnings, and
+ordinary logs expose only counts and generic repair language. They never expose
+ciphertext, plaintext, sealed account/merchant names, guessed amounts, or source
+table/row/column identity. Controlled server diagnostics may log household,
+table, row, and column identifiers needed for repair, but never the token or
+neighboring sealed text.
+
+Background strict readers isolate `sealed_amount_unreadable` at household/job
+scope, record only a non-sensitive retryable skip, preserve prior durable output
+(including vectors and cached reviews), and continue to other households. They
+do not persist invented zeros. Synthetic corruption fixtures contain no
+personal data and require no secrets.
+
 ## Mobile Authentication
 
 The iPhone app should use Face ID where available for local unlock. Server authorization remains token-based and revocable.

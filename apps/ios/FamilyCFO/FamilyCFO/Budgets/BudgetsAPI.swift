@@ -4,7 +4,7 @@ import Foundation
 /// with the dashboard's Budgets page): list with current-month progress, create,
 /// change a limit, delete. Every mutation is undoable server-side (ADR 0023).
 protocol BudgetsAPI: Sendable {
-    func budgets() async throws -> [Components.Schemas.Budget]
+    func budgets() async throws -> Components.Schemas.BudgetListResponse
     func categories() async throws -> [Components.Schemas.Category]
     func createBudget(categoryID: String, limitMinor: Int64, currency: String) async throws
     func updateBudget(id: String, limitMinor: Int64, currency: String) async throws
@@ -14,10 +14,10 @@ protocol BudgetsAPI: Sendable {
 struct LiveBudgetsAPI: BudgetsAPI {
     let client: Client
 
-    func budgets() async throws -> [Components.Schemas.Budget] {
+    func budgets() async throws -> Components.Schemas.BudgetListResponse {
         switch try await client.listBudgets(.init()) {
         case .ok(let response):
-            return try response.body.json.budgets
+            return try response.body.json
         case .unauthorized:
             throw APIError.unauthorized
         case .undocumented(let status, _):

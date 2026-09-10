@@ -56,6 +56,58 @@ Recommendations must include:
 - Confidence
 - Calculation references
 
+## Qualified Aggregate Contract (M124, ADR 0076)
+
+The coordinated contract release adds:
+
+```text
+QualifiedMoney
+  value: Money                 required
+  incomplete_count: integer    required, minimum 0
+
+ComputationAvailability
+  status: complete | unavailable
+  incomplete_count: integer    required, minimum 0
+```
+
+`complete` requires count 0 and `unavailable` requires a positive count.
+`QualifiedMoney.value` is never null and never contains a synthetic substitute.
+A positive count means the value sums readable contributors only. A nullable
+decision uses `QualifiedMoney | null`; every non-null decision is complete.
+Ordinary absence versus corruption-driven unavailability is distinguished by a
+colocated availability field where both would otherwise serialize as null.
+
+The field matrix is normative in ADR 0076 and the M124 task section. It includes
+qualified descriptive totals across household context, spending/categories,
+budgets, cash flow, savings, timeline totals, outlook/plan components, income,
+and yearly overview; nullable derived net/remaining/coverage/rate/projection/
+safe-to-spend/tax values; `unknown` or `unavailable` decision enums; nullable
+rankings; `SavingsContributionSet`; server-authored
+`SpendingByCategory.total`; and required `BudgetListResponse.summary`.
+Existing unaffected stored values remain `Money`.
+
+Transaction list/detail, the card-statement list and card-statement
+mutation/undo pre-reads, raw exports/indexing, equality/dedupe/sign/range
+filters, write comparisons, review
+generation, and unstable candidate/ranking-only operations document HTTP 409
+`sealed_amount_unreadable`. Aggregate-local qualification does not catch
+`household_locked`; HTTP 423 remains distinct.
+
+The contract specifies exact null/zero/empty semantics: partial zero is
+`value.amount_minor == 0` with a positive count; no contributors is zero/count
+0; unavailable decisions are null rather than zero; unavailable rankings are
+null rather than an exact empty list; counts exclude ADR 0075 foreign-currency
+exclusions.
+
 ## Client Generation
 
 Generated clients are derived artifacts. The OpenAPI contract is edited first, then clients are regenerated.
+
+M124 is an intentional breaking shape change. It moves contract `0.158` to
+expected `0.159`, or the next unused minor if `VERSION` advances first. FastAPI
+schemas, authoritative OpenAPI, recursive parity validation (`$ref`, requiredness,
+nullability, array items, and enums), immutable compatibility fixture, generated
+web and Swift clients, API behavior, `VERSION`, and all component `BUILD` values
+must land atomically under ADR 0074. Mixed old/new artifacts are unsupported;
+rollout and rollback are coordinated. Item 1 changes documentation only; later
+items own all contract, version, and generated-client files.

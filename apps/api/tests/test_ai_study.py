@@ -7,6 +7,7 @@ from family_cfo_ai_orchestrator import RuntimeCompletion
 from sqlalchemy.engine import Engine
 
 from family_cfo_api import ai_study, fixtures, repository
+from family_cfo_api.qualified_amounts import Qualified, UnreadableAmountSource
 
 
 class _StubStudyRuntime:
@@ -66,11 +67,15 @@ def test_complete_months_empty_without_transactions(demo_engine: Engine) -> None
 def test_digest_fingerprint_changes_when_the_month_changes(demo_engine: Engine) -> None:
     _seed_month(demo_engine, "2026-03")
     before = ai_study.digest_fingerprint(
-        ai_study.build_month_digest(demo_engine, fixtures.DEMO_HOUSEHOLD_ID, "USD", "2026-03")
+        ai_study.build_month_digest(
+            demo_engine, fixtures.DEMO_HOUSEHOLD_ID, "USD", "2026-03"
+        ).value
     )
     _seed_month(demo_engine, "2026-03", amount_minor=-9_900)
     after = ai_study.digest_fingerprint(
-        ai_study.build_month_digest(demo_engine, fixtures.DEMO_HOUSEHOLD_ID, "USD", "2026-03")
+        ai_study.build_month_digest(
+            demo_engine, fixtures.DEMO_HOUSEHOLD_ID, "USD", "2026-03"
+        ).value
     )
     assert before != after
 
@@ -130,6 +135,68 @@ def test_next_month_prefers_newest_unstudied_then_stale(demo_engine: Engine) -> 
     # New data in an already-studied month marks it stale for re-study.
     _seed_month(demo_engine, "2026-04", amount_minor=-7_700)
     assert ai_study._next_month_to_study(demo_engine, hh, "USD", today=date(2026, 6, 15)) == "2026-04"
+
+
+def test_incomplete_month_skips_runtime_memory_and_digest_persistence(
+    demo_engine: Engine, monkeypatch, caplog
+) -> None:
+    caplog.set_level("INFO")
+    source = UnreadableAmountSource(
+        fixtures.DEMO_HOUSEHOLD_ID, "transactions", "private-row", "amount_minor"
+    )
+    digest = Qualified(
+        {
+            "month": "2026-03",
+            "currency": "USD",
+            "income_minor": 0,
+            "spending_minor": 0,
+            "spending_by_category": {},
+            "top_merchants": {},
+        },
+        frozenset({source}),
+    )
+    monkeypatch.setattr(ai_study, "build_month_digest", lambda *_args, **_kwargs: digest)
+    runtime = _StubStudyRuntime(["[]"])
+
+    result = ai_study.study_month(
+        runtime, demo_engine, fixtures.DEMO_HOUSEHOLD_ID, "USD", "2026-03"
+    )
+
+    assert result is None
+    assert runtime.calls == 0
+    assert repository.list_study_months(demo_engine, fixtures.DEMO_HOUSEHOLD_ID) == []
+    assert repository.list_study_insights(demo_engine, fixtures.DEMO_HOUSEHOLD_ID) == []
+    assert "household_id=" in caplog.text
+    assert "month=2026-03" in caplog.text
+    assert "incomplete_count=1" in caplog.text
+    assert "private-row" not in caplog.text
+    assert "transactions" not in caplog.text
+    assert "amount_minor" not in caplog.text
+
+
+def test_next_month_scans_past_incomplete_without_starving_retry(
+    demo_engine: Engine, monkeypatch
+) -> None:
+    hh = fixtures.DEMO_HOUSEHOLD_ID
+    source = UnreadableAmountSource(hh, "transactions", "row", "amount_minor")
+    repaired = False
+
+    monkeypatch.setattr(
+        ai_study,
+        "complete_months",
+        lambda *_args, **_kwargs: ["2026-03", "2026-04"],
+    )
+    monkeypatch.setattr(repository, "list_study_months", lambda *_args, **_kwargs: [])
+
+    def digest(_engine, _household_id, _currency, month):
+        sources = frozenset() if month == "2026-03" or repaired else frozenset({source})
+        return Qualified({"month": month}, sources)
+
+    monkeypatch.setattr(ai_study, "build_month_digest", digest)
+
+    assert ai_study._next_month_to_study(demo_engine, hh, "USD") == "2026-03"
+    repaired = True
+    assert ai_study._next_month_to_study(demo_engine, hh, "USD") == "2026-04"
 
 
 def test_study_status_reports_coverage(demo_engine: Engine) -> None:

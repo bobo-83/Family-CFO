@@ -28,6 +28,42 @@ export type Money = {
 };
 
 /**
+ * QualifiedMoney
+ */
+export type QualifiedMoney = {
+    value: Money;
+    /**
+     * Incomplete Count
+     */
+    incomplete_count: number;
+};
+
+/**
+ * ComputationAvailability
+ */
+export type ComputationAvailability = {
+    /**
+     * Status
+     */
+    status: 'complete' | 'unavailable';
+    /**
+     * Incomplete Count
+     */
+    incomplete_count: number;
+};
+
+/**
+ * SavingsContributionSet
+ */
+export type SavingsContributionSet = {
+    /**
+     * Contributions
+     */
+    contributions: Array<SavingsContribution>;
+    detection: ComputationAvailability;
+};
+
+/**
  * Owner-only: mint the pairing code for another household member so a regular member never signs into the dashboard to pair their phone. Omit to pair for yourself.
  */
 export type PairingSessionCreateRequest = {
@@ -257,57 +293,88 @@ export type OutlookEvent = {
 };
 
 /**
- * Projected cash over the horizon (M112, ADR 0026): paychecks in, payments out, and the lowest point the balance reaches — the lived counterpart to safe-to-spend's zero-income stress test.
+ * CashOutlookResponse
+ *
+ * Projected cash over the horizon: paychecks in, payments out, and the
+ * lowest point the balance reaches — the lived counterpart to safe-to-spend's
+ * zero-income stress test.
  */
 export type CashOutlookResponse = {
     starting_cash: Money;
+    /**
+     * Events
+     */
     events: Array<OutlookEvent>;
-    ending_cash: Money;
-    lowest_balance: Money;
+    ending_cash: NullableQualifiedMoney;
+    lowest_balance: NullableQualifiedMoney;
+    /**
+     * Lowest Date
+     */
     lowest_date?: string | null;
-    expected_income: Money;
-    obligations: Money;
+    expected_income: NullableQualifiedMoney;
+    income_projection: ComputationAvailability;
+    obligations: QualifiedMoney;
+    /**
+     * Horizon Days
+     */
     horizon_days: number;
-    due_soon: Money;
-    due_soon_covered: boolean;
+    due_soon: QualifiedMoney;
+    /**
+     * Due Soon Covered
+     */
+    due_soon_covered: boolean | null;
+    /**
+     * Due Soon Window Days
+     */
     due_soon_window_days: number;
     /**
-     * ADR 0069: first projected day the cash balance goes negative. Absent while the horizon stays covered.
+     * First Shortfall Date
      */
     first_shortfall_date?: string | null;
+    shortfall?: NullableQualifiedMoney;
     /**
-     * The deepest projected gap over the horizon — the minimum cash to raise (e.g. by selling RSUs) so every payment clears.
-     */
-    shortfall?: Money;
-    /**
-     * Last day to START an RSU sale with 4 business days of notice (trade, settlement, transfer; weekends skipped, market holidays not modeled) before the first shortfall.
+     * Sell By Date
      */
     sell_by_date?: string | null;
     /**
-     * What raising the cash means for THIS household: sell_rsus when the compensation profile declares RSU income, move_cash otherwise (user point 2026-07-26 — don't tell an RSU-less household to sell RSUs). Present only alongside sell_by_date.
+     * Runway Action
      */
     runway_action?: 'sell_rsus' | 'move_cash' | null;
     /**
-     * M-rsu-grants: with grants and a live quote, the shortfall translated into whole shares to sell. Absent otherwise.
+     * Sell Units
      */
     sell_units?: number | null;
+    /**
+     * Sell Ticker
+     */
     sell_ticker?: string | null;
 };
 
 /**
- * M113 (ADR 0027): left to spend this month — expected income minus what's already spent and what's still committed. `per_day` is a pace, not a rule; zero when `left_to_spend` is negative.
+ * SpendingPlanResponse
+ *
+ * M113 (ADR 0027): left to spend this month — expected income minus what's
+ * already spent and what's still committed. The accrual counterpart to the
+ * cash outlook's cash-timing view.
  */
 export type SpendingPlanResponse = {
+    /**
+     * Month
+     */
     month: string;
-    income_received: Money;
-    income_projected: Money;
-    expected_income: Money;
-    spent: Money;
-    bills_remaining: Money;
+    income_received: QualifiedMoney;
+    income_projected: NullableQualifiedMoney;
+    expected_income: NullableQualifiedMoney;
+    income_projection: ComputationAvailability;
+    spent: QualifiedMoney;
+    bills_remaining: QualifiedMoney;
     account_obligations: Money;
     planned_savings: Money;
-    left_to_spend: Money;
-    per_day: Money;
+    left_to_spend: NullableQualifiedMoney;
+    per_day: NullableQualifiedMoney;
+    /**
+     * Days Remaining
+     */
     days_remaining: number;
 };
 
@@ -348,29 +415,62 @@ export type BillPaymentLink = {
 };
 
 /**
- * One payment on the Bills timeline (M111): a bill, a credit-card payment, or a loan/lease payment. `amount` is the expected figure (a bill's estimate — variable utilities show their typical amount — a card's pay-in-full balance, a loan's monthly payment); `paid_with` carries the matched actual charge when status is "paid".
+ * PaymentTimelineItem
  */
 export type PaymentTimelineItem = {
+    /**
+     * Id
+     */
     id: string;
+    /**
+     * Kind
+     */
     kind: 'bill' | 'credit_card' | 'mortgage' | 'loan' | 'lease';
+    /**
+     * Name
+     */
     name: string;
-    amount: Money;
+    amount: NullableMoney;
+    /**
+     * Due Date
+     */
     due_date?: string | null;
+    /**
+     * Days Until
+     */
     days_until?: number | null;
     /**
-     * "#11: statement = exact figure from a recorded statement; estimate = running balance with an inferred day. Never present an estimate as exact."
+     * Status
+     */
+    status: 'overdue' | 'due_soon' | 'upcoming' | 'paid' | 'no_date' | 'unknown';
+    paid_with?: NullableTimelinePaidWith;
+    /**
+     * Source
      */
     source?: string;
+    /**
+     * Statement Id
+     */
     statement_id?: string | null;
-    status: 'overdue' | 'due_soon' | 'upcoming' | 'paid' | 'no_date';
-    paid_with?: TimelinePaidWith;
 };
 
+/**
+ * PaymentTimelineResponse
+ */
 export type PaymentTimelineResponse = {
+    /**
+     * Items
+     */
     items: Array<PaymentTimelineItem>;
-    due_total: Money;
+    due_total: QualifiedMoney;
     liquid_balance: Money;
-    covered: boolean;
+    /**
+     * Covered
+     */
+    covered: boolean | null;
+    /**
+     * Window Days
+     */
     window_days: number;
 };
 
@@ -469,33 +569,53 @@ export type IncomeAnalysisTransaction = {
 };
 
 /**
- * A recurring deposit pattern detected in checking accounts (M61) with every underlying transaction shown as editable evidence.
- *
+ * IncomeSourceAnalysis
  */
 export type IncomeSourceAnalysis = {
+    /**
+     * Source Key
+     */
     source_key: string;
+    /**
+     * Name
+     */
     name: string;
     /**
-     * Detected cadence, or "irregular" for manually-added deposits.
+     * Frequency
      */
-    frequency: string;
+    frequency: string | null;
+    /**
+     * Manually Added
+     */
     manually_added: boolean;
-    typical_amount: Money;
-    total_amount: Money;
+    typical_amount: NullableQualifiedMoney;
+    total_amount: QualifiedMoney;
+    /**
+     * Transactions
+     */
     transactions: Array<IncomeAnalysisTransaction>;
 };
 
+/**
+ * IncomeRollup
+ */
 export type IncomeRollup = {
-    annual_income: Money;
-    monthly_average: Money;
-    transaction_count: number;
+    annual_income: QualifiedMoney;
+    monthly_average: QualifiedMoney;
+    /**
+     * Transaction Count
+     */
+    transaction_count: number | null;
+    /**
+     * Window Days
+     */
     window_days: number;
     /**
-     * Earliest synced checking transaction in the window.
+     * Coverage Start
      */
-    coverage_start?: string;
+    coverage_start?: string | null;
     /**
-     * How many days of history the analysis actually has.
+     * Coverage Days
      */
     coverage_days?: number;
 };
@@ -878,17 +998,26 @@ export type BillCreditsResponse = {
     yearly: Array<YearlyCreditTotal>;
 };
 
+/**
+ * IncomeAnalysisResponse
+ */
 export type IncomeAnalysisResponse = {
+    /**
+     * Sources
+     */
     sources: Array<IncomeSourceAnalysis>;
+    /**
+     * Other Inflows
+     */
     other_inflows: Array<IncomeAnalysisTransaction>;
     rollup: IncomeRollup;
-    profile?: IncomeProfile;
+    detection: ComputationAvailability;
     /**
-     * Present when the synced history does not span the full analysis window (e.g. it starts mid-year) — income and tax are then likely underestimated. Internal transfers between the household's own accounts are never shown or counted (M63).
-     *
+     * Coverage Warning
      */
-    coverage_warning?: string;
-    tax: TaxEstimate;
+    coverage_warning?: string | null;
+    profile?: NullableIncomeProfile;
+    tax: NullableTaxEstimate;
 };
 
 export type IncomeOverrideRequest = {
@@ -914,116 +1043,119 @@ export type GoalListResponse = {
     goals: Array<Goal>;
 };
 
+/**
+ * HouseholdContext
+ */
 export type HouseholdContext = {
+    /**
+     * Household Id
+     */
     household_id: string;
+    /**
+     * Display Name
+     */
     display_name: string;
     /**
-     * "#10: the household's display/answer language (en, vi, lt). One language per household — compile-time web i18n serves one build per locale, so this cannot be per-member."
+     * Currency
+     */
+    currency: string;
+    /**
+     * Language
      */
     language?: string;
     /**
-     * #5: whether committed savings is reserved like a bill.
+     * Reserve Committed Savings
      */
     reserve_committed_savings?: boolean;
     /**
-     * #41: the household's IANA zone; null means the box default.
+     * Timezone
      */
     timezone?: string | null;
-    currency: string;
-    net_worth: Money;
-    emergency_fund_months: number;
+    net_worth: QualifiedMoney;
     /**
-     * M38: emergency-fund coverage vs the standard 3–6 month guidance.
+     * Emergency Fund Months
      */
-    emergency_fund?: EmergencyFundSummary;
+    emergency_fund_months: number | null;
+    emergency_fund?: NullableEmergencyFundSummary;
+    monthly_cash_flow?: NullableMonthlyCashFlow;
     /**
-     * M38: recurring income vs bills, normalized monthly.
-     */
-    monthly_cash_flow?: MonthlyCashFlow;
-    /**
-     * M38: positive balances grouped by spendability category (ordered).
+     * Asset Breakdown
      */
     asset_breakdown?: Array<AssetCategoryTotal>;
+    total_debt?: NullableMoney;
     /**
-     * M38: positive sum of all negative account balances.
-     */
-    total_debt?: Money;
-    /**
-     * M39: bills due within the next 14 days, soonest first.
+     * Upcoming Bills
      */
     upcoming_bills?: Array<UpcomingBill>;
     /**
-     * M40: recent net-worth snapshots, oldest-first, for the trend sparkline.
+     * Net Worth History
      */
     net_worth_history?: Array<NetWorthPoint>;
+    top_goal?: NullableGoalProgress;
+    spending_insights?: NullableSpendingInsights;
+    savings_rate?: NullableSavingsRate;
+    savings_contributions: SavingsContributionSet;
+    budget_summary?: NullableBudgetSummary;
+    safe_to_spend?: NullableSafeToSpend;
+    spending_by_category?: NullableSpendingByCategory;
     /**
-     * M41: the highest-priority savings goal with progress, when one exists.
-     */
-    top_goal?: GoalProgress;
-    /**
-     * M42: month-to-date spending vs the same period last month, plus top merchants.
-     */
-    spending_insights?: SpendingInsights;
-    /**
-     * M44: recurring income vs trailing-3-month average actual spending.
-     */
-    savings_rate?: SavingsRate;
-    /**
-     * #201: detected recurring saving (transfers only), largest first.
-     */
-    savings_contributions?: Array<SavingsContribution>;
-    /**
-     * M46: envelope health (over/warning counts, budgeted vs spent); absent when no budgets exist.
-     */
-    budget_summary?: BudgetSummary;
-    /**
-     * M93: liquid cash minus the emergency fund, bills due, and minimum debt payments — what's actually free to spend right now.
-     */
-    safe_to_spend?: SafeToSpend;
-    /**
-     * M94: this month's spending grouped by category (the payoff of categorizing); absent when nothing has been spent this month.
-     */
-    spending_by_category?: SpendingByCategory;
-    /**
-     * M96: most recent successful bank sync across linked institutions, so the Overview can show how fresh the data is. Null when never synced.
+     * Last Synced At
      */
     last_synced_at?: string | null;
     /**
-     * M96: 'YYYY-MM' of the oldest transaction, so the month picker stops there.
+     * Earliest Month
      */
     earliest_month?: string | null;
     /**
-     * M97: transactions awaiting duplicate review, for the Review tab badge.
+     * Review Count
      */
     review_count?: number;
     /**
-     * "#152 (ADR 0075): every account the household holds in a currency other than its base — real, listed on the Accounts tab, but counted in no base-currency total and never converted. Each balance is in the account's OWN currency. A list (empty for a single-currency household) whenever the response describes today's accounts; null for a past month, whose accounts are not known — null means unknown, never none."
+     * Accounts Outside Base Currency
      */
     accounts_outside_base_currency?: Array<AccountOutsideBaseCurrency> | null;
 };
 
+/**
+ * Budget
+ *
+ * M46: a monthly per-category envelope with current-month progress.
+ */
 export type Budget = {
+    /**
+     * Id
+     */
     id: string;
+    /**
+     * Category Id
+     */
     category_id: string;
+    /**
+     * Category Name
+     */
     category_name: string;
     limit: Money;
+    spent: QualifiedMoney;
+    remaining: NullableQualifiedMoney;
     /**
-     * Outflow in this category during the current calendar month.
+     * Percent Used
      */
-    spent: Money;
+    percent_used: number | null;
     /**
-     * limit − spent; negative when over budget.
+     * Status
      */
-    remaining: Money;
-    /**
-     * Raw spent/limit percent; may exceed 100.
-     */
-    percent_used: number;
-    status: 'under' | 'warning' | 'over';
+    status: 'under' | 'warning' | 'over' | null;
 };
 
+/**
+ * BudgetListResponse
+ */
 export type BudgetListResponse = {
+    /**
+     * Budgets
+     */
     budgets: Array<Budget>;
+    summary: BudgetSummary;
 };
 
 export type BudgetCreateRequest = {
@@ -1035,127 +1167,127 @@ export type BudgetUpdateRequest = {
     limit: Money;
 };
 
+/**
+ * BudgetSummary
+ *
+ * M46: envelope health for the Overview alert card.
+ */
 export type BudgetSummary = {
-    envelope_count: number;
-    over_count: number;
     /**
-     * Envelopes at ≥80% of their limit (but not over).
+     * Envelope Count
      */
-    warning_count: number;
+    envelope_count: number;
+    /**
+     * Over Count
+     */
+    over_count: number | null;
+    /**
+     * Warning Count
+     */
+    warning_count: number | null;
     total_budgeted: Money;
-    total_spent: Money;
+    total_spent: QualifiedMoney;
 };
 
 /**
- * M94: this calendar month's outflow grouped by category, the visible result of categorizing transactions.
+ * SpendingByCategory
+ *
+ * M94: this month's outflow grouped by category — the visible payoff of
+ * categorizing. `uncategorized` is what's still unsorted, so the user can see
+ * the value of filing more.
  */
 export type SpendingByCategory = {
     /**
-     * The covered month as ISO year-month, e.g. "2026-07" — so a client can filter transactions to exactly this window.
+     * Month
      */
     month: string;
     /**
-     * The month this covers, e.g. "July 2026".
+     * Month Label
      */
     month_label: string;
     /**
-     * Per-category spend this month, highest first.
+     * Categories
      */
     categories?: Array<CategorySpend>;
-    /**
-     * Sum of all categorized spend this month.
-     */
-    categorized_total: Money;
-    /**
-     * This month's outflow not yet categorized — files it and it moves into a category above.
-     */
-    uncategorized: Money;
-};
-
-export type CategorySpend = {
-    category_id: string;
-    category_name: string;
-    amount: Money;
+    categorized_total: QualifiedMoney;
+    uncategorized: QualifiedMoney;
+    total: QualifiedMoney;
 };
 
 /**
- * M93: money actually free to spend now — liquid cash net of the emergency fund, bills due, and minimum debt payments. Income during the window is NOT counted.
+ * CategorySpend
+ *
+ * M94: one category's spend this month.
+ */
+export type CategorySpend = {
+    /**
+     * Category Id
+     */
+    category_id: string;
+    /**
+     * Category Name
+     */
+    category_name: string;
+    amount: QualifiedMoney;
+};
+
+/**
+ * SafeToSpend
+ *
+ * M93: what's actually free to spend now — liquid cash net of the emergency
+ * fund, bills due, and minimum debt payments. total_debt is reported (not
+ * subtracted) so spendable cash is never shown without the debt beside it.
  */
 export type SafeToSpend = {
-    /**
-     * Checking + savings only (never retirement/education funds).
-     */
     liquid_balance: Money;
-    /**
-     * Money explicitly designated for emergencies; held back.
-     */
     emergency_fund_reserved: Money;
-    /**
-     * Bills falling due within the horizon.
-     */
     bills_due: Money;
-    /**
-     * Minimum payments owed on liability accounts with recorded terms.
-     */
     minimum_debt_payments: Money;
-    /**
-     * M96: full credit-card balances when the household pays cards in full monthly; absent/0 otherwise.
-     */
-    credit_card_payments?: Money;
-    /**
-     * M109 (ADR 0020): recurring subscriptions' next in-window charge, reserved the 'bill way' (never a monthly total). Absent/0 when none are upcoming.
-     */
-    subscription_forecast?: Money;
-    /**
-     * emergency_fund_reserved + bills_due + minimum_debt_payments.
-     */
-    committed_total: Money;
-    /**
-     * liquid_balance − committed_total. May be negative.
-     */
-    safe_to_spend: Money;
-    /**
-     * All liabilities as a positive amount — reported, never subtracted, so spendable cash is never shown without the debt beside it.
-     */
+    credit_card_payments?: NullableQualifiedMoney;
+    subscription_forecast?: NullableQualifiedMoney;
+    subscription_detection: ComputationAvailability;
+    committed_total: NullableQualifiedMoney;
+    safe_to_spend: NullableQualifiedMoney;
     total_debt: Money;
     /**
-     * Human-readable caveats (e.g. debts with no recorded minimum payment understate what's committed).
+     * Warnings
      */
-    warnings: Array<string>;
+    warnings?: Array<string>;
     /**
-     * M96: the checking/savings accounts that add up to liquid_balance, for the detail drill-down.
+     * Liquid Accounts
      */
     liquid_accounts?: Array<LiquidAccountBalance>;
     /**
-     * M96: the debts and their minimum payments behind minimum_debt_payments.
+     * Minimum Debt Items
      */
     minimum_debt_items?: Array<NamedAmount>;
     /**
-     * M96: the cards and their balances behind credit_card_payments (when paid in full).
+     * Credit Card Items
      */
     credit_card_items?: Array<NamedAmount>;
     /**
-     * M98: the bills behind bills_due, over the safe-to-spend horizon.
+     * Bill Items
      */
     bill_items?: Array<NamedAmount>;
     /**
-     * M98: the accounts and how much of each is reserved as emergency fund.
+     * Emergency Fund Items
      */
     emergency_fund_items?: Array<NamedAmount>;
+    ready_to_sell?: NullableReadyToSellHoldings;
+    committed_savings?: NullableQualifiedMoney;
+    savings_detection: ComputationAvailability;
     /**
-     * M109: the recurring subscriptions (next charge + amount) behind subscription_forecast.
+     * Committed Savings Items
+     */
+    committed_savings_items?: Array<NamedAmount>;
+    /**
+     * Committed Savings Reserved
+     */
+    committed_savings_reserved?: boolean;
+    /**
+     * Subscription Forecast Items
      */
     subscription_forecast_items?: Array<NamedAmount>;
-    /**
-     * The provider-synced balances of the accounts the user tagged "vested RSUs, ready to sell". Informational — never added to safe_to_spend, because shares aren't cash until sold. Absent when no account is tagged.
-     */
-    ready_to_sell?: ReadyToSellHoldings;
-    /**
-     * "#5: recurring savings the household committed to, due within the horizon. When committed_savings_reserved is true it is subtracted (inside committed_total); otherwise shown beside the figure."
-     */
-    committed_savings?: Money;
-    committed_savings_items?: Array<NamedAmount>;
-    committed_savings_reserved?: boolean;
 };
 
 export type ReadyToSellHoldings = {
@@ -1257,51 +1389,55 @@ export type SavingsContributionDismissRequest = {
     destination_account_id: string;
 };
 
+/**
+ * SavingsRate
+ *
+ * #6: saving as what the household actually does, combining three
+ * non-overlapping sources — declared transfers, pre-tax payroll deductions,
+ * and the unspent residual. percent is total_saved / gross income.
+ *
+ * monthly_income and average_monthly_spending are kept (M44) so the old
+ * residual view still reconciles; the breakdown fields are additive.
+ */
 export type SavingsRate = {
     /**
-     * (income - avg spending) / income, %; null when income is 0; may be negative.
+     * Percent
      */
     percent?: number | null;
+    monthly_income: QualifiedMoney;
+    average_monthly_spending: QualifiedMoney;
+    gross_income?: NullableQualifiedMoney;
+    transfers?: NullableQualifiedMoney;
+    transfer_detection: ComputationAvailability;
+    payroll_deductions?: NullableMoney;
+    residual?: NullableQualifiedMoney;
+    total_saved?: NullableQualifiedMoney;
     /**
-     * Take-home (deposit-based) monthly income.
-     */
-    monthly_income: Money;
-    average_monthly_spending: Money;
-    /**
-     * #6: take-home + payroll deductions — the rate's denominator.
-     */
-    gross_income?: Money;
-    /**
-     * #6: declared savings transfers, monthly.
-     */
-    transfers?: Money;
-    /**
-     * #6: pre-tax 401(k)/HSA saved, monthly.
-     */
-    payroll_deductions?: Money;
-    /**
-     * #6: take-home minus spending minus transfers — unspent, unmoved.
-     */
-    residual?: Money;
-    /**
-     * #6: transfers + payroll + residual.
-     */
-    total_saved?: Money;
-    /**
-     * "#6: false means no 401(k)/HSA figure is declared, so payroll saving is invisible and the rate understates — say so."
+     * Payroll Profile Present
      */
     payroll_profile_present?: boolean;
+    /**
+     * Declared Transfers Present
+     */
     declared_transfers_present?: boolean;
 };
 
+/**
+ * SpendingInsights
+ *
+ * M42: month-to-date spending vs the same period last month, plus top merchants.
+ */
 export type SpendingInsights = {
-    this_month: Money;
-    last_month: Money;
+    this_month: QualifiedMoney;
+    last_month: QualifiedMoney;
     /**
-     * Percent change vs last month; null when last month was zero.
+     * Change Percent
      */
     change_percent?: number | null;
-    top_merchants?: Array<MerchantSpend>;
+    /**
+     * Top Merchants
+     */
+    top_merchants?: Array<MerchantSpend> | null;
 };
 
 export type MerchantSpend = {
@@ -1338,52 +1474,47 @@ export type UpcomingBill = {
     days_until: number;
 };
 
+/**
+ * EmergencyFundSummary
+ *
+ * M38: coverage vs the standard 3–6 month guidance.
+ */
 export type EmergencyFundSummary = {
     /**
-     * Months of expenses the fund covers; null when there are no bills.
+     * Months
      */
     months?: number | null;
-    /**
-     * The fund balance used — designated total when set, else all liquid money.
-     */
     reserved: Money;
     /**
-     * True when the fund comes from explicit account designations (M36).
+     * Using Designations
      */
     using_designations: boolean;
-    monthly_expenses: Money;
+    monthly_expenses: QualifiedMoney;
+    /**
+     * Target Months Min
+     */
     target_months_min: number;
+    /**
+     * Target Months Recommended
+     */
     target_months_recommended: number;
+    gap_to_recommended?: NullableQualifiedMoney;
+    goal_target?: NullableMoney;
     /**
-     * Money still needed to reach the recommended target; 0 when funded, absent when no bills.
+     * Status
      */
-    gap_to_recommended?: Money;
-    /**
-     * The household's own emergency_fund goal target (M75); the status is the more conservative of months-coverage and goal progress.
-     *
-     */
-    goal_target?: Money;
-    status: 'no_bills' | 'no_fund' | 'getting_started' | 'on_track' | 'fully_funded';
+    status: 'no_bills' | 'no_fund' | 'getting_started' | 'on_track' | 'fully_funded' | 'unavailable';
 };
 
+/**
+ * MonthlyCashFlow
+ */
 export type MonthlyCashFlow = {
-    income: Money;
-    /**
-     * Month-to-date spending (same rule as the Year chart's bars) — NOT just detected recurring bills, which understated outflow badly (user report 2026-07-25: "$208 Bills" against $22k real spending).
-     */
-    spending: Money;
-    /**
-     * Income minus spending — what the month kept so far.
-     */
-    net: Money;
-    /**
-     * M96: monthly gross from the W2 / compensation profile, when one exists. A baseline shown next to actual income (net money-in); NOT added to it.
-     */
-    income_baseline?: Money;
-    /**
-     * M96: tax withheld (e.g. RSU sell-to-cover), monthly. Tracked on its own, outside the discretionary spending breakdown. Absent when none is filed.
-     */
-    taxes?: Money;
+    income: QualifiedMoney;
+    spending: QualifiedMoney;
+    net: NullableQualifiedMoney;
+    income_baseline?: NullableMoney;
+    taxes?: NullableQualifiedMoney;
 };
 
 export type AssetCategoryTotal = {
@@ -2357,12 +2488,20 @@ export type ConnectionSyncResult = {
     auto_categorized?: number;
 };
 
+/**
+ * YearMonthSummary
+ *
+ * One month of the Overview's year view (M-yearly).
+ */
 export type YearMonthSummary = {
+    /**
+     * Month
+     */
     month: string;
-    income: Money;
-    spending: Money;
-    net: Money;
-    net_worth_eom?: Money;
+    income: QualifiedMoney;
+    spending: QualifiedMoney;
+    net: NullableQualifiedMoney;
+    net_worth_eom?: NullableQualifiedMoney;
 };
 
 export type YearlyReview = {
@@ -2373,14 +2512,29 @@ export type YearlyReview = {
     generated_at: string;
 };
 
+/**
+ * YearlyOverview
+ *
+ * The year at a glance: monthly trend for the chart, year totals, top
+ * categories, and the cached grounded narrative (null until generated).
+ */
 export type YearlyOverview = {
+    /**
+     * Year
+     */
     year: number;
+    /**
+     * Months
+     */
     months: Array<YearMonthSummary>;
-    total_income: Money;
-    total_spending: Money;
-    total_net: Money;
-    top_categories: Array<NamedAmount>;
-    review?: YearlyReview;
+    total_income: QualifiedMoney;
+    total_spending: QualifiedMoney;
+    total_net: NullableQualifiedMoney;
+    /**
+     * Top Categories
+     */
+    top_categories: Array<NamedAmount> | null;
+    review?: NullableYearlyReview;
 };
 
 /**
@@ -2453,6 +2607,328 @@ export type AiHardwareProfile = {
      */
     cluster_memory_gb?: number | null;
 };
+
+/**
+ * NullableBudgetSummary
+ *
+ * M46: envelope health for the Overview alert card.
+ */
+export type NullableBudgetSummary = {
+    /**
+     * Envelope Count
+     */
+    envelope_count: number;
+    /**
+     * Over Count
+     */
+    over_count: number | null;
+    /**
+     * Warning Count
+     */
+    warning_count: number | null;
+    total_budgeted: Money;
+    total_spent: QualifiedMoney;
+} | null;
+
+/**
+ * NullableEmergencyFundSummary
+ *
+ * M38: coverage vs the standard 3–6 month guidance.
+ */
+export type NullableEmergencyFundSummary = {
+    /**
+     * Months
+     */
+    months?: number | null;
+    reserved: Money;
+    /**
+     * Using Designations
+     */
+    using_designations: boolean;
+    monthly_expenses: QualifiedMoney;
+    /**
+     * Target Months Min
+     */
+    target_months_min: number;
+    /**
+     * Target Months Recommended
+     */
+    target_months_recommended: number;
+    gap_to_recommended?: NullableQualifiedMoney;
+    goal_target?: NullableMoney;
+    /**
+     * Status
+     */
+    status: 'no_bills' | 'no_fund' | 'getting_started' | 'on_track' | 'fully_funded' | 'unavailable';
+} | null;
+
+/**
+ * NullableGoalProgress
+ */
+export type NullableGoalProgress = {
+    id: string;
+    name: string;
+    type: GoalType;
+    current: Money;
+    target: Money;
+    /**
+     * current / target, 0-100 (capped), 0 when target is 0.
+     */
+    percent_complete: number;
+    target_date?: string | null;
+} | null;
+
+/**
+ * NullableIncomeProfile
+ *
+ * Declared compensation (M73). When present it is the authority for the tax estimate — no net-to-gross inference.
+ *
+ */
+export type NullableIncomeProfile = {
+    earners: Array<IncomeEarner>;
+    expected_annual_gross: Money;
+    expected_events: Array<ExpectedIncomeEvent>;
+} | null;
+
+/**
+ * NullableMoney
+ */
+export type NullableMoney = {
+    /**
+     * Signed integer amount in minor currency units.
+     */
+    amount_minor: number;
+    currency: string;
+} | null;
+
+/**
+ * NullableMonthlyCashFlow
+ */
+export type NullableMonthlyCashFlow = {
+    income: QualifiedMoney;
+    spending: QualifiedMoney;
+    net: NullableQualifiedMoney;
+    income_baseline?: NullableMoney;
+    taxes?: NullableQualifiedMoney;
+} | null;
+
+/**
+ * NullableQualifiedMoney
+ */
+export type NullableQualifiedMoney = {
+    value: Money;
+    /**
+     * Incomplete Count
+     */
+    incomplete_count: number;
+} | null;
+
+/**
+ * NullableReadyToSellHoldings
+ */
+export type NullableReadyToSellHoldings = {
+    value: Money;
+    /**
+     * The tagged accounts and their synced balances.
+     */
+    accounts: Array<NamedAmount>;
+    /**
+     * ADR 0069: business days to turn shares into cash in the bank (trade + settle + ACH).
+     */
+    sale_notice_business_days: number;
+} | null;
+
+/**
+ * NullableSafeToSpend
+ *
+ * M93: what's actually free to spend now — liquid cash net of the emergency
+ * fund, bills due, and minimum debt payments. total_debt is reported (not
+ * subtracted) so spendable cash is never shown without the debt beside it.
+ */
+export type NullableSafeToSpend = {
+    liquid_balance: Money;
+    emergency_fund_reserved: Money;
+    bills_due: Money;
+    minimum_debt_payments: Money;
+    credit_card_payments?: NullableQualifiedMoney;
+    subscription_forecast?: NullableQualifiedMoney;
+    subscription_detection: ComputationAvailability;
+    committed_total: NullableQualifiedMoney;
+    safe_to_spend: NullableQualifiedMoney;
+    total_debt: Money;
+    /**
+     * Warnings
+     */
+    warnings?: Array<string>;
+    /**
+     * Liquid Accounts
+     */
+    liquid_accounts?: Array<LiquidAccountBalance>;
+    /**
+     * Minimum Debt Items
+     */
+    minimum_debt_items?: Array<NamedAmount>;
+    /**
+     * Credit Card Items
+     */
+    credit_card_items?: Array<NamedAmount>;
+    /**
+     * Bill Items
+     */
+    bill_items?: Array<NamedAmount>;
+    /**
+     * Emergency Fund Items
+     */
+    emergency_fund_items?: Array<NamedAmount>;
+    ready_to_sell?: NullableReadyToSellHoldings;
+    committed_savings?: NullableQualifiedMoney;
+    savings_detection: ComputationAvailability;
+    /**
+     * Committed Savings Items
+     */
+    committed_savings_items?: Array<NamedAmount>;
+    /**
+     * Committed Savings Reserved
+     */
+    committed_savings_reserved?: boolean;
+    /**
+     * Subscription Forecast Items
+     */
+    subscription_forecast_items?: Array<NamedAmount>;
+} | null;
+
+/**
+ * NullableSavingsRate
+ *
+ * #6: saving as what the household actually does, combining three
+ * non-overlapping sources — declared transfers, pre-tax payroll deductions,
+ * and the unspent residual. percent is total_saved / gross income.
+ *
+ * monthly_income and average_monthly_spending are kept (M44) so the old
+ * residual view still reconciles; the breakdown fields are additive.
+ */
+export type NullableSavingsRate = {
+    /**
+     * Percent
+     */
+    percent?: number | null;
+    monthly_income: QualifiedMoney;
+    average_monthly_spending: QualifiedMoney;
+    gross_income?: NullableQualifiedMoney;
+    transfers?: NullableQualifiedMoney;
+    transfer_detection: ComputationAvailability;
+    payroll_deductions?: NullableMoney;
+    residual?: NullableQualifiedMoney;
+    total_saved?: NullableQualifiedMoney;
+    /**
+     * Payroll Profile Present
+     */
+    payroll_profile_present?: boolean;
+    /**
+     * Declared Transfers Present
+     */
+    declared_transfers_present?: boolean;
+} | null;
+
+/**
+ * NullableSpendingByCategory
+ *
+ * M94: this month's outflow grouped by category — the visible payoff of
+ * categorizing. `uncategorized` is what's still unsorted, so the user can see
+ * the value of filing more.
+ */
+export type NullableSpendingByCategory = {
+    /**
+     * Month
+     */
+    month: string;
+    /**
+     * Month Label
+     */
+    month_label: string;
+    /**
+     * Categories
+     */
+    categories?: Array<CategorySpend>;
+    categorized_total: QualifiedMoney;
+    uncategorized: QualifiedMoney;
+    total: QualifiedMoney;
+} | null;
+
+/**
+ * NullableSpendingInsights
+ *
+ * M42: month-to-date spending vs the same period last month, plus top merchants.
+ */
+export type NullableSpendingInsights = {
+    this_month: QualifiedMoney;
+    last_month: QualifiedMoney;
+    /**
+     * Change Percent
+     */
+    change_percent?: number | null;
+    /**
+     * Top Merchants
+     */
+    top_merchants?: Array<MerchantSpend> | null;
+} | null;
+
+/**
+ * NullableTaxEstimate
+ *
+ * Deterministic US federal + FICA estimate with explicit assumptions (standard deduction only, no credits, no state tax). When income is treated as take-home, gross is recovered by solving gross − tax(gross) = net.
+ *
+ */
+export type NullableTaxEstimate = {
+    tax_year: number;
+    filing_status: 'single' | 'married_joint' | 'head_of_household';
+    income_treated_as_net: boolean;
+    /**
+     * USPS state code used for state income tax (M65).
+     */
+    state?: string;
+    gross_income: Money;
+    net_income?: Money;
+    standard_deduction: Money;
+    taxable_income: Money;
+    federal_income_tax: Money;
+    fica_tax: Money;
+    state_income_tax?: Money;
+    total_tax: Money;
+    effective_rate: number;
+    assumptions: Array<string>;
+} | null;
+
+/**
+ * NullableTimelinePaidWith
+ *
+ * The actual transaction that satisfied a timeline item — the receipt behind the checkmark, so a "Paid" claim is always verifiable (ADR 0024).
+ */
+export type NullableTimelinePaidWith = {
+    transaction_id: string;
+    occurred_at: string;
+    amount: Money;
+    label: string;
+    /**
+     * "matched" = the merchant+due-window auto-matcher found it; "linked" = the user pointed the bill at this transaction (the link wins).
+     */
+    source?: 'matched' | 'linked';
+    /**
+     * Set on linked receipts, for unlinking.
+     */
+    link_id?: string | null;
+} | null;
+
+/**
+ * NullableYearlyReview
+ */
+export type NullableYearlyReview = {
+    summary: string;
+    suggestions: Array<string>;
+    months_covered: number;
+    model?: string | null;
+    generated_at: string;
+} | null;
 
 export type GetHealthData = {
     body?: never;
@@ -3042,6 +3518,10 @@ export type GenerateYearlyReviewErrors = {
      * Error response
      */
     404: ErrorResponse;
+    /**
+     * A monetary dependency required for yearly review generation is unreadable (sealed_amount_unreadable)
+     */
+    409: ErrorResponse;
 };
 
 export type GenerateYearlyReviewError = GenerateYearlyReviewErrors[keyof GenerateYearlyReviewErrors];
@@ -3858,6 +4338,10 @@ export type ListTransactionsErrors = {
     /**
      * Error response
      */
+    409: ErrorResponse;
+    /**
+     * Error response
+     */
     422: ErrorResponse;
 };
 
@@ -3925,6 +4409,10 @@ export type ListTransactionsForReviewErrors = {
     /**
      * Error response
      */
+    409: ErrorResponse;
+    /**
+     * Error response
+     */
     422: ErrorResponse;
 };
 
@@ -3961,6 +4449,10 @@ export type DeleteTransactionErrors = {
      * Error response
      */
     404: ErrorResponse;
+    /**
+     * Error response
+     */
+    409: ErrorResponse;
 };
 
 export type DeleteTransactionError = DeleteTransactionErrors[keyof DeleteTransactionErrors];
@@ -3996,6 +4488,10 @@ export type UpdateTransactionErrors = {
      * Error response
      */
     404: ErrorResponse;
+    /**
+     * Error response
+     */
+    409: ErrorResponse;
 };
 
 export type UpdateTransactionError = UpdateTransactionErrors[keyof UpdateTransactionErrors];
@@ -4491,6 +4987,10 @@ export type ListBillPaymentCandidatesErrors = {
      * Error response
      */
     404: ErrorResponse;
+    /**
+     * Error response
+     */
+    409: ErrorResponse;
 };
 
 export type ListBillPaymentCandidatesError = ListBillPaymentCandidatesErrors[keyof ListBillPaymentCandidatesErrors];
@@ -4659,6 +5159,10 @@ export type ListBillSuggestionsErrors = {
      * Error response
      */
     401: ErrorResponse;
+    /**
+     * A transaction amount required for bill suggestion detection is unreadable (sealed_amount_unreadable)
+     */
+    409: ErrorResponse;
 };
 
 export type ListBillSuggestionsError = ListBillSuggestionsErrors[keyof ListBillSuggestionsErrors];
@@ -5324,6 +5828,10 @@ export type ListCardStatementsErrors = {
      * Error response
      */
     401: ErrorResponse;
+    /**
+     * Error response
+     */
+    409: ErrorResponse;
 };
 
 export type ListCardStatementsError = ListCardStatementsErrors[keyof ListCardStatementsErrors];
@@ -5357,6 +5865,10 @@ export type RecordCardStatementErrors = {
      * Account not found
      */
     404: ErrorResponse;
+    /**
+     * The existing statement cycle has an unreadable amount (sealed_amount_unreadable)
+     */
+    409: ErrorResponse;
     /**
      * Not a credit-card account
      */
@@ -5396,6 +5908,10 @@ export type DeleteCardStatementErrors = {
      * Statement not found
      */
     404: ErrorResponse;
+    /**
+     * Error response
+     */
+    409: ErrorResponse;
 };
 
 export type DeleteCardStatementError = DeleteCardStatementErrors[keyof DeleteCardStatementErrors];
@@ -5431,6 +5947,10 @@ export type MarkCardStatementPaidErrors = {
      * Statement not found
      */
     404: ErrorResponse;
+    /**
+     * Error response
+     */
+    409: ErrorResponse;
 };
 
 export type MarkCardStatementPaidError = MarkCardStatementPaidErrors[keyof MarkCardStatementPaidErrors];
@@ -5466,6 +5986,10 @@ export type ReplaceStatementLinesErrors = {
      * Statement not found
      */
     404: ErrorResponse;
+    /**
+     * Error response
+     */
+    409: ErrorResponse;
 };
 
 export type ReplaceStatementLinesError = ReplaceStatementLinesErrors[keyof ReplaceStatementLinesErrors];
@@ -5497,6 +6021,10 @@ export type GetStatementReconciliationErrors = {
      * Statement not found
      */
     404: ErrorResponse;
+    /**
+     * Error response
+     */
+    409: ErrorResponse;
 };
 
 export type GetStatementReconciliationError = GetStatementReconciliationErrors[keyof GetStatementReconciliationErrors];
@@ -5798,6 +6326,10 @@ export type AnalyzePurchaseErrors = {
      * Error response
      */
     401: ErrorResponse;
+    /**
+     * A monetary dependency required for purchase impact is unreadable (sealed_amount_unreadable)
+     */
+    409: ErrorResponse;
 };
 
 export type AnalyzePurchaseError = AnalyzePurchaseErrors[keyof AnalyzePurchaseErrors];
@@ -6421,6 +6953,10 @@ export type GenerateReportErrors = {
      * Error response
      */
     404: ErrorResponse;
+    /**
+     * A transaction amount required for report generation is unreadable (sealed_amount_unreadable)
+     */
+    409: ErrorResponse;
 };
 
 export type GenerateReportError = GenerateReportErrors[keyof GenerateReportErrors];
@@ -6586,6 +7122,10 @@ export type ExportHouseholdErrors = {
      * Error response
      */
     403: ErrorResponse;
+    /**
+     * Error response
+     */
+    409: ErrorResponse;
     /**
      * Error response
      */

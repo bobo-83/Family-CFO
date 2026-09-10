@@ -1447,3 +1447,109 @@ This spec's Pairing Flow Details says "Dashboard creates a pairing session," but
 ### Test Expectations
 
 - Lockout: second household 403 by default; allowed with the opt-out; first-run unaffected. Audit: representative mutations write events (login, runtime change, backup create). All suites + builds green; migration cycle green; release checklist executed.
+
+## M124: Qualified Incomplete Monetary Aggregates (#119)
+
+Preserve readable additive monetary leaves when a relevant sealed amount is
+unreadable, disclose every omission by count, and make every dependent safety or
+decision result unavailable rather than calculating from incomplete inputs.
+ADR 0076 is the governing decision.
+
+### Scope
+
+- Internal request-local source identities, set-union propagation, qualified
+  sums/rows, and metadata-preserving candidates across every aggregate read
+  rooted in sealed transaction or card-statement amount decoding.
+- `QualifiedMoney`, `ComputationAvailability`, nullable decisions, complete-only
+  rankings/detections, server category/budget totals, and documented strict 409
+  boundaries in FastAPI and authoritative OpenAPI.
+- Qualification-aware household, spending, budget, timeline, outlook, plan,
+  income/tax, yearly, audit-attempt, advisor, study/review, and strict-worker
+  behavior.
+- Generated web and Swift clients plus complete web, iPhone/iPad, Watch, widget,
+  localization, accessibility, ownership, and cache behavior.
+- One coordinated contract/version/compatibility release, expected `0.159` or
+  the next unused minor if the repository advances first.
+
+### Non-Goals
+
+- No repair, deletion, re-encryption, guessing, tolerant global decoder, or
+  change to HTTP 423 `household_locked`.
+- No SQL migration, new encryption format, cloud service, Docker image/service/
+  topology, response-wide database snapshot, or durable retry queue.
+- No qualification of raw records without an honest partial representation and
+  no mixed old/new API-client compatibility mode.
+- No new advisor data domain or parallel advisor arithmetic; existing tools
+  reuse the same services as HTTP endpoints.
+
+### API and Domain Behavior
+
+- Additive leaves return readable sums plus distinct relevant unreadable-cell
+  counts. Composition unions source identities rather than adding counts.
+- Decisions are computed only from empty dependency source sets; otherwise
+  money decisions are null and non-money decisions are unavailable/unknown.
+- Strict transaction list/detail, card-statement list and mutation/undo
+  pre-reads, export/index/equality/filter/write-comparison, and unstable
+  candidate/ranking-only operations retain HTTP 409. Locked remains 423.
+- Non-amount predicates scope omissions before decode; unknown sign is
+  conservative. Card aggregates select the newest eligible statement before
+  decoding only the balance they use.
+- A service that already persists a calculation writes one application-versioned
+  incomplete attempt with count-only warnings and `engine_invoked=false`;
+  non-calculation reads gain no audit rows.
+
+### Security and Privacy
+
+- Source identities never cross the request boundary or enter response,
+  calculation JSON, advisor payload, review, memory, or ordinary logs.
+- Public/persisted disclosures contain counts and generic repair language only.
+  Controlled diagnostics never log ciphertext, plaintext, guessed values, or
+  neighboring sealed text.
+- Strict background failures are isolated by household/job and preserve prior
+  vectors/reviews; all corruption tests use synthetic fixtures without secrets.
+
+### Advisor Behavior
+
+- Existing grounded tools serialize qualified values and exclude omission counts
+  from number/money grounding. Partial facts are quoted only with limitations.
+- The advisor never reconstructs a null decision or recommends affordability,
+  spending, coverage, tax, budget health, savings cuts, or runway from
+  incomplete inputs; structured `incomplete_data` means repair, not sign-in.
+- Incomplete study/review/narrative work invokes no model or fallback and writes
+  no memory/hash/replacement review; schedulers continue to later work.
+
+### Client Parity
+
+- Web and Apple clients show partial leaves and accessible omission copy, show
+  unavailable decisions without misleading styling/progress/navigation, and do
+  no local financial recomposition.
+- Server `SpendingByCategory.total` and `BudgetListResponse.summary` are
+  authoritative across web, phone, Watch, and widgets.
+- Apple primitive caches decode old entries through optional fields and clear a
+  stale safety decision on a successful unavailable response. Load ownership is
+  household/session + month + monotonic generation. Apple implementation and
+  verification run only on macOS/Xcode.
+
+### Test and Release Expectations
+
+- Backend owners verify source deduplication/predicate relevance, strict versus
+  qualified boundaries, every affected endpoint/service, one-write persistence,
+  workers, privacy, normal count-0 parity, and the full synthetic corruption
+  matrix.
+- Contract owners verify recursive schema parity, strict response documentation,
+  the immutable compatibility fixture, version/build coherence, and regenerated
+  artifacts at one contract minor.
+- Advisor owners verify grounding exclusion, structured incomplete outcomes,
+  no unsafe recommendation/reconstruction, and non-starving background work.
+- Web owners verify all affected pages, no local recomposition, localization,
+  accessibility, generated-client drift, unit/build, and browser coverage.
+- Apple owners regenerate and test phone, Watch, widgets, caches, accessibility,
+  cancellation/session/reverse-completion behavior on macOS/Xcode.
+- Release owners deploy and roll back API/web/Apple artifacts together. Docker
+  and migration verification is limited to confirming there is no change.
+
+### Documentation Impact
+
+- ADR 0076; Spec Kit `01-prd.md` through `12-implementation-tasks.md`; the
+  implementation plan remains the field matrix and execution inventory. Later
+  work updates API/client guides and release documentation with implementation.

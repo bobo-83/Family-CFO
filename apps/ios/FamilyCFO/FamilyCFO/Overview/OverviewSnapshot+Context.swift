@@ -6,6 +6,7 @@ import Foundation
 extension OverviewSnapshot {
     init(context: Components.Schemas.HouseholdContext, now: Date) {
         self.netWorthMinor = context.netWorth.amountMinor
+        self.netWorthIncompleteCount = context.netWorth.incompleteCount
         self.currency = context.netWorth.currency
         self.emergencyFundStatus = context.emergencyFund?.statusLabel ?? "—"
         self.emergencyFundMonths = context.emergencyFund?.months

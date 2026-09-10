@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 import uuid
+from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal
@@ -13,6 +14,12 @@ from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.exc import IntegrityError
 
 from family_cfo_api import household_crypto, models
+from family_cfo_api.qualified_amounts import (
+    AmountCandidate,
+    CategorySpendingTotals,
+    Qualified,
+    UnreadableAmountSource,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +64,30 @@ def _dec_amount(engine, household_id, value) -> int:
     if len(_amount_cache) < _AMOUNT_CACHE_MAX:
         _amount_cache[text_value] = amount
     return amount
+
+
+def _dec_aggregate_amount(
+    engine: Engine,
+    household_id: str,
+    *,
+    table: str,
+    row_id: str,
+    column: str,
+    value: object,
+) -> AmountCandidate[None]:
+    """Decode one aggregate cell while preserving strict raw-read behavior.
+
+    Only known unreadable sealed values are qualified. Locked households and all
+    database, crypto, cancellation, and unexpected failures still propagate.
+    """
+    try:
+        return AmountCandidate(metadata=None, amount=_dec_amount(engine, household_id, value))
+    except household_crypto.SealedAmountUnreadableError:
+        source = UnreadableAmountSource(household_id, table, str(row_id), column)
+        # Source identity stays request-local. Ordinary logs expose neither
+        # the storage location nor row identifier (ADR 0076 privacy rule).
+        logger.error("aggregate amount unreadable household=%s", household_id)
+        return AmountCandidate(metadata=None, amount=None, incomplete_source=source)
 
 
 def _counts_as_spending(amount_minor: int, category_id) -> bool:
@@ -757,6 +788,81 @@ def list_card_statements(
     with engine.connect() as conn:
         rows = conn.execute(query).mappings().all()
     return [_card_statement_from_row(engine, household_id, row) for row in rows]
+
+
+@dataclass(frozen=True, slots=True)
+class CardStatementBalanceMetadata:
+    id: str
+    account_id: str
+    currency: str
+    due_date: date
+    paid_at: date | None
+
+
+def list_authoritative_statement_balance_candidates(
+    engine: Engine,
+    household_id: str,
+    *,
+    currency: str,
+    due_on_or_before: date | None = None,
+) -> list[AmountCandidate[CardStatementBalanceMetadata]]:
+    """Newest eligible unpaid statement per account, selected before decode.
+
+    This balance-only aggregate reader deliberately never selects or decodes
+    ``minimum_due_minor``. An unreadable newest balance remains authoritative;
+    callers must not fall through to an older statement or running balance.
+    """
+    conditions = [
+        models.card_statements.c.household_id == household_id,
+        models.card_statements.c.currency == currency,
+        models.card_statements.c.paid_at.is_(None),
+    ]
+    if due_on_or_before is not None:
+        conditions.append(models.card_statements.c.due_date <= due_on_or_before)
+    query = (
+        select(
+            models.card_statements.c.id,
+            models.card_statements.c.account_id,
+            models.card_statements.c.statement_balance_minor,
+            models.card_statements.c.currency,
+            models.card_statements.c.due_date,
+            models.card_statements.c.paid_at,
+        )
+        .where(*conditions)
+        .order_by(models.card_statements.c.due_date.desc())
+    )
+    with engine.connect() as conn:
+        rows = conn.execute(query).all()
+
+    chosen: dict[str, object] = {}
+    for row in rows:
+        chosen.setdefault(row.account_id, row)
+
+    result: list[AmountCandidate[CardStatementBalanceMetadata]] = []
+    for row in chosen.values():
+        decoded = _dec_aggregate_amount(
+            engine,
+            household_id,
+            table="card_statements",
+            row_id=row.id,
+            column="statement_balance_minor",
+            value=row.statement_balance_minor,
+        )
+        metadata = CardStatementBalanceMetadata(
+            id=row.id,
+            account_id=row.account_id,
+            currency=row.currency,
+            due_date=row.due_date,
+            paid_at=row.paid_at,
+        )
+        result.append(
+            AmountCandidate(
+                metadata=metadata,
+                amount=decoded.amount,
+                incomplete_source=decoded.incomplete_source,
+            )
+        )
+    return result
 
 
 def upsert_card_statement(
@@ -1996,6 +2102,166 @@ def list_transactions(
     ]
 
 
+@dataclass(frozen=True, slots=True)
+class AggregateTransactionMetadata:
+    id: str
+    account_id: str
+    occurred_at: date
+    currency: str
+    merchant: str | None
+    category: str | None
+    description: str | None
+    category_id: str | None
+
+
+_TRANSACTION_AMOUNT_PAGE_SIZE = 1_000
+
+
+def iter_transaction_amount_candidates(
+    engine: Engine,
+    household_id: str,
+    *,
+    start: date | None = None,
+    end: date | None = None,
+    currency: str | None = None,
+    category_id: str | None = None,
+) -> Iterator[AmountCandidate[AggregateTransactionMetadata]]:
+    """Yield every eligible aggregate candidate in stable descending key order."""
+    conditions = [models.transactions.c.household_id == household_id]
+    if start is not None:
+        conditions.append(models.transactions.c.occurred_at >= start)
+    if end is not None:
+        conditions.append(models.transactions.c.occurred_at <= end)
+    if currency is not None:
+        conditions.append(models.transactions.c.currency == currency)
+    if category_id is not None:
+        conditions.append(models.transactions.c.category_id == category_id)
+
+    cursor: tuple[date, str] | None = None
+    while True:
+        page_conditions = list(conditions)
+        if cursor is not None:
+            occurred_at, transaction_id = cursor
+            page_conditions.append(
+                (models.transactions.c.occurred_at < occurred_at)
+                | (
+                    (models.transactions.c.occurred_at == occurred_at)
+                    & (models.transactions.c.id < transaction_id)
+                )
+            )
+        query = (
+            select(
+                models.transactions.c.id,
+                models.transactions.c.account_id,
+                models.transactions.c.occurred_at,
+                models.transactions.c.amount_minor,
+                models.transactions.c.currency,
+                models.transactions.c.merchant,
+                models.transaction_categories.c.name.label("category"),
+                models.transactions.c.category_id,
+                models.transactions.c.description,
+            )
+            .select_from(models.transactions)
+            .join(
+                models.transaction_categories,
+                models.transaction_categories.c.id == models.transactions.c.category_id,
+                isouter=True,
+            )
+            .where(*page_conditions)
+            .order_by(
+                models.transactions.c.occurred_at.desc(),
+                models.transactions.c.id.desc(),
+            )
+            .limit(_TRANSACTION_AMOUNT_PAGE_SIZE)
+        )
+        with engine.connect() as conn:
+            rows = conn.execute(query).all()
+        if not rows:
+            return
+
+        for row in rows:
+            decoded = _dec_aggregate_amount(
+                engine,
+                household_id,
+                table="transactions",
+                row_id=row.id,
+                column="amount_minor",
+                value=row.amount_minor,
+            )
+            metadata = AggregateTransactionMetadata(
+                id=row.id,
+                account_id=row.account_id,
+                occurred_at=row.occurred_at,
+                currency=row.currency,
+                merchant=_dec(engine, household_id, row.merchant),
+                category=row.category,
+                description=_dec(engine, household_id, row.description),
+                category_id=row.category_id,
+            )
+            yield AmountCandidate(
+                metadata=metadata,
+                amount=decoded.amount,
+                incomplete_source=decoded.incomplete_source,
+            )
+        last = rows[-1]
+        cursor = (last.occurred_at, last.id)
+
+
+def get_transaction_amount_candidate(
+    engine: Engine, household_id: str, transaction_id: str
+) -> AmountCandidate[AggregateTransactionMetadata] | None:
+    """Fetch one linked aggregate candidate without a list-size cutoff."""
+    query = (
+        select(
+            models.transactions.c.id,
+            models.transactions.c.account_id,
+            models.transactions.c.occurred_at,
+            models.transactions.c.amount_minor,
+            models.transactions.c.currency,
+            models.transactions.c.merchant,
+            models.transaction_categories.c.name.label("category"),
+            models.transactions.c.category_id,
+            models.transactions.c.description,
+        )
+        .select_from(models.transactions)
+        .join(
+            models.transaction_categories,
+            models.transaction_categories.c.id == models.transactions.c.category_id,
+            isouter=True,
+        )
+        .where(
+            models.transactions.c.household_id == household_id,
+            models.transactions.c.id == transaction_id,
+        )
+    )
+    with engine.connect() as conn:
+        row = conn.execute(query).one_or_none()
+    if row is None:
+        return None
+    decoded = _dec_aggregate_amount(
+        engine,
+        household_id,
+        table="transactions",
+        row_id=row.id,
+        column="amount_minor",
+        value=row.amount_minor,
+    )
+    return AmountCandidate(
+        metadata=AggregateTransactionMetadata(
+            id=row.id,
+            account_id=row.account_id,
+            occurred_at=row.occurred_at,
+            currency=row.currency,
+            merchant=_dec(engine, household_id, row.merchant),
+            category=row.category,
+            description=_dec(engine, household_id, row.description),
+            category_id=row.category_id,
+        ),
+        amount=decoded.amount,
+        incomplete_source=decoded.incomplete_source,
+    )
+
+
 # --- Categories (M45) --------------------------------------------------------
 
 
@@ -2277,27 +2543,89 @@ def delete_budget(engine: Engine, household_id: str, budget_id: str) -> bool:
     return result.rowcount > 0
 
 
+def category_spending_totals(
+    engine: Engine, household_id: str, start: date, end: date, currency: str
+) -> CategorySpendingTotals:
+    """One scan for category, categorized, uncategorized, and overall spending.
+
+    Every total is built directly. In particular, uncategorized is never derived
+    by subtraction, and unreadable cell identities are unioned rather than counts
+    being added.
+    """
+    query = select(
+        models.transactions.c.id,
+        models.transactions.c.category_id,
+        models.transactions.c.amount_minor,
+    ).where(_spending_window(household_id, start, end, currency))
+    with engine.connect() as conn:
+        rows = conn.execute(query).all()
+
+    values: dict[str, int] = {}
+    sources: dict[str, set[UnreadableAmountSource]] = {}
+    categorized_value = uncategorized_value = overall_value = 0
+    categorized_sources: set[UnreadableAmountSource] = set()
+    uncategorized_sources: set[UnreadableAmountSource] = set()
+    overall_sources: set[UnreadableAmountSource] = set()
+
+    for row in rows:
+        decoded = _dec_aggregate_amount(
+            engine,
+            household_id,
+            table="transactions",
+            row_id=row.id,
+            column="amount_minor",
+            value=row.amount_minor,
+        )
+        if decoded.amount is None:
+            source = decoded.incomplete_source
+            assert source is not None
+            overall_sources.add(source)
+            if row.category_id is None:
+                uncategorized_sources.add(source)
+            else:
+                categorized_sources.add(source)
+                sources.setdefault(row.category_id, set()).add(source)
+            continue
+
+        amount = decoded.amount
+        if not _counts_as_spending(amount, row.category_id):
+            continue
+        contribution = -amount
+        overall_value += contribution
+        if row.category_id is None:
+            uncategorized_value += contribution
+        else:
+            categorized_value += contribution
+            values[row.category_id] = values.get(row.category_id, 0) + contribution
+
+    category_ids = values.keys() | sources.keys()
+    by_category = {
+        category_id: Qualified(
+            values.get(category_id, 0), frozenset(sources.get(category_id, set()))
+        )
+        for category_id in category_ids
+    }
+    return CategorySpendingTotals(
+        by_category=by_category,
+        categorized_total=Qualified(categorized_value, frozenset(categorized_sources)),
+        uncategorized=Qualified(uncategorized_value, frozenset(uncategorized_sources)),
+        overall=Qualified(overall_value, frozenset(overall_sources)),
+    )
+
+
 def sum_spending_by_category(
     engine: Engine, household_id: str, start: date, end: date, currency: str
 ) -> dict[str, int]:
-    """Outflow (positive) per category id over [start, end]; uncategorized excluded.
+    """Strict compatibility reader for unstable advisor ranking products.
 
-    Summed in Python: amounts are sealed per household (#184), so the database
-    can no longer do the arithmetic."""
-    query = select(
-        models.transactions.c.category_id, models.transactions.c.amount_minor
-    ).where(
-        _spending_window(household_id, start, end, currency),
-        models.transactions.c.category_id.is_not(None),
-    )
-    with engine.connect() as conn:
-        rows = conn.execute(query).all()
-    totals: dict[str, int] = {}
-    for row in rows:
-        amount = _dec_amount(engine, household_id, row.amount_minor)
-        # Categorized rows always qualify (refunds net against their category).
-        totals[row.category_id] = totals.get(row.category_id, 0) + (-amount)
-    return totals
+    Public aggregate endpoints use :func:`category_spending_totals`.  Item 3
+    owns qualification semantics for advisor/background consumers, so those
+    existing callers retain their prior all-or-nothing 409 boundary meanwhile.
+    """
+    result = category_spending_totals(engine, household_id, start, end, currency)
+    if result.overall.incomplete_sources:
+        raise household_crypto.SealedAmountUnreadableError(household_id)
+    return {category_id: amount.value for category_id, amount in result.by_category.items()}
 
 
 # --- Spending insights (M42) -------------------------------------------------
@@ -2327,13 +2655,13 @@ NON_SPENDING_CATEGORY_NAMES = (
 
 def sum_taxes(
     engine: Engine, household_id: str, start: date, end: date, currency: str
-) -> int:
-    """Total outflow (positive) filed under the Taxes category over [start, end]."""
+) -> Qualified[int]:
+    """Qualified outflow filed under Taxes over [start, end]."""
     tax_ids = select(models.transaction_categories.c.id).where(
         (models.transaction_categories.c.household_id == household_id)
         & (func.lower(models.transaction_categories.c.name).in_(TAXES_CATEGORY_NAMES))
     )
-    query = select(models.transactions.c.amount_minor).where(
+    query = select(models.transactions.c.id, models.transactions.c.amount_minor).where(
         (models.transactions.c.household_id == household_id)
         & (models.transactions.c.currency == currency)
         & (models.transactions.c.occurred_at >= start)
@@ -2342,8 +2670,19 @@ def sum_taxes(
     )
     with engine.connect() as conn:
         rows = conn.execute(query).all()
-    amounts = (_dec_amount(engine, household_id, row[0]) for row in rows)
-    return sum(-amount for amount in amounts if amount < 0)
+    total = 0
+    sources: set[UnreadableAmountSource] = set()
+    for row in rows:
+        decoded = _dec_aggregate_amount(
+            engine, household_id, table="transactions", row_id=row.id,
+            column="amount_minor", value=row.amount_minor,
+        )
+        if decoded.amount is None:
+            assert decoded.incomplete_source is not None
+            sources.add(decoded.incomplete_source)
+        elif decoded.amount < 0:
+            total += -decoded.amount
+    return Qualified(total, frozenset(sources))
 
 
 def _non_spending_category_ids(household_id: str):
@@ -2355,13 +2694,13 @@ def _non_spending_category_ids(household_id: str):
 
 def sum_income(
     engine: Engine, household_id: str, start: date, end: date, currency: str
-) -> int:
-    """Total inflow (positive) filed under the Income category over [start, end]."""
+) -> Qualified[int]:
+    """Qualified inflow filed under Income over [start, end]."""
     income_ids = select(models.transaction_categories.c.id).where(
         (models.transaction_categories.c.household_id == household_id)
         & (func.lower(models.transaction_categories.c.name).in_(INCOME_CATEGORY_NAMES))
     )
-    query = select(models.transactions.c.amount_minor).where(
+    query = select(models.transactions.c.id, models.transactions.c.amount_minor).where(
         (models.transactions.c.household_id == household_id)
         & (models.transactions.c.currency == currency)
         & (models.transactions.c.occurred_at >= start)
@@ -2370,8 +2709,19 @@ def sum_income(
     )
     with engine.connect() as conn:
         rows = conn.execute(query).all()
-    amounts = (_dec_amount(engine, household_id, row[0]) for row in rows)
-    return sum(amount for amount in amounts if amount > 0)
+    total = 0
+    sources: set[UnreadableAmountSource] = set()
+    for row in rows:
+        decoded = _dec_aggregate_amount(
+            engine, household_id, table="transactions", row_id=row.id,
+            column="amount_minor", value=row.amount_minor,
+        )
+        if decoded.amount is None:
+            assert decoded.incomplete_source is not None
+            sources.add(decoded.incomplete_source)
+        elif decoded.amount > 0:
+            total += decoded.amount
+    return Qualified(total, frozenset(sources))
 
 
 def _spending_window(household_id: str, start: date, end: date, currency: str):
@@ -2401,19 +2751,28 @@ def _spending_window(household_id: str, start: date, end: date, currency: str):
 
 def sum_spending(
     engine: Engine, household_id: str, start: date, end: date, currency: str
-) -> int:
-    """Total outflow (positive) over [start, end]; income is excluded."""
+) -> Qualified[int]:
+    """Qualified spending over [start, end]; unreadable sign is relevant."""
     query = select(
-        models.transactions.c.amount_minor, models.transactions.c.category_id
+        models.transactions.c.id,
+        models.transactions.c.amount_minor,
+        models.transactions.c.category_id,
     ).where(_spending_window(household_id, start, end, currency))
     with engine.connect() as conn:
         rows = conn.execute(query).all()
     total = 0
+    sources: set[UnreadableAmountSource] = set()
     for row in rows:
-        amount = _dec_amount(engine, household_id, row.amount_minor)
-        if _counts_as_spending(amount, row.category_id):
-            total += -amount
-    return total
+        decoded = _dec_aggregate_amount(
+            engine, household_id, table="transactions", row_id=row.id,
+            column="amount_minor", value=row.amount_minor,
+        )
+        if decoded.amount is None:
+            assert decoded.incomplete_source is not None
+            sources.add(decoded.incomplete_source)
+        elif _counts_as_spending(decoded.amount, row.category_id):
+            total += -decoded.amount
+    return Qualified(total, frozenset(sources))
 
 
 @dataclass(frozen=True, slots=True)
@@ -2424,12 +2783,13 @@ class MerchantSpend:
 
 def top_spending_merchants(
     engine: Engine, household_id: str, start: date, end: date, currency: str, limit: int = 5
-) -> list[MerchantSpend]:
+) -> Qualified[list[MerchantSpend]]:
     """Merchants ranked by outflow over [start, end]; NULL merchant folds into 'Other'.
 
     Grouped in Python, not SQL: the merchant column is sealed per household
     (ADR 0072), so equal merchants have unequal ciphertexts in the database."""
     query = select(
+        models.transactions.c.id,
         models.transactions.c.merchant,
         models.transactions.c.amount_minor,
         models.transactions.c.category_id,
@@ -2437,14 +2797,25 @@ def top_spending_merchants(
     with engine.connect() as conn:
         rows = conn.execute(query).all()
     totals: dict[str, int] = {}
+    sources: set[UnreadableAmountSource] = set()
     for row in rows:
-        amount = _dec_amount(engine, household_id, row.amount_minor)
-        if not _counts_as_spending(amount, row.category_id):
+        decoded = _dec_aggregate_amount(
+            engine, household_id, table="transactions", row_id=row.id,
+            column="amount_minor", value=row.amount_minor,
+        )
+        if decoded.amount is None:
+            assert decoded.incomplete_source is not None
+            sources.add(decoded.incomplete_source)
+            continue
+        if not _counts_as_spending(decoded.amount, row.category_id):
             continue
         name = _dec(engine, household_id, row.merchant) or "Other"
-        totals[name] = totals.get(name, 0) + (-amount)
+        totals[name] = totals.get(name, 0) + (-decoded.amount)
     ranked = sorted(totals.items(), key=lambda item: item[1], reverse=True)[:limit]
-    return [MerchantSpend(merchant=name, amount_minor=total) for name, total in ranked]
+    return Qualified(
+        [MerchantSpend(merchant=name, amount_minor=total) for name, total in ranked],
+        frozenset(sources),
+    )
 
 
 def list_bills(engine: Engine, household_id: str) -> list[RecurringRecord]:
@@ -3912,6 +4283,25 @@ def transaction_month_range(engine: Engine, household_id: str) -> tuple[str | No
     if earliest is None or latest is None:
         return None, None
     return f"{earliest.year}-{earliest.month:02d}", f"{latest.year}-{latest.month:02d}"
+
+
+def net_worth_snapshot_as_of(
+    engine: Engine, household_id: str, on_or_before: date, currency: str
+) -> int | None:
+    """Latest persisted snapshot, preserving exact zero versus absence."""
+    query = (
+        select(models.net_worth_snapshots.c.net_worth_minor)
+        .where(
+            models.net_worth_snapshots.c.household_id == household_id,
+            models.net_worth_snapshots.c.currency == currency,
+            models.net_worth_snapshots.c.as_of <= on_or_before,
+        )
+        .order_by(models.net_worth_snapshots.c.as_of.desc())
+        .limit(1)
+    )
+    with engine.connect() as conn:
+        row = conn.execute(query).first()
+    return int(row[0]) if row is not None else None
 
 
 def net_worth_as_of(engine: Engine, household_id: str, on_or_before: date, currency: str) -> int:
@@ -6864,6 +7254,143 @@ def list_stock_quotes(engine: Engine, household_id: str) -> list[StockQuoteRecor
 
 
 # --- M61: income analysis ------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class IncomeAmountMetadata:
+    id: str
+    occurred_at: date
+    currency: str
+    merchant: str | None
+    description: str | None
+    account_name: str
+    institution: str | None
+
+
+def _income_amount_candidates(
+    engine: Engine,
+    household_id: str,
+    *,
+    since: date,
+    categorized: bool,
+) -> list[AmountCandidate[IncomeAmountMetadata]]:
+    conditions = [
+        models.transactions.c.household_id == household_id,
+        models.transactions.c.occurred_at >= since,
+    ]
+    if categorized:
+        income_ids = select(models.transaction_categories.c.id).where(
+            (models.transaction_categories.c.household_id == household_id)
+            & (func.lower(models.transaction_categories.c.name).in_(INCOME_CATEGORY_NAMES))
+        )
+        conditions.extend(
+            [
+                models.transactions.c.category_id.in_(income_ids),
+                models.accounts.c.type.notin_(tuple(LIABILITY_ACCOUNT_TYPES)),
+            ]
+        )
+    else:
+        conditions.append(models.accounts.c.type == "checking")
+    query = (
+        select(
+            models.transactions.c.id,
+            models.transactions.c.occurred_at,
+            models.transactions.c.amount_minor,
+            models.transactions.c.currency,
+            models.transactions.c.merchant,
+            models.transactions.c.description,
+            models.accounts.c.name,
+            models.accounts.c.institution,
+        )
+        .select_from(
+            models.transactions.join(
+                models.accounts, models.transactions.c.account_id == models.accounts.c.id
+            )
+        )
+        .where(*conditions)
+        .order_by(models.transactions.c.occurred_at)
+    )
+    with engine.connect() as conn:
+        rows = conn.execute(query).all()
+    result: list[AmountCandidate[IncomeAmountMetadata]] = []
+    for row in rows:
+        decoded = _dec_aggregate_amount(
+            engine, household_id, table="transactions", row_id=row.id,
+            column="amount_minor", value=row.amount_minor,
+        )
+        if decoded.amount is not None and decoded.amount <= 0:
+            continue
+        result.append(
+            AmountCandidate(
+                metadata=IncomeAmountMetadata(
+                    id=row.id,
+                    occurred_at=row.occurred_at,
+                    currency=row.currency,
+                    merchant=_dec(engine, household_id, row.merchant),
+                    description=_dec(engine, household_id, row.description),
+                    account_name=_dec(engine, household_id, row.name),
+                    institution=_dec(engine, household_id, row.institution),
+                ),
+                amount=decoded.amount,
+                incomplete_source=decoded.incomplete_source,
+            )
+        )
+    return result
+
+
+def list_income_detection_candidates(
+    engine: Engine, household_id: str, *, since: date
+) -> list[AmountCandidate[IncomeAmountMetadata]]:
+    return _income_amount_candidates(
+        engine, household_id, since=since, categorized=False
+    )
+
+
+def list_income_categorized_candidates(
+    engine: Engine, household_id: str, *, since: date
+) -> list[AmountCandidate[IncomeAmountMetadata]]:
+    return _income_amount_candidates(
+        engine, household_id, since=since, categorized=True
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class OutflowAmountMetadata:
+    id: str
+    occurred_at: date
+    currency: str
+
+
+def list_household_outflow_candidates(
+    engine: Engine, household_id: str, *, since: date
+) -> list[AmountCandidate[OutflowAmountMetadata]]:
+    query = select(
+        models.transactions.c.id,
+        models.transactions.c.occurred_at,
+        models.transactions.c.amount_minor,
+        models.transactions.c.currency,
+    ).where(
+        models.transactions.c.household_id == household_id,
+        models.transactions.c.occurred_at >= since,
+    )
+    with engine.connect() as conn:
+        rows = conn.execute(query).all()
+    result: list[AmountCandidate[OutflowAmountMetadata]] = []
+    for row in rows:
+        decoded = _dec_aggregate_amount(
+            engine, household_id, table="transactions", row_id=row.id,
+            column="amount_minor", value=row.amount_minor,
+        )
+        if decoded.amount is not None and decoded.amount >= 0:
+            continue
+        result.append(
+            AmountCandidate(
+                metadata=OutflowAmountMetadata(row.id, row.occurred_at, row.currency),
+                amount=(-decoded.amount if decoded.amount is not None else None),
+                incomplete_source=decoded.incomplete_source,
+            )
+        )
+    return result
 
 
 def list_income_detection_transactions(

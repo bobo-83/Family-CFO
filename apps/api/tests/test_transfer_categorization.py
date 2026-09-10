@@ -39,7 +39,7 @@ def test_transfers_category_excluded_from_spending(demo_engine) -> None:
     _txn(demo_engine, account_id, -2_000, merchant="Uncategorized outflow")  # still counts
 
     total = repository.sum_spending(demo_engine, _HH, date(2026, 6, 1), date(2026, 6, 30), "USD")
-    assert total == 7_000  # the $3,000 transfer is excluded; the rest counts
+    assert total.value == 7_000  # the $3,000 transfer is excluded; the rest counts
 
     by_cat = repository.sum_spending_by_category(
         demo_engine, _HH, date(2026, 6, 1), date(2026, 6, 30), "USD"
@@ -167,7 +167,7 @@ def test_refund_in_a_spending_category_nets_against_it(demo_engine) -> None:
     _txn(demo_engine, account_id, -2_000, merchant="Cafe")  # unrelated outflow
 
     total = repository.sum_spending(demo_engine, _HH, date(2026, 6, 1), date(2026, 6, 30), "USD")
-    assert total == 2_000  # the Lululemon purchase and refund cancel out
+    assert total.value == 2_000  # the Lululemon purchase and refund cancel out
 
     by_cat = repository.sum_spending_by_category(
         demo_engine, _HH, date(2026, 6, 1), date(2026, 6, 30), "USD"
@@ -183,7 +183,7 @@ def test_uncategorized_inflow_is_not_treated_as_a_refund(demo_engine) -> None:
     _txn(demo_engine, account_id, 9_000, merchant="Mystery deposit")  # uncategorized inflow
 
     total = repository.sum_spending(demo_engine, _HH, date(2026, 6, 1), date(2026, 6, 30), "USD")
-    assert total == 5_000  # the uncategorized inflow does NOT net
+    assert total.value == 5_000  # the uncategorized inflow does NOT net
 
 
 def test_gencash_filed_as_taxes_and_excluded_from_spending(demo_engine) -> None:
@@ -204,9 +204,10 @@ def test_gencash_filed_as_taxes_and_excluded_from_spending(demo_engine) -> None:
     assert txns[gencash].category_id == taxes.id
 
     total = repository.sum_spending(demo_engine, _HH, date(2026, 6, 1), date(2026, 6, 30), "USD")
-    assert total == 5_000  # the $9,827 tax withholding is NOT counted as spending
+    assert total.value == 5_000  # the $9,827 tax withholding is NOT counted as spending
     tax_total = repository.sum_taxes(demo_engine, _HH, date(2026, 6, 1), date(2026, 6, 30), "USD")
-    assert tax_total == 9_827_82
+    assert tax_total.value == 9_827_82
+    assert tax_total.incomplete_count == 0
 
 
 def test_autofile_transfers_noop_without_category(demo_engine) -> None:
@@ -229,7 +230,7 @@ def test_income_category_excluded_from_spending(demo_engine) -> None:
     by_cat = repository.sum_spending_by_category(
         demo_engine, _HH, date(2026, 6, 1), date(2026, 6, 30), "USD"
     )
-    assert total == 6_000              # the Income-tagged outflow is excluded
+    assert total.value == 6_000              # the Income-tagged outflow is excluded
     assert income.id not in by_cat
     assert by_cat[dining.id] == 6_000
 

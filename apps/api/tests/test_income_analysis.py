@@ -63,9 +63,9 @@ async def test_detects_payroll_with_evidence_and_rollup(demo_client, demo_token)
     source = body["sources"][0]
     assert source["source_key"] == "acme corp payroll"
     assert source["frequency"] == "biweekly"
-    assert source["typical_amount"]["amount_minor"] == 461_538
+    assert source["typical_amount"]["value"]["amount_minor"] == 461_538
     assert len(source["transactions"]) == 6
-    assert source["total_amount"]["amount_minor"] == 6 * 461_538
+    assert source["total_amount"]["value"]["amount_minor"] == 6 * 461_538
 
     # The one-off cash-out is offered for manual classification, not counted.
     assert [t["name"] for t in body["other_inflows"]] == ["VENMO CASHOUT"]
@@ -74,7 +74,7 @@ async def test_detects_payroll_with_evidence_and_rollup(demo_client, demo_token)
     assert other["merchant"] == "VENMO CASHOUT"
     assert other["account_name"] == "Everyday Checking"
     assert source["transactions"][0]["account_name"] == "Everyday Checking"
-    assert body["rollup"]["annual_income"]["amount_minor"] == 6 * 461_538
+    assert body["rollup"]["annual_income"]["value"]["amount_minor"] == 6 * 461_538
     assert body["rollup"]["transaction_count"] == 6
 
 
@@ -111,7 +111,7 @@ async def test_exclude_removes_a_deposit_and_shrinks_the_rollup(
     assert response.status_code == 204
 
     body = await _analysis(demo_client, demo_token)
-    assert body["rollup"]["annual_income"]["amount_minor"] == 5 * 461_538
+    assert body["rollup"]["annual_income"]["value"]["amount_minor"] == 5 * 461_538
     assert len(body["sources"][0]["transactions"]) == 5
     excluded = [t for t in body["other_inflows"] if t["excluded"]]
     assert [t["transaction_id"] for t in excluded] == [ids["payroll_0"]]
@@ -123,7 +123,7 @@ async def test_exclude_removes_a_deposit_and_shrinks_the_rollup(
         json={"transaction_id": ids["payroll_0"], "verdict": "clear"},
     )
     body = await _analysis(demo_client, demo_token)
-    assert body["rollup"]["annual_income"]["amount_minor"] == 6 * 461_538
+    assert body["rollup"]["annual_income"]["value"]["amount_minor"] == 6 * 461_538
 
 
 @pytest.mark.anyio
@@ -142,7 +142,7 @@ async def test_include_adds_a_missed_deposit(demo_client, demo_token) -> None:
     assert len(manual) == 1
     assert manual[0]["name"] == "Added by you"
     assert [t["transaction_id"] for t in manual[0]["transactions"]] == [ids["one_off"]]
-    assert body["rollup"]["annual_income"]["amount_minor"] == 6 * 461_538 + 90_000
+    assert body["rollup"]["annual_income"]["value"]["amount_minor"] == 6 * 461_538 + 90_000
     assert body["other_inflows"] == []
 
 
@@ -297,7 +297,7 @@ async def test_income_categorized_deposit_counts_over_transfer_heuristic(
 
     body = await _analysis(demo_client, demo_token)
 
-    assert body["rollup"]["annual_income"]["amount_minor"] >= 5_000_000
+    assert body["rollup"]["annual_income"]["value"]["amount_minor"] >= 5_000_000
     counted_ids = {t["transaction_id"] for s in body["sources"] for t in s["transactions"]}
     assert deposit.json()["id"] in counted_ids
 
@@ -341,7 +341,7 @@ async def test_brokerage_income_deposit_counts_with_its_bank(demo_client, demo_t
 
     body = await _analysis(demo_client, demo_token)
 
-    assert body["rollup"]["annual_income"]["amount_minor"] >= 5_112_233
+    assert body["rollup"]["annual_income"]["value"]["amount_minor"] >= 5_112_233
     evidence = [t for s in body["sources"] for t in s["transactions"] if t["transaction_id"] == deposit.json()["id"]]
     assert evidence, "brokerage income deposit should appear as a source transaction"
     # The bank rides on the evidence (None here since a manual account has no
@@ -434,7 +434,7 @@ async def test_matched_pair_transfer_is_hidden_entirely(demo_client, demo_token)
         json={"transaction_id": inflow.json()["id"], "verdict": "include"},
     )
     body = await _analysis(demo_client, demo_token)
-    assert body["rollup"]["annual_income"]["amount_minor"] == 500_000
+    assert body["rollup"]["annual_income"]["value"]["amount_minor"] == 500_000
 
 
 @pytest.mark.anyio
@@ -462,7 +462,7 @@ async def test_bank_labeled_internal_transfer_is_hidden(demo_client, demo_token)
     body = await _analysis(demo_client, demo_token)
 
     assert body["other_inflows"] == []
-    assert body["rollup"]["annual_income"]["amount_minor"] == 0
+    assert body["rollup"]["annual_income"]["value"]["amount_minor"] == 0
 
 
 @pytest.mark.anyio
@@ -574,7 +574,7 @@ async def test_declared_profile_drives_the_tax_estimate(demo_client, demo_token)
     # Declared profile removes the deposit-coverage caveat from the estimate.
     assert body["coverage_warning"] is None
     # Deposit-based rollup stays alongside as observed income.
-    assert body["rollup"]["annual_income"]["amount_minor"] == 6 * 461_538
+    assert body["rollup"]["annual_income"]["value"]["amount_minor"] == 6 * 461_538
 
 
 @pytest.mark.anyio

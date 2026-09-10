@@ -52,6 +52,8 @@ struct LiveCategorizeAPI: CategorizeAPI {
             throw APIError.unauthorized
         case .unprocessableContent:
             throw APIError.server(422)
+        case .conflict:
+            throw APIError.incompleteData
         case .undocumented(let status, _):
             throw APIError.server(status)
         }
@@ -88,6 +90,8 @@ struct LiveCategorizeAPI: CategorizeAPI {
             // Already gone (deleted elsewhere); the goal — not uncategorized —
             // is achieved either way.
             return
+        case .conflict:
+            throw APIError.incompleteData
         case .undocumented(let status, _):
             throw APIError.server(status)
         }

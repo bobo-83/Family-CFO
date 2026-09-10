@@ -32,6 +32,7 @@ from family_cfo_api import (
 )
 from family_cfo_api.deps import get_current_session, get_engine, require_right
 from family_cfo_api.finance_service import add_months
+from family_cfo_api.qualified_amounts import Qualified
 from family_cfo_api.schemas import (
     ErrorResponse,
     ExpectedIncomeEvent,
@@ -47,6 +48,8 @@ from family_cfo_api.schemas import (
     TaxEstimate,
     W2ScanRequest,
     W2ScanResult,
+    computation_availability,
+    qualified_money,
 )
 from family_cfo_api.schemas import Money as MoneySchema
 
@@ -277,10 +280,15 @@ def build_income_analysis(
     since = date.today() - timedelta(days=ANALYSIS_WINDOW_DAYS)
     # M112: detection (transfer exclusion + overrides + grouping) is shared with
     # the cash outlook, so both features see the same income sources.
-    transactions, candidates, included_ids, excluded_ids = (
-        finance_service.recurring_income_candidates(engine, household.id, since=since)
+    detection = finance_service.recurring_income_candidates(
+        engine, household.id, since=since
     )
-    detected_ids = {t.id for c in candidates for t in c.transactions}
+    base_sources = detection.sources_for_currency(household.base_currency)
+    transactions = detection.transactions
+    candidates = detection.candidates
+    included_ids = detection.included_ids
+    excluded_ids = detection.excluded_ids
+    detected_ids = {transaction.id for candidate in candidates for transaction in candidate.transactions}
 
     sources: list[IncomeSourceAnalysis] = []
     total_minor = 0
@@ -296,41 +304,66 @@ def build_income_analysis(
                 name=candidate.name,
                 frequency=candidate.frequency,
                 manually_added=False,
-                typical_amount=MoneySchema(
-                    amount_minor=candidate.typical_amount_minor, currency=candidate.currency
+                typical_amount=qualified_money(
+                    Qualified.complete(candidate.typical_amount_minor), candidate.currency
                 ),
-                total_amount=MoneySchema(
-                    amount_minor=source_total, currency=candidate.currency
+                total_amount=qualified_money(
+                    Qualified.complete(source_total), candidate.currency
                 ),
                 transactions=[_txn_item(t) for t in candidate.transactions],
             )
         )
 
-    # Deposits the family added by hand ("you missed this one").
+    # Deposits the family added by hand ("you missed this one"). Group by
+    # currency so an unreadable foreign deposit cannot taint the base rollup or
+    # be serialized under the wrong currency.
     manual = [
         t
         for t in transactions
         if t.id in included_ids and t.id not in detected_ids and t.id not in excluded_ids
     ]
-    if manual:
-        manual_total = sum(t.amount_minor for t in manual)
-        base_manual = [t for t in manual if t.currency == household.base_currency]
-        total_minor += sum(t.amount_minor for t in base_manual)
-        count += len(base_manual)
+    manual_by_currency: dict[str, list] = {}
+    for transaction in manual:
+        manual_by_currency.setdefault(transaction.currency, []).append(transaction)
+    included_sources = detection.sources_for_transactions(included_ids)
+    for source_currency, currency_sources in detection.incomplete_by_currency:
+        if included_sources & currency_sources:
+            manual_by_currency.setdefault(source_currency, [])
+
+    for source_currency, currency_manual in sorted(manual_by_currency.items()):
+        manual_total = sum(t.amount_minor for t in currency_manual)
+        source_ids = {t.id for t in currency_manual} | included_ids
+        source_incomplete = (
+            detection.sources_for_transactions(source_ids)
+            & detection.sources_for_currency(source_currency)
+        )
+        if source_currency == household.base_currency:
+            total_minor += manual_total
+            count += len(currency_manual)
         sources.append(
             IncomeSourceAnalysis(
-                source_key="_manual",
+                source_key=(
+                    "_manual"
+                    if source_currency == household.base_currency
+                    else f"_manual:{source_currency.lower()}"
+                ),
                 name="Added by you",
-                frequency="irregular",
+                frequency="irregular" if not source_incomplete else None,
                 manually_added=True,
-                typical_amount=MoneySchema(
-                    amount_minor=int(median([t.amount_minor for t in manual])),
-                    currency=household.base_currency,
+                typical_amount=(
+                    qualified_money(
+                        Qualified.complete(
+                            int(median([t.amount_minor for t in currency_manual]))
+                        ),
+                        source_currency,
+                    )
+                    if currency_manual and not source_incomplete
+                    else None
                 ),
-                total_amount=MoneySchema(
-                    amount_minor=manual_total, currency=household.base_currency
+                total_amount=qualified_money(
+                    Qualified(manual_total, source_incomplete), source_currency
                 ),
-                transactions=[_txn_item(t) for t in manual],
+                transactions=[_txn_item(t) for t in currency_manual],
             )
         )
 
@@ -347,10 +380,10 @@ def build_income_analysis(
     # a mid-year start understates both income and the tax on it. Uses the raw
     # inflow rows (pre transfer-exclusion): coverage is about how far back the
     # SYNCED history goes, not how much of it counted as income.
-    raw_rows = repository.list_income_detection_transactions(
+    raw_rows = repository.list_income_detection_candidates(
         engine, household.id, since=since
     )
-    coverage_start = raw_rows[0][1] if raw_rows else None
+    coverage_start = raw_rows[0].metadata.occurred_at if raw_rows else None
     coverage_days = (date.today() - coverage_start).days if coverage_start else 0
     coverage_warning: str | None = None
     if coverage_start is None:
@@ -392,7 +425,7 @@ def build_income_analysis(
             }
         )
         coverage_warning = None  # the estimate no longer depends on deposit coverage
-    else:
+    elif not base_sources:
         tax = _tax_estimate(
             total_minor,
             household.base_currency,
@@ -400,21 +433,28 @@ def build_income_analysis(
             treated_as_net,
             household.state,
         )
+    else:
+        tax = None
 
     return IncomeAnalysisResponse(
         sources=sources,
         other_inflows=other,
         rollup=IncomeRollup(
-            annual_income=MoneySchema(
-                amount_minor=total_minor, currency=household.base_currency
+            annual_income=qualified_money(
+                Qualified(total_minor, base_sources),
+                household.base_currency,
             ),
-            monthly_average=MoneySchema(
-                amount_minor=total_minor // 12, currency=household.base_currency
+            monthly_average=qualified_money(
+                Qualified(total_minor // 12, base_sources),
+                household.base_currency,
             ),
-            transaction_count=count,
+            transaction_count=count if not base_sources else None,
             window_days=ANALYSIS_WINDOW_DAYS,
             coverage_start=coverage_start,
             coverage_days=coverage_days,
+        ),
+        detection=computation_availability(
+            Qualified(None, base_sources)
         ),
         coverage_warning=coverage_warning,
         profile=profile,

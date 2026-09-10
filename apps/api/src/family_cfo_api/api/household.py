@@ -16,9 +16,10 @@ from family_cfo_api import (
     undo_actions,
 )
 from family_cfo_api import yearly_review as yearly_review_module
-from family_cfo_api.api.budgets import _month_window, budgets_with_progress
+from family_cfo_api.api.budgets import _month_window, assemble_budget_response
 from family_cfo_api.config import Settings
 from family_cfo_api.deps import get_app_settings, get_current_session, get_engine, require_right
+from family_cfo_api.qualified_amounts import Qualified, union_sources
 from family_cfo_api.schemas import (
     AccountOutsideBaseCurrency,
     AssetCategoryTotal,
@@ -46,6 +47,7 @@ from family_cfo_api.schemas import (
     SavingsContribution,
     SavingsContributionCreateRequest,
     SavingsContributionDismissRequest,
+    SavingsContributionSet,
     SavingsContributionUpdateRequest,
     SavingsRate,
     SealModeRequest,
@@ -56,6 +58,8 @@ from family_cfo_api.schemas import (
     YearlyOverview,
     YearlyReview,
     YearMonthSummary,
+    computation_availability,
+    qualified_money,
 )
 from family_cfo_api.schemas import Money as MoneySchema
 
@@ -72,7 +76,7 @@ _EF_STATUS_RANK = {"no_fund": 0, "getting_started": 1, "on_track": 2, "fully_fun
 def _emergency_fund_summary(
     months: float | None,
     inputs: finance_service.EmergencyFundInputs,
-    monthly_expenses: Money,
+    monthly_expenses: Qualified[Money],
     currency: str,
     target_months: float | None = None,
     goal_target_minor: int | None = None,
@@ -89,7 +93,7 @@ def _emergency_fund_summary(
     # M43: a sub-3-month target still needs a sensible "getting started" floor.
     min_threshold = min(finance_service.EMERGENCY_FUND_TARGET_MIN_MONTHS, recommended)
     fund_minor = inputs.fund.amount_minor
-    expenses_minor = monthly_expenses.amount_minor
+    expenses_minor = monthly_expenses.value.amount_minor
 
     months_status: str | None = None
     months_gap_minor = 0
@@ -119,7 +123,10 @@ def _emergency_fund_summary(
             goal_status = "fully_funded"
 
     candidates = [s for s in (months_status, goal_status) if s is not None]
-    if candidates:
+    if not monthly_expenses.is_complete:
+        status = "unavailable"
+        gap = None
+    elif candidates:
         status = min(candidates, key=lambda s: _EF_STATUS_RANK[s])
         gap = MoneySchema(
             amount_minor=max(months_gap_minor, goal_gap_minor), currency=currency
@@ -132,10 +139,16 @@ def _emergency_fund_summary(
         months=months,
         reserved=MoneySchema(amount_minor=fund_minor, currency=currency),
         using_designations=inputs.using_designations,
-        monthly_expenses=MoneySchema(amount_minor=expenses_minor, currency=currency),
+        monthly_expenses=qualified_money(
+            Qualified(expenses_minor, monthly_expenses.incomplete_sources), currency
+        ),
         target_months_min=min_threshold,
         target_months_recommended=recommended,
-        gap_to_recommended=gap,
+        gap_to_recommended=(
+            qualified_money(Qualified.complete(gap.amount_minor), currency)
+            if gap is not None
+            else None
+        ),
         goal_target=(
             MoneySchema(amount_minor=goal_target_minor, currency=currency)
             if goal_target_minor
@@ -182,22 +195,35 @@ def _spending_insights(
     prev_start = prev_last.replace(day=1)
     prev_end = min(prev_start + timedelta(days=today.day - 1), prev_last)
 
-    this_minor = repository.sum_spending(engine, household_id, this_start, today, currency)
-    last_minor = repository.sum_spending(engine, household_id, prev_start, prev_end, currency)
-    change = None if last_minor == 0 else round((this_minor - last_minor) / last_minor * 100)
+    this_total = repository.sum_spending(
+        engine, household_id, this_start, today, currency
+    )
+    last_total = repository.sum_spending(
+        engine, household_id, prev_start, prev_end, currency
+    )
+    change = (
+        None
+        if not this_total.is_complete or not last_total.is_complete or last_total.value == 0
+        else round((this_total.value - last_total.value) / last_total.value * 100)
+    )
 
-    merchants = [
-        MerchantSpend(
-            merchant=m.merchant,
-            amount=MoneySchema(amount_minor=m.amount_minor, currency=currency),
-        )
-        for m in repository.top_spending_merchants(
-            engine, household_id, this_start, today, currency, limit=5
-        )
-    ]
+    merchant_result = repository.top_spending_merchants(
+        engine, household_id, this_start, today, currency, limit=5
+    )
+    merchants = (
+        [
+            MerchantSpend(
+                merchant=merchant.merchant,
+                amount=MoneySchema(amount_minor=merchant.amount_minor, currency=currency),
+            )
+            for merchant in merchant_result.value
+        ]
+        if merchant_result.is_complete
+        else None
+    )
     return SpendingInsights(
-        this_month=MoneySchema(amount_minor=this_minor, currency=currency),
-        last_month=MoneySchema(amount_minor=last_minor, currency=currency),
+        this_month=qualified_money(this_total, currency),
+        last_month=qualified_money(last_total, currency),
         change_percent=change,
         top_merchants=merchants,
     )
@@ -210,20 +236,21 @@ def _savings_rate(
     the unspent residual, combined without double-counting."""
     r = finance_service.observed_savings_rate(engine, household_id, currency, today=today)
 
-    def money(minor: int) -> MoneySchema:
-        return MoneySchema(amount_minor=minor, currency=currency)
+    def qmoney(value: Qualified[int] | None):
+        return qualified_money(value, currency) if value is not None else None
 
     return SavingsRate(
         percent=r.percent,
-        # M44 fields kept: monthly_income is take-home, so the old residual
-        # view (income - spending) still reconciles.
-        monthly_income=money(r.take_home_monthly_minor),
-        average_monthly_spending=money(r.spending_monthly_minor),
-        gross_income=money(r.gross_monthly_minor),
-        transfers=money(r.transfers_monthly_minor),
-        payroll_deductions=money(r.payroll_monthly_minor),
-        residual=money(r.residual_monthly_minor),
-        total_saved=money(r.total_saved_monthly_minor),
+        monthly_income=qmoney(r.take_home_monthly),
+        average_monthly_spending=qmoney(r.spending_monthly),
+        gross_income=qmoney(r.gross_monthly),
+        transfers=qmoney(r.transfers_monthly),
+        transfer_detection=computation_availability(r.transfer_detection),
+        payroll_deductions=MoneySchema(
+            amount_minor=r.payroll_monthly_minor, currency=currency
+        ),
+        residual=qmoney(r.residual_monthly),
+        total_saved=qmoney(r.total_saved_monthly),
         payroll_profile_present=r.has_payroll_profile,
         declared_transfers_present=r.has_declared_transfers,
     )
@@ -231,20 +258,8 @@ def _savings_rate(
 
 def _budget_summary(engine: Engine, household_id: str, currency: str) -> BudgetSummary | None:
     """M46: envelope health for the Overview; None when no budgets exist."""
-    budgets = budgets_with_progress(engine, household_id, currency)
-    if not budgets:
-        return None
-    return BudgetSummary(
-        envelope_count=len(budgets),
-        over_count=sum(1 for b in budgets if b.status == "over"),
-        warning_count=sum(1 for b in budgets if b.status == "warning"),
-        total_budgeted=MoneySchema(
-            amount_minor=sum(b.limit.amount_minor for b in budgets), currency=currency
-        ),
-        total_spent=MoneySchema(
-            amount_minor=sum(b.spent.amount_minor for b in budgets), currency=currency
-        ),
-    )
+    response = assemble_budget_response(engine, household_id, currency)
+    return response.summary if response.budgets else None
 
 
 _MONTHS = [
@@ -261,32 +276,30 @@ def _spending_by_category(
     today = today or date.today()
     start, end = _month_window(today)
 
-    total = repository.sum_spending(engine, household_id, start, end, currency)
-    if total == 0:
+    totals = repository.category_spending_totals(
+        engine, household_id, start, end, currency
+    )
+    if totals.overall.value == 0 and totals.overall.is_complete:
         return None
 
-    by_category = repository.sum_spending_by_category(engine, household_id, start, end, currency)
-    names = {c.id: c.name for c in repository.list_categories(engine, household_id)}
-
-    categorized_minor = sum(by_category.values())
+    names = {category.id: category.name for category in repository.list_categories(engine, household_id)}
     entries = [
         CategorySpend(
-            category_id=cid,
-            # A category deleted after the spend still has transactions; label it
-            # rather than drop the money.
-            category_name=names.get(cid, "Uncategorized"),
-            amount=MoneySchema(amount_minor=minor, currency=currency),
+            category_id=category_id,
+            category_name=names.get(category_id, "Uncategorized"),
+            amount=qualified_money(amount, currency),
         )
-        for cid, minor in by_category.items()
+        for category_id, amount in totals.by_category.items()
     ]
-    entries.sort(key=lambda e: e.amount.amount_minor, reverse=True)
+    entries.sort(key=lambda entry: entry.amount.value.amount_minor, reverse=True)
 
     return SpendingByCategory(
         month=f"{today.year}-{today.month:02d}",
         month_label=f"{_MONTHS[today.month - 1]} {today.year}",
         categories=entries,
-        categorized_total=MoneySchema(amount_minor=categorized_minor, currency=currency),
-        uncategorized=MoneySchema(amount_minor=total - categorized_minor, currency=currency),
+        categorized_total=qualified_money(totals.categorized_total, currency),
+        uncategorized=qualified_money(totals.uncategorized, currency),
+        total=qualified_money(totals.overall, currency),
     )
 
 
@@ -321,14 +334,17 @@ def _ready_to_sell(engine: Engine, household_id: str, currency: str) -> ReadyToS
 def _safe_to_spend(engine: Engine, household_id: str, currency: str) -> SafeToSpend | None:
     """M93: what's free to spend now, for the Overview. None when there is no
     liquid balance to reason about (a brand-new household)."""
-    result, _ref = finance_service.compute_safe_to_spend(engine, household_id, currency)
-    out = result.outputs
+    attempt, _ref = finance_service.compute_safe_to_spend(
+        engine, household_id, currency
+    )
+    computed = attempt.response
+    assert isinstance(computed, finance_service.SafeToSpendComputation)
 
-    def money(key: str) -> MoneySchema:
-        m = out[key]
-        return MoneySchema(amount_minor=m.amount_minor, currency=m.currency)
-
-    if out["liquid_balance"].amount_minor == 0 and out["committed_total"].amount_minor == 0:
+    if (
+        computed.liquid_balance.amount_minor == 0
+        and computed.committed_total is not None
+        and computed.committed_total.value == 0
+    ):
         return None
     balances = repository.list_account_balances(engine, household_id)
     liquid_accounts = [
@@ -348,19 +364,13 @@ def _safe_to_spend(engine: Engine, household_id: str, currency: str) -> SafeToSp
         for debt in repository.list_debts_with_terms(engine, household_id)
         if debt.currency == currency and debt.minimum_payment_minor > 0
     ]
-    household = repository.get_household(engine, household_id)
-    card_items: list[NamedAmount] = []
-    if household is not None and household.credit_cards_paid_in_full:
-        card_items = [
-            NamedAmount(
-                name=balance.name,
-                amount=MoneySchema(amount_minor=-balance.balance_minor, currency=balance.currency),
-            )
-            for balance in balances
-            if balance.account_type == "credit_card"
-            and balance.currency == currency
-            and balance.balance_minor < 0
-        ]
+    card_items = [
+        NamedAmount(
+            name=name,
+            amount=MoneySchema(amount_minor=amount.amount_minor, currency=amount.currency),
+        )
+        for name, amount in computed.credit_card_items
+    ]
     bill_items = [
         NamedAmount(
             name=bill.name,
@@ -395,54 +405,64 @@ def _safe_to_spend(engine: Engine, household_id: str, currency: str) -> SafeToSp
         )
         > 0
     ]
-    forecast_items, _ = finance_service.subscription_forecast(engine, household_id, currency)
     subscription_forecast_items = [
         NamedAmount(
             name=item.name,
             amount=MoneySchema(amount_minor=item.amount_minor, currency=item.currency),
         )
-        for item in forecast_items
+        for item in computed.subscription_forecast_items
     ]
     # The engine emits a guardrail warning ("Spendable cash must be reported
     # alongside that debt, never on its own") to keep the ADVISOR from quoting
     # safe-to-spend without context. It's not a user heads-up — it just repeats the
     # total debt (which lives on the Debts tab / net worth), so keep it out of the UI.
     user_warnings = [
-        w for w in result.warnings if "reported alongside that debt" not in w
+        w for w in attempt.warnings if "reported alongside that debt" not in w
     ]
-    card_payments = out.get("credit_card_payments")
-    forecast = out.get("subscription_forecast")
-    savings = out.get("committed_savings")
-    _savings_total, savings_raw = finance_service.committed_savings_in_window(
-        engine, household_id, currency,
-        today=date.today(),
-        horizon_days=finance_service.SAFE_TO_SPEND_HORIZON_DAYS,
-    )
     savings_items = [
         NamedAmount(
             name=f"{name} — due {due.strftime('%b %-d')}",
             amount=MoneySchema(amount_minor=amount.amount_minor, currency=amount.currency),
         )
-        for name, amount, due in savings_raw
+        for name, amount, due in computed.committed_savings_items
     ]
     return SafeToSpend(
-        liquid_balance=money("liquid_balance"),
-        emergency_fund_reserved=money("emergency_fund_reserved"),
-        bills_due=money("bills_due"),
-        minimum_debt_payments=money("minimum_debt_payments"),
+        liquid_balance=MoneySchema(
+            amount_minor=computed.liquid_balance.amount_minor, currency=currency
+        ),
+        emergency_fund_reserved=MoneySchema(
+            amount_minor=computed.emergency_fund_reserved.amount_minor, currency=currency
+        ),
+        bills_due=MoneySchema(amount_minor=computed.bills_due.amount_minor, currency=currency),
+        minimum_debt_payments=MoneySchema(
+            amount_minor=computed.minimum_debt_payments.amount_minor, currency=currency
+        ),
         credit_card_payments=(
-            MoneySchema(amount_minor=card_payments.amount_minor, currency=card_payments.currency)
-            if card_payments is not None and card_payments.amount_minor > 0
+            qualified_money(computed.credit_card_payments, currency)
+            if computed.credit_card_payments is not None
             else None
         ),
         subscription_forecast=(
-            MoneySchema(amount_minor=forecast.amount_minor, currency=forecast.currency)
-            if forecast is not None and forecast.amount_minor > 0
+            qualified_money(computed.subscription_forecast, currency)
+            if computed.subscription_forecast is not None
             else None
         ),
-        committed_total=money("committed_total"),
-        safe_to_spend=money("safe_to_spend"),
-        total_debt=money("total_debt"),
+        subscription_detection=computation_availability(
+            computed.subscription_detection
+        ),
+        committed_total=(
+            qualified_money(computed.committed_total, currency)
+            if computed.committed_total is not None
+            else None
+        ),
+        safe_to_spend=(
+            qualified_money(computed.safe_to_spend, currency)
+            if computed.safe_to_spend is not None
+            else None
+        ),
+        total_debt=MoneySchema(
+            amount_minor=computed.total_debt.amount_minor, currency=currency
+        ),
         warnings=user_warnings,
         ready_to_sell=_ready_to_sell(engine, household_id, currency),
         liquid_accounts=liquid_accounts,
@@ -452,12 +472,13 @@ def _safe_to_spend(engine: Engine, household_id: str, currency: str) -> SafeToSp
         emergency_fund_items=emergency_fund_items,
         subscription_forecast_items=subscription_forecast_items,
         committed_savings=(
-            MoneySchema(amount_minor=savings.amount_minor, currency=savings.currency)
-            if savings is not None and savings.amount_minor > 0
+            qualified_money(computed.committed_savings, currency)
+            if computed.committed_savings is not None
             else None
         ),
+        savings_detection=computation_availability(computed.savings_detection),
         committed_savings_items=savings_items,
-        committed_savings_reserved=bool(out.get("committed_savings_reserved")),
+        committed_savings_reserved=computed.committed_savings_reserved,
     )
 
 
@@ -476,20 +497,17 @@ def _suggested_goal(goals_by_type: dict[str, list], candidate) -> str | None:
     return matches[0].id if len(matches) == 1 else None
 
 
-def _savings_contributions(engine: Engine, household_id: str) -> list[SavingsContribution]:
-    """#201: recurring transfers into savings vehicles. Best-effort — detection
-    must never break the Overview, so a failure yields an empty list."""
+def _savings_contributions(
+    engine: Engine, household_id: str
+) -> SavingsContributionSet:
+    """Declared facts survive when automatic contribution detection is unstable."""
     from family_cfo_api import savings_detection
 
-    try:
-        found = savings_detection.detect_for_household(engine, household_id)
-    except Exception:
-        logger.exception("savings detection failed household=%s", household_id)
-        return []
+    found = savings_detection.qualified_detect_for_household(engine, household_id)
     goals_by_type: dict[str, list] = {}
     for goal in repository.list_goals(engine, household_id):
         goals_by_type.setdefault(goal.goal_type, []).append(goal)
-    return [
+    contributions = [
         SavingsContribution(
             destination_name=c.destination_name,
             destination_type=c.destination_type,
@@ -509,8 +527,14 @@ def _savings_contributions(engine: Engine, household_id: str) -> list[SavingsCon
             goal_id=c.goal_id,
             suggested_goal_id=_suggested_goal(goals_by_type, c) if c.declared else None,
         )
-        for c in found
+        for c in found.value
     ]
+    return SavingsContributionSet(
+        contributions=contributions,
+        detection=computation_availability(
+            Qualified(None, found.incomplete_sources)
+        ),
+    )
 
 
 def _top_goal(engine: Engine, household_id: str, currency: str) -> GoalProgress | None:
@@ -583,9 +607,10 @@ async def get_yearly_overview(
         raise HTTPException(status_code=404, detail="Household not found")
     today = repository.utcnow().date()
     resolved_year = year or today.year
-    months, top = yearly_review_module.build_year_overview(
+    overview = yearly_review_module.build_year_overview(
         engine, household.id, household.base_currency, resolved_year, today=today
     )
+    months = overview.months
     currency = household.base_currency
 
     def money(minor: int) -> MoneySchema:
@@ -593,7 +618,9 @@ async def get_yearly_overview(
 
     cached = repository.get_yearly_review(engine, household.id, resolved_year)
     review = None
-    if cached is not None:
+    # A cached narrative remains stored for recovery but is not trustworthy for
+    # the current dependency graph until every monetary source is readable.
+    if cached is not None and not overview.incomplete_sources:
         review = YearlyReview(
             summary=cached.summary,
             suggestions=cached.suggestions,
@@ -606,21 +633,47 @@ async def get_yearly_overview(
         months=[
             YearMonthSummary(
                 month=m.month,
-                income=money(m.income_minor),
-                spending=money(m.spending_minor),
-                net=money(m.net_minor),
-                net_worth_eom=money(m.net_worth_eom_minor)
-                if m.net_worth_eom_minor is not None
-                else None,
+                income=qualified_money(m.income, currency),
+                spending=qualified_money(m.spending, currency),
+                net=qualified_money(m.net, currency) if m.net is not None else None,
+                net_worth_eom=(
+                    qualified_money(m.net_worth_eom, currency)
+                    if m.net_worth_eom is not None
+                    else None
+                ),
             )
             for m in months
         ],
-        total_income=money(sum(m.income_minor for m in months)),
-        total_spending=money(sum(m.spending_minor for m in months)),
-        total_net=money(sum(m.net_minor for m in months)),
-        top_categories=[
-            NamedAmount(name=name, amount=money(amount)) for name, amount in top
-        ],
+        total_income=qualified_money(
+            Qualified(
+                sum(m.income.value for m in months),
+                union_sources(*(m.income for m in months)),
+            ),
+            currency,
+        ),
+        total_spending=qualified_money(
+            Qualified(
+                sum(m.spending.value for m in months),
+                union_sources(*(m.spending for m in months)),
+            ),
+            currency,
+        ),
+        total_net=(
+            qualified_money(
+                Qualified.complete(sum(m.net.value for m in months if m.net is not None)),
+                currency,
+            )
+            if all(m.net is not None for m in months)
+            else None
+        ),
+        top_categories=(
+            [
+                NamedAmount(name=name, amount=money(amount))
+                for name, amount in (overview.top_categories or [])
+            ]
+            if overview.top_categories is not None
+            else None
+        ),
         review=review,
     )
 
@@ -632,6 +685,13 @@ async def get_yearly_overview(
     responses={
         401: {"description": "Unauthorized", "model": ErrorResponse},
         404: {"description": "Household not found", "model": ErrorResponse},
+        409: {
+            "description": (
+                "A monetary dependency required for yearly review generation is "
+                "unreadable (sealed_amount_unreadable)"
+            ),
+            "model": ErrorResponse,
+        },
     },
     summary="(Re)generate the year's grounded narrative and suggestions",
 )
@@ -702,7 +762,7 @@ async def get_cash_outlook(
             valuation = rsu_service.load_valuation(engine, session.household_id)
             grant = valuation.grants[0] if valuation.grants else None
             quote = valuation.quotes.get(grant.ticker) if grant else None
-            if quote and quote.price_minor > 0:
+            if quote and quote.price_minor > 0 and outlook.lowest_minor is not None:
                 shortfall_minor = -outlook.lowest_minor
                 sell_units = -(-shortfall_minor // quote.price_minor)  # ceil
                 sell_ticker = grant.ticker
@@ -719,20 +779,37 @@ async def get_cash_outlook(
             )
             for event in outlook.events
         ],
-        ending_cash=money(outlook.ending_cash_minor),
-        lowest_balance=money(outlook.lowest_minor),
+        ending_cash=(
+            qualified_money(Qualified.complete(outlook.ending_cash_minor), currency)
+            if outlook.ending_cash_minor is not None
+            else None
+        ),
+        lowest_balance=(
+            qualified_money(Qualified.complete(outlook.lowest_minor), currency)
+            if outlook.lowest_minor is not None
+            else None
+        ),
         lowest_date=outlook.lowest_date,
-        expected_income=money(outlook.expected_income_minor),
-        obligations=money(outlook.obligations_minor),
+        expected_income=(
+            qualified_money(outlook.expected_income, currency)
+            if outlook.expected_income is not None
+            else None
+        ),
+        income_projection=computation_availability(outlook.income_projection),
+        obligations=qualified_money(outlook.obligations, currency),
         horizon_days=outlook.horizon_days,
-        due_soon=money(headline.due_total_minor),
+        due_soon=qualified_money(headline.due_total, currency),
         due_soon_covered=headline.covered,
         due_soon_window_days=headline.window_days,
         first_shortfall_date=outlook.first_shortfall_date,
         # The DEEPEST gap, not the first crossing: selling only enough for the
         # first shortfall would leave later payments uncovered (ADR 0069).
         shortfall=(
-            money(-outlook.lowest_minor) if outlook.first_shortfall_date is not None else None
+            qualified_money(
+                Qualified.complete(-outlook.lowest_minor), currency
+            )
+            if outlook.first_shortfall_date is not None and outlook.lowest_minor is not None
+            else None
         ),
         sell_by_date=outlook.sell_by_date,
         runway_action=runway_action,
@@ -769,15 +846,28 @@ async def get_spending_plan(
 
     return SpendingPlanResponse(
         month=plan.month,
-        income_received=money(plan.income_received_minor),
-        income_projected=money(plan.income_projected_minor),
-        expected_income=money(plan.expected_income_minor),
-        spent=money(plan.spent_minor),
-        bills_remaining=money(plan.bills_remaining_minor),
+        income_received=qualified_money(plan.income_received, currency),
+        income_projected=(
+            qualified_money(plan.income_projected, currency)
+            if plan.income_projected is not None
+            else None
+        ),
+        expected_income=(
+            qualified_money(plan.expected_income, currency)
+            if plan.expected_income is not None
+            else None
+        ),
+        income_projection=computation_availability(plan.income_projection),
+        spent=qualified_money(plan.spent, currency),
+        bills_remaining=qualified_money(plan.bills_remaining, currency),
         account_obligations=money(plan.account_obligations_minor),
         planned_savings=money(plan.planned_savings_minor),
-        left_to_spend=money(plan.left_minor),
-        per_day=money(plan.per_day_minor),
+        left_to_spend=(
+            qualified_money(plan.left, currency) if plan.left is not None else None
+        ),
+        per_day=(
+            qualified_money(plan.per_day, currency) if plan.per_day is not None else None
+        ),
         days_remaining=plan.days_remaining,
     )
 
@@ -794,11 +884,16 @@ def _historical_context(
     month_start, month_end = _month_window(anchor)
 
     # Prefer an accurate daily snapshot; fall back to reconstructing from transactions.
-    net_worth_minor = repository.net_worth_as_of(engine, household.id, month_end, currency)
-    if net_worth_minor == 0:
-        net_worth_minor = finance_service.reconstruct_net_worth(
+    snapshot = repository.net_worth_snapshot_as_of(
+        engine, household.id, month_end, currency
+    )
+    net_worth = (
+        Qualified.complete(snapshot)
+        if snapshot is not None
+        else finance_service.reconstruct_net_worth(
             engine, household.id, month_end, currency
         )
+    )
 
     month_income = repository.sum_income(engine, household.id, month_start, month_end, currency)
     month_spending = repository.sum_spending(
@@ -818,20 +913,29 @@ def _historical_context(
         language=household.language or "en",
         reserve_committed_savings=household.reserve_committed_savings,
         timezone=household.timezone,
-        net_worth=MoneySchema(amount_minor=net_worth_minor, currency=currency),
-        # Required, non-nullable in the contract (the client decodes a plain Double,
-        # so `null` would fail to decode and the whole month would silently fail to
-        # load). The emergency-fund *card* is a "now" concept and stays hidden for a
-        # past month (its EmergencyFundSummary is omitted); 0 is just a safe filler.
-        emergency_fund_months=0.0,
+        net_worth=qualified_money(net_worth, currency),
+        # Emergency-fund coverage is a current decision metric, not a historical
+        # aggregate. The nullable contract keeps it explicitly unavailable here.
+        emergency_fund_months=None,
         net_worth_history=history,
         # That month's actual money in and out (the Year chart's rule).
         monthly_cash_flow=MonthlyCashFlow(
-            income=MoneySchema(amount_minor=month_income, currency=currency),
-            spending=MoneySchema(amount_minor=month_spending, currency=currency),
-            net=MoneySchema(amount_minor=month_income - month_spending, currency=currency),
+            income=qualified_money(month_income, currency),
+            spending=qualified_money(month_spending, currency),
+            net=(
+                qualified_money(
+                    Qualified.complete(month_income.value - month_spending.value),
+                    currency,
+                )
+                if not union_sources(month_income, month_spending)
+                else None
+            ),
         ),
         spending_by_category=_spending_by_category(engine, household.id, currency, today=anchor),
+        savings_contributions=SavingsContributionSet(
+            contributions=[],
+            detection=computation_availability(Qualified.complete(None)),
+        ),
         earliest_month=repository.earliest_transaction_month(engine, household.id),
         # #152: deliberately None, not []. Past-month figures come from
         # snapshots and today's accounts are not that month's (the #130 rule),
@@ -858,12 +962,30 @@ def _build_household_context(
 
     ef_inputs = finance_service.emergency_fund_inputs(engine, household.id, currency)
     income = finance_service.monthly_income_total(engine, household.id, currency)
+    today = date.today()
+    # The cash-flow leaf keeps its trailing-complete-month normalized value, but
+    # current-month unreadable Income rows still make that leaf partial: they can
+    # change the household's present cash-flow answer even though they must not
+    # change the historical normalization used by savings and other consumers.
+    current_month_categorized = repository.sum_income(
+        engine, household.id, today.replace(day=1), today, currency
+    )
+    current_month_received = finance_service.income_received_between(
+        engine, household.id, currency, today.replace(day=1), today
+    )
+    current_month_income = Qualified(
+        max(current_month_categorized.value, current_month_received.value),
+        union_sources(current_month_categorized, current_month_received),
+    )
+    cash_flow_income = Qualified(
+        income.value.amount_minor,
+        union_sources(income, current_month_income),
+    )
     income_baseline = finance_service.w2_baseline_monthly(engine, household.id, currency)
     taxes = finance_service.monthly_taxes_total(engine, household.id, currency)
     # Month-to-date SPENDING, the Year chart's own rule — the recurring-bill
     # model here read "$208 Bills" against $22k of real outflow and made the
     # card nonsense (user report 2026-07-25).
-    today = date.today()
     month_spending = repository.sum_spending(
         engine, household.id, today.replace(day=1), today, currency
     )
@@ -906,7 +1028,10 @@ def _build_household_context(
         language=household.language or "en",
         reserve_committed_savings=household.reserve_committed_savings,
         timezone=household.timezone,
-        net_worth=MoneySchema(**net_worth_result.outputs["net_worth"].to_dict()),
+        net_worth=qualified_money(
+            Qualified.complete(net_worth_result.outputs["net_worth"].amount_minor),
+            currency,
+        ),
         emergency_fund_months=months,
         emergency_fund=_emergency_fund_summary(
             months,
@@ -928,10 +1053,15 @@ def _build_household_context(
             ),
         ),
         monthly_cash_flow=MonthlyCashFlow(
-            income=MoneySchema(amount_minor=income.amount_minor, currency=currency),
-            spending=MoneySchema(amount_minor=month_spending, currency=currency),
-            net=MoneySchema(
-                amount_minor=income.amount_minor - month_spending, currency=currency
+            income=qualified_money(cash_flow_income, currency),
+            spending=qualified_money(month_spending, currency),
+            net=(
+                qualified_money(
+                    Qualified.complete(income.value.amount_minor - month_spending.value),
+                    currency,
+                )
+                if not union_sources(cash_flow_income, month_spending)
+                else None
             ),
             income_baseline=(
                 MoneySchema(amount_minor=income_baseline.amount_minor, currency=currency)
@@ -939,8 +1069,11 @@ def _build_household_context(
                 else None
             ),
             taxes=(
-                MoneySchema(amount_minor=taxes.amount_minor, currency=currency)
-                if taxes.amount_minor > 0
+                qualified_money(
+                    Qualified(taxes.value.amount_minor, taxes.incomplete_sources),
+                    currency,
+                )
+                if taxes.value.amount_minor > 0 or not taxes.is_complete
                 else None
             ),
         ),
@@ -995,13 +1128,14 @@ async def get_spending_by_category(
         return result
     # A month with no spending still returns its (empty) shape so the switcher can
     # show the label and "nothing spent".
-    zero = MoneySchema(amount_minor=0, currency=currency)
+    zero = qualified_money(Qualified.complete(0), currency)
     return SpendingByCategory(
         month=f"{anchor.year}-{anchor.month:02d}",
         month_label=f"{_MONTHS[anchor.month - 1]} {anchor.year}",
         categories=[],
         categorized_total=zero,
         uncategorized=zero,
+        total=zero,
     )
 
 
@@ -1286,6 +1420,7 @@ async def unlock_with_recovery_key(
         },
         401: {"description": "Unauthorized", "model": ErrorResponse},
         403: {"description": "Role does not permit this action", "model": ErrorResponse},
+        409: {"description": "An exported amount cannot be decrypted", "model": ErrorResponse},
         423: {"description": "Sealed household is locked", "model": ErrorResponse},
     },
     summary="Export this household's data as a portable zip (#189)",

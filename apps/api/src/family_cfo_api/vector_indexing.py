@@ -102,8 +102,8 @@ def index_household_data(
     to delete an unlocked sealed household's vectors and leave the advisor
     ungrounded until the API's next pass happened to rebuild them. Scoped
     deletion also means a locked household's vectors are left in place rather
-    than destroyed-and-unrebuildable, and clearing only AFTER its points were
-    collected means a household that turns out to be unreadable loses nothing.
+    than destroyed-and-unrebuildable. Confirmed corrupt transaction points are
+    different: their stale amount payloads are removed while memory points remain.
     """
     settings = settings or get_settings()
     if not settings.qdrant_url:
@@ -120,6 +120,25 @@ def index_household_data(
             collected = _collect_points(engine, household_id)
         except household_crypto.HouseholdLockedError:
             # #181: a sealed+locked household defers; the others still index.
+            continue
+        except household_crypto.SealedAmountUnreadableError:
+            # A stale transaction payload can retain an amount that storage can
+            # no longer decode. Remove only this household's transaction points;
+            # memories, other households, and locked-household vectors survive.
+            try:
+                store.delete_household_kind(household_id, "transaction")
+            except Exception:  # noqa: BLE001 -- one adapter failure must not starve others
+                logger.error(
+                    "vector indexing failed: corrupt transaction cleanup "
+                    "household_id=%s retryable=true",
+                    household_id,
+                )
+            else:
+                logger.info(
+                    "vector index deferred: incomplete data household_id=%s "
+                    "retryable=true",
+                    household_id,
+                )
             continue
         if wipe:
             store.delete_household(household_id)

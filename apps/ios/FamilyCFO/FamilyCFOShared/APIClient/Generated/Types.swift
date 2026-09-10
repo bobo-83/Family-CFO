@@ -2974,6 +2974,80 @@ public enum Components {
                 case currency
             }
         }
+        /// - Remark: Generated from `#/components/schemas/QualifiedMoney`.
+        public struct QualifiedMoney: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/QualifiedMoney/value`.
+            public var value: Components.Schemas.Money
+            /// - Remark: Generated from `#/components/schemas/QualifiedMoney/incomplete_count`.
+            public var incompleteCount: Swift.Int
+            /// Creates a new `QualifiedMoney`.
+            ///
+            /// - Parameters:
+            ///   - value:
+            ///   - incompleteCount:
+            public init(
+                value: Components.Schemas.Money,
+                incompleteCount: Swift.Int
+            ) {
+                self.value = value
+                self.incompleteCount = incompleteCount
+            }
+            public enum CodingKeys: String, CodingKey {
+                case value
+                case incompleteCount = "incomplete_count"
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/ComputationAvailability`.
+        public struct ComputationAvailability: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/ComputationAvailability/status`.
+            @frozen public enum StatusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case complete = "complete"
+                case unavailable = "unavailable"
+            }
+            /// - Remark: Generated from `#/components/schemas/ComputationAvailability/status`.
+            public var status: Components.Schemas.ComputationAvailability.StatusPayload
+            /// - Remark: Generated from `#/components/schemas/ComputationAvailability/incomplete_count`.
+            public var incompleteCount: Swift.Int
+            /// Creates a new `ComputationAvailability`.
+            ///
+            /// - Parameters:
+            ///   - status:
+            ///   - incompleteCount:
+            public init(
+                status: Components.Schemas.ComputationAvailability.StatusPayload,
+                incompleteCount: Swift.Int
+            ) {
+                self.status = status
+                self.incompleteCount = incompleteCount
+            }
+            public enum CodingKeys: String, CodingKey {
+                case status
+                case incompleteCount = "incomplete_count"
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/SavingsContributionSet`.
+        public struct SavingsContributionSet: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/SavingsContributionSet/contributions`.
+            public var contributions: [Components.Schemas.SavingsContribution]
+            /// - Remark: Generated from `#/components/schemas/SavingsContributionSet/detection`.
+            public var detection: Components.Schemas.ComputationAvailability
+            /// Creates a new `SavingsContributionSet`.
+            ///
+            /// - Parameters:
+            ///   - contributions:
+            ///   - detection:
+            public init(
+                contributions: [Components.Schemas.SavingsContribution],
+                detection: Components.Schemas.ComputationAvailability
+            ) {
+                self.contributions = contributions
+                self.detection = detection
+            }
+            public enum CodingKeys: String, CodingKey {
+                case contributions
+                case detection
+            }
+        }
         /// Owner-only: mint the pairing code for another household member so a regular member never signs into the dashboard to pair their phone. Omit to pair for yourself.
         ///
         /// - Remark: Generated from `#/components/schemas/PairingSessionCreateRequest`.
@@ -3808,7 +3882,9 @@ public enum Components {
                 case source
             }
         }
-        /// Projected cash over the horizon (M112, ADR 0026): paychecks in, payments out, and the lowest point the balance reaches — the lived counterpart to safe-to-spend's zero-income stress test.
+        /// Projected cash over the horizon: paychecks in, payments out, and the
+        /// lowest point the balance reaches — the lived counterpart to safe-to-spend's
+        /// zero-income stress test.
         ///
         /// - Remark: Generated from `#/components/schemas/CashOutlookResponse`.
         public struct CashOutlookResponse: Codable, Hashable, Sendable {
@@ -3817,69 +3893,39 @@ public enum Components {
             /// - Remark: Generated from `#/components/schemas/CashOutlookResponse/events`.
             public var events: [Components.Schemas.OutlookEvent]
             /// - Remark: Generated from `#/components/schemas/CashOutlookResponse/ending_cash`.
-            public var endingCash: Components.Schemas.Money
+            public var endingCash: Components.Schemas.NullableQualifiedMoney?
             /// - Remark: Generated from `#/components/schemas/CashOutlookResponse/lowest_balance`.
-            public var lowestBalance: Components.Schemas.Money
+            public var lowestBalance: Components.Schemas.NullableQualifiedMoney?
             /// - Remark: Generated from `#/components/schemas/CashOutlookResponse/lowest_date`.
             public var lowestDate: Swift.String?
             /// - Remark: Generated from `#/components/schemas/CashOutlookResponse/expected_income`.
-            public var expectedIncome: Components.Schemas.Money
+            public var expectedIncome: Components.Schemas.NullableQualifiedMoney?
+            /// - Remark: Generated from `#/components/schemas/CashOutlookResponse/income_projection`.
+            public var incomeProjection: Components.Schemas.ComputationAvailability
             /// - Remark: Generated from `#/components/schemas/CashOutlookResponse/obligations`.
-            public var obligations: Components.Schemas.Money
+            public var obligations: Components.Schemas.QualifiedMoney
             /// - Remark: Generated from `#/components/schemas/CashOutlookResponse/horizon_days`.
             public var horizonDays: Swift.Int
             /// - Remark: Generated from `#/components/schemas/CashOutlookResponse/due_soon`.
-            public var dueSoon: Components.Schemas.Money
+            public var dueSoon: Components.Schemas.QualifiedMoney
             /// - Remark: Generated from `#/components/schemas/CashOutlookResponse/due_soon_covered`.
-            public var dueSoonCovered: Swift.Bool
+            public var dueSoonCovered: Swift.Bool?
             /// - Remark: Generated from `#/components/schemas/CashOutlookResponse/due_soon_window_days`.
             public var dueSoonWindowDays: Swift.Int
-            /// ADR 0069: first projected day the cash balance goes negative. Absent while the horizon stays covered.
-            ///
             /// - Remark: Generated from `#/components/schemas/CashOutlookResponse/first_shortfall_date`.
             public var firstShortfallDate: Swift.String?
-            /// The deepest projected gap over the horizon — the minimum cash to raise (e.g. by selling RSUs) so every payment clears.
-            ///
             /// - Remark: Generated from `#/components/schemas/CashOutlookResponse/shortfall`.
-            public struct ShortfallPayload: Codable, Hashable, Sendable {
-                /// - Remark: Generated from `#/components/schemas/CashOutlookResponse/shortfall/value1`.
-                public var value1: Components.Schemas.Money
-                /// Creates a new `ShortfallPayload`.
-                ///
-                /// - Parameters:
-                ///   - value1:
-                public init(value1: Components.Schemas.Money) {
-                    self.value1 = value1
-                }
-                public init(from decoder: any Decoder) throws {
-                    self.value1 = try .init(from: decoder)
-                }
-                public func encode(to encoder: any Encoder) throws {
-                    try self.value1.encode(to: encoder)
-                }
-            }
-            /// The deepest projected gap over the horizon — the minimum cash to raise (e.g. by selling RSUs) so every payment clears.
-            ///
-            /// - Remark: Generated from `#/components/schemas/CashOutlookResponse/shortfall`.
-            public var shortfall: Components.Schemas.CashOutlookResponse.ShortfallPayload?
-            /// Last day to START an RSU sale with 4 business days of notice (trade, settlement, transfer; weekends skipped, market holidays not modeled) before the first shortfall.
-            ///
+            public var shortfall: Components.Schemas.NullableQualifiedMoney?
             /// - Remark: Generated from `#/components/schemas/CashOutlookResponse/sell_by_date`.
             public var sellByDate: Swift.String?
-            /// What raising the cash means for THIS household: sell_rsus when the compensation profile declares RSU income, move_cash otherwise (user point 2026-07-26 — don't tell an RSU-less household to sell RSUs). Present only alongside sell_by_date.
-            ///
             /// - Remark: Generated from `#/components/schemas/CashOutlookResponse/runway_action`.
             @frozen public enum RunwayActionPayload: String, Codable, Hashable, Sendable, CaseIterable {
                 case sellRsus = "sell_rsus"
                 case moveCash = "move_cash"
                 case _empty_ = ""
             }
-            /// What raising the cash means for THIS household: sell_rsus when the compensation profile declares RSU income, move_cash otherwise (user point 2026-07-26 — don't tell an RSU-less household to sell RSUs). Present only alongside sell_by_date.
-            ///
             /// - Remark: Generated from `#/components/schemas/CashOutlookResponse/runway_action`.
             public var runwayAction: Components.Schemas.CashOutlookResponse.RunwayActionPayload?
-            /// M-rsu-grants: with grants and a live quote, the shortfall translated into whole shares to sell. Absent otherwise.
-            ///
             /// - Remark: Generated from `#/components/schemas/CashOutlookResponse/sell_units`.
             public var sellUnits: Swift.Int?
             /// - Remark: Generated from `#/components/schemas/CashOutlookResponse/sell_ticker`.
@@ -3893,31 +3939,33 @@ public enum Components {
             ///   - lowestBalance:
             ///   - lowestDate:
             ///   - expectedIncome:
+            ///   - incomeProjection:
             ///   - obligations:
             ///   - horizonDays:
             ///   - dueSoon:
             ///   - dueSoonCovered:
             ///   - dueSoonWindowDays:
-            ///   - firstShortfallDate: ADR 0069: first projected day the cash balance goes negative. Absent while the horizon stays covered.
-            ///   - shortfall: The deepest projected gap over the horizon — the minimum cash to raise (e.g. by selling RSUs) so every payment clears.
-            ///   - sellByDate: Last day to START an RSU sale with 4 business days of notice (trade, settlement, transfer; weekends skipped, market holidays not modeled) before the first shortfall.
-            ///   - runwayAction: What raising the cash means for THIS household: sell_rsus when the compensation profile declares RSU income, move_cash otherwise (user point 2026-07-26 — don't tell an RSU-less household to sell RSUs). Present only alongside sell_by_date.
-            ///   - sellUnits: M-rsu-grants: with grants and a live quote, the shortfall translated into whole shares to sell. Absent otherwise.
+            ///   - firstShortfallDate:
+            ///   - shortfall:
+            ///   - sellByDate:
+            ///   - runwayAction:
+            ///   - sellUnits:
             ///   - sellTicker:
             public init(
                 startingCash: Components.Schemas.Money,
                 events: [Components.Schemas.OutlookEvent],
-                endingCash: Components.Schemas.Money,
-                lowestBalance: Components.Schemas.Money,
+                endingCash: Components.Schemas.NullableQualifiedMoney? = nil,
+                lowestBalance: Components.Schemas.NullableQualifiedMoney? = nil,
                 lowestDate: Swift.String? = nil,
-                expectedIncome: Components.Schemas.Money,
-                obligations: Components.Schemas.Money,
+                expectedIncome: Components.Schemas.NullableQualifiedMoney? = nil,
+                incomeProjection: Components.Schemas.ComputationAvailability,
+                obligations: Components.Schemas.QualifiedMoney,
                 horizonDays: Swift.Int,
-                dueSoon: Components.Schemas.Money,
-                dueSoonCovered: Swift.Bool,
+                dueSoon: Components.Schemas.QualifiedMoney,
+                dueSoonCovered: Swift.Bool? = nil,
                 dueSoonWindowDays: Swift.Int,
                 firstShortfallDate: Swift.String? = nil,
-                shortfall: Components.Schemas.CashOutlookResponse.ShortfallPayload? = nil,
+                shortfall: Components.Schemas.NullableQualifiedMoney? = nil,
                 sellByDate: Swift.String? = nil,
                 runwayAction: Components.Schemas.CashOutlookResponse.RunwayActionPayload? = nil,
                 sellUnits: Swift.Int? = nil,
@@ -3929,6 +3977,7 @@ public enum Components {
                 self.lowestBalance = lowestBalance
                 self.lowestDate = lowestDate
                 self.expectedIncome = expectedIncome
+                self.incomeProjection = incomeProjection
                 self.obligations = obligations
                 self.horizonDays = horizonDays
                 self.dueSoon = dueSoon
@@ -3948,6 +3997,7 @@ public enum Components {
                 case lowestBalance = "lowest_balance"
                 case lowestDate = "lowest_date"
                 case expectedIncome = "expected_income"
+                case incomeProjection = "income_projection"
                 case obligations
                 case horizonDays = "horizon_days"
                 case dueSoon = "due_soon"
@@ -3961,30 +4011,34 @@ public enum Components {
                 case sellTicker = "sell_ticker"
             }
         }
-        /// M113 (ADR 0027): left to spend this month — expected income minus what's already spent and what's still committed. `per_day` is a pace, not a rule; zero when `left_to_spend` is negative.
+        /// M113 (ADR 0027): left to spend this month — expected income minus what's
+        /// already spent and what's still committed. The accrual counterpart to the
+        /// cash outlook's cash-timing view.
         ///
         /// - Remark: Generated from `#/components/schemas/SpendingPlanResponse`.
         public struct SpendingPlanResponse: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/SpendingPlanResponse/month`.
             public var month: Swift.String
             /// - Remark: Generated from `#/components/schemas/SpendingPlanResponse/income_received`.
-            public var incomeReceived: Components.Schemas.Money
+            public var incomeReceived: Components.Schemas.QualifiedMoney
             /// - Remark: Generated from `#/components/schemas/SpendingPlanResponse/income_projected`.
-            public var incomeProjected: Components.Schemas.Money
+            public var incomeProjected: Components.Schemas.NullableQualifiedMoney?
             /// - Remark: Generated from `#/components/schemas/SpendingPlanResponse/expected_income`.
-            public var expectedIncome: Components.Schemas.Money
+            public var expectedIncome: Components.Schemas.NullableQualifiedMoney?
+            /// - Remark: Generated from `#/components/schemas/SpendingPlanResponse/income_projection`.
+            public var incomeProjection: Components.Schemas.ComputationAvailability
             /// - Remark: Generated from `#/components/schemas/SpendingPlanResponse/spent`.
-            public var spent: Components.Schemas.Money
+            public var spent: Components.Schemas.QualifiedMoney
             /// - Remark: Generated from `#/components/schemas/SpendingPlanResponse/bills_remaining`.
-            public var billsRemaining: Components.Schemas.Money
+            public var billsRemaining: Components.Schemas.QualifiedMoney
             /// - Remark: Generated from `#/components/schemas/SpendingPlanResponse/account_obligations`.
             public var accountObligations: Components.Schemas.Money
             /// - Remark: Generated from `#/components/schemas/SpendingPlanResponse/planned_savings`.
             public var plannedSavings: Components.Schemas.Money
             /// - Remark: Generated from `#/components/schemas/SpendingPlanResponse/left_to_spend`.
-            public var leftToSpend: Components.Schemas.Money
+            public var leftToSpend: Components.Schemas.NullableQualifiedMoney?
             /// - Remark: Generated from `#/components/schemas/SpendingPlanResponse/per_day`.
-            public var perDay: Components.Schemas.Money
+            public var perDay: Components.Schemas.NullableQualifiedMoney?
             /// - Remark: Generated from `#/components/schemas/SpendingPlanResponse/days_remaining`.
             public var daysRemaining: Swift.Int
             /// Creates a new `SpendingPlanResponse`.
@@ -3994,6 +4048,7 @@ public enum Components {
             ///   - incomeReceived:
             ///   - incomeProjected:
             ///   - expectedIncome:
+            ///   - incomeProjection:
             ///   - spent:
             ///   - billsRemaining:
             ///   - accountObligations:
@@ -4003,21 +4058,23 @@ public enum Components {
             ///   - daysRemaining:
             public init(
                 month: Swift.String,
-                incomeReceived: Components.Schemas.Money,
-                incomeProjected: Components.Schemas.Money,
-                expectedIncome: Components.Schemas.Money,
-                spent: Components.Schemas.Money,
-                billsRemaining: Components.Schemas.Money,
+                incomeReceived: Components.Schemas.QualifiedMoney,
+                incomeProjected: Components.Schemas.NullableQualifiedMoney? = nil,
+                expectedIncome: Components.Schemas.NullableQualifiedMoney? = nil,
+                incomeProjection: Components.Schemas.ComputationAvailability,
+                spent: Components.Schemas.QualifiedMoney,
+                billsRemaining: Components.Schemas.QualifiedMoney,
                 accountObligations: Components.Schemas.Money,
                 plannedSavings: Components.Schemas.Money,
-                leftToSpend: Components.Schemas.Money,
-                perDay: Components.Schemas.Money,
+                leftToSpend: Components.Schemas.NullableQualifiedMoney? = nil,
+                perDay: Components.Schemas.NullableQualifiedMoney? = nil,
                 daysRemaining: Swift.Int
             ) {
                 self.month = month
                 self.incomeReceived = incomeReceived
                 self.incomeProjected = incomeProjected
                 self.expectedIncome = expectedIncome
+                self.incomeProjection = incomeProjection
                 self.spent = spent
                 self.billsRemaining = billsRemaining
                 self.accountObligations = accountObligations
@@ -4031,6 +4088,7 @@ public enum Components {
                 case incomeReceived = "income_received"
                 case incomeProjected = "income_projected"
                 case expectedIncome = "expected_income"
+                case incomeProjection = "income_projection"
                 case spent
                 case billsRemaining = "bills_remaining"
                 case accountObligations = "account_obligations"
@@ -4162,8 +4220,6 @@ public enum Components {
                 case dueDate = "due_date"
             }
         }
-        /// One payment on the Bills timeline (M111): a bill, a credit-card payment, or a loan/lease payment. `amount` is the expected figure (a bill's estimate — variable utilities show their typical amount — a card's pay-in-full balance, a loan's monthly payment); `paid_with` carries the matched actual charge when status is "paid".
-        ///
         /// - Remark: Generated from `#/components/schemas/PaymentTimelineItem`.
         public struct PaymentTimelineItem: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/PaymentTimelineItem/id`.
@@ -4181,17 +4237,11 @@ public enum Components {
             /// - Remark: Generated from `#/components/schemas/PaymentTimelineItem/name`.
             public var name: Swift.String
             /// - Remark: Generated from `#/components/schemas/PaymentTimelineItem/amount`.
-            public var amount: Components.Schemas.Money
+            public var amount: Components.Schemas.NullableMoney?
             /// - Remark: Generated from `#/components/schemas/PaymentTimelineItem/due_date`.
             public var dueDate: Swift.String?
             /// - Remark: Generated from `#/components/schemas/PaymentTimelineItem/days_until`.
             public var daysUntil: Swift.Int?
-            /// "#11: statement = exact figure from a recorded statement; estimate = running balance with an inferred day. Never present an estimate as exact."
-            ///
-            /// - Remark: Generated from `#/components/schemas/PaymentTimelineItem/source`.
-            public var source: Swift.String?
-            /// - Remark: Generated from `#/components/schemas/PaymentTimelineItem/statement_id`.
-            public var statementId: Swift.String?
             /// - Remark: Generated from `#/components/schemas/PaymentTimelineItem/status`.
             @frozen public enum StatusPayload: String, Codable, Hashable, Sendable, CaseIterable {
                 case overdue = "overdue"
@@ -4199,11 +4249,16 @@ public enum Components {
                 case upcoming = "upcoming"
                 case paid = "paid"
                 case noDate = "no_date"
+                case unknown = "unknown"
             }
             /// - Remark: Generated from `#/components/schemas/PaymentTimelineItem/status`.
             public var status: Components.Schemas.PaymentTimelineItem.StatusPayload
             /// - Remark: Generated from `#/components/schemas/PaymentTimelineItem/paid_with`.
-            public var paidWith: Components.Schemas.TimelinePaidWith?
+            public var paidWith: Components.Schemas.NullableTimelinePaidWith?
+            /// - Remark: Generated from `#/components/schemas/PaymentTimelineItem/source`.
+            public var source: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/PaymentTimelineItem/statement_id`.
+            public var statementId: Swift.String?
             /// Creates a new `PaymentTimelineItem`.
             ///
             /// - Parameters:
@@ -4213,21 +4268,21 @@ public enum Components {
             ///   - amount:
             ///   - dueDate:
             ///   - daysUntil:
-            ///   - source: "#11: statement = exact figure from a recorded statement; estimate = running balance with an inferred day. Never present an estimate as exact."
-            ///   - statementId:
             ///   - status:
             ///   - paidWith:
+            ///   - source:
+            ///   - statementId:
             public init(
                 id: Swift.String,
                 kind: Components.Schemas.PaymentTimelineItem.KindPayload,
                 name: Swift.String,
-                amount: Components.Schemas.Money,
+                amount: Components.Schemas.NullableMoney? = nil,
                 dueDate: Swift.String? = nil,
                 daysUntil: Swift.Int? = nil,
-                source: Swift.String? = nil,
-                statementId: Swift.String? = nil,
                 status: Components.Schemas.PaymentTimelineItem.StatusPayload,
-                paidWith: Components.Schemas.TimelinePaidWith? = nil
+                paidWith: Components.Schemas.NullableTimelinePaidWith? = nil,
+                source: Swift.String? = nil,
+                statementId: Swift.String? = nil
             ) {
                 self.id = id
                 self.kind = kind
@@ -4235,10 +4290,10 @@ public enum Components {
                 self.amount = amount
                 self.dueDate = dueDate
                 self.daysUntil = daysUntil
-                self.source = source
-                self.statementId = statementId
                 self.status = status
                 self.paidWith = paidWith
+                self.source = source
+                self.statementId = statementId
             }
             public enum CodingKeys: String, CodingKey {
                 case id
@@ -4247,10 +4302,10 @@ public enum Components {
                 case amount
                 case dueDate = "due_date"
                 case daysUntil = "days_until"
-                case source
-                case statementId = "statement_id"
                 case status
                 case paidWith = "paid_with"
+                case source
+                case statementId = "statement_id"
             }
         }
         /// - Remark: Generated from `#/components/schemas/PaymentTimelineResponse`.
@@ -4258,11 +4313,11 @@ public enum Components {
             /// - Remark: Generated from `#/components/schemas/PaymentTimelineResponse/items`.
             public var items: [Components.Schemas.PaymentTimelineItem]
             /// - Remark: Generated from `#/components/schemas/PaymentTimelineResponse/due_total`.
-            public var dueTotal: Components.Schemas.Money
+            public var dueTotal: Components.Schemas.QualifiedMoney
             /// - Remark: Generated from `#/components/schemas/PaymentTimelineResponse/liquid_balance`.
             public var liquidBalance: Components.Schemas.Money
             /// - Remark: Generated from `#/components/schemas/PaymentTimelineResponse/covered`.
-            public var covered: Swift.Bool
+            public var covered: Swift.Bool?
             /// - Remark: Generated from `#/components/schemas/PaymentTimelineResponse/window_days`.
             public var windowDays: Swift.Int
             /// Creates a new `PaymentTimelineResponse`.
@@ -4275,9 +4330,9 @@ public enum Components {
             ///   - windowDays:
             public init(
                 items: [Components.Schemas.PaymentTimelineItem],
-                dueTotal: Components.Schemas.Money,
+                dueTotal: Components.Schemas.QualifiedMoney,
                 liquidBalance: Components.Schemas.Money,
-                covered: Swift.Bool,
+                covered: Swift.Bool? = nil,
                 windowDays: Swift.Int
             ) {
                 self.items = items
@@ -4621,25 +4676,20 @@ public enum Components {
                 case excluded
             }
         }
-        /// A recurring deposit pattern detected in checking accounts (M61) with every underlying transaction shown as editable evidence.
-        ///
-        ///
         /// - Remark: Generated from `#/components/schemas/IncomeSourceAnalysis`.
         public struct IncomeSourceAnalysis: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/IncomeSourceAnalysis/source_key`.
             public var sourceKey: Swift.String
             /// - Remark: Generated from `#/components/schemas/IncomeSourceAnalysis/name`.
             public var name: Swift.String
-            /// Detected cadence, or "irregular" for manually-added deposits.
-            ///
             /// - Remark: Generated from `#/components/schemas/IncomeSourceAnalysis/frequency`.
-            public var frequency: Swift.String
+            public var frequency: Swift.String?
             /// - Remark: Generated from `#/components/schemas/IncomeSourceAnalysis/manually_added`.
             public var manuallyAdded: Swift.Bool
             /// - Remark: Generated from `#/components/schemas/IncomeSourceAnalysis/typical_amount`.
-            public var typicalAmount: Components.Schemas.Money
+            public var typicalAmount: Components.Schemas.NullableQualifiedMoney?
             /// - Remark: Generated from `#/components/schemas/IncomeSourceAnalysis/total_amount`.
-            public var totalAmount: Components.Schemas.Money
+            public var totalAmount: Components.Schemas.QualifiedMoney
             /// - Remark: Generated from `#/components/schemas/IncomeSourceAnalysis/transactions`.
             public var transactions: [Components.Schemas.IncomeAnalysisTransaction]
             /// Creates a new `IncomeSourceAnalysis`.
@@ -4647,7 +4697,7 @@ public enum Components {
             /// - Parameters:
             ///   - sourceKey:
             ///   - name:
-            ///   - frequency: Detected cadence, or "irregular" for manually-added deposits.
+            ///   - frequency:
             ///   - manuallyAdded:
             ///   - typicalAmount:
             ///   - totalAmount:
@@ -4655,10 +4705,10 @@ public enum Components {
             public init(
                 sourceKey: Swift.String,
                 name: Swift.String,
-                frequency: Swift.String,
+                frequency: Swift.String? = nil,
                 manuallyAdded: Swift.Bool,
-                typicalAmount: Components.Schemas.Money,
-                totalAmount: Components.Schemas.Money,
+                typicalAmount: Components.Schemas.NullableQualifiedMoney? = nil,
+                totalAmount: Components.Schemas.QualifiedMoney,
                 transactions: [Components.Schemas.IncomeAnalysisTransaction]
             ) {
                 self.sourceKey = sourceKey
@@ -4682,19 +4732,15 @@ public enum Components {
         /// - Remark: Generated from `#/components/schemas/IncomeRollup`.
         public struct IncomeRollup: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/IncomeRollup/annual_income`.
-            public var annualIncome: Components.Schemas.Money
+            public var annualIncome: Components.Schemas.QualifiedMoney
             /// - Remark: Generated from `#/components/schemas/IncomeRollup/monthly_average`.
-            public var monthlyAverage: Components.Schemas.Money
+            public var monthlyAverage: Components.Schemas.QualifiedMoney
             /// - Remark: Generated from `#/components/schemas/IncomeRollup/transaction_count`.
-            public var transactionCount: Swift.Int
+            public var transactionCount: Swift.Int?
             /// - Remark: Generated from `#/components/schemas/IncomeRollup/window_days`.
             public var windowDays: Swift.Int
-            /// Earliest synced checking transaction in the window.
-            ///
             /// - Remark: Generated from `#/components/schemas/IncomeRollup/coverage_start`.
             public var coverageStart: Swift.String?
-            /// How many days of history the analysis actually has.
-            ///
             /// - Remark: Generated from `#/components/schemas/IncomeRollup/coverage_days`.
             public var coverageDays: Swift.Int?
             /// Creates a new `IncomeRollup`.
@@ -4704,12 +4750,12 @@ public enum Components {
             ///   - monthlyAverage:
             ///   - transactionCount:
             ///   - windowDays:
-            ///   - coverageStart: Earliest synced checking transaction in the window.
-            ///   - coverageDays: How many days of history the analysis actually has.
+            ///   - coverageStart:
+            ///   - coverageDays:
             public init(
-                annualIncome: Components.Schemas.Money,
-                monthlyAverage: Components.Schemas.Money,
-                transactionCount: Swift.Int,
+                annualIncome: Components.Schemas.QualifiedMoney,
+                monthlyAverage: Components.Schemas.QualifiedMoney,
+                transactionCount: Swift.Int? = nil,
                 windowDays: Swift.Int,
                 coverageStart: Swift.String? = nil,
                 coverageDays: Swift.Int? = nil
@@ -6371,45 +6417,48 @@ public enum Components {
             public var otherInflows: [Components.Schemas.IncomeAnalysisTransaction]
             /// - Remark: Generated from `#/components/schemas/IncomeAnalysisResponse/rollup`.
             public var rollup: Components.Schemas.IncomeRollup
-            /// - Remark: Generated from `#/components/schemas/IncomeAnalysisResponse/profile`.
-            public var profile: Components.Schemas.IncomeProfile?
-            /// Present when the synced history does not span the full analysis window (e.g. it starts mid-year) — income and tax are then likely underestimated. Internal transfers between the household's own accounts are never shown or counted (M63).
-            ///
-            ///
+            /// - Remark: Generated from `#/components/schemas/IncomeAnalysisResponse/detection`.
+            public var detection: Components.Schemas.ComputationAvailability
             /// - Remark: Generated from `#/components/schemas/IncomeAnalysisResponse/coverage_warning`.
             public var coverageWarning: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/IncomeAnalysisResponse/profile`.
+            public var profile: Components.Schemas.NullableIncomeProfile?
             /// - Remark: Generated from `#/components/schemas/IncomeAnalysisResponse/tax`.
-            public var tax: Components.Schemas.TaxEstimate
+            public var tax: Components.Schemas.NullableTaxEstimate?
             /// Creates a new `IncomeAnalysisResponse`.
             ///
             /// - Parameters:
             ///   - sources:
             ///   - otherInflows:
             ///   - rollup:
+            ///   - detection:
+            ///   - coverageWarning:
             ///   - profile:
-            ///   - coverageWarning: Present when the synced history does not span the full analysis window (e.g. it starts mid-year) — income and tax are then likely underestimated. Internal transfers between the household's own accounts are never shown or counted (M63).
             ///   - tax:
             public init(
                 sources: [Components.Schemas.IncomeSourceAnalysis],
                 otherInflows: [Components.Schemas.IncomeAnalysisTransaction],
                 rollup: Components.Schemas.IncomeRollup,
-                profile: Components.Schemas.IncomeProfile? = nil,
+                detection: Components.Schemas.ComputationAvailability,
                 coverageWarning: Swift.String? = nil,
-                tax: Components.Schemas.TaxEstimate
+                profile: Components.Schemas.NullableIncomeProfile? = nil,
+                tax: Components.Schemas.NullableTaxEstimate? = nil
             ) {
                 self.sources = sources
                 self.otherInflows = otherInflows
                 self.rollup = rollup
-                self.profile = profile
+                self.detection = detection
                 self.coverageWarning = coverageWarning
+                self.profile = profile
                 self.tax = tax
             }
             public enum CodingKeys: String, CodingKey {
                 case sources
                 case otherInflows = "other_inflows"
                 case rollup
-                case profile
+                case detection
                 case coverageWarning = "coverage_warning"
+                case profile
                 case tax
             }
         }
@@ -6516,90 +6565,50 @@ public enum Components {
             public var householdId: Swift.String
             /// - Remark: Generated from `#/components/schemas/HouseholdContext/display_name`.
             public var displayName: Swift.String
-            /// "#10: the household's display/answer language (en, vi, lt). One language per household — compile-time web i18n serves one build per locale, so this cannot be per-member."
-            ///
-            /// - Remark: Generated from `#/components/schemas/HouseholdContext/language`.
-            public var language: Swift.String?
-            /// #5: whether committed savings is reserved like a bill.
-            ///
-            /// - Remark: Generated from `#/components/schemas/HouseholdContext/reserve_committed_savings`.
-            public var reserveCommittedSavings: Swift.Bool?
-            /// #41: the household's IANA zone; null means the box default.
-            ///
-            /// - Remark: Generated from `#/components/schemas/HouseholdContext/timezone`.
-            public var timezone: Swift.String?
             /// - Remark: Generated from `#/components/schemas/HouseholdContext/currency`.
             public var currency: Swift.String
+            /// - Remark: Generated from `#/components/schemas/HouseholdContext/language`.
+            public var language: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/HouseholdContext/reserve_committed_savings`.
+            public var reserveCommittedSavings: Swift.Bool?
+            /// - Remark: Generated from `#/components/schemas/HouseholdContext/timezone`.
+            public var timezone: Swift.String?
             /// - Remark: Generated from `#/components/schemas/HouseholdContext/net_worth`.
-            public var netWorth: Components.Schemas.Money
+            public var netWorth: Components.Schemas.QualifiedMoney
             /// - Remark: Generated from `#/components/schemas/HouseholdContext/emergency_fund_months`.
-            public var emergencyFundMonths: Swift.Double
-            /// M38: emergency-fund coverage vs the standard 3–6 month guidance.
-            ///
+            public var emergencyFundMonths: Swift.Double?
             /// - Remark: Generated from `#/components/schemas/HouseholdContext/emergency_fund`.
-            public var emergencyFund: Components.Schemas.EmergencyFundSummary?
-            /// M38: recurring income vs bills, normalized monthly.
-            ///
+            public var emergencyFund: Components.Schemas.NullableEmergencyFundSummary?
             /// - Remark: Generated from `#/components/schemas/HouseholdContext/monthly_cash_flow`.
-            public var monthlyCashFlow: Components.Schemas.MonthlyCashFlow?
-            /// M38: positive balances grouped by spendability category (ordered).
-            ///
+            public var monthlyCashFlow: Components.Schemas.NullableMonthlyCashFlow?
             /// - Remark: Generated from `#/components/schemas/HouseholdContext/asset_breakdown`.
             public var assetBreakdown: [Components.Schemas.AssetCategoryTotal]?
-            /// M38: positive sum of all negative account balances.
-            ///
             /// - Remark: Generated from `#/components/schemas/HouseholdContext/total_debt`.
-            public var totalDebt: Components.Schemas.Money?
-            /// M39: bills due within the next 14 days, soonest first.
-            ///
+            public var totalDebt: Components.Schemas.NullableMoney?
             /// - Remark: Generated from `#/components/schemas/HouseholdContext/upcoming_bills`.
             public var upcomingBills: [Components.Schemas.UpcomingBill]?
-            /// M40: recent net-worth snapshots, oldest-first, for the trend sparkline.
-            ///
             /// - Remark: Generated from `#/components/schemas/HouseholdContext/net_worth_history`.
             public var netWorthHistory: [Components.Schemas.NetWorthPoint]?
-            /// M41: the highest-priority savings goal with progress, when one exists.
-            ///
             /// - Remark: Generated from `#/components/schemas/HouseholdContext/top_goal`.
-            public var topGoal: Components.Schemas.GoalProgress?
-            /// M42: month-to-date spending vs the same period last month, plus top merchants.
-            ///
+            public var topGoal: Components.Schemas.NullableGoalProgress?
             /// - Remark: Generated from `#/components/schemas/HouseholdContext/spending_insights`.
-            public var spendingInsights: Components.Schemas.SpendingInsights?
-            /// M44: recurring income vs trailing-3-month average actual spending.
-            ///
+            public var spendingInsights: Components.Schemas.NullableSpendingInsights?
             /// - Remark: Generated from `#/components/schemas/HouseholdContext/savings_rate`.
-            public var savingsRate: Components.Schemas.SavingsRate?
-            /// #201: detected recurring saving (transfers only), largest first.
-            ///
+            public var savingsRate: Components.Schemas.NullableSavingsRate?
             /// - Remark: Generated from `#/components/schemas/HouseholdContext/savings_contributions`.
-            public var savingsContributions: [Components.Schemas.SavingsContribution]?
-            /// M46: envelope health (over/warning counts, budgeted vs spent); absent when no budgets exist.
-            ///
+            public var savingsContributions: Components.Schemas.SavingsContributionSet
             /// - Remark: Generated from `#/components/schemas/HouseholdContext/budget_summary`.
-            public var budgetSummary: Components.Schemas.BudgetSummary?
-            /// M93: liquid cash minus the emergency fund, bills due, and minimum debt payments — what's actually free to spend right now.
-            ///
+            public var budgetSummary: Components.Schemas.NullableBudgetSummary?
             /// - Remark: Generated from `#/components/schemas/HouseholdContext/safe_to_spend`.
-            public var safeToSpend: Components.Schemas.SafeToSpend?
-            /// M94: this month's spending grouped by category (the payoff of categorizing); absent when nothing has been spent this month.
-            ///
+            public var safeToSpend: Components.Schemas.NullableSafeToSpend?
             /// - Remark: Generated from `#/components/schemas/HouseholdContext/spending_by_category`.
-            public var spendingByCategory: Components.Schemas.SpendingByCategory?
-            /// M96: most recent successful bank sync across linked institutions, so the Overview can show how fresh the data is. Null when never synced.
-            ///
+            public var spendingByCategory: Components.Schemas.NullableSpendingByCategory?
             /// - Remark: Generated from `#/components/schemas/HouseholdContext/last_synced_at`.
             public var lastSyncedAt: Foundation.Date?
-            /// M96: 'YYYY-MM' of the oldest transaction, so the month picker stops there.
-            ///
             /// - Remark: Generated from `#/components/schemas/HouseholdContext/earliest_month`.
             public var earliestMonth: Swift.String?
-            /// M97: transactions awaiting duplicate review, for the Review tab badge.
-            ///
             /// - Remark: Generated from `#/components/schemas/HouseholdContext/review_count`.
             public var reviewCount: Swift.Int?
-            /// "#152 (ADR 0075): every account the household holds in a currency other than its base — real, listed on the Accounts tab, but counted in no base-currency total and never converted. Each balance is in the account's OWN currency. A list (empty for a single-currency household) whenever the response describes today's accounts; null for a past month, whose accounts are not known — null means unknown, never none."
-            ///
             /// - Remark: Generated from `#/components/schemas/HouseholdContext/accounts_outside_base_currency`.
             public var accountsOutsideBaseCurrency: [Components.Schemas.AccountOutsideBaseCurrency]?
             /// Creates a new `HouseholdContext`.
@@ -6607,51 +6616,51 @@ public enum Components {
             /// - Parameters:
             ///   - householdId:
             ///   - displayName:
-            ///   - language: "#10: the household's display/answer language (en, vi, lt). One language per household — compile-time web i18n serves one build per locale, so this cannot be per-member."
-            ///   - reserveCommittedSavings: #5: whether committed savings is reserved like a bill.
-            ///   - timezone: #41: the household's IANA zone; null means the box default.
             ///   - currency:
+            ///   - language:
+            ///   - reserveCommittedSavings:
+            ///   - timezone:
             ///   - netWorth:
             ///   - emergencyFundMonths:
-            ///   - emergencyFund: M38: emergency-fund coverage vs the standard 3–6 month guidance.
-            ///   - monthlyCashFlow: M38: recurring income vs bills, normalized monthly.
-            ///   - assetBreakdown: M38: positive balances grouped by spendability category (ordered).
-            ///   - totalDebt: M38: positive sum of all negative account balances.
-            ///   - upcomingBills: M39: bills due within the next 14 days, soonest first.
-            ///   - netWorthHistory: M40: recent net-worth snapshots, oldest-first, for the trend sparkline.
-            ///   - topGoal: M41: the highest-priority savings goal with progress, when one exists.
-            ///   - spendingInsights: M42: month-to-date spending vs the same period last month, plus top merchants.
-            ///   - savingsRate: M44: recurring income vs trailing-3-month average actual spending.
-            ///   - savingsContributions: #201: detected recurring saving (transfers only), largest first.
-            ///   - budgetSummary: M46: envelope health (over/warning counts, budgeted vs spent); absent when no budgets exist.
-            ///   - safeToSpend: M93: liquid cash minus the emergency fund, bills due, and minimum debt payments — what's actually free to spend right now.
-            ///   - spendingByCategory: M94: this month's spending grouped by category (the payoff of categorizing); absent when nothing has been spent this month.
-            ///   - lastSyncedAt: M96: most recent successful bank sync across linked institutions, so the Overview can show how fresh the data is. Null when never synced.
-            ///   - earliestMonth: M96: 'YYYY-MM' of the oldest transaction, so the month picker stops there.
-            ///   - reviewCount: M97: transactions awaiting duplicate review, for the Review tab badge.
-            ///   - accountsOutsideBaseCurrency: "#152 (ADR 0075): every account the household holds in a currency other than its base — real, listed on the Accounts tab, but counted in no base-currency total and never converted. Each balance is in the account's OWN currency. A list (empty for a single-currency household) whenever the response describes today's accounts; null for a past month, whose accounts are not known — null means unknown, never none."
+            ///   - emergencyFund:
+            ///   - monthlyCashFlow:
+            ///   - assetBreakdown:
+            ///   - totalDebt:
+            ///   - upcomingBills:
+            ///   - netWorthHistory:
+            ///   - topGoal:
+            ///   - spendingInsights:
+            ///   - savingsRate:
+            ///   - savingsContributions:
+            ///   - budgetSummary:
+            ///   - safeToSpend:
+            ///   - spendingByCategory:
+            ///   - lastSyncedAt:
+            ///   - earliestMonth:
+            ///   - reviewCount:
+            ///   - accountsOutsideBaseCurrency:
             public init(
                 householdId: Swift.String,
                 displayName: Swift.String,
+                currency: Swift.String,
                 language: Swift.String? = nil,
                 reserveCommittedSavings: Swift.Bool? = nil,
                 timezone: Swift.String? = nil,
-                currency: Swift.String,
-                netWorth: Components.Schemas.Money,
-                emergencyFundMonths: Swift.Double,
-                emergencyFund: Components.Schemas.EmergencyFundSummary? = nil,
-                monthlyCashFlow: Components.Schemas.MonthlyCashFlow? = nil,
+                netWorth: Components.Schemas.QualifiedMoney,
+                emergencyFundMonths: Swift.Double? = nil,
+                emergencyFund: Components.Schemas.NullableEmergencyFundSummary? = nil,
+                monthlyCashFlow: Components.Schemas.NullableMonthlyCashFlow? = nil,
                 assetBreakdown: [Components.Schemas.AssetCategoryTotal]? = nil,
-                totalDebt: Components.Schemas.Money? = nil,
+                totalDebt: Components.Schemas.NullableMoney? = nil,
                 upcomingBills: [Components.Schemas.UpcomingBill]? = nil,
                 netWorthHistory: [Components.Schemas.NetWorthPoint]? = nil,
-                topGoal: Components.Schemas.GoalProgress? = nil,
-                spendingInsights: Components.Schemas.SpendingInsights? = nil,
-                savingsRate: Components.Schemas.SavingsRate? = nil,
-                savingsContributions: [Components.Schemas.SavingsContribution]? = nil,
-                budgetSummary: Components.Schemas.BudgetSummary? = nil,
-                safeToSpend: Components.Schemas.SafeToSpend? = nil,
-                spendingByCategory: Components.Schemas.SpendingByCategory? = nil,
+                topGoal: Components.Schemas.NullableGoalProgress? = nil,
+                spendingInsights: Components.Schemas.NullableSpendingInsights? = nil,
+                savingsRate: Components.Schemas.NullableSavingsRate? = nil,
+                savingsContributions: Components.Schemas.SavingsContributionSet,
+                budgetSummary: Components.Schemas.NullableBudgetSummary? = nil,
+                safeToSpend: Components.Schemas.NullableSafeToSpend? = nil,
+                spendingByCategory: Components.Schemas.NullableSpendingByCategory? = nil,
                 lastSyncedAt: Foundation.Date? = nil,
                 earliestMonth: Swift.String? = nil,
                 reviewCount: Swift.Int? = nil,
@@ -6659,10 +6668,10 @@ public enum Components {
             ) {
                 self.householdId = householdId
                 self.displayName = displayName
+                self.currency = currency
                 self.language = language
                 self.reserveCommittedSavings = reserveCommittedSavings
                 self.timezone = timezone
-                self.currency = currency
                 self.netWorth = netWorth
                 self.emergencyFundMonths = emergencyFundMonths
                 self.emergencyFund = emergencyFund
@@ -6686,10 +6695,10 @@ public enum Components {
             public enum CodingKeys: String, CodingKey {
                 case householdId = "household_id"
                 case displayName = "display_name"
+                case currency
                 case language
                 case reserveCommittedSavings = "reserve_committed_savings"
                 case timezone
-                case currency
                 case netWorth = "net_worth"
                 case emergencyFundMonths = "emergency_fund_months"
                 case emergencyFund = "emergency_fund"
@@ -6711,6 +6720,8 @@ public enum Components {
                 case accountsOutsideBaseCurrency = "accounts_outside_base_currency"
             }
         }
+        /// M46: a monthly per-category envelope with current-month progress.
+        ///
         /// - Remark: Generated from `#/components/schemas/Budget`.
         public struct Budget: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/Budget/id`.
@@ -6721,26 +6732,21 @@ public enum Components {
             public var categoryName: Swift.String
             /// - Remark: Generated from `#/components/schemas/Budget/limit`.
             public var limit: Components.Schemas.Money
-            /// Outflow in this category during the current calendar month.
-            ///
             /// - Remark: Generated from `#/components/schemas/Budget/spent`.
-            public var spent: Components.Schemas.Money
-            /// limit − spent; negative when over budget.
-            ///
+            public var spent: Components.Schemas.QualifiedMoney
             /// - Remark: Generated from `#/components/schemas/Budget/remaining`.
-            public var remaining: Components.Schemas.Money
-            /// Raw spent/limit percent; may exceed 100.
-            ///
+            public var remaining: Components.Schemas.NullableQualifiedMoney?
             /// - Remark: Generated from `#/components/schemas/Budget/percent_used`.
-            public var percentUsed: Swift.Int
+            public var percentUsed: Swift.Int?
             /// - Remark: Generated from `#/components/schemas/Budget/status`.
             @frozen public enum StatusPayload: String, Codable, Hashable, Sendable, CaseIterable {
                 case under = "under"
                 case warning = "warning"
                 case over = "over"
+                case _empty_ = ""
             }
             /// - Remark: Generated from `#/components/schemas/Budget/status`.
-            public var status: Components.Schemas.Budget.StatusPayload
+            public var status: Components.Schemas.Budget.StatusPayload?
             /// Creates a new `Budget`.
             ///
             /// - Parameters:
@@ -6748,19 +6754,19 @@ public enum Components {
             ///   - categoryId:
             ///   - categoryName:
             ///   - limit:
-            ///   - spent: Outflow in this category during the current calendar month.
-            ///   - remaining: limit − spent; negative when over budget.
-            ///   - percentUsed: Raw spent/limit percent; may exceed 100.
+            ///   - spent:
+            ///   - remaining:
+            ///   - percentUsed:
             ///   - status:
             public init(
                 id: Swift.String,
                 categoryId: Swift.String,
                 categoryName: Swift.String,
                 limit: Components.Schemas.Money,
-                spent: Components.Schemas.Money,
-                remaining: Components.Schemas.Money,
-                percentUsed: Swift.Int,
-                status: Components.Schemas.Budget.StatusPayload
+                spent: Components.Schemas.QualifiedMoney,
+                remaining: Components.Schemas.NullableQualifiedMoney? = nil,
+                percentUsed: Swift.Int? = nil,
+                status: Components.Schemas.Budget.StatusPayload? = nil
             ) {
                 self.id = id
                 self.categoryId = categoryId
@@ -6786,15 +6792,23 @@ public enum Components {
         public struct BudgetListResponse: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/BudgetListResponse/budgets`.
             public var budgets: [Components.Schemas.Budget]
+            /// - Remark: Generated from `#/components/schemas/BudgetListResponse/summary`.
+            public var summary: Components.Schemas.BudgetSummary
             /// Creates a new `BudgetListResponse`.
             ///
             /// - Parameters:
             ///   - budgets:
-            public init(budgets: [Components.Schemas.Budget]) {
+            ///   - summary:
+            public init(
+                budgets: [Components.Schemas.Budget],
+                summary: Components.Schemas.BudgetSummary
+            ) {
                 self.budgets = budgets
+                self.summary = summary
             }
             public enum CodingKeys: String, CodingKey {
                 case budgets
+                case summary
             }
         }
         /// - Remark: Generated from `#/components/schemas/BudgetCreateRequest`.
@@ -6835,34 +6849,34 @@ public enum Components {
                 case limit
             }
         }
+        /// M46: envelope health for the Overview alert card.
+        ///
         /// - Remark: Generated from `#/components/schemas/BudgetSummary`.
         public struct BudgetSummary: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/BudgetSummary/envelope_count`.
             public var envelopeCount: Swift.Int
             /// - Remark: Generated from `#/components/schemas/BudgetSummary/over_count`.
-            public var overCount: Swift.Int
-            /// Envelopes at ≥80% of their limit (but not over).
-            ///
+            public var overCount: Swift.Int?
             /// - Remark: Generated from `#/components/schemas/BudgetSummary/warning_count`.
-            public var warningCount: Swift.Int
+            public var warningCount: Swift.Int?
             /// - Remark: Generated from `#/components/schemas/BudgetSummary/total_budgeted`.
             public var totalBudgeted: Components.Schemas.Money
             /// - Remark: Generated from `#/components/schemas/BudgetSummary/total_spent`.
-            public var totalSpent: Components.Schemas.Money
+            public var totalSpent: Components.Schemas.QualifiedMoney
             /// Creates a new `BudgetSummary`.
             ///
             /// - Parameters:
             ///   - envelopeCount:
             ///   - overCount:
-            ///   - warningCount: Envelopes at ≥80% of their limit (but not over).
+            ///   - warningCount:
             ///   - totalBudgeted:
             ///   - totalSpent:
             public init(
                 envelopeCount: Swift.Int,
-                overCount: Swift.Int,
-                warningCount: Swift.Int,
+                overCount: Swift.Int? = nil,
+                warningCount: Swift.Int? = nil,
                 totalBudgeted: Components.Schemas.Money,
-                totalSpent: Components.Schemas.Money
+                totalSpent: Components.Schemas.QualifiedMoney
             ) {
                 self.envelopeCount = envelopeCount
                 self.overCount = overCount
@@ -6878,50 +6892,47 @@ public enum Components {
                 case totalSpent = "total_spent"
             }
         }
-        /// M94: this calendar month's outflow grouped by category, the visible result of categorizing transactions.
+        /// M94: this month's outflow grouped by category — the visible payoff of
+        /// categorizing. `uncategorized` is what's still unsorted, so the user can see
+        /// the value of filing more.
         ///
         /// - Remark: Generated from `#/components/schemas/SpendingByCategory`.
         public struct SpendingByCategory: Codable, Hashable, Sendable {
-            /// The covered month as ISO year-month, e.g. "2026-07" — so a client can filter transactions to exactly this window.
-            ///
             /// - Remark: Generated from `#/components/schemas/SpendingByCategory/month`.
             public var month: Swift.String
-            /// The month this covers, e.g. "July 2026".
-            ///
             /// - Remark: Generated from `#/components/schemas/SpendingByCategory/month_label`.
             public var monthLabel: Swift.String
-            /// Per-category spend this month, highest first.
-            ///
             /// - Remark: Generated from `#/components/schemas/SpendingByCategory/categories`.
             public var categories: [Components.Schemas.CategorySpend]?
-            /// Sum of all categorized spend this month.
-            ///
             /// - Remark: Generated from `#/components/schemas/SpendingByCategory/categorized_total`.
-            public var categorizedTotal: Components.Schemas.Money
-            /// This month's outflow not yet categorized — files it and it moves into a category above.
-            ///
+            public var categorizedTotal: Components.Schemas.QualifiedMoney
             /// - Remark: Generated from `#/components/schemas/SpendingByCategory/uncategorized`.
-            public var uncategorized: Components.Schemas.Money
+            public var uncategorized: Components.Schemas.QualifiedMoney
+            /// - Remark: Generated from `#/components/schemas/SpendingByCategory/total`.
+            public var total: Components.Schemas.QualifiedMoney
             /// Creates a new `SpendingByCategory`.
             ///
             /// - Parameters:
-            ///   - month: The covered month as ISO year-month, e.g. "2026-07" — so a client can filter transactions to exactly this window.
-            ///   - monthLabel: The month this covers, e.g. "July 2026".
-            ///   - categories: Per-category spend this month, highest first.
-            ///   - categorizedTotal: Sum of all categorized spend this month.
-            ///   - uncategorized: This month's outflow not yet categorized — files it and it moves into a category above.
+            ///   - month:
+            ///   - monthLabel:
+            ///   - categories:
+            ///   - categorizedTotal:
+            ///   - uncategorized:
+            ///   - total:
             public init(
                 month: Swift.String,
                 monthLabel: Swift.String,
                 categories: [Components.Schemas.CategorySpend]? = nil,
-                categorizedTotal: Components.Schemas.Money,
-                uncategorized: Components.Schemas.Money
+                categorizedTotal: Components.Schemas.QualifiedMoney,
+                uncategorized: Components.Schemas.QualifiedMoney,
+                total: Components.Schemas.QualifiedMoney
             ) {
                 self.month = month
                 self.monthLabel = monthLabel
                 self.categories = categories
                 self.categorizedTotal = categorizedTotal
                 self.uncategorized = uncategorized
+                self.total = total
             }
             public enum CodingKeys: String, CodingKey {
                 case month
@@ -6929,8 +6940,11 @@ public enum Components {
                 case categories
                 case categorizedTotal = "categorized_total"
                 case uncategorized
+                case total
             }
         }
+        /// M94: one category's spend this month.
+        ///
         /// - Remark: Generated from `#/components/schemas/CategorySpend`.
         public struct CategorySpend: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/CategorySpend/category_id`.
@@ -6938,7 +6952,7 @@ public enum Components {
             /// - Remark: Generated from `#/components/schemas/CategorySpend/category_name`.
             public var categoryName: Swift.String
             /// - Remark: Generated from `#/components/schemas/CategorySpend/amount`.
-            public var amount: Components.Schemas.Money
+            public var amount: Components.Schemas.QualifiedMoney
             /// Creates a new `CategorySpend`.
             ///
             /// - Parameters:
@@ -6948,7 +6962,7 @@ public enum Components {
             public init(
                 categoryId: Swift.String,
                 categoryName: Swift.String,
-                amount: Components.Schemas.Money
+                amount: Components.Schemas.QualifiedMoney
             ) {
                 self.categoryId = categoryId
                 self.categoryName = categoryName
@@ -6960,210 +6974,104 @@ public enum Components {
                 case amount
             }
         }
-        /// M93: money actually free to spend now — liquid cash net of the emergency fund, bills due, and minimum debt payments. Income during the window is NOT counted.
+        /// M93: what's actually free to spend now — liquid cash net of the emergency
+        /// fund, bills due, and minimum debt payments. total_debt is reported (not
+        /// subtracted) so spendable cash is never shown without the debt beside it.
         ///
         /// - Remark: Generated from `#/components/schemas/SafeToSpend`.
         public struct SafeToSpend: Codable, Hashable, Sendable {
-            /// Checking + savings only (never retirement/education funds).
-            ///
             /// - Remark: Generated from `#/components/schemas/SafeToSpend/liquid_balance`.
             public var liquidBalance: Components.Schemas.Money
-            /// Money explicitly designated for emergencies; held back.
-            ///
             /// - Remark: Generated from `#/components/schemas/SafeToSpend/emergency_fund_reserved`.
             public var emergencyFundReserved: Components.Schemas.Money
-            /// Bills falling due within the horizon.
-            ///
             /// - Remark: Generated from `#/components/schemas/SafeToSpend/bills_due`.
             public var billsDue: Components.Schemas.Money
-            /// Minimum payments owed on liability accounts with recorded terms.
-            ///
             /// - Remark: Generated from `#/components/schemas/SafeToSpend/minimum_debt_payments`.
             public var minimumDebtPayments: Components.Schemas.Money
-            /// M96: full credit-card balances when the household pays cards in full monthly; absent/0 otherwise.
-            ///
             /// - Remark: Generated from `#/components/schemas/SafeToSpend/credit_card_payments`.
-            public struct CreditCardPaymentsPayload: Codable, Hashable, Sendable {
-                /// - Remark: Generated from `#/components/schemas/SafeToSpend/credit_card_payments/value1`.
-                public var value1: Components.Schemas.Money
-                /// Creates a new `CreditCardPaymentsPayload`.
-                ///
-                /// - Parameters:
-                ///   - value1:
-                public init(value1: Components.Schemas.Money) {
-                    self.value1 = value1
-                }
-                public init(from decoder: any Decoder) throws {
-                    self.value1 = try .init(from: decoder)
-                }
-                public func encode(to encoder: any Encoder) throws {
-                    try self.value1.encode(to: encoder)
-                }
-            }
-            /// M96: full credit-card balances when the household pays cards in full monthly; absent/0 otherwise.
-            ///
-            /// - Remark: Generated from `#/components/schemas/SafeToSpend/credit_card_payments`.
-            public var creditCardPayments: Components.Schemas.SafeToSpend.CreditCardPaymentsPayload?
-            /// M109 (ADR 0020): recurring subscriptions' next in-window charge, reserved the 'bill way' (never a monthly total). Absent/0 when none are upcoming.
-            ///
+            public var creditCardPayments: Components.Schemas.NullableQualifiedMoney?
             /// - Remark: Generated from `#/components/schemas/SafeToSpend/subscription_forecast`.
-            public struct SubscriptionForecastPayload: Codable, Hashable, Sendable {
-                /// - Remark: Generated from `#/components/schemas/SafeToSpend/subscription_forecast/value1`.
-                public var value1: Components.Schemas.Money
-                /// Creates a new `SubscriptionForecastPayload`.
-                ///
-                /// - Parameters:
-                ///   - value1:
-                public init(value1: Components.Schemas.Money) {
-                    self.value1 = value1
-                }
-                public init(from decoder: any Decoder) throws {
-                    self.value1 = try .init(from: decoder)
-                }
-                public func encode(to encoder: any Encoder) throws {
-                    try self.value1.encode(to: encoder)
-                }
-            }
-            /// M109 (ADR 0020): recurring subscriptions' next in-window charge, reserved the 'bill way' (never a monthly total). Absent/0 when none are upcoming.
-            ///
-            /// - Remark: Generated from `#/components/schemas/SafeToSpend/subscription_forecast`.
-            public var subscriptionForecast: Components.Schemas.SafeToSpend.SubscriptionForecastPayload?
-            /// emergency_fund_reserved + bills_due + minimum_debt_payments.
-            ///
+            public var subscriptionForecast: Components.Schemas.NullableQualifiedMoney?
+            /// - Remark: Generated from `#/components/schemas/SafeToSpend/subscription_detection`.
+            public var subscriptionDetection: Components.Schemas.ComputationAvailability
             /// - Remark: Generated from `#/components/schemas/SafeToSpend/committed_total`.
-            public var committedTotal: Components.Schemas.Money
-            /// liquid_balance − committed_total. May be negative.
-            ///
+            public var committedTotal: Components.Schemas.NullableQualifiedMoney?
             /// - Remark: Generated from `#/components/schemas/SafeToSpend/safe_to_spend`.
-            public var safeToSpend: Components.Schemas.Money
-            /// All liabilities as a positive amount — reported, never subtracted, so spendable cash is never shown without the debt beside it.
-            ///
+            public var safeToSpend: Components.Schemas.NullableQualifiedMoney?
             /// - Remark: Generated from `#/components/schemas/SafeToSpend/total_debt`.
             public var totalDebt: Components.Schemas.Money
-            /// Human-readable caveats (e.g. debts with no recorded minimum payment understate what's committed).
-            ///
             /// - Remark: Generated from `#/components/schemas/SafeToSpend/warnings`.
-            public var warnings: [Swift.String]
-            /// M96: the checking/savings accounts that add up to liquid_balance, for the detail drill-down.
-            ///
+            public var warnings: [Swift.String]?
             /// - Remark: Generated from `#/components/schemas/SafeToSpend/liquid_accounts`.
             public var liquidAccounts: [Components.Schemas.LiquidAccountBalance]?
-            /// M96: the debts and their minimum payments behind minimum_debt_payments.
-            ///
             /// - Remark: Generated from `#/components/schemas/SafeToSpend/minimum_debt_items`.
             public var minimumDebtItems: [Components.Schemas.NamedAmount]?
-            /// M96: the cards and their balances behind credit_card_payments (when paid in full).
-            ///
             /// - Remark: Generated from `#/components/schemas/SafeToSpend/credit_card_items`.
             public var creditCardItems: [Components.Schemas.NamedAmount]?
-            /// M98: the bills behind bills_due, over the safe-to-spend horizon.
-            ///
             /// - Remark: Generated from `#/components/schemas/SafeToSpend/bill_items`.
             public var billItems: [Components.Schemas.NamedAmount]?
-            /// M98: the accounts and how much of each is reserved as emergency fund.
-            ///
             /// - Remark: Generated from `#/components/schemas/SafeToSpend/emergency_fund_items`.
             public var emergencyFundItems: [Components.Schemas.NamedAmount]?
-            /// M109: the recurring subscriptions (next charge + amount) behind subscription_forecast.
-            ///
-            /// - Remark: Generated from `#/components/schemas/SafeToSpend/subscription_forecast_items`.
-            public var subscriptionForecastItems: [Components.Schemas.NamedAmount]?
-            /// The provider-synced balances of the accounts the user tagged "vested RSUs, ready to sell". Informational — never added to safe_to_spend, because shares aren't cash until sold. Absent when no account is tagged.
-            ///
             /// - Remark: Generated from `#/components/schemas/SafeToSpend/ready_to_sell`.
-            public struct ReadyToSellPayload: Codable, Hashable, Sendable {
-                /// - Remark: Generated from `#/components/schemas/SafeToSpend/ready_to_sell/value1`.
-                public var value1: Components.Schemas.ReadyToSellHoldings
-                /// Creates a new `ReadyToSellPayload`.
-                ///
-                /// - Parameters:
-                ///   - value1:
-                public init(value1: Components.Schemas.ReadyToSellHoldings) {
-                    self.value1 = value1
-                }
-                public init(from decoder: any Decoder) throws {
-                    self.value1 = try .init(from: decoder)
-                }
-                public func encode(to encoder: any Encoder) throws {
-                    try self.value1.encode(to: encoder)
-                }
-            }
-            /// The provider-synced balances of the accounts the user tagged "vested RSUs, ready to sell". Informational — never added to safe_to_spend, because shares aren't cash until sold. Absent when no account is tagged.
-            ///
-            /// - Remark: Generated from `#/components/schemas/SafeToSpend/ready_to_sell`.
-            public var readyToSell: Components.Schemas.SafeToSpend.ReadyToSellPayload?
-            /// "#5: recurring savings the household committed to, due within the horizon. When committed_savings_reserved is true it is subtracted (inside committed_total); otherwise shown beside the figure."
-            ///
+            public var readyToSell: Components.Schemas.NullableReadyToSellHoldings?
             /// - Remark: Generated from `#/components/schemas/SafeToSpend/committed_savings`.
-            public struct CommittedSavingsPayload: Codable, Hashable, Sendable {
-                /// - Remark: Generated from `#/components/schemas/SafeToSpend/committed_savings/value1`.
-                public var value1: Components.Schemas.Money
-                /// Creates a new `CommittedSavingsPayload`.
-                ///
-                /// - Parameters:
-                ///   - value1:
-                public init(value1: Components.Schemas.Money) {
-                    self.value1 = value1
-                }
-                public init(from decoder: any Decoder) throws {
-                    self.value1 = try .init(from: decoder)
-                }
-                public func encode(to encoder: any Encoder) throws {
-                    try self.value1.encode(to: encoder)
-                }
-            }
-            /// "#5: recurring savings the household committed to, due within the horizon. When committed_savings_reserved is true it is subtracted (inside committed_total); otherwise shown beside the figure."
-            ///
-            /// - Remark: Generated from `#/components/schemas/SafeToSpend/committed_savings`.
-            public var committedSavings: Components.Schemas.SafeToSpend.CommittedSavingsPayload?
+            public var committedSavings: Components.Schemas.NullableQualifiedMoney?
+            /// - Remark: Generated from `#/components/schemas/SafeToSpend/savings_detection`.
+            public var savingsDetection: Components.Schemas.ComputationAvailability
             /// - Remark: Generated from `#/components/schemas/SafeToSpend/committed_savings_items`.
             public var committedSavingsItems: [Components.Schemas.NamedAmount]?
             /// - Remark: Generated from `#/components/schemas/SafeToSpend/committed_savings_reserved`.
             public var committedSavingsReserved: Swift.Bool?
+            /// - Remark: Generated from `#/components/schemas/SafeToSpend/subscription_forecast_items`.
+            public var subscriptionForecastItems: [Components.Schemas.NamedAmount]?
             /// Creates a new `SafeToSpend`.
             ///
             /// - Parameters:
-            ///   - liquidBalance: Checking + savings only (never retirement/education funds).
-            ///   - emergencyFundReserved: Money explicitly designated for emergencies; held back.
-            ///   - billsDue: Bills falling due within the horizon.
-            ///   - minimumDebtPayments: Minimum payments owed on liability accounts with recorded terms.
-            ///   - creditCardPayments: M96: full credit-card balances when the household pays cards in full monthly; absent/0 otherwise.
-            ///   - subscriptionForecast: M109 (ADR 0020): recurring subscriptions' next in-window charge, reserved the 'bill way' (never a monthly total). Absent/0 when none are upcoming.
-            ///   - committedTotal: emergency_fund_reserved + bills_due + minimum_debt_payments.
-            ///   - safeToSpend: liquid_balance − committed_total. May be negative.
-            ///   - totalDebt: All liabilities as a positive amount — reported, never subtracted, so spendable cash is never shown without the debt beside it.
-            ///   - warnings: Human-readable caveats (e.g. debts with no recorded minimum payment understate what's committed).
-            ///   - liquidAccounts: M96: the checking/savings accounts that add up to liquid_balance, for the detail drill-down.
-            ///   - minimumDebtItems: M96: the debts and their minimum payments behind minimum_debt_payments.
-            ///   - creditCardItems: M96: the cards and their balances behind credit_card_payments (when paid in full).
-            ///   - billItems: M98: the bills behind bills_due, over the safe-to-spend horizon.
-            ///   - emergencyFundItems: M98: the accounts and how much of each is reserved as emergency fund.
-            ///   - subscriptionForecastItems: M109: the recurring subscriptions (next charge + amount) behind subscription_forecast.
-            ///   - readyToSell: The provider-synced balances of the accounts the user tagged "vested RSUs, ready to sell". Informational — never added to safe_to_spend, because shares aren't cash until sold. Absent when no account is tagged.
-            ///   - committedSavings: "#5: recurring savings the household committed to, due within the horizon. When committed_savings_reserved is true it is subtracted (inside committed_total); otherwise shown beside the figure."
+            ///   - liquidBalance:
+            ///   - emergencyFundReserved:
+            ///   - billsDue:
+            ///   - minimumDebtPayments:
+            ///   - creditCardPayments:
+            ///   - subscriptionForecast:
+            ///   - subscriptionDetection:
+            ///   - committedTotal:
+            ///   - safeToSpend:
+            ///   - totalDebt:
+            ///   - warnings:
+            ///   - liquidAccounts:
+            ///   - minimumDebtItems:
+            ///   - creditCardItems:
+            ///   - billItems:
+            ///   - emergencyFundItems:
+            ///   - readyToSell:
+            ///   - committedSavings:
+            ///   - savingsDetection:
             ///   - committedSavingsItems:
             ///   - committedSavingsReserved:
+            ///   - subscriptionForecastItems:
             public init(
                 liquidBalance: Components.Schemas.Money,
                 emergencyFundReserved: Components.Schemas.Money,
                 billsDue: Components.Schemas.Money,
                 minimumDebtPayments: Components.Schemas.Money,
-                creditCardPayments: Components.Schemas.SafeToSpend.CreditCardPaymentsPayload? = nil,
-                subscriptionForecast: Components.Schemas.SafeToSpend.SubscriptionForecastPayload? = nil,
-                committedTotal: Components.Schemas.Money,
-                safeToSpend: Components.Schemas.Money,
+                creditCardPayments: Components.Schemas.NullableQualifiedMoney? = nil,
+                subscriptionForecast: Components.Schemas.NullableQualifiedMoney? = nil,
+                subscriptionDetection: Components.Schemas.ComputationAvailability,
+                committedTotal: Components.Schemas.NullableQualifiedMoney? = nil,
+                safeToSpend: Components.Schemas.NullableQualifiedMoney? = nil,
                 totalDebt: Components.Schemas.Money,
-                warnings: [Swift.String],
+                warnings: [Swift.String]? = nil,
                 liquidAccounts: [Components.Schemas.LiquidAccountBalance]? = nil,
                 minimumDebtItems: [Components.Schemas.NamedAmount]? = nil,
                 creditCardItems: [Components.Schemas.NamedAmount]? = nil,
                 billItems: [Components.Schemas.NamedAmount]? = nil,
                 emergencyFundItems: [Components.Schemas.NamedAmount]? = nil,
-                subscriptionForecastItems: [Components.Schemas.NamedAmount]? = nil,
-                readyToSell: Components.Schemas.SafeToSpend.ReadyToSellPayload? = nil,
-                committedSavings: Components.Schemas.SafeToSpend.CommittedSavingsPayload? = nil,
+                readyToSell: Components.Schemas.NullableReadyToSellHoldings? = nil,
+                committedSavings: Components.Schemas.NullableQualifiedMoney? = nil,
+                savingsDetection: Components.Schemas.ComputationAvailability,
                 committedSavingsItems: [Components.Schemas.NamedAmount]? = nil,
-                committedSavingsReserved: Swift.Bool? = nil
+                committedSavingsReserved: Swift.Bool? = nil,
+                subscriptionForecastItems: [Components.Schemas.NamedAmount]? = nil
             ) {
                 self.liquidBalance = liquidBalance
                 self.emergencyFundReserved = emergencyFundReserved
@@ -7171,6 +7079,7 @@ public enum Components {
                 self.minimumDebtPayments = minimumDebtPayments
                 self.creditCardPayments = creditCardPayments
                 self.subscriptionForecast = subscriptionForecast
+                self.subscriptionDetection = subscriptionDetection
                 self.committedTotal = committedTotal
                 self.safeToSpend = safeToSpend
                 self.totalDebt = totalDebt
@@ -7180,11 +7089,12 @@ public enum Components {
                 self.creditCardItems = creditCardItems
                 self.billItems = billItems
                 self.emergencyFundItems = emergencyFundItems
-                self.subscriptionForecastItems = subscriptionForecastItems
                 self.readyToSell = readyToSell
                 self.committedSavings = committedSavings
+                self.savingsDetection = savingsDetection
                 self.committedSavingsItems = committedSavingsItems
                 self.committedSavingsReserved = committedSavingsReserved
+                self.subscriptionForecastItems = subscriptionForecastItems
             }
             public enum CodingKeys: String, CodingKey {
                 case liquidBalance = "liquid_balance"
@@ -7193,6 +7103,7 @@ public enum Components {
                 case minimumDebtPayments = "minimum_debt_payments"
                 case creditCardPayments = "credit_card_payments"
                 case subscriptionForecast = "subscription_forecast"
+                case subscriptionDetection = "subscription_detection"
                 case committedTotal = "committed_total"
                 case safeToSpend = "safe_to_spend"
                 case totalDebt = "total_debt"
@@ -7202,11 +7113,12 @@ public enum Components {
                 case creditCardItems = "credit_card_items"
                 case billItems = "bill_items"
                 case emergencyFundItems = "emergency_fund_items"
-                case subscriptionForecastItems = "subscription_forecast_items"
                 case readyToSell = "ready_to_sell"
                 case committedSavings = "committed_savings"
+                case savingsDetection = "savings_detection"
                 case committedSavingsItems = "committed_savings_items"
                 case committedSavingsReserved = "committed_savings_reserved"
+                case subscriptionForecastItems = "subscription_forecast_items"
             }
         }
         /// - Remark: Generated from `#/components/schemas/ReadyToSellHoldings`.
@@ -7505,40 +7417,33 @@ public enum Components {
                 case destinationAccountId = "destination_account_id"
             }
         }
+        /// #6: saving as what the household actually does, combining three
+        /// non-overlapping sources — declared transfers, pre-tax payroll deductions,
+        /// and the unspent residual. percent is total_saved / gross income.
+        ///
+        /// monthly_income and average_monthly_spending are kept (M44) so the old
+        /// residual view still reconciles; the breakdown fields are additive.
+        ///
         /// - Remark: Generated from `#/components/schemas/SavingsRate`.
         public struct SavingsRate: Codable, Hashable, Sendable {
-            /// (income - avg spending) / income, %; null when income is 0; may be negative.
-            ///
             /// - Remark: Generated from `#/components/schemas/SavingsRate/percent`.
             public var percent: Swift.Int?
-            /// Take-home (deposit-based) monthly income.
-            ///
             /// - Remark: Generated from `#/components/schemas/SavingsRate/monthly_income`.
-            public var monthlyIncome: Components.Schemas.Money
+            public var monthlyIncome: Components.Schemas.QualifiedMoney
             /// - Remark: Generated from `#/components/schemas/SavingsRate/average_monthly_spending`.
-            public var averageMonthlySpending: Components.Schemas.Money
-            /// #6: take-home + payroll deductions — the rate's denominator.
-            ///
+            public var averageMonthlySpending: Components.Schemas.QualifiedMoney
             /// - Remark: Generated from `#/components/schemas/SavingsRate/gross_income`.
-            public var grossIncome: Components.Schemas.Money?
-            /// #6: declared savings transfers, monthly.
-            ///
+            public var grossIncome: Components.Schemas.NullableQualifiedMoney?
             /// - Remark: Generated from `#/components/schemas/SavingsRate/transfers`.
-            public var transfers: Components.Schemas.Money?
-            /// #6: pre-tax 401(k)/HSA saved, monthly.
-            ///
+            public var transfers: Components.Schemas.NullableQualifiedMoney?
+            /// - Remark: Generated from `#/components/schemas/SavingsRate/transfer_detection`.
+            public var transferDetection: Components.Schemas.ComputationAvailability
             /// - Remark: Generated from `#/components/schemas/SavingsRate/payroll_deductions`.
-            public var payrollDeductions: Components.Schemas.Money?
-            /// #6: take-home minus spending minus transfers — unspent, unmoved.
-            ///
+            public var payrollDeductions: Components.Schemas.NullableMoney?
             /// - Remark: Generated from `#/components/schemas/SavingsRate/residual`.
-            public var residual: Components.Schemas.Money?
-            /// #6: transfers + payroll + residual.
-            ///
+            public var residual: Components.Schemas.NullableQualifiedMoney?
             /// - Remark: Generated from `#/components/schemas/SavingsRate/total_saved`.
-            public var totalSaved: Components.Schemas.Money?
-            /// "#6: false means no 401(k)/HSA figure is declared, so payroll saving is invisible and the rate understates — say so."
-            ///
+            public var totalSaved: Components.Schemas.NullableQualifiedMoney?
             /// - Remark: Generated from `#/components/schemas/SavingsRate/payroll_profile_present`.
             public var payrollProfilePresent: Swift.Bool?
             /// - Remark: Generated from `#/components/schemas/SavingsRate/declared_transfers_present`.
@@ -7546,25 +7451,27 @@ public enum Components {
             /// Creates a new `SavingsRate`.
             ///
             /// - Parameters:
-            ///   - percent: (income - avg spending) / income, %; null when income is 0; may be negative.
-            ///   - monthlyIncome: Take-home (deposit-based) monthly income.
+            ///   - percent:
+            ///   - monthlyIncome:
             ///   - averageMonthlySpending:
-            ///   - grossIncome: #6: take-home + payroll deductions — the rate's denominator.
-            ///   - transfers: #6: declared savings transfers, monthly.
-            ///   - payrollDeductions: #6: pre-tax 401(k)/HSA saved, monthly.
-            ///   - residual: #6: take-home minus spending minus transfers — unspent, unmoved.
-            ///   - totalSaved: #6: transfers + payroll + residual.
-            ///   - payrollProfilePresent: "#6: false means no 401(k)/HSA figure is declared, so payroll saving is invisible and the rate understates — say so."
+            ///   - grossIncome:
+            ///   - transfers:
+            ///   - transferDetection:
+            ///   - payrollDeductions:
+            ///   - residual:
+            ///   - totalSaved:
+            ///   - payrollProfilePresent:
             ///   - declaredTransfersPresent:
             public init(
                 percent: Swift.Int? = nil,
-                monthlyIncome: Components.Schemas.Money,
-                averageMonthlySpending: Components.Schemas.Money,
-                grossIncome: Components.Schemas.Money? = nil,
-                transfers: Components.Schemas.Money? = nil,
-                payrollDeductions: Components.Schemas.Money? = nil,
-                residual: Components.Schemas.Money? = nil,
-                totalSaved: Components.Schemas.Money? = nil,
+                monthlyIncome: Components.Schemas.QualifiedMoney,
+                averageMonthlySpending: Components.Schemas.QualifiedMoney,
+                grossIncome: Components.Schemas.NullableQualifiedMoney? = nil,
+                transfers: Components.Schemas.NullableQualifiedMoney? = nil,
+                transferDetection: Components.Schemas.ComputationAvailability,
+                payrollDeductions: Components.Schemas.NullableMoney? = nil,
+                residual: Components.Schemas.NullableQualifiedMoney? = nil,
+                totalSaved: Components.Schemas.NullableQualifiedMoney? = nil,
                 payrollProfilePresent: Swift.Bool? = nil,
                 declaredTransfersPresent: Swift.Bool? = nil
             ) {
@@ -7573,6 +7480,7 @@ public enum Components {
                 self.averageMonthlySpending = averageMonthlySpending
                 self.grossIncome = grossIncome
                 self.transfers = transfers
+                self.transferDetection = transferDetection
                 self.payrollDeductions = payrollDeductions
                 self.residual = residual
                 self.totalSaved = totalSaved
@@ -7585,6 +7493,7 @@ public enum Components {
                 case averageMonthlySpending = "average_monthly_spending"
                 case grossIncome = "gross_income"
                 case transfers
+                case transferDetection = "transfer_detection"
                 case payrollDeductions = "payroll_deductions"
                 case residual
                 case totalSaved = "total_saved"
@@ -7592,14 +7501,14 @@ public enum Components {
                 case declaredTransfersPresent = "declared_transfers_present"
             }
         }
+        /// M42: month-to-date spending vs the same period last month, plus top merchants.
+        ///
         /// - Remark: Generated from `#/components/schemas/SpendingInsights`.
         public struct SpendingInsights: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/SpendingInsights/this_month`.
-            public var thisMonth: Components.Schemas.Money
+            public var thisMonth: Components.Schemas.QualifiedMoney
             /// - Remark: Generated from `#/components/schemas/SpendingInsights/last_month`.
-            public var lastMonth: Components.Schemas.Money
-            /// Percent change vs last month; null when last month was zero.
-            ///
+            public var lastMonth: Components.Schemas.QualifiedMoney
             /// - Remark: Generated from `#/components/schemas/SpendingInsights/change_percent`.
             public var changePercent: Swift.Int?
             /// - Remark: Generated from `#/components/schemas/SpendingInsights/top_merchants`.
@@ -7609,11 +7518,11 @@ public enum Components {
             /// - Parameters:
             ///   - thisMonth:
             ///   - lastMonth:
-            ///   - changePercent: Percent change vs last month; null when last month was zero.
+            ///   - changePercent:
             ///   - topMerchants:
             public init(
-                thisMonth: Components.Schemas.Money,
-                lastMonth: Components.Schemas.Money,
+                thisMonth: Components.Schemas.QualifiedMoney,
+                lastMonth: Components.Schemas.QualifiedMoney,
                 changePercent: Swift.Int? = nil,
                 topMerchants: [Components.Schemas.MerchantSpend]? = nil
             ) {
@@ -7773,35 +7682,26 @@ public enum Components {
                 case daysUntil = "days_until"
             }
         }
+        /// M38: coverage vs the standard 3–6 month guidance.
+        ///
         /// - Remark: Generated from `#/components/schemas/EmergencyFundSummary`.
         public struct EmergencyFundSummary: Codable, Hashable, Sendable {
-            /// Months of expenses the fund covers; null when there are no bills.
-            ///
             /// - Remark: Generated from `#/components/schemas/EmergencyFundSummary/months`.
             public var months: Swift.Double?
-            /// The fund balance used — designated total when set, else all liquid money.
-            ///
             /// - Remark: Generated from `#/components/schemas/EmergencyFundSummary/reserved`.
             public var reserved: Components.Schemas.Money
-            /// True when the fund comes from explicit account designations (M36).
-            ///
             /// - Remark: Generated from `#/components/schemas/EmergencyFundSummary/using_designations`.
             public var usingDesignations: Swift.Bool
             /// - Remark: Generated from `#/components/schemas/EmergencyFundSummary/monthly_expenses`.
-            public var monthlyExpenses: Components.Schemas.Money
+            public var monthlyExpenses: Components.Schemas.QualifiedMoney
             /// - Remark: Generated from `#/components/schemas/EmergencyFundSummary/target_months_min`.
             public var targetMonthsMin: Swift.Double
             /// - Remark: Generated from `#/components/schemas/EmergencyFundSummary/target_months_recommended`.
             public var targetMonthsRecommended: Swift.Double
-            /// Money still needed to reach the recommended target; 0 when funded, absent when no bills.
-            ///
             /// - Remark: Generated from `#/components/schemas/EmergencyFundSummary/gap_to_recommended`.
-            public var gapToRecommended: Components.Schemas.Money?
-            /// The household's own emergency_fund goal target (M75); the status is the more conservative of months-coverage and goal progress.
-            ///
-            ///
+            public var gapToRecommended: Components.Schemas.NullableQualifiedMoney?
             /// - Remark: Generated from `#/components/schemas/EmergencyFundSummary/goal_target`.
-            public var goalTarget: Components.Schemas.Money?
+            public var goalTarget: Components.Schemas.NullableMoney?
             /// - Remark: Generated from `#/components/schemas/EmergencyFundSummary/status`.
             @frozen public enum StatusPayload: String, Codable, Hashable, Sendable, CaseIterable {
                 case noBills = "no_bills"
@@ -7809,30 +7709,31 @@ public enum Components {
                 case gettingStarted = "getting_started"
                 case onTrack = "on_track"
                 case fullyFunded = "fully_funded"
+                case unavailable = "unavailable"
             }
             /// - Remark: Generated from `#/components/schemas/EmergencyFundSummary/status`.
             public var status: Components.Schemas.EmergencyFundSummary.StatusPayload
             /// Creates a new `EmergencyFundSummary`.
             ///
             /// - Parameters:
-            ///   - months: Months of expenses the fund covers; null when there are no bills.
-            ///   - reserved: The fund balance used — designated total when set, else all liquid money.
-            ///   - usingDesignations: True when the fund comes from explicit account designations (M36).
+            ///   - months:
+            ///   - reserved:
+            ///   - usingDesignations:
             ///   - monthlyExpenses:
             ///   - targetMonthsMin:
             ///   - targetMonthsRecommended:
-            ///   - gapToRecommended: Money still needed to reach the recommended target; 0 when funded, absent when no bills.
-            ///   - goalTarget: The household's own emergency_fund goal target (M75); the status is the more conservative of months-coverage and goal progress.
+            ///   - gapToRecommended:
+            ///   - goalTarget:
             ///   - status:
             public init(
                 months: Swift.Double? = nil,
                 reserved: Components.Schemas.Money,
                 usingDesignations: Swift.Bool,
-                monthlyExpenses: Components.Schemas.Money,
+                monthlyExpenses: Components.Schemas.QualifiedMoney,
                 targetMonthsMin: Swift.Double,
                 targetMonthsRecommended: Swift.Double,
-                gapToRecommended: Components.Schemas.Money? = nil,
-                goalTarget: Components.Schemas.Money? = nil,
+                gapToRecommended: Components.Schemas.NullableQualifiedMoney? = nil,
+                goalTarget: Components.Schemas.NullableMoney? = nil,
                 status: Components.Schemas.EmergencyFundSummary.StatusPayload
             ) {
                 self.months = months
@@ -7860,77 +7761,29 @@ public enum Components {
         /// - Remark: Generated from `#/components/schemas/MonthlyCashFlow`.
         public struct MonthlyCashFlow: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/MonthlyCashFlow/income`.
-            public var income: Components.Schemas.Money
-            /// Month-to-date spending (same rule as the Year chart's bars) — NOT just detected recurring bills, which understated outflow badly (user report 2026-07-25: "$208 Bills" against $22k real spending).
-            ///
+            public var income: Components.Schemas.QualifiedMoney
             /// - Remark: Generated from `#/components/schemas/MonthlyCashFlow/spending`.
-            public var spending: Components.Schemas.Money
-            /// Income minus spending — what the month kept so far.
-            ///
+            public var spending: Components.Schemas.QualifiedMoney
             /// - Remark: Generated from `#/components/schemas/MonthlyCashFlow/net`.
-            public var net: Components.Schemas.Money
-            /// M96: monthly gross from the W2 / compensation profile, when one exists. A baseline shown next to actual income (net money-in); NOT added to it.
-            ///
+            public var net: Components.Schemas.NullableQualifiedMoney?
             /// - Remark: Generated from `#/components/schemas/MonthlyCashFlow/income_baseline`.
-            public struct IncomeBaselinePayload: Codable, Hashable, Sendable {
-                /// - Remark: Generated from `#/components/schemas/MonthlyCashFlow/income_baseline/value1`.
-                public var value1: Components.Schemas.Money
-                /// Creates a new `IncomeBaselinePayload`.
-                ///
-                /// - Parameters:
-                ///   - value1:
-                public init(value1: Components.Schemas.Money) {
-                    self.value1 = value1
-                }
-                public init(from decoder: any Decoder) throws {
-                    self.value1 = try .init(from: decoder)
-                }
-                public func encode(to encoder: any Encoder) throws {
-                    try self.value1.encode(to: encoder)
-                }
-            }
-            /// M96: monthly gross from the W2 / compensation profile, when one exists. A baseline shown next to actual income (net money-in); NOT added to it.
-            ///
-            /// - Remark: Generated from `#/components/schemas/MonthlyCashFlow/income_baseline`.
-            public var incomeBaseline: Components.Schemas.MonthlyCashFlow.IncomeBaselinePayload?
-            /// M96: tax withheld (e.g. RSU sell-to-cover), monthly. Tracked on its own, outside the discretionary spending breakdown. Absent when none is filed.
-            ///
+            public var incomeBaseline: Components.Schemas.NullableMoney?
             /// - Remark: Generated from `#/components/schemas/MonthlyCashFlow/taxes`.
-            public struct TaxesPayload: Codable, Hashable, Sendable {
-                /// - Remark: Generated from `#/components/schemas/MonthlyCashFlow/taxes/value1`.
-                public var value1: Components.Schemas.Money
-                /// Creates a new `TaxesPayload`.
-                ///
-                /// - Parameters:
-                ///   - value1:
-                public init(value1: Components.Schemas.Money) {
-                    self.value1 = value1
-                }
-                public init(from decoder: any Decoder) throws {
-                    self.value1 = try .init(from: decoder)
-                }
-                public func encode(to encoder: any Encoder) throws {
-                    try self.value1.encode(to: encoder)
-                }
-            }
-            /// M96: tax withheld (e.g. RSU sell-to-cover), monthly. Tracked on its own, outside the discretionary spending breakdown. Absent when none is filed.
-            ///
-            /// - Remark: Generated from `#/components/schemas/MonthlyCashFlow/taxes`.
-            public var taxes: Components.Schemas.MonthlyCashFlow.TaxesPayload?
+            public var taxes: Components.Schemas.NullableQualifiedMoney?
             /// Creates a new `MonthlyCashFlow`.
             ///
             /// - Parameters:
             ///   - income:
-            ///   - spending: Month-to-date spending (same rule as the Year chart's bars) — NOT just detected recurring bills, which understated outflow badly (user report 2026-07-25: "$208 Bills" against $22k real spending).
-            ///   - net: Income minus spending — what the month kept so far.
-            ///   - incomeBaseline: M96: monthly gross from the W2 / compensation profile, when one exists. A baseline shown next to actual income (net money-in); NOT added to it.
-            ///   - taxes: M96: tax withheld (e.g. RSU sell-to-cover), monthly. Tracked on its own, outside the discretionary spending breakdown. Absent when none is filed.
+            ///   - spending:
+            ///   - net:
+            ///   - incomeBaseline:
+            ///   - taxes:
             public init(
-                income: Components.Schemas.Money,
-                spending: Components.Schemas.Money,
-                net: Components.Schemas.Money,
-                incomeBaseline: Components.Schemas.MonthlyCashFlow.IncomeBaselinePayload? = nil,
-                taxes: Components.Schemas.MonthlyCashFlow.TaxesPayload? = nil
+                income: Components.Schemas.QualifiedMoney,
+                spending: Components.Schemas.QualifiedMoney,
+                net: Components.Schemas.NullableQualifiedMoney? = nil,
+                incomeBaseline: Components.Schemas.NullableMoney? = nil,
+                taxes: Components.Schemas.NullableQualifiedMoney? = nil
             ) {
                 self.income = income
                 self.spending = spending
@@ -11843,18 +11696,20 @@ public enum Components {
                 case autoCategorized = "auto_categorized"
             }
         }
+        /// One month of the Overview's year view (M-yearly).
+        ///
         /// - Remark: Generated from `#/components/schemas/YearMonthSummary`.
         public struct YearMonthSummary: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/YearMonthSummary/month`.
             public var month: Swift.String
             /// - Remark: Generated from `#/components/schemas/YearMonthSummary/income`.
-            public var income: Components.Schemas.Money
+            public var income: Components.Schemas.QualifiedMoney
             /// - Remark: Generated from `#/components/schemas/YearMonthSummary/spending`.
-            public var spending: Components.Schemas.Money
+            public var spending: Components.Schemas.QualifiedMoney
             /// - Remark: Generated from `#/components/schemas/YearMonthSummary/net`.
-            public var net: Components.Schemas.Money
+            public var net: Components.Schemas.NullableQualifiedMoney?
             /// - Remark: Generated from `#/components/schemas/YearMonthSummary/net_worth_eom`.
-            public var netWorthEom: Components.Schemas.Money?
+            public var netWorthEom: Components.Schemas.NullableQualifiedMoney?
             /// Creates a new `YearMonthSummary`.
             ///
             /// - Parameters:
@@ -11865,10 +11720,10 @@ public enum Components {
             ///   - netWorthEom:
             public init(
                 month: Swift.String,
-                income: Components.Schemas.Money,
-                spending: Components.Schemas.Money,
-                net: Components.Schemas.Money,
-                netWorthEom: Components.Schemas.Money? = nil
+                income: Components.Schemas.QualifiedMoney,
+                spending: Components.Schemas.QualifiedMoney,
+                net: Components.Schemas.NullableQualifiedMoney? = nil,
+                netWorthEom: Components.Schemas.NullableQualifiedMoney? = nil
             ) {
                 self.month = month
                 self.income = income
@@ -11925,6 +11780,9 @@ public enum Components {
                 case generatedAt = "generated_at"
             }
         }
+        /// The year at a glance: monthly trend for the chart, year totals, top
+        /// categories, and the cached grounded narrative (null until generated).
+        ///
         /// - Remark: Generated from `#/components/schemas/YearlyOverview`.
         public struct YearlyOverview: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/YearlyOverview/year`.
@@ -11932,15 +11790,15 @@ public enum Components {
             /// - Remark: Generated from `#/components/schemas/YearlyOverview/months`.
             public var months: [Components.Schemas.YearMonthSummary]
             /// - Remark: Generated from `#/components/schemas/YearlyOverview/total_income`.
-            public var totalIncome: Components.Schemas.Money
+            public var totalIncome: Components.Schemas.QualifiedMoney
             /// - Remark: Generated from `#/components/schemas/YearlyOverview/total_spending`.
-            public var totalSpending: Components.Schemas.Money
+            public var totalSpending: Components.Schemas.QualifiedMoney
             /// - Remark: Generated from `#/components/schemas/YearlyOverview/total_net`.
-            public var totalNet: Components.Schemas.Money
+            public var totalNet: Components.Schemas.NullableQualifiedMoney?
             /// - Remark: Generated from `#/components/schemas/YearlyOverview/top_categories`.
-            public var topCategories: [Components.Schemas.NamedAmount]
+            public var topCategories: [Components.Schemas.NamedAmount]?
             /// - Remark: Generated from `#/components/schemas/YearlyOverview/review`.
-            public var review: Components.Schemas.YearlyReview?
+            public var review: Components.Schemas.NullableYearlyReview?
             /// Creates a new `YearlyOverview`.
             ///
             /// - Parameters:
@@ -11954,11 +11812,11 @@ public enum Components {
             public init(
                 year: Swift.Int,
                 months: [Components.Schemas.YearMonthSummary],
-                totalIncome: Components.Schemas.Money,
-                totalSpending: Components.Schemas.Money,
-                totalNet: Components.Schemas.Money,
-                topCategories: [Components.Schemas.NamedAmount],
-                review: Components.Schemas.YearlyReview? = nil
+                totalIncome: Components.Schemas.QualifiedMoney,
+                totalSpending: Components.Schemas.QualifiedMoney,
+                totalNet: Components.Schemas.NullableQualifiedMoney? = nil,
+                topCategories: [Components.Schemas.NamedAmount]? = nil,
+                review: Components.Schemas.NullableYearlyReview? = nil
             ) {
                 self.year = year
                 self.months = months
@@ -12247,6 +12105,65 @@ public enum Components {
                 case clusterMemoryGb = "cluster_memory_gb"
             }
         }
+        /// M46: envelope health for the Overview alert card.
+        ///
+        /// - Remark: Generated from `#/components/schemas/NullableBudgetSummary`.
+        public typealias NullableBudgetSummary = Components.Schemas.BudgetSummary
+        /// M38: coverage vs the standard 3–6 month guidance.
+        ///
+        /// - Remark: Generated from `#/components/schemas/NullableEmergencyFundSummary`.
+        public typealias NullableEmergencyFundSummary = Components.Schemas.EmergencyFundSummary
+        /// - Remark: Generated from `#/components/schemas/NullableGoalProgress`.
+        public typealias NullableGoalProgress = Components.Schemas.GoalProgress
+        /// Declared compensation (M73). When present it is the authority for the tax estimate — no net-to-gross inference.
+        ///
+        ///
+        /// - Remark: Generated from `#/components/schemas/NullableIncomeProfile`.
+        public typealias NullableIncomeProfile = Components.Schemas.IncomeProfile
+        /// - Remark: Generated from `#/components/schemas/NullableMoney`.
+        public typealias NullableMoney = Components.Schemas.Money
+        /// - Remark: Generated from `#/components/schemas/NullableMonthlyCashFlow`.
+        public typealias NullableMonthlyCashFlow = Components.Schemas.MonthlyCashFlow
+        /// - Remark: Generated from `#/components/schemas/NullableQualifiedMoney`.
+        public typealias NullableQualifiedMoney = Components.Schemas.QualifiedMoney
+        /// - Remark: Generated from `#/components/schemas/NullableReadyToSellHoldings`.
+        public typealias NullableReadyToSellHoldings = Components.Schemas.ReadyToSellHoldings
+        /// M93: what's actually free to spend now — liquid cash net of the emergency
+        /// fund, bills due, and minimum debt payments. total_debt is reported (not
+        /// subtracted) so spendable cash is never shown without the debt beside it.
+        ///
+        /// - Remark: Generated from `#/components/schemas/NullableSafeToSpend`.
+        public typealias NullableSafeToSpend = Components.Schemas.SafeToSpend
+        /// #6: saving as what the household actually does, combining three
+        /// non-overlapping sources — declared transfers, pre-tax payroll deductions,
+        /// and the unspent residual. percent is total_saved / gross income.
+        ///
+        /// monthly_income and average_monthly_spending are kept (M44) so the old
+        /// residual view still reconciles; the breakdown fields are additive.
+        ///
+        /// - Remark: Generated from `#/components/schemas/NullableSavingsRate`.
+        public typealias NullableSavingsRate = Components.Schemas.SavingsRate
+        /// M94: this month's outflow grouped by category — the visible payoff of
+        /// categorizing. `uncategorized` is what's still unsorted, so the user can see
+        /// the value of filing more.
+        ///
+        /// - Remark: Generated from `#/components/schemas/NullableSpendingByCategory`.
+        public typealias NullableSpendingByCategory = Components.Schemas.SpendingByCategory
+        /// M42: month-to-date spending vs the same period last month, plus top merchants.
+        ///
+        /// - Remark: Generated from `#/components/schemas/NullableSpendingInsights`.
+        public typealias NullableSpendingInsights = Components.Schemas.SpendingInsights
+        /// Deterministic US federal + FICA estimate with explicit assumptions (standard deduction only, no credits, no state tax). When income is treated as take-home, gross is recovered by solving gross − tax(gross) = net.
+        ///
+        ///
+        /// - Remark: Generated from `#/components/schemas/NullableTaxEstimate`.
+        public typealias NullableTaxEstimate = Components.Schemas.TaxEstimate
+        /// The actual transaction that satisfied a timeline item — the receipt behind the checkmark, so a "Paid" claim is always verifiable (ADR 0024).
+        ///
+        /// - Remark: Generated from `#/components/schemas/NullableTimelinePaidWith`.
+        public typealias NullableTimelinePaidWith = Components.Schemas.TimelinePaidWith
+        /// - Remark: Generated from `#/components/schemas/NullableYearlyReview`.
+        public typealias NullableYearlyReview = Components.Schemas.YearlyReview
     }
     /// Types generated from the `#/components/parameters` section of the OpenAPI document.
     public enum Parameters {}
@@ -15645,6 +15562,57 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Conflict: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/overview/yearly/review/POST/responses/409/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/overview/yearly/review/POST/responses/409/content/application\/json`.
+                    case json(Components.Schemas.ErrorResponse)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.ErrorResponse {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.GenerateYearlyReview.Output.Conflict.Body
+                /// Creates a new `Conflict`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.GenerateYearlyReview.Output.Conflict.Body) {
+                    self.body = body
+                }
+            }
+            /// A monetary dependency required for yearly review generation is unreadable (sealed_amount_unreadable)
+            ///
+            /// - Remark: Generated from `#/paths//overview/yearly/review/post(generateYearlyReview)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Operations.GenerateYearlyReview.Output.Conflict)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Operations.GenerateYearlyReview.Output.Conflict {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
                             response: self
                         )
                     }
@@ -20169,6 +20137,29 @@ public enum Operations {
             }
             /// Error response
             ///
+            /// - Remark: Generated from `#/paths//transactions/get(listTransactions)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
             /// - Remark: Generated from `#/paths//transactions/get(listTransactions)/responses/422`.
             ///
             /// HTTP response code: `422 unprocessableContent`.
@@ -20542,6 +20533,29 @@ public enum Operations {
             }
             /// Error response
             ///
+            /// - Remark: Generated from `#/paths//transactions/review/get(listTransactionsForReview)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
             /// - Remark: Generated from `#/paths//transactions/review/get(listTransactionsForReview)/responses/422`.
             ///
             /// HTTP response code: `422 unprocessableContent`.
@@ -20769,6 +20783,29 @@ public enum Operations {
                     }
                 }
             }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//transactions/{transaction_id}/patch(updateTransaction)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
+                            response: self
+                        )
+                    }
+                }
+            }
             /// Undocumented response.
             ///
             /// A response with a code that is not documented in the OpenAPI document.
@@ -20945,6 +20982,29 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//transactions/{transaction_id}/delete(deleteTransaction)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
                             response: self
                         )
                     }
@@ -23748,6 +23808,29 @@ public enum Operations {
                     }
                 }
             }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//bills/{bill_id}/payment-candidates/get(listBillPaymentCandidates)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
+                            response: self
+                        )
+                    }
+                }
+            }
             /// Undocumented response.
             ///
             /// A response with a code that is not documented in the OpenAPI document.
@@ -24680,6 +24763,57 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Conflict: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/bills/suggestions/GET/responses/409/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/bills/suggestions/GET/responses/409/content/application\/json`.
+                    case json(Components.Schemas.ErrorResponse)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.ErrorResponse {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.ListBillSuggestions.Output.Conflict.Body
+                /// Creates a new `Conflict`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.ListBillSuggestions.Output.Conflict.Body) {
+                    self.body = body
+                }
+            }
+            /// A transaction amount required for bill suggestion detection is unreadable (sealed_amount_unreadable)
+            ///
+            /// - Remark: Generated from `#/paths//bills/suggestions/get(listBillSuggestions)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Operations.ListBillSuggestions.Output.Conflict)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Operations.ListBillSuggestions.Output.Conflict {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
                             response: self
                         )
                     }
@@ -28333,6 +28467,29 @@ public enum Operations {
                     }
                 }
             }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//accounts/card-statements/get(listCardStatements)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
+                            response: self
+                        )
+                    }
+                }
+            }
             /// Undocumented response.
             ///
             /// A response with a code that is not documented in the OpenAPI document.
@@ -28546,6 +28703,57 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Conflict: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/accounts/card-statements/POST/responses/409/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/accounts/card-statements/POST/responses/409/content/application\/json`.
+                    case json(Components.Schemas.ErrorResponse)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.ErrorResponse {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.RecordCardStatement.Output.Conflict.Body
+                /// Creates a new `Conflict`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.RecordCardStatement.Output.Conflict.Body) {
+                    self.body = body
+                }
+            }
+            /// The existing statement cycle has an unreadable amount (sealed_amount_unreadable)
+            ///
+            /// - Remark: Generated from `#/paths//accounts/card-statements/post(recordCardStatement)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Operations.RecordCardStatement.Output.Conflict)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Operations.RecordCardStatement.Output.Conflict {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
                             response: self
                         )
                     }
@@ -28811,6 +29019,29 @@ public enum Operations {
                     }
                 }
             }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//accounts/card-statements/{statement_id}/delete(deleteCardStatement)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
+                            response: self
+                        )
+                    }
+                }
+            }
             /// Undocumented response.
             ///
             /// A response with a code that is not documented in the OpenAPI document.
@@ -29040,6 +29271,29 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//accounts/card-statements/{statement_id}/paid/post(markCardStatementPaid)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
                             response: self
                         )
                     }
@@ -29279,6 +29533,29 @@ public enum Operations {
                     }
                 }
             }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//accounts/card-statements/{statement_id}/lines/put(replaceStatementLines)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
+                            response: self
+                        )
+                    }
+                }
+            }
             /// Undocumented response.
             ///
             /// A response with a code that is not documented in the OpenAPI document.
@@ -29478,6 +29755,29 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//accounts/card-statements/{statement_id}/reconciliation/get(getStatementReconciliation)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
                             response: self
                         )
                     }
@@ -31242,6 +31542,57 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Conflict: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/advisor/purchase/POST/responses/409/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/advisor/purchase/POST/responses/409/content/application\/json`.
+                    case json(Components.Schemas.ErrorResponse)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.ErrorResponse {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.AnalyzePurchase.Output.Conflict.Body
+                /// Creates a new `Conflict`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.AnalyzePurchase.Output.Conflict.Body) {
+                    self.body = body
+                }
+            }
+            /// A monetary dependency required for purchase impact is unreadable (sealed_amount_unreadable)
+            ///
+            /// - Remark: Generated from `#/paths//advisor/purchase/post(analyzePurchase)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Operations.AnalyzePurchase.Output.Conflict)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Operations.AnalyzePurchase.Output.Conflict {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
                             response: self
                         )
                     }
@@ -34758,6 +35109,57 @@ public enum Operations {
                     }
                 }
             }
+            public struct Conflict: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/reports/generate/POST/responses/409/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/reports/generate/POST/responses/409/content/application\/json`.
+                    case json(Components.Schemas.ErrorResponse)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.ErrorResponse {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.GenerateReport.Output.Conflict.Body
+                /// Creates a new `Conflict`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.GenerateReport.Output.Conflict.Body) {
+                    self.body = body
+                }
+            }
+            /// A transaction amount required for report generation is unreadable (sealed_amount_unreadable)
+            ///
+            /// - Remark: Generated from `#/paths//reports/generate/post(generateReport)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Operations.GenerateReport.Output.Conflict)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Operations.GenerateReport.Output.Conflict {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
+                            response: self
+                        )
+                    }
+                }
+            }
             /// Undocumented response.
             ///
             /// A response with a code that is not documented in the OpenAPI document.
@@ -35748,6 +36150,29 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//household/export/get(exportHousehold)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
                             response: self
                         )
                     }

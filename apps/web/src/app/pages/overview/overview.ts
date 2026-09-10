@@ -1,6 +1,6 @@
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { FREQUENCY_LABELS } from '../../shared/enum-labels';
-import { Component, computed, inject, resource, signal } from '@angular/core';
+import { Component, computed, DestroyRef, inject, resource, signal } from '@angular/core';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -15,7 +15,6 @@ import type {
   HouseholdContext,
   Money,
   NetWorthPoint,
-  OutlookEvent as OutlookEventDto,
   RecurringFrequency,
   SavingsContribution,
   SavingsRate,
@@ -23,10 +22,17 @@ import type {
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { HouseholdCurrencyService, householdSessionKey } from '../../core/household-currency.service';
+import { authState, subscribeToAuthState } from '../../core/token-store';
 import { apiErrorMessage } from '../../shared/api-error';
 import { TimezonePicker } from '../../shared/timezone-picker/timezone-picker';
 import { TIMEZONE_BOX_DEFAULT, TIMEZONE_HINT } from '../../shared/timezones';
 import { formatMoney } from '../../shared/format-money';
+import {
+  availabilityNote,
+  formatQualifiedMoney,
+  partialMoneyNote,
+  unavailableLabel,
+} from '../../shared/qualified-money';
 
 const EF_STATUS_LABELS: Record<EmergencyFundSummary['status'], string> = {
   no_bills: $localize`:Emergency fund status|No bills recorded so coverage cannot be measured:Add bills to measure`,
@@ -34,6 +40,7 @@ const EF_STATUS_LABELS: Record<EmergencyFundSummary['status'], string> = {
   getting_started: $localize`:Emergency fund status|Some months of cover saved:Getting started`,
   on_track: $localize`:Emergency fund status|Close to the target months of cover:On track`,
   fully_funded: $localize`:Emergency fund status|Target months of cover reached:Fully funded`,
+  unavailable: $localize`:Emergency fund status|Coverage cannot be calculated from unreadable stored data:Unavailable`,
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -48,6 +55,11 @@ const CATEGORY_LABELS: Record<string, string> = {
 // #201: enums are for machines; a savings row reads "USD 500.00 monthly".
 
 // M75: human labels for goal types (raw enums leaked into the UI).
+interface SessionOwner {
+  sessionKey: string;
+  generation: number;
+}
+
 const GOAL_TYPE_LABELS: Record<string, string> = {
   emergency_fund: $localize`:Goal type|Saving for an emergency fund:Emergency fund`,
   vacation: $localize`:Goal type|Saving for a holiday:Vacation`,
@@ -81,6 +93,68 @@ export class Overview {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly formBuilder = inject(FormBuilder);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly sessionKey = signal(authState() ? householdSessionKey() : null);
+  private sessionGeneration = 0;
+
+  constructor() {
+    const unsubscribe = subscribeToAuthState((state) => {
+      const nextSessionKey = state ? householdSessionKey() : null;
+      if (nextSessionKey === this.sessionKey()) {
+        return;
+      }
+      ++this.sessionGeneration;
+      this.clearSessionState();
+      this.sessionKey.set(nextSessionKey);
+    });
+    this.destroyRef.onDestroy(unsubscribe);
+  }
+
+  private captureSessionOwner(): SessionOwner | null {
+    const sessionKey = this.sessionKey();
+    return sessionKey === null ? null : { sessionKey, generation: this.sessionGeneration };
+  }
+
+  private owns(owner: SessionOwner): boolean {
+    return owner.sessionKey === this.sessionKey() && owner.generation === this.sessionGeneration;
+  }
+
+  private clearSessionState(): void {
+    this.household.set(undefined);
+    this.outlook.set(undefined);
+    this.plan.set(undefined);
+    this.keyStatus.set(undefined);
+    this.accounts.set(undefined);
+    this.goalNames.set(undefined);
+
+    ++this.yearLoadGeneration;
+    ++this.yearReviewGeneration;
+    this.yearMode.set(false);
+    this.yearData.set(null);
+    this.yearLoading.set(false);
+    this.yearGenerating.set(false);
+    this.yearError.set(null);
+    this.yearFocusMonth.set(null);
+
+    this.editingTarget.set(false);
+    this.targetInput.set(null);
+    this.savingTarget.set(false);
+
+    this.declaring.set(false);
+    this.savingsSubmitting.set(false);
+    this.savingsError.set(null);
+    this.resetDeclareForm();
+
+    this.languageInput.set(null);
+    this.savingLanguage.set(false);
+    this.languageError.set(null);
+    this.timezoneInput.set(null);
+    this.savingTimezone.set(false);
+    this.timezoneError.set(null);
+    this.committedReserveInput.set(null);
+    this.savingCommittedReserve.set(false);
+    this.committedReserveError.set(null);
+  }
 
   protected readonly canWrite = () => {
     return this.auth.hasRight('transactions.manage');
@@ -114,6 +188,8 @@ export class Overview {
   protected readonly yearError = signal<string | null>(null);
   /** The month clicked in the chart — its numbers show in the detail strip. */
   protected readonly yearFocusMonth = signal<string | null>(null);
+  private yearLoadGeneration = 0;
+  private yearReviewGeneration = 0;
 
   protected toggleYearMode(on: boolean): void {
     this.yearMode.set(on);
@@ -123,15 +199,28 @@ export class Overview {
   }
 
   protected async loadYear(year?: number): Promise<void> {
+    const owner = this.captureSessionOwner();
+    if (!owner) {
+      return;
+    }
+    const generation = ++this.yearLoadGeneration;
+    ++this.yearReviewGeneration;
+    this.yearGenerating.set(false);
     this.yearLoading.set(true);
     this.yearError.set(null);
     this.yearFocusMonth.set(null);
     const { data, error } = await this.api.getYearlyOverview(year);
+    if (generation !== this.yearLoadGeneration || !this.owns(owner)) {
+      return;
+    }
     this.yearLoading.set(false);
     if (error || !data) {
       this.yearError.set(
         apiErrorMessage(error, $localize`:Error message|The yearly overview could not be loaded:Failed to load the year.`),
       );
+      return;
+    }
+    if (year !== undefined && data.year !== year) {
       return;
     }
     this.yearData.set(data);
@@ -142,13 +231,31 @@ export class Overview {
     void this.loadYear(current + delta);
   }
 
+  protected yearReviewAvailable(year: YearlyOverview): boolean {
+    return year.total_net !== null && year.top_categories !== null;
+  }
+
   protected async generateYearReview(): Promise<void> {
-    if (this.yearGenerating()) {
+    const overview = this.yearData();
+    if (this.yearGenerating() || !overview) {
       return;
     }
+    const owner = this.captureSessionOwner();
+    if (!owner) {
+      return;
+    }
+    const generation = ++this.yearReviewGeneration;
+    const requestedYear = overview.year;
     this.yearGenerating.set(true);
     this.yearError.set(null);
-    const { data, error } = await this.api.generateYearlyReview(this.yearData()?.year);
+    const { data, error } = await this.api.generateYearlyReview(requestedYear);
+    if (
+      generation !== this.yearReviewGeneration ||
+      !this.owns(owner) ||
+      this.yearData()?.year !== requestedYear
+    ) {
+      return;
+    }
     this.yearGenerating.set(false);
     if (error || !data) {
       this.yearError.set(
@@ -156,10 +263,7 @@ export class Overview {
       );
       return;
     }
-    const overview = this.yearData();
-    if (overview) {
-      this.yearData.set({ ...overview, review: data });
-    }
+    this.yearData.set({ ...overview, review: data });
   }
 
   /** Bar height (0-100) against the year's largest monthly flow. */
@@ -170,7 +274,10 @@ export class Overview {
     }
     const peak = Math.max(
       1,
-      ...overview.months.flatMap((m) => [m.income.amount_minor, m.spending.amount_minor]),
+      ...overview.months.flatMap((m) => [
+        m.income.value.amount_minor,
+        m.spending.value.amount_minor,
+      ]),
     );
     return Math.round((Math.max(0, minor) / peak) * 100);
   }
@@ -234,10 +341,10 @@ export class Overview {
   private readonly householdCurrency = inject(HouseholdCurrencyService);
 
   protected readonly household = resource({
-    loader: async () => {
+    params: () => this.sessionKey() ?? undefined,
+    loader: async ({ params: requestedIn }) => {
       // #156: captured BEFORE the request, so a response that lands after a
       // logout and a login as another household is not seeded as theirs.
-      const requestedIn = householdSessionKey();
       const { data, error } = await this.api.getHouseholdContext();
       if (error) {
         throw new Error(
@@ -268,6 +375,7 @@ export class Overview {
   // M112 (ADR 0026): the 30-day cash outlook. Degrades gracefully — the rest
   // of the overview renders without it.
   protected readonly outlook = resource({
+    params: () => this.sessionKey() ?? undefined,
     loader: async () => {
       const { data } = await this.api.getCashOutlook();
       return data ?? null;
@@ -298,7 +406,10 @@ export class Overview {
 
   /** Not fetched at all for members who cannot seal, or once dismissed. */
   protected readonly keyStatus = resource({
-    params: () => (this.canManageBackups() && !this.sealOfferDismissed() ? true : undefined),
+    params: () =>
+      this.canManageBackups() && !this.sealOfferDismissed()
+        ? (this.sessionKey() ?? undefined)
+        : undefined,
     loader: async () => {
       const { data } = await this.api.getHouseholdKeyStatus();
       return data ?? null;
@@ -327,29 +438,18 @@ export class Overview {
 
   // M113 (ADR 0027): left to spend this month. Degrades gracefully.
   protected readonly plan = resource({
+    params: () => this.sessionKey() ?? undefined,
     loader: async () => {
       const { data } = await this.api.getSpendingPlan();
       return data ?? null;
     },
   });
 
-  /** Running balance after each outlook event, for the day-by-day table. */
-  protected outlookRows(): { event: OutlookEventDto; balance: Money }[] {
-    const data = this.outlook.value();
-    if (!data) {
-      return [];
-    }
-    let running = data.starting_cash.amount_minor;
-    return data.events.map((event) => {
-      running += event.amount.amount_minor;
-      return {
-        event,
-        balance: { amount_minor: running, currency: data.starting_cash.currency },
-      };
-    });
-  }
-
   protected readonly formatMoney = formatMoney;
+  protected readonly availabilityNote = availabilityNote;
+  protected readonly formatQualifiedMoney = formatQualifiedMoney;
+  protected readonly partialMoneyNote = partialMoneyNote;
+  protected readonly unavailableLabel = unavailableLabel;
 
   /**
    * ADR 0069 headline verb. M-rsu-grants: with grants and a live quote the
@@ -416,21 +516,6 @@ export class Overview {
   }
 
   /**
-   * Cadences differ, so only the server's monthly_equivalent can be summed —
-   * adding the raw amounts would call a yearly USD 1,200 a monthly USD 1,200.
-   * Null when nothing was detected: the section is hidden, never zeroed.
-   */
-  protected savingsMonthlyTotal(contributions: SavingsContribution[]): Money | null {
-    if (!contributions || contributions.length === 0) {
-      return null;
-    }
-    return {
-      amount_minor: contributions.reduce((sum, c) => sum + c.monthly_equivalent.amount_minor, 0),
-      currency: contributions[0].monthly_equivalent.currency,
-    };
-  }
-
-  /**
    * #6: the savings rate as observed saving from three sources — declared
    * transfers, pre-tax payroll (401(k)/HSA), and residual (take-home left
    * unspent and unmoved) — instead of a single income-minus-spending figure.
@@ -438,10 +523,10 @@ export class Overview {
    */
   protected savingsSources(rate: SavingsRate): { label: string; amount: Money }[] {
     const sources: { label: string; amount: Money }[] = [];
-    if (rate.transfers && rate.transfers.amount_minor !== 0) {
+    if (rate.transfers && rate.transfers.value.amount_minor !== 0) {
       sources.push({
         label: $localize`:Savings rate source|Money saved by moving it between accounts:transfers`,
-        amount: rate.transfers,
+        amount: rate.transfers.value,
       });
     }
     if (rate.payroll_deductions && rate.payroll_deductions.amount_minor !== 0) {
@@ -450,10 +535,10 @@ export class Overview {
         amount: rate.payroll_deductions,
       });
     }
-    if (rate.residual && rate.residual.amount_minor !== 0) {
+    if (rate.residual && rate.residual.value.amount_minor !== 0) {
       sources.push({
         label: $localize`:Savings rate source|Take-home pay left unspent and unmoved:residual`,
-        amount: rate.residual,
+        amount: rate.residual.value,
       });
     }
     return sources;
@@ -467,7 +552,7 @@ export class Overview {
    * offers the declaration instead of disappearing.
    */
   protected savingsRows(context: HouseholdContext): SavingsContribution[] {
-    return context.savings_contributions ?? [];
+    return context.savings_contributions?.contributions ?? [];
   }
 
   protected readonly cadences = Object.keys(FREQUENCY_LABELS) as RecurringFrequency[];
@@ -481,7 +566,7 @@ export class Overview {
    * once the form opens — an idle params() keeps the first paint one call lighter.
    */
   protected readonly accounts = resource({
-    params: () => (this.declaring() ? true : undefined),
+    params: () => (this.declaring() ? (this.sessionKey() ?? undefined) : undefined),
     loader: async () => {
       const { data, error } = await this.api.listAccounts();
       if (error) {
@@ -524,6 +609,10 @@ export class Overview {
       this.declareForm.markAllAsTouched();
       return;
     }
+    const owner = this.captureSessionOwner();
+    if (!owner) {
+      return;
+    }
     this.savingsSubmitting.set(true);
     this.savingsError.set(null);
     const { sourceAccountId, destinationAccountId, amount, frequency } =
@@ -534,6 +623,9 @@ export class Overview {
       amount: { amount_minor: Math.round(amount * 100), currency },
       frequency,
     });
+    if (!this.owns(owner)) {
+      return;
+    }
     this.savingsSubmitting.set(false);
     if (error) {
       this.savingsError.set(
@@ -551,9 +643,16 @@ export class Overview {
     if (!contributionId || this.savingsSubmitting()) {
       return;
     }
+    const owner = this.captureSessionOwner();
+    if (!owner) {
+      return;
+    }
     this.savingsSubmitting.set(true);
     this.savingsError.set(null);
     const { error } = await this.api.deleteSavingsContribution(contributionId);
+    if (!this.owns(owner)) {
+      return;
+    }
     this.savingsSubmitting.set(false);
     if (error) {
       this.savingsError.set(
@@ -580,12 +679,19 @@ export class Overview {
     if (!this.canDismiss(contribution) || this.savingsSubmitting()) {
       return;
     }
+    const owner = this.captureSessionOwner();
+    if (!owner) {
+      return;
+    }
     this.savingsSubmitting.set(true);
     this.savingsError.set(null);
     const { error } = await this.api.dismissSavingsContribution({
       source_account_id: contribution.source_account_id ?? '',
       destination_account_id: contribution.destination_account_id ?? '',
     });
+    if (!this.owns(owner)) {
+      return;
+    }
     this.savingsSubmitting.set(false);
     if (error) {
       this.savingsError.set(
@@ -600,7 +706,7 @@ export class Overview {
 
   /** Goal names only matter once a row is linked or carries a suggestion. */
   private readonly needsGoalNames = computed(() => {
-    const rows = this.household.value()?.savings_contributions ?? [];
+    const rows = this.household.value()?.savings_contributions?.contributions ?? [];
     return rows.some((c) => c.goal_id || c.suggested_goal_id);
   });
 
@@ -610,7 +716,7 @@ export class Overview {
    * to label. An error degrades to no labels, never a broken overview.
    */
   protected readonly goalNames = resource({
-    params: () => (this.needsGoalNames() ? true : undefined),
+    params: () => (this.needsGoalNames() ? (this.sessionKey() ?? undefined) : undefined),
     loader: async () => {
       const { data, error } = await this.api.listGoals();
       if (error || !data) {
@@ -645,9 +751,16 @@ export class Overview {
     if (!contributionId || this.savingsSubmitting()) {
       return;
     }
+    const owner = this.captureSessionOwner();
+    if (!owner) {
+      return;
+    }
     this.savingsSubmitting.set(true);
     this.savingsError.set(null);
     const { error } = await this.api.updateSavingsContribution(contributionId, goalId);
+    if (!this.owns(owner)) {
+      return;
+    }
     this.savingsSubmitting.set(false);
     if (error) {
       this.savingsError.set(
@@ -677,8 +790,15 @@ export class Overview {
     if (value === null || value < 1 || value > 60 || this.savingTarget()) {
       return;
     }
+    const owner = this.captureSessionOwner();
+    if (!owner) {
+      return;
+    }
     this.savingTarget.set(true);
     const { error } = await this.api.updateHousehold({ emergency_fund_target_months: value });
+    if (!this.owns(owner)) {
+      return;
+    }
     this.savingTarget.set(false);
     if (error) {
       return;
@@ -716,11 +836,18 @@ export class Overview {
     if (this.savingLanguage()) {
       return;
     }
+    const owner = this.captureSessionOwner();
+    if (!owner) {
+      return;
+    }
     const previous = this.languageInput();
     this.languageInput.set(language);
     this.savingLanguage.set(true);
     this.languageError.set(null);
     const { error } = await this.api.updateHousehold({ language });
+    if (!this.owns(owner)) {
+      return;
+    }
     this.savingLanguage.set(false);
     if (error) {
       // The server 422s an unsupported value; show its message and revert.
@@ -761,7 +888,11 @@ export class Overview {
     if (this.savingTimezone() || !choice) {
       return;
     }
-    // #43: null on the column is the inherit state, and a null `timezone` in
+    const owner = this.captureSessionOwner();
+    if (!owner) {
+      return;
+    }
+    // #43:
     // the payload would read as "field omitted" — hence the separate flag.
     const clearing = choice === TIMEZONE_BOX_DEFAULT;
     const previous = this.timezoneInput();
@@ -771,6 +902,9 @@ export class Overview {
     const { error } = await this.api.updateHousehold(
       clearing ? { clear_timezone: true } : { timezone: choice },
     );
+    if (!this.owns(owner)) {
+      return;
+    }
     this.savingTimezone.set(false);
     if (error) {
       // The server 422s a zone it doesn't know; show its message and revert.
@@ -806,11 +940,18 @@ export class Overview {
     if (this.savingCommittedReserve()) {
       return;
     }
+    const owner = this.captureSessionOwner();
+    if (!owner) {
+      return;
+    }
     const previous = this.committedReserveInput();
     this.committedReserveInput.set(reserve);
     this.savingCommittedReserve.set(true);
     this.committedReserveError.set(null);
     const { error } = await this.api.updateHousehold({ reserve_committed_savings: reserve });
+    if (!this.owns(owner)) {
+      return;
+    }
     this.savingCommittedReserve.set(false);
     if (error) {
       this.committedReserveError.set(

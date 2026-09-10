@@ -6,11 +6,12 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { RouterLink } from '@angular/router';
-import type { Budget, Category } from '../../api-client';
+import type { Budget, BudgetSummary, Category } from '../../api-client';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { apiErrorMessage } from '../../shared/api-error';
 import { formatMoney } from '../../shared/format-money';
+import { formatQualifiedMoney, partialMoneyNote, unavailableLabel } from '../../shared/qualified-money';
 
 @Component({
   selector: 'app-budgets',
@@ -32,6 +33,9 @@ export class Budgets {
   private readonly formBuilder = inject(FormBuilder);
 
   protected readonly formatMoney = formatMoney;
+  protected readonly formatQualifiedMoney = formatQualifiedMoney;
+  protected readonly partialMoneyNote = partialMoneyNote;
+  protected readonly unavailableLabel = unavailableLabel;
   protected readonly canWrite = () => {
     return this.auth.hasRight('budgets.manage');
   };
@@ -41,27 +45,10 @@ export class Budgets {
   protected readonly loading = signal(true);
   protected readonly loadError = signal<string | null>(null);
 
-  /** Categories that don't have an envelope yet (create-form options). */
-  /** The whole month's envelope picture (user request 2026-07-25): same
-   * arithmetic as the iOS/watch summary strips. */
-  protected readonly summary = computed(() => {
-    const list = this.budgets();
-    const currency = list[0]?.limit.currency;
-    if (!currency) {
-      return null;
-    }
-    const limitMinor = list.reduce((sum, b) => sum + b.limit.amount_minor, 0);
-    if (limitMinor <= 0) {
-      return null;
-    }
-    const spentMinor = list.reduce((sum, b) => sum + b.spent.amount_minor, 0);
-    return {
-      limit: formatMoney({ amount_minor: limitMinor, currency }),
-      spent: formatMoney({ amount_minor: spentMinor, currency }),
-      percentUsed: Math.round((spentMinor / limitMinor) * 100),
-    };
-  });
+  /** The server owns the cross-envelope total and health verdict. */
+  protected readonly summary = signal<BudgetSummary | null>(null);
 
+  /** Categories that don't have an envelope yet (create-form options). */
   protected readonly availableCategories = computed(() => {
     const used = new Set(this.budgets().map((b) => b.category_id));
     return this.categories().filter((c) => !used.has(c.id));
@@ -84,6 +71,7 @@ export class Budgets {
       return;
     }
     this.budgets.set(budgets.data.budgets);
+    this.summary.set(budgets.data.summary);
     this.categories.set(categories.data?.categories ?? []);
   }
 
@@ -147,6 +135,6 @@ export class Budgets {
   }
 
   protected barWidth(budget: Budget): number {
-    return Math.min(100, budget.percent_used);
+    return Math.min(100, budget.percent_used ?? 0);
   }
 }

@@ -22,6 +22,7 @@ import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { apiErrorMessage } from '../../shared/api-error';
 import { formatMoney } from '../../shared/format-money';
+import { formatQualifiedMoney, partialMoneyNote, unavailableLabel } from '../../shared/qualified-money';
 
 const FREQUENCIES: RecurringFrequency[] = [
   'weekly',
@@ -35,6 +36,10 @@ const FREQUENCIES: RecurringFrequency[] = [
 
 // M111 (ADR 0024): bill-paying order — the same grouping the iOS tab renders.
 const TIMELINE_GROUPS: { status: PaymentTimelineItem['status']; title: string }[] = [
+  {
+    status: 'unknown',
+    title: $localize`:Payment timeline section|Payments whose amount or paid status cannot be determined:Needs attention`,
+  },
   {
     status: 'overdue',
     title: $localize`:Payment timeline section|Bills whose due date has already passed:Overdue`,
@@ -83,6 +88,9 @@ export class Bills {
 
   protected readonly frequencies = FREQUENCIES;
   protected readonly formatMoney = formatMoney;
+  protected readonly formatQualifiedMoney = formatQualifiedMoney;
+  protected readonly partialMoneyNote = partialMoneyNote;
+  protected readonly unavailableLabel = unavailableLabel;
   protected readonly canWrite = () => {
     return this.auth.hasRight('bills.manage');
   };
@@ -114,6 +122,8 @@ export class Bills {
       return parsed.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
     };
     switch (item.status) {
+      case 'unknown':
+        return $localize`:Payment timeline status|The amount or payment state cannot be determined from unreadable stored data:Unavailable—stored payment data could not be read`;
       case 'paid': {
         const paid = item.paid_with;
         if (!paid) {

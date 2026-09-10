@@ -117,6 +117,44 @@ Financial engine outputs must include:
 - Warnings
 - Output values
 
+## Qualified Amounts and Availability (ADR 0076)
+
+A read-side monetary aggregate distinguishes a descriptive leaf from a decision:
+
+- `QualifiedMoney` is a wire value containing `value: Money` and
+  `incomplete_count`. Its value is the sum of readable contributors only; the
+  count is the number of distinct relevant unreadable stored amount cells.
+- An internal unreadable source is the immutable, request-local identity
+  `(household_id, table, row_id, column)`. Composite fields union source sets and
+  derive a count; they never add child counts.
+- An internal amount candidate retains safe non-amount metadata with an optional
+  amount until eligibility, attribution, matching, grouping, and detection are
+  resolved. It is not a zero-valued transaction or statement and never crosses
+  the wire.
+- `ComputationAvailability` distinguishes a complete non-additive computation
+  from one whose membership, cadence, median, pairing, order, or projection can
+  change because of an unreadable candidate.
+
+Non-amount predicates are applied before decode when possible. An unreadable
+cell counts only if it can affect the field; unknown sign is conservatively
+relevant. The same source counts once within a composed field, while independent
+fields each disclose their own relevant omission. A decision is evaluated only
+when the union of every dependency it uses is empty. Otherwise its money value
+is null or its non-money state is `unavailable`/`unknown`, while independent
+qualified leaves remain visible.
+
+`CategorySpendingTotals` is one authoritative scan containing qualified
+per-category buckets, categorized total, uncategorized total, and overall total;
+uncategorized is never derived by subtraction. Card aggregates choose the newest
+eligible statement using non-amount metadata before decoding only the balance
+they use. A corrupt unused minimum does not qualify a balance-only aggregate,
+and an unreadable newest balance never falls through to an older statement or
+running balance.
+
+These identities and candidates are transient application concepts, not stored
+entities. Existing strict raw records remain strict and are never populated with
+placeholder amounts.
+
 ## Initial Aggregate Boundaries
 
 - Household

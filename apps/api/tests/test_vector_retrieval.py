@@ -129,7 +129,23 @@ def test_wipe_leaves_an_unreadable_household_grounded(demo_engine: Engine, monke
     succeeds."""
     store = InMemoryVectorStore()
     store.upsert(
-        [VectorPoint(id="old", vector=[1.0] * 32, payload={"household_id": _HH, "kind": "memory"})]
+        [
+            VectorPoint(
+                id="old-memory",
+                vector=[1.0] * 32,
+                payload={"household_id": _HH, "kind": "memory", "text": "old memory"},
+            ),
+            VectorPoint(
+                id="old-transaction",
+                vector=[1.0] * 32,
+                payload={
+                    "household_id": _HH,
+                    "kind": "transaction",
+                    "text": "old transaction",
+                    "amount_display": "USD 99.00",
+                },
+            ),
+        ]
     )
 
     from family_cfo_api import household_crypto
@@ -143,7 +159,134 @@ def test_wipe_leaves_an_unreadable_household_grounded(demo_engine: Engine, monke
         demo_engine, _settings(), embedder=HashEmbedder(), store=store, wipe=True
     )
 
-    assert "old" in store.points
+    assert "old-memory" in store.points
+    assert "old-transaction" in store.points
+
+
+def test_wipe_removes_only_corrupt_transaction_vectors_and_continues(
+    demo_engine: Engine, monkeypatch, caplog
+) -> None:
+    from family_cfo_api import household_crypto
+
+    caplog.set_level("INFO")
+    damaged, complete = "damaged-household", "complete-household"
+    store = InMemoryVectorStore()
+    store.upsert(
+        [
+            VectorPoint(
+                id="old-memory",
+                vector=[1.0] * 32,
+                payload={
+                    "household_id": damaged,
+                    "kind": "memory",
+                    "text": "remembered preference",
+                },
+            ),
+            VectorPoint(
+                id="old-transaction",
+                vector=[1.0] * 32,
+                payload={
+                    "household_id": damaged,
+                    "kind": "transaction",
+                    "text": "stale private purchase",
+                    "amount_display": "USD 99.00",
+                },
+            ),
+            VectorPoint(
+                id="foreign-transaction",
+                vector=[1.0] * 32,
+                payload={
+                    "household_id": "foreign-household",
+                    "kind": "transaction",
+                    "text": "foreign purchase",
+                    "amount_display": "USD 88.00",
+                },
+            ),
+        ]
+    )
+    monkeypatch.setattr(
+        repository, "list_households", lambda _engine: [damaged, complete]
+    )
+
+    def collect(_engine, household_id):
+        if household_id == damaged:
+            raise household_crypto.SealedAmountUnreadableError(household_id)
+        return [
+            (
+                "new",
+                "complete household text",
+                {"household_id": household_id, "kind": "memory"},
+            )
+        ]
+
+    monkeypatch.setattr(vector_indexing, "_collect_points", collect)
+
+    indexed = vector_indexing.index_household_data(
+        demo_engine,
+        _settings(),
+        embedder=HashEmbedder(),
+        store=store,
+        wipe=True,
+    )
+
+    assert indexed == 1
+    assert "old-memory" in store.points
+    assert "old-transaction" not in store.points
+    assert "foreign-transaction" in store.points
+    assert "new" in store.points
+
+    embedder = HashEmbedder()
+    monkeypatch.setattr(ai_tools, "_search_backends", lambda _settings: (embedder, store))
+    executor = ai_tools.build_executor(demo_engine, damaged, "USD", _settings())
+    result = executor("search_records", {"query": "stale private purchase"})
+    assert all(match["kind"] != "transaction" for match in result["matches"])
+    assert damaged in caplog.text
+    assert "retryable=true" in caplog.text
+    assert "transactions" not in caplog.text
+    assert "amount_minor" not in caplog.text
+    assert "ciphertext" not in caplog.text
+
+
+def test_corrupt_vector_delete_failure_is_reported_and_later_households_continue(
+    demo_engine: Engine, monkeypatch, caplog
+) -> None:
+    from family_cfo_api import household_crypto
+
+    class FailingDeleteStore(InMemoryVectorStore):
+        def delete_household_kind(self, household_id: str, kind: str) -> None:
+            raise RuntimeError("adapter unavailable")
+
+    damaged, complete = "damaged-household", "complete-household"
+    store = FailingDeleteStore()
+    monkeypatch.setattr(repository, "list_households", lambda _engine: [damaged, complete])
+
+    def collect(_engine, household_id):
+        if household_id == damaged:
+            raise household_crypto.SealedAmountUnreadableError(household_id)
+        return [
+            (
+                "new-after-failure",
+                "complete household text",
+                {"household_id": household_id, "kind": "memory"},
+            )
+        ]
+
+    monkeypatch.setattr(vector_indexing, "_collect_points", collect)
+    caplog.set_level("ERROR")
+
+    indexed = vector_indexing.index_household_data(
+        demo_engine,
+        _settings(),
+        embedder=HashEmbedder(),
+        store=store,
+        wipe=True,
+    )
+
+    assert indexed == 1
+    assert "new-after-failure" in store.points
+    assert "vector indexing failed: corrupt transaction cleanup" in caplog.text
+    assert damaged in caplog.text
+    assert "adapter unavailable" not in caplog.text
 
 
 def test_search_records_tool_finds_the_swim_school(demo_engine: Engine, monkeypatch) -> None:
@@ -204,6 +347,7 @@ def test_qdrant_adapter_request_shapes() -> None:
     )
     store.ensure_collection(32)
     store.upsert([VectorPoint(id="t1", vector=[0.0] * 32, payload={"household_id": _HH})])
+    store.delete_household_kind(_HH, "transaction")
     hits = store.search([0.0] * 32, _HH, limit=5)
 
     assert hits[0].id == "t1" and hits[0].score == 0.9
@@ -214,3 +358,14 @@ def test_qdrant_adapter_request_shapes() -> None:
 
     body = json.loads(seen[-1].content)
     assert body["filter"]["must"][0]["match"]["value"] == _HH
+    delete_request = next(
+        request
+        for request in seen
+        if request.method == "POST" and request.url.path.endswith("/points/delete")
+    )
+    delete_body = json.loads(delete_request.content)
+    predicates = {
+        item["key"]: item["match"]["value"]
+        for item in delete_body["filter"]["must"]
+    }
+    assert predicates == {"household_id": _HH, "kind": "transaction"}

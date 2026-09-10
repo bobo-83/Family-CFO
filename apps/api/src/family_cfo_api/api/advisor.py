@@ -5,10 +5,11 @@ from family_cfo_financial_engine import RetirementInput
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import finance_service, repository
+from family_cfo_api import advisor_qualification, finance_service, repository
 from family_cfo_api.ai_runtime_selection import select_explanation_adapter
 from family_cfo_api.deps import get_current_session, get_engine
 from family_cfo_api.explanation import PurchaseExplanationContext, format_money
+from family_cfo_api.household_crypto import SealedAmountUnreadableError
 from family_cfo_api.schemas import (
     ErrorResponse,
     Impact,
@@ -137,6 +138,13 @@ def _build_tradeoffs_and_alternatives(exceeds_liquid_balance: bool) -> tuple[lis
     responses={
         400: {"description": "Invalid purchase request", "model": ErrorResponse},
         401: {"description": "Unauthorized", "model": ErrorResponse},
+        409: {
+            "description": (
+                "A monetary dependency required for purchase impact is unreadable "
+                "(sealed_amount_unreadable)"
+            ),
+            "model": ErrorResponse,
+        },
     },
     summary="Analyze the financial impact of a potential purchase",
 )
@@ -160,6 +168,18 @@ async def analyze_purchase(
         )
 
     price = EngineMoney(payload.price.amount_minor, payload.price.currency)
+    incomplete_sources = advisor_qualification.purchase_impact_incomplete_sources(
+        engine, session.household_id, currency
+    )
+    if incomplete_sources:
+        # Recommendation-shaped responses have no honest partial form. Gate
+        # before scenario/calculation/runtime/recommendation persistence.
+        raise SealedAmountUnreadableError(session.household_id)
+
+    result, calculation_id = finance_service.compute_purchase_impact(
+        engine, session.household_id, currency, price
+    )
+    debt_outlook = finance_service.compute_debt_outlook(engine, session.household_id, currency)
 
     scenario_id = repository.create_scenario(
         engine,
@@ -169,11 +189,6 @@ async def analyze_purchase(
         description=payload.description,
         input_json=payload.model_dump(mode="json"),
     )
-
-    result, calculation_id = finance_service.compute_purchase_impact(
-        engine, session.household_id, currency, price
-    )
-    debt_outlook = finance_service.compute_debt_outlook(engine, session.household_id, currency)
 
     impacts = _build_impacts(result.outputs, result.warnings, debt_outlook)
     confidence = _build_confidence(len(result.warnings))

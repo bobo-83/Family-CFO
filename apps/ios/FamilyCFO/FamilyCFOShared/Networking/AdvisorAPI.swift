@@ -139,6 +139,9 @@ enum APIError: Error, LocalizedError, Equatable {
     /// HTTP 409 with the server's explanation of why it refused (e.g. revoking
     /// the device the session runs on) — shown verbatim.
     case conflict(String)
+    /// A strict read could not decode a stored monetary cell. This is distinct
+    /// from 423: signing in again cannot repair corrupt stored data.
+    case incompleteData
 
     var errorDescription: String? {
         switch self {
@@ -156,6 +159,9 @@ enum APIError: Error, LocalizedError, Equatable {
             return message
         case .conflict(let message):
             return message
+        case .incompleteData:
+            return String(
+                localized: "Some stored financial data could not be read. Repair it on the dashboard, then try again.")
         }
     }
 }
