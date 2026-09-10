@@ -65,6 +65,7 @@ final class BackupViewModel {
     private var localDeleteGeneration: UInt64 = 0
     private var remoteDeleteGeneration: UInt64 = 0
     private var conflictGeneration: UInt64 = 0
+    private var keyRevealGeneration: UInt64 = 0
 
     private struct OperationalDraft: Equatable, Sendable {
         var frequency: Components.Schemas.BackupConfigUpdateRequest.FrequencyPayload
@@ -206,9 +207,10 @@ final class BackupViewModel {
         async let version = api.serverVersion()
         async let local = Self.capture { try await self.api.localBackups() }
         async let keys = Self.capture { try await self.api.householdKeyStatus() }
-        let remote: Result<[Components.Schemas.RemoteBackup], Error> = configuredRemote
+        let remote: Result<Components.Schemas.RemoteBackupListResponse, Error> = configuredRemote
             ? await Self.capture { try await self.api.remoteBackups() }
-            : .success([])
+            : .success(
+                .init(backups: [], status: .notConfigured, asOf: Date(), reason: nil))
         let loadedVersion = await version
         let loadedLocal = await local
         let loadedKeys = await keys
@@ -226,9 +228,12 @@ final class BackupViewModel {
         }
         if case .success(let status) = loadedKeys { keyStatus = status }
         switch remote {
-        case .success(let backups):
-            remoteBackups = backups
-            remoteListError = nil
+        case .success(let response):
+            remoteBackups = response.backups
+            remoteListError = response.status == .unavailable
+                ? (response.reason
+                    ?? String(localized: "Synology inventory is unavailable, so its recovery window is unknown."))
+                : nil
         case .failure(let error):
             remoteBackups = []
             remoteListError = ChatViewModel.describe(error)
@@ -490,6 +495,11 @@ final class BackupViewModel {
         guard !isRestoring, let session = sessionIdentity() else { return }
         restoreGeneration &+= 1
         let generation = restoreGeneration
+        // Any in-flight pre-restore observations must not publish after this
+        // destructive replacement starts.
+        configGeneration &+= 1
+        listGeneration &+= 1
+        statusGeneration &+= 1
         isRestoring = true
         defer {
             if ownsOperationSlot(generation, current: restoreGeneration) {
@@ -505,13 +515,28 @@ final class BackupViewModel {
             guard ownsOperation(session, generation, current: restoreGeneration) else { return }
             errorMessage = ChatViewModel.describe(error)
         }
+        guard ownsOperation(session, generation, current: restoreGeneration) else { return }
+        await refreshAfterRestore(session: session, generation: generation)
     }
 
     func revealKey() async {
+        guard let session = sessionIdentity() else {
+            revealedKey = nil
+            return
+        }
+        keyRevealGeneration &+= 1
+        let generation = keyRevealGeneration
+        // Never leave another session's secret visible while ownership is changing.
+        revealedKey = nil
         do {
-            revealedKey = try await api.encryptionKey()
+            let key = try await api.encryptionKey()
+            guard ownsOperation(session, generation, current: keyRevealGeneration) else { return }
+            revealedKey = key
             errorMessage = nil
-        } catch { errorMessage = ChatViewModel.describe(error) }
+        } catch {
+            guard ownsOperation(session, generation, current: keyRevealGeneration) else { return }
+            errorMessage = ChatViewModel.describe(error)
+        }
     }
 
     func createRecoveryKey() async {
@@ -594,6 +619,11 @@ final class BackupViewModel {
         guard !isRestoring, let session = sessionIdentity() else { return }
         restoreGeneration &+= 1
         let generation = restoreGeneration
+        // Any in-flight pre-restore observations must not publish after this
+        // destructive replacement starts.
+        configGeneration &+= 1
+        listGeneration &+= 1
+        statusGeneration &+= 1
         isRestoring = true
         defer {
             if ownsOperationSlot(generation, current: restoreGeneration) {
@@ -609,6 +639,27 @@ final class BackupViewModel {
         } catch {
             guard ownsOperation(session, generation, current: restoreGeneration) else { return }
             errorMessage = ChatViewModel.describe(error)
+        }
+        guard ownsOperation(session, generation, current: restoreGeneration) else { return }
+        await refreshAfterRestore(session: session, generation: generation)
+    }
+
+    private func refreshAfterRestore(session: String, generation: UInt64) async {
+        guard ownsOperation(session, generation, current: restoreGeneration) else { return }
+        // The server rotates generations, changes the CAS token, and pauses
+        // retention even when the HTTP response is lost after commit. Stop showing
+        // pre-restore observations before fetching the new authoritative state.
+        configUpdatedAt = nil
+        conflictingConfig = nil
+        recoveryStatus = nil
+        recoveryStatusError = nil
+        localBackups = []
+        remoteBackups = []
+        await load()
+        guard ownsOperation(session, generation, current: restoreGeneration) else { return }
+        if let configError {
+            recoveryStatus = nil
+            recoveryStatusError = configError
         }
     }
 

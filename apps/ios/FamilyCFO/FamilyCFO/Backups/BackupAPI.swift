@@ -14,7 +14,7 @@ protocol BackupAPI: Sendable {
     /// Backups stored on the box itself — always available, the everyday restore.
     func localBackups() async throws -> [Components.Schemas.BackupJob]
     func restoreLocal(id: String) async throws
-    func remoteBackups() async throws -> [Components.Schemas.RemoteBackup]
+    func remoteBackups() async throws -> Components.Schemas.RemoteBackupListResponse
     func restoreRemote(filename: String) async throws
     func deleteLocal(id: String) async throws
     func deleteRemote(filename: String) async throws
@@ -197,9 +197,9 @@ struct LiveBackupAPI: BackupAPI {
         }
     }
 
-    func remoteBackups() async throws -> [Components.Schemas.RemoteBackup] {
+    func remoteBackups() async throws -> Components.Schemas.RemoteBackupListResponse {
         switch try await client.listRemoteBackups(.init()) {
-        case .ok(let r): return try r.body.json.backups
+        case .ok(let r): return try r.body.json
         case .unauthorized: throw APIError.unauthorized
         case .forbidden: throw APIError.server(403)
         case .undocumented(let s, _): throw APIError.server(s)

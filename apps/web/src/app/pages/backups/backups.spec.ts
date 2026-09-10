@@ -899,6 +899,103 @@ describe('Backups', () => {
     clearAuthState();
   });
 
+  it('surfaces a successful remote-list response whose inventory is unavailable', async () => {
+    const apiMock = {
+      listBackups: vi.fn().mockResolvedValue(response({ backups: [] })),
+      listRemoteBackups: vi.fn().mockResolvedValue(
+        response({
+          backups: [],
+          status: 'unavailable',
+          as_of: '2026-09-10T14:00:00Z',
+          reason: 'The Synology inventory is unavailable.',
+        }),
+      ),
+      getBackupConfig: vi.fn().mockResolvedValue(response(backupConfig())),
+      getBackupRecoveryStatus: vi.fn().mockResolvedValue(response(recoveryStatus())),
+      getHouseholdKeyStatus: vi.fn().mockResolvedValue(response(keyStatus())),
+    };
+    configure(apiMock, 'owner');
+    const fixture = TestBed.createComponent(Backups);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance['remoteBackups']()).toEqual([]);
+    expect(fixture.componentInstance['remoteListError']()).toContain('unavailable');
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+      'The Synology inventory is unavailable.',
+    );
+  });
+
+  it('rejects a revealed backup key from a replaced authenticated session', async () => {
+    setAuthState({
+      accessToken: 'key-token-a',
+      householdId: 'key-household-a',
+      userId: 'key-user-a',
+      role: 'owner',
+      rights: ['backups.manage'],
+    });
+    const oldKey = deferred<ReturnType<typeof response>>();
+    const apiMock = {
+      listBackups: vi.fn().mockResolvedValue(response({ backups: [] })),
+      listRemoteBackups: vi.fn().mockResolvedValue(response({ backups: [], status: 'available' })),
+      getBackupConfig: vi.fn().mockResolvedValue(response(backupConfig())),
+      getBackupRecoveryStatus: vi.fn().mockResolvedValue(response(recoveryStatus())),
+      getHouseholdKeyStatus: vi.fn().mockResolvedValue(response(keyStatus())),
+      getBackupEncryptionKey: vi.fn().mockImplementation(() => oldKey.promise),
+    };
+    configure(apiMock, 'owner');
+    const fixture = TestBed.createComponent(Backups);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const reveal = fixture.componentInstance['revealKey']();
+    await flushUntil(() => apiMock.getBackupEncryptionKey.mock.calls.length === 1);
+    setAuthState({
+      accessToken: 'key-token-b',
+      householdId: 'key-household-b',
+      userId: 'key-user-b',
+      role: 'owner',
+      rights: ['backups.manage'],
+    });
+    oldKey.resolve(response({ configured: true, key: 'old-session-secret' }));
+    await reveal;
+
+    expect(fixture.componentInstance['revealedKey']()).toBeNull();
+    fixture.destroy();
+    clearAuthState();
+  });
+
+  it('owns key status refresh and key revelation independently', async () => {
+    const refreshedStatus = deferred<ReturnType<typeof response>>();
+    const apiMock = {
+      listBackups: vi.fn().mockResolvedValue(response({ backups: [] })),
+      listRemoteBackups: vi.fn().mockResolvedValue(response({ backups: [], status: 'available' })),
+      getBackupConfig: vi.fn().mockResolvedValue(response(backupConfig())),
+      getBackupRecoveryStatus: vi.fn().mockResolvedValue(response(recoveryStatus())),
+      getHouseholdKeyStatus: vi
+        .fn()
+        .mockResolvedValueOnce(response(keyStatus()))
+        .mockImplementationOnce(() => refreshedStatus.promise),
+      getBackupEncryptionKey: vi
+        .fn()
+        .mockResolvedValue(response({ configured: true, key: 'current-session-secret' })),
+    };
+    configure(apiMock, 'owner');
+    const fixture = TestBed.createComponent(Backups);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const statusRefresh = fixture.componentInstance['loadKeyStatus']();
+    await flushUntil(() => apiMock.getHouseholdKeyStatus.mock.calls.length === 2);
+    await fixture.componentInstance['revealKey']();
+    refreshedStatus.resolve(response(keyStatus({ device_wraps: 9 })));
+    await statusRefresh;
+
+    expect(fixture.componentInstance['revealedKey']()).toBe('current-session-secret');
+    expect(fixture.componentInstance['keyStatus']()?.device_wraps).toBe(9);
+  });
+
   it.each(backupMutations)(
     'clears contradictory feedback and refreshes recovery after a lost %s response',
     async (mutation) => {

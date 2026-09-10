@@ -896,10 +896,13 @@
     </mat-card-content>
   </mat-card>
 
-  @if (remoteBackups().length) {
+  @if (remoteBackups().length || remoteListError()) {
     <mat-card appearance="outlined" class="backups-card">
       <mat-card-content>
       <h2 i18n="Section heading|Restoring from a snapshot stored on the Synology">Restore from Synology</h2>
+      @if (remoteListError(); as message) {
+        <p class="backups-error" role="alert">{{ message }}</p>
+      }
       <p class="backups-note" i18n="Section hint|How the off-box snapshot list is arranged and what restoring does">Grouped by day, newest first — open a day for its snapshots. Restoring replaces all current data.</p>
       @for (group of remoteBackupDays(); track group.day; let first = $first) {
         <details class="backups-day" [open]="first">

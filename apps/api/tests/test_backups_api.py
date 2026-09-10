@@ -7,7 +7,8 @@ import pytest
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import banksync, fixtures, repository, security, smb_backup
+from family_cfo_api import backup_processing, banksync, fixtures, repository, security, smb_backup
+from family_cfo_api.api import backups as backups_api
 from family_cfo_api.backup_operation_lock import acquire_backup_operation_lock
 
 NEWCOMER_EMAIL = "newcomer@example.com"
@@ -78,6 +79,47 @@ async def test_manual_backup_returns_conflict_while_global_operation_is_owned(
     # A lock conflict must release its anti-hammer reservation.
     retry = await demo_file_client.post("/api/v1/backups", headers=headers)
     assert retry.status_code == 201
+
+
+@pytest.mark.anyio
+async def test_manual_backup_pre_job_failure_releases_cooldown(
+    demo_file_client, demo_file_token, monkeypatch
+) -> None:
+    headers = {"Authorization": f"Bearer {demo_file_token}"}
+    monkeypatch.setattr(
+        backup_processing,
+        "build_backup_execution_config",
+        lambda engine, settings: (_ for _ in ()).throw(
+            backup_processing.BackupConfigurationError("stored SMB credential could not be opened")
+        ),
+    )
+
+    first = await demo_file_client.post("/api/v1/backups", headers=headers)
+    second = await demo_file_client.post("/api/v1/backups", headers=headers)
+
+    assert first.status_code == 400
+    assert second.status_code == 400
+    assert second.status_code != 429
+
+
+@pytest.mark.anyio
+async def test_manual_backup_lifecycle_failure_keeps_cooldown(
+    demo_file_client, demo_file_token, monkeypatch
+) -> None:
+    headers = {"Authorization": f"Bearer {demo_file_token}"}
+    monkeypatch.setattr(
+        backup_processing,
+        "run_backup_once",
+        lambda engine, config: (_ for _ in ()).throw(
+            backup_processing.BackupOperationLockLostError("operation lock lost")
+        ),
+    )
+
+    with pytest.raises(backup_processing.BackupOperationLockLostError):
+        await demo_file_client.post("/api/v1/backups", headers=headers)
+    retry = await demo_file_client.post("/api/v1/backups", headers=headers)
+
+    assert retry.status_code == 429
 
 
 @pytest.mark.anyio
@@ -196,6 +238,19 @@ async def test_restore_of_a_snapshot_older_than_the_actor_succeeds_with_no_actor
     # …and it says WHY there is no actor, on top of the #62 boundary it already states.
     assert "not present in this snapshot" in restored[0].summary
     assert "snapshot" in restored[0].summary and "audit event(s)" in restored[0].summary
+
+
+def test_post_restore_audit_uses_a_surviving_household_when_active_one_is_absent(
+    demo_file_engine: Engine,
+) -> None:
+    household_id, summary = backups_api._household_after_restore(
+        demo_file_engine,
+        "00000000-0000-0000-0000-000000000000",
+        "Restore completed",
+    )
+
+    assert household_id == fixtures.DEMO_HOUSEHOLD_ID
+    assert "active household is not present" in summary
 
 
 @pytest.mark.anyio
@@ -431,6 +486,29 @@ async def test_backup_config_activation_is_cas_guarded_and_alias_compatible(
 
 
 @pytest.mark.anyio
+async def test_backup_config_write_conflicts_while_restore_owns_global_operation(
+    demo_file_client, demo_file_token, demo_file_engine: Engine
+) -> None:
+    headers = {"Authorization": f"Bearer {demo_file_token}"}
+    before = await demo_file_client.get("/api/v1/backups/config", headers=headers)
+    assert before.status_code == 200
+
+    lease = acquire_backup_operation_lock(demo_file_engine)
+    try:
+        response = await demo_file_client.put(
+            "/api/v1/backups/config",
+            headers=headers,
+            json={"frequency": "weekly"},
+        )
+    finally:
+        lease.release()
+
+    assert response.status_code == 409
+    after = await demo_file_client.get("/api/v1/backups/config", headers=headers)
+    assert after.json()["frequency"] == before.json()["frequency"]
+
+
+@pytest.mark.anyio
 async def test_backup_status_is_one_qualified_snapshot_and_requires_box_right(
     demo_file_client, demo_file_token
 ) -> None:
@@ -502,6 +580,35 @@ async def test_remote_list_distinguishes_unavailable_from_empty(
     assert response.json()["backups"] == []
     assert response.json()["reason"] == "The Synology inventory is unavailable."
     datetime.fromisoformat(response.json()["as_of"])
+
+
+@pytest.mark.anyio
+async def test_remote_delete_rejects_unrecognized_archive_name(
+    demo_file_client,
+    demo_file_token,
+    demo_file_engine: Engine,
+    demo_file_settings,
+) -> None:
+    encrypted = banksync.encrypt_credential(demo_file_settings, "not-a-real-password")
+    repository.update_backup_settings(
+        demo_file_engine,
+        {
+            "smb_host": "nas.invalid",
+            "smb_share": "backups",
+            "smb_username": "backup-user",
+            "smb_password_encrypted": encrypted,
+        },
+        expected_updated_at=None,
+    )
+
+    response = await demo_file_client.post(
+        "/api/v1/backups/remote/delete",
+        headers={"Authorization": f"Bearer {demo_file_token}"},
+        json={"filename": "not-a-family-cfo-backup.enc"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["message"] == "Invalid backup filename"
 
 
 @pytest.mark.anyio

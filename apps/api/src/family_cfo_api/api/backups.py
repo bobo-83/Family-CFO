@@ -73,6 +73,32 @@ def _restore_boundary(
     )
 
 
+def _household_after_restore(
+    engine: Engine, household_id: str, summary: str
+) -> tuple[str | None, str]:
+    """Choose a surviving household for the post-restore audit row.
+
+    A whole-database restore can remove the session's active household just as it
+    can remove the acting user. Audit rows require a household foreign key, so use
+    a deterministic surviving household rather than failing a restore that already
+    completed. A valid Family CFO snapshot normally has at least one household; an
+    empty/corrupt snapshot is logged without manufacturing application data.
+    """
+    if repository.get_household(engine, household_id) is not None:
+        return household_id, summary
+    households = repository.list_households(engine)
+    if not households:
+        return None, (
+            f"{summary}; the active household is not present in this snapshot and "
+            "no surviving household exists for the audit row"
+        )
+    fallback = min(households)
+    return fallback, (
+        f"{summary}; the active household is not present in this snapshot, so this "
+        "row is recorded under another surviving household"
+    )
+
+
 def _actor_after_restore(engine: Engine, user_id: str, summary: str) -> tuple[str | None, str]:
     """#68: who the restore audit row can credit, now that the restore has happened.
 
@@ -363,6 +389,7 @@ async def _run_sync(function, /, *args, **kwargs):
     responses={
         401: {"description": "Unauthorized", "model": ErrorResponse},
         403: {"description": "Role does not permit this action", "model": ErrorResponse},
+        400: {"description": "Backup configuration is invalid", "model": ErrorResponse},
         409: {"description": "A backup operation is already in progress", "model": ErrorResponse},
         429: {"description": "A backup ran moments ago (cooldown)", "model": ErrorResponse},
     },
@@ -386,12 +413,19 @@ async def create_backup(
             headers={"Retry-After": str(retry_after)},
         )
 
-    def run() -> str:
-        config = backup_processing.build_backup_execution_config(engine, settings)
-        return backup_processing.run_backup_once(engine, config)
+    try:
+        config = await _run_sync(backup_processing.build_backup_execution_config, engine, settings)
+    except backup_processing.BackupConfigurationError as exc:
+        # Configuration assembly happens before a job exists. Do not reserve the
+        # cooldown for work that never entered the backup lifecycle.
+        _release_backup_cooldown(reservation)
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception:
+        _release_backup_cooldown(reservation)
+        raise
 
     try:
-        backup_job_id = await _run_sync(run)
+        backup_job_id = await _run_sync(backup_processing.run_backup_once, engine, config)
     except backup_processing.BackupOperationBusyError as exc:
         _release_backup_cooldown(reservation)
         raise HTTPException(
@@ -476,16 +510,22 @@ async def restore_remote_backup(
 
     # #68: same as the on-box path — the acting member may not exist in the
     # database this archive just became.
-    actor_id, restore_summary = _actor_after_restore(engine, session.user_id, restore_summary)
-    audit.write_audit(
-        engine,
-        session.household_id,
-        actor_id,
-        "backup.restored_remote",
-        "backup_file",
-        os.path.splitext(filename)[0][:36],
-        restore_summary,
+    audit_household_id, restore_summary = _household_after_restore(
+        engine, session.household_id, restore_summary
     )
+    actor_id, restore_summary = _actor_after_restore(engine, session.user_id, restore_summary)
+    if audit_household_id is not None:
+        audit.write_audit(
+            engine,
+            audit_household_id,
+            actor_id,
+            "backup.restored_remote",
+            "backup_file",
+            os.path.splitext(filename)[0][:36],
+            restore_summary,
+        )
+    else:
+        logger.error("post-restore audit omitted because the snapshot has no household")
     logger.info(
         "backup restored from share filename=%s discarded_audit_events=%s", filename, discarded
     )
@@ -555,16 +595,22 @@ async def restore_backup(
     # Written AFTER the replace, deliberately: a row written before it would be
     # wiped by the very restore it describes (#62). Which is also why the actor
     # has to be re-checked against the restored database (#68).
-    actor_id, restore_summary = _actor_after_restore(engine, session.user_id, restore_summary)
-    audit.write_audit(
-        engine,
-        session.household_id,
-        actor_id,
-        "backup.restored",
-        "backup_job",
-        backup_id,
-        restore_summary,
+    audit_household_id, restore_summary = _household_after_restore(
+        engine, session.household_id, restore_summary
     )
+    actor_id, restore_summary = _actor_after_restore(engine, session.user_id, restore_summary)
+    if audit_household_id is not None:
+        audit.write_audit(
+            engine,
+            audit_household_id,
+            actor_id,
+            "backup.restored",
+            "backup_job",
+            backup_id,
+            restore_summary,
+        )
+    else:
+        logger.error("post-restore audit omitted because the snapshot has no household")
     return _to_schema(updated)
 
 
@@ -594,7 +640,7 @@ async def get_backup_config(
         401: {"description": "Unauthorized", "model": ErrorResponse},
         403: {"description": "Role does not permit this action", "model": ErrorResponse},
         409: {
-            "description": "Configuration changed; reload and reconcile the draft",
+            "description": "Configuration changed or a backup operation is in progress",
             "model": ErrorResponse,
         },
         422: {"description": "Invalid backup configuration", "model": ErrorResponse},
@@ -607,7 +653,6 @@ async def update_backup_config(
     engine: Engine = Depends(get_engine),
     settings: Settings = Depends(get_app_settings),
 ) -> BackupConfig:
-    before = repository.get_backup_settings(engine, settings=settings)
     supplied = payload.model_fields_set
     patch: dict[str, object] = {}
     for name in (
@@ -653,20 +698,33 @@ async def update_backup_config(
             }
         )
 
+    def persist() -> tuple[repository.BackupSettingsRecord, repository.BackupSettingsRecord]:
+        # Restore captures and later re-upserts this singleton. Serialize the
+        # capture with configuration writes so a successful save can never be
+        # acknowledged and then overwritten by an in-flight restore.
+        with backup_processing.acquire_backup_operation_lock(engine):
+            before = repository.get_backup_settings(engine, settings=settings)
+            if payload.confirm_retention_policy:
+                assert payload.expected_updated_at is not None
+                after = repository.update_and_activate_backup_settings(
+                    engine,
+                    patch,
+                    expected_updated_at=payload.expected_updated_at,
+                )
+            else:
+                after = repository.update_backup_settings(
+                    engine,
+                    patch,
+                    expected_updated_at=payload.expected_updated_at,
+                )
+            return before, after
+
     try:
-        if payload.confirm_retention_policy:
-            assert payload.expected_updated_at is not None
-            after = repository.update_and_activate_backup_settings(
-                engine,
-                patch,
-                expected_updated_at=payload.expected_updated_at,
-            )
-        else:
-            after = repository.update_backup_settings(
-                engine,
-                patch,
-                expected_updated_at=payload.expected_updated_at,
-            )
+        before, after = await _run_sync(persist)
+    except backup_processing.BackupOperationBusyError as exc:
+        raise HTTPException(
+            status_code=409, detail="A backup operation is already in progress"
+        ) from exc
     except repository.BackupSettingsConflictError as exc:
         raise HTTPException(
             status_code=409,
@@ -947,6 +1005,8 @@ async def delete_remote_backup(
         raise HTTPException(
             status_code=409, detail="A backup operation is already in progress"
         ) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid backup filename") from exc
     except Exception as exc:  # noqa: BLE001
         reason = smb_backup._friendly(exc)
         capacity = backup_storage.capacity_observation(

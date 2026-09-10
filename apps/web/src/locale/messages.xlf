@@ -2825,7 +2825,7 @@
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
-          <context context-type="linenumber">996,999</context>
+          <context context-type="linenumber">999,1002</context>
         </context-group>
         <note priority="1" from="description">No backup has ever run</note>
         <note priority="1" from="meaning">Empty state</note>
@@ -3116,7 +3116,7 @@
         <source>Restore from Synology</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
-          <context context-type="linenumber">902,903</context>
+          <context context-type="linenumber">902,904</context>
         </context-group>
         <note priority="1" from="description">Restoring from a snapshot stored on the Synology</note>
         <note priority="1" from="meaning">Section heading</note>
@@ -3125,7 +3125,7 @@
         <source>Grouped by day, newest first — open a day for its snapshots. Restoring replaces all current data.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
-          <context context-type="linenumber">903,905</context>
+          <context context-type="linenumber">906,908</context>
         </context-group>
         <note priority="1" from="description">How the off-box snapshot list is arranged and what restoring does</note>
         <note priority="1" from="meaning">Section hint</note>
@@ -3134,7 +3134,7 @@
         <source>{VAR_PLURAL, plural, =1 {1 backup} other {<x id="INTERPOLATION"/> backups}}</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
-          <context context-type="linenumber">908,910</context>
+          <context context-type="linenumber">911,913</context>
         </context-group>
         <note priority="1" from="description">How many snapshots were taken on this day</note>
         <note priority="1" from="meaning">Backup day summary</note>
@@ -3143,7 +3143,7 @@
         <source>Time</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
-          <context context-type="linenumber">912,913</context>
+          <context context-type="linenumber">915,916</context>
         </context-group>
         <note priority="1" from="description">Time of day the snapshot was taken</note>
         <note priority="1" from="meaning">Table column</note>
@@ -3152,11 +3152,11 @@
         <source>Version</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
-          <context context-type="linenumber">913,914</context>
+          <context context-type="linenumber">916,917</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
-          <context context-type="linenumber">960,961</context>
+          <context context-type="linenumber">963,964</context>
         </context-group>
         <note priority="1" from="description">App version that made the snapshot</note>
         <note priority="1" from="meaning">Table column</note>
@@ -3165,11 +3165,11 @@
         <source>Size (bytes)</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
-          <context context-type="linenumber">914,917</context>
+          <context context-type="linenumber">917,920</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
-          <context context-type="linenumber">961,965</context>
+          <context context-type="linenumber">964,968</context>
         </context-group>
         <note priority="1" from="description">Snapshot file size; bytes is the unit</note>
         <note priority="1" from="meaning">Table column</note>
@@ -3178,11 +3178,11 @@
         <source>version unknown</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
-          <context context-type="linenumber">929,932</context>
+          <context context-type="linenumber">932,935</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
-          <context context-type="linenumber">984,987</context>
+          <context context-type="linenumber">987,990</context>
         </context-group>
         <note priority="1" from="description">The snapshot does not record which app version made it</note>
         <note priority="1" from="meaning">Backup version</note>
@@ -3191,11 +3191,11 @@
         <source>Restore</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
-          <context context-type="linenumber">934,935</context>
+          <context context-type="linenumber">937,938</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
-          <context context-type="linenumber">990,992</context>
+          <context context-type="linenumber">993,995</context>
         </context-group>
         <note priority="1" from="description">Restores the household from this off-box snapshot</note>
         <note priority="1" from="meaning">Button</note>
@@ -3204,11 +3204,11 @@
         <source>Delete</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
-          <context context-type="linenumber">935,938</context>
+          <context context-type="linenumber">938,941</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
-          <context context-type="linenumber">992,994</context>
+          <context context-type="linenumber">995,997</context>
         </context-group>
         <note priority="1" from="description">Deletes this snapshot from the Synology</note>
         <note priority="1" from="meaning">Button</note>
@@ -3217,7 +3217,7 @@
         <source>On-box backups</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
-          <context context-type="linenumber">949,951</context>
+          <context context-type="linenumber">952,954</context>
         </context-group>
         <note priority="1" from="description">Backups kept on the box itself</note>
         <note priority="1" from="meaning">Section heading</note>
@@ -3226,7 +3226,7 @@
         <source>Loading backups…</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
-          <context context-type="linenumber">951,953</context>
+          <context context-type="linenumber">954,956</context>
         </context-group>
         <note priority="1" from="description">While the on-box backup list is being fetched</note>
         <note priority="1" from="meaning">Loading placeholder</note>
@@ -3235,7 +3235,7 @@
         <source>Created</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
-          <context context-type="linenumber">958,959</context>
+          <context context-type="linenumber">961,962</context>
         </context-group>
         <note priority="1" from="description">When the backup was made</note>
         <note priority="1" from="meaning">Table column</note>
@@ -3244,7 +3244,7 @@
         <source>Status</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
-          <context context-type="linenumber">959,960</context>
+          <context context-type="linenumber">962,963</context>
         </context-group>
         <note priority="1" from="description">How the backup ended</note>
         <note priority="1" from="meaning">Table column</note>
@@ -3253,7 +3253,7 @@
         <source><x id="INTERPOLATION" equiv-text="{{ backup.status }}"/> (pruned)</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
-          <context context-type="linenumber">971,972</context>
+          <context context-type="linenumber">974,975</context>
         </context-group>
         <note priority="1" from="description">A finished backup whose file has since been pruned</note>
         <note priority="1" from="meaning">Backup state</note>
@@ -3262,7 +3262,7 @@
         <source>Only a system administrator can manage whole-box backups.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
-          <context context-type="linenumber">1004,1006</context>
+          <context context-type="linenumber">1007,1009</context>
         </context-group>
         <note priority="1" from="description">Whole-box backup management requires the box-level administrator right</note>
         <note priority="1" from="meaning">Permission notice</note>
@@ -3271,7 +3271,7 @@
         <source>saved — leave blank to keep</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">115</context>
+          <context context-type="linenumber">117</context>
         </context-group>
         <note priority="1" from="description">A password is already stored; an empty field keeps it</note>
         <note priority="1" from="meaning">Form field placeholder</note>
@@ -3280,7 +3280,7 @@
         <source>Failed</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">120</context>
+          <context context-type="linenumber">122</context>
         </context-group>
         <note priority="1" from="description">The destination check failed and the server gave no reason</note>
         <note priority="1" from="meaning">Connection check result</note>
@@ -3289,14 +3289,18 @@
         <source>Failed to load backups.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">170</context>
+          <context context-type="linenumber">173</context>
+        </context-group>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
+          <context context-type="linenumber">656</context>
         </context-group>
       </trans-unit>
       <trans-unit id="5405696254927364365" datatype="html">
         <source>Made by a newer version — update first</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">334</context>
+          <context context-type="linenumber">350</context>
         </context-group>
         <note priority="1" from="description">The backup was written by a newer app than the box runs</note>
         <note priority="1" from="meaning">Backup version tooltip</note>
@@ -3305,21 +3309,21 @@
         <source>Failed to load backup settings.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">346</context>
+          <context context-type="linenumber">362</context>
         </context-group>
       </trans-unit>
       <trans-unit id="1272466774155537268" datatype="html">
         <source>Failed to save settings.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">460</context>
+          <context context-type="linenumber">477</context>
         </context-group>
       </trans-unit>
       <trans-unit id="5545763329849207463" datatype="html">
         <source>Retention policy saved and activated. Pruning runs during independent maintenance.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">481</context>
+          <context context-type="linenumber">499</context>
         </context-group>
         <note priority="1" from="description">Retention policy was saved and activated</note>
         <note priority="1" from="meaning">Status message</note>
@@ -3328,7 +3332,7 @@
         <source>Backup settings saved.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">482</context>
+          <context context-type="linenumber">500</context>
         </context-group>
         <note priority="1" from="description">Backup destination or schedule settings were saved</note>
         <note priority="1" from="meaning">Status message</note>
@@ -3337,7 +3341,7 @@
         <source>Backup configuration changed elsewhere. Your draft is preserved; choose how to reconcile it.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">504</context>
+          <context context-type="linenumber">525</context>
         </context-group>
         <note priority="1" from="description">Another administrator changed backup settings while this draft was open</note>
         <note priority="1" from="meaning">Configuration conflict</note>
@@ -3346,7 +3350,7 @@
         <source>Recovery status unavailable.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">556</context>
+          <context context-type="linenumber">578</context>
         </context-group>
         <note priority="1" from="description">The recovery observation endpoint could not be read</note>
         <note priority="1" from="meaning">Recovery status error</note>
@@ -3355,21 +3359,34 @@
         <source>Failed to test connection.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">595</context>
+          <context context-type="linenumber">619</context>
         </context-group>
+      </trans-unit>
+      <trans-unit id="3781339058581464069" datatype="html">
+        <source>Synology inventory is unavailable, so its recovery window is unknown.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
+          <context context-type="linenumber">650</context>
+        </context-group>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
+          <context context-type="linenumber">1079</context>
+        </context-group>
+        <note priority="1" from="description">Synology listing failed</note>
+        <note priority="1" from="meaning">Recovery state detail</note>
       </trans-unit>
       <trans-unit id="7380714085756437482" datatype="html">
         <source>Failed to create backup.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">668</context>
+          <context context-type="linenumber">705</context>
         </context-group>
       </trans-unit>
       <trans-unit id="1131529244593314909" datatype="html">
         <source>Backup complete.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">672</context>
+          <context context-type="linenumber">709</context>
         </context-group>
         <note priority="1" from="description">A backup finished successfully</note>
         <note priority="1" from="meaning">Status message</note>
@@ -3378,7 +3395,7 @@
         <source>Restore this backup? This REPLACES all current data with the backup contents. This cannot be undone.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">685</context>
+          <context context-type="linenumber">722</context>
         </context-group>
         <note priority="1" from="description">Browser confirm before an on-box backup is restored over the live data</note>
         <note priority="1" from="meaning">Confirmation</note>
@@ -3387,14 +3404,14 @@
         <source>Failed to restore backup.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">695</context>
+          <context context-type="linenumber">732</context>
         </context-group>
       </trans-unit>
       <trans-unit id="6367804662132701016" datatype="html">
         <source>On-box backup restored.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">698</context>
+          <context context-type="linenumber">735</context>
         </context-group>
         <note priority="1" from="description">An on-box backup was restored</note>
         <note priority="1" from="meaning">Status message</note>
@@ -3403,7 +3420,7 @@
         <source>Restore from <x id="filename" equiv-text="filename"/>? This REPLACES all current data with the backup contents. This cannot be undone.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">709</context>
+          <context context-type="linenumber">746</context>
         </context-group>
         <note priority="1" from="description">Browser confirm before an off-box snapshot is restored over the live data</note>
         <note priority="1" from="meaning">Confirmation</note>
@@ -3412,14 +3429,14 @@
         <source>Failed to restore from Synology.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">719</context>
+          <context context-type="linenumber">756</context>
         </context-group>
       </trans-unit>
       <trans-unit id="2307623992002228652" datatype="html">
         <source>Restored from <x id="filename" equiv-text="filename"/>.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">722</context>
+          <context context-type="linenumber">759</context>
         </context-group>
         <note priority="1" from="description">An off-box snapshot was restored</note>
         <note priority="1" from="meaning">Status message</note>
@@ -3428,14 +3445,14 @@
         <source>Failed to load key.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">731</context>
+          <context context-type="linenumber">773</context>
         </context-group>
       </trans-unit>
       <trans-unit id="1823101496630371362" datatype="html">
         <source>(not configured)</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">736</context>
+          <context context-type="linenumber">778</context>
         </context-group>
         <note priority="1" from="description">Shown in place of the key when the box has none</note>
         <note priority="1" from="meaning">Backup key value</note>
@@ -3444,7 +3461,7 @@
         <source>Backup key copied.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">745</context>
+          <context context-type="linenumber">787</context>
         </context-group>
         <note priority="1" from="description">The backup key was put on the clipboard</note>
         <note priority="1" from="meaning">Status message</note>
@@ -3453,7 +3470,7 @@
         <source>Replace the recovery key? The old recovery key stops working immediately.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">764</context>
+          <context context-type="linenumber">806</context>
         </context-group>
         <note priority="1" from="description">Browser confirm before the recovery key is replaced</note>
         <note priority="1" from="meaning">Confirmation</note>
@@ -3462,14 +3479,14 @@
         <source>Failed to create recovery key.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">775</context>
+          <context context-type="linenumber">817</context>
         </context-group>
       </trans-unit>
       <trans-unit id="3917470550495178108" datatype="html">
         <source>Recovery key copied.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">787</context>
+          <context context-type="linenumber">829</context>
         </context-group>
         <note priority="1" from="description">The recovery key was put on the clipboard</note>
         <note priority="1" from="meaning">Status message</note>
@@ -3478,7 +3495,7 @@
         <source>Seal this household? After a restart, nothing is readable until someone signs in. Unattended sync, snapshots and study then run while the in-memory key session is open. It expires 30 minutes after its last member-driven use; signing out does not close it immediately.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">799</context>
+          <context context-type="linenumber">841</context>
         </context-group>
         <note priority="1" from="description">Browser confirm before the household is sealed</note>
         <note priority="1" from="meaning">Confirmation</note>
@@ -3487,7 +3504,7 @@
         <source>Switch back to convenient? The box keeps a spare of your data key again, so overnight work runs without anyone signed in.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">800</context>
+          <context context-type="linenumber">842</context>
         </context-group>
         <note priority="1" from="description">Browser confirm before the household leaves sealed mode</note>
         <note priority="1" from="meaning">Confirmation</note>
@@ -3496,21 +3513,21 @@
         <source>Failed to switch privacy mode.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">807</context>
+          <context context-type="linenumber">849</context>
         </context-group>
       </trans-unit>
       <trans-unit id="3187796788048729181" datatype="html">
         <source>Failed to unlock.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">827</context>
+          <context context-type="linenumber">869</context>
         </context-group>
       </trans-unit>
       <trans-unit id="8965464526069612207" datatype="html">
         <source>Household unlocked.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">834</context>
+          <context context-type="linenumber">876</context>
         </context-group>
         <note priority="1" from="description">A locked household was unlocked with its recovery key</note>
         <note priority="1" from="meaning">Status message</note>
@@ -3519,7 +3536,7 @@
         <source>Export failed.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">861</context>
+          <context context-type="linenumber">903</context>
         </context-group>
         <note priority="1" from="description">The household export could not be produced</note>
         <note priority="1" from="meaning">Error message</note>
@@ -3528,7 +3545,7 @@
         <source>Enter whole numbers for all retention horizons.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">915</context>
+          <context context-type="linenumber">957</context>
         </context-group>
         <note priority="1" from="description">Tier horizons must be whole numbers</note>
         <note priority="1" from="meaning">Retention validation</note>
@@ -3537,7 +3554,7 @@
         <source>Retention horizons must be between 1 and 3650 days.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">919</context>
+          <context context-type="linenumber">961</context>
         </context-group>
         <note priority="1" from="description">Allowed policy horizon range</note>
         <note priority="1" from="meaning">Retention validation</note>
@@ -3546,7 +3563,7 @@
         <source>Keep-everything days must be no greater than daily days, which must be no greater than weekly days.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">922</context>
+          <context context-type="linenumber">964</context>
         </context-group>
         <note priority="1" from="description">Tier horizons must be cumulative</note>
         <note priority="1" from="meaning">Retention validation</note>
@@ -3555,7 +3572,7 @@
         <source>Maximum total size must be zero or greater.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">926</context>
+          <context context-type="linenumber">968</context>
         </context-group>
         <note priority="1" from="description">Maximum logical size must be non-negative</note>
         <note priority="1" from="meaning">Capacity validation</note>
@@ -3564,7 +3581,7 @@
         <source>Minimum free space must be zero or greater.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">929</context>
+          <context context-type="linenumber">971</context>
         </context-group>
         <note priority="1" from="description">Free-space reserve must be non-negative</note>
         <note priority="1" from="meaning">Capacity validation</note>
@@ -3573,7 +3590,7 @@
         <source>Keep every backup; the optional size limit still applies.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">982</context>
+          <context context-type="linenumber">1024</context>
         </context-group>
         <note priority="1" from="description">No time-based pruning</note>
         <note priority="1" from="meaning">Retention policy summary</note>
@@ -3582,7 +3599,7 @@
         <source>Every backup for <x id="keepAllDays" equiv-text="draft.keepAllDays"/> days · one daily through <x id="dailyUntilDays" equiv-text="draft.dailyUntilDays"/> days · one weekly through <x id="weeklyUntilDays" equiv-text="draft.weeklyUntilDays"/> days.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">984</context>
+          <context context-type="linenumber">1026</context>
         </context-group>
         <note priority="1" from="description">Cumulative tier horizons</note>
         <note priority="1" from="meaning">Retention policy summary</note>
@@ -3591,7 +3608,7 @@
         <source>No time-based target</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">1000</context>
+          <context context-type="linenumber">1042</context>
         </context-group>
         <note priority="1" from="description">Keep-all has no time horizon</note>
         <note priority="1" from="meaning">Recovery policy target</note>
@@ -3600,7 +3617,7 @@
         <source>Not configured</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">1007</context>
+          <context context-type="linenumber">1049</context>
         </context-group>
         <note priority="1" from="description">Destination has not been set up</note>
         <note priority="1" from="meaning">Recovery destination state</note>
@@ -3609,7 +3626,7 @@
         <source>Empty</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">1009</context>
+          <context context-type="linenumber">1051</context>
         </context-group>
         <note priority="1" from="description">Inventory succeeded and no readable archives are visible</note>
         <note priority="1" from="meaning">Recovery destination state</note>
@@ -3618,7 +3635,7 @@
         <source>Healthy</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">1011</context>
+          <context context-type="linenumber">1053</context>
         </context-group>
         <note priority="1" from="description">Destination has a healthy recovery observation</note>
         <note priority="1" from="meaning">Recovery destination state</note>
@@ -3627,7 +3644,7 @@
         <source>Constrained</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">1013</context>
+          <context context-type="linenumber">1055</context>
         </context-group>
         <note priority="1" from="description">Capacity or retention limits constrain recovery</note>
         <note priority="1" from="meaning">Recovery destination state</note>
@@ -3636,7 +3653,7 @@
         <source>Degraded</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">1015</context>
+          <context context-type="linenumber">1057</context>
         </context-group>
         <note priority="1" from="description">Anomalies or incomplete evidence degrade recovery</note>
         <note priority="1" from="meaning">Recovery destination state</note>
@@ -3645,7 +3662,7 @@
         <source>Unavailable</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">1017</context>
+          <context context-type="linenumber">1059</context>
         </context-group>
         <note priority="1" from="description">Destination inventory cannot be reached</note>
         <note priority="1" from="meaning">Recovery destination state</note>
@@ -3654,7 +3671,7 @@
         <source>No off-box destination is configured.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">1025</context>
+          <context context-type="linenumber">1067</context>
         </context-group>
         <note priority="1" from="description">No Synology target exists</note>
         <note priority="1" from="meaning">Recovery state detail</note>
@@ -3663,7 +3680,7 @@
         <source>No on-box destination is configured.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">1026</context>
+          <context context-type="linenumber">1068</context>
         </context-group>
         <note priority="1" from="description">The local destination does not exist</note>
         <note priority="1" from="meaning">Recovery state detail</note>
@@ -3672,7 +3689,7 @@
         <source>No readable backups are currently visible.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">1028</context>
+          <context context-type="linenumber">1070</context>
         </context-group>
         <note priority="1" from="description">Qualified inventory is empty</note>
         <note priority="1" from="meaning">Recovery state detail</note>
@@ -3681,7 +3698,7 @@
         <source>Recovery candidates are visible and no destination problem was observed.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">1030</context>
+          <context context-type="linenumber">1072</context>
         </context-group>
         <note priority="1" from="description">Inventory and capacity observations are healthy</note>
         <note priority="1" from="meaning">Recovery state detail</note>
@@ -3690,7 +3707,7 @@
         <source>Storage capacity or configured limits constrain this destination.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">1032</context>
+          <context context-type="linenumber">1074</context>
         </context-group>
         <note priority="1" from="description">Storage limits affect the target</note>
         <note priority="1" from="meaning">Recovery state detail</note>
@@ -3699,25 +3716,16 @@
         <source>Recovery evidence is degraded; review the details below.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">1034</context>
+          <context context-type="linenumber">1076</context>
         </context-group>
         <note priority="1" from="description">Evidence is incomplete or anomalous</note>
-        <note priority="1" from="meaning">Recovery state detail</note>
-      </trans-unit>
-      <trans-unit id="3781339058581464069" datatype="html">
-        <source>Synology inventory is unavailable, so its recovery window is unknown.</source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">1037</context>
-        </context-group>
-        <note priority="1" from="description">Synology listing failed</note>
         <note priority="1" from="meaning">Recovery state detail</note>
       </trans-unit>
       <trans-unit id="3047351260118762485" datatype="html">
         <source>On-box inventory is unavailable, so its recovery window is unknown.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">1038</context>
+          <context context-type="linenumber">1080</context>
         </context-group>
         <note priority="1" from="description">Local listing failed</note>
         <note priority="1" from="meaning">Recovery state detail</note>
@@ -3726,7 +3734,7 @@
         <source>Not applicable</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">1045</context>
+          <context context-type="linenumber">1087</context>
         </context-group>
         <note priority="1" from="description">Coverage target does not apply</note>
         <note priority="1" from="meaning">Recovery coverage state</note>
@@ -3735,7 +3743,7 @@
         <source>Empty</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">1047</context>
+          <context context-type="linenumber">1089</context>
         </context-group>
         <note priority="1" from="description">No recovery candidates exist</note>
         <note priority="1" from="meaning">Recovery coverage state</note>
@@ -3744,7 +3752,7 @@
         <source>Building</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">1049</context>
+          <context context-type="linenumber">1091</context>
         </context-group>
         <note priority="1" from="description">History has not matured to the target yet</note>
         <note priority="1" from="meaning">Recovery coverage state</note>
@@ -3753,7 +3761,7 @@
         <source>Target observed</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">1051</context>
+          <context context-type="linenumber">1093</context>
         </context-group>
         <note priority="1" from="description">Qualified evidence reaches the target bucket</note>
         <note priority="1" from="meaning">Recovery coverage state</note>
@@ -3762,7 +3770,7 @@
         <source>Incomplete</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">1053</context>
+          <context context-type="linenumber">1095</context>
         </context-group>
         <note priority="1" from="description">Mature history does not reach the target</note>
         <note priority="1" from="meaning">Recovery coverage state</note>
@@ -3771,7 +3779,7 @@
         <source>Shortened</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">1055</context>
+          <context context-type="linenumber">1097</context>
         </context-group>
         <note priority="1" from="description">Capacity or pruning shortened history</note>
         <note priority="1" from="meaning">Recovery coverage state</note>
@@ -3780,7 +3788,7 @@
         <source>Unknown</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">1057</context>
+          <context context-type="linenumber">1099</context>
         </context-group>
         <note priority="1" from="description">Evidence cannot establish coverage</note>
         <note priority="1" from="meaning">Recovery coverage state</note>
@@ -3789,7 +3797,7 @@
         <source>Coverage does not apply to this destination.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">1066</context>
+          <context context-type="linenumber">1108</context>
         </context-group>
         <note priority="1" from="description">No configured target applies</note>
         <note priority="1" from="meaning">Recovery coverage detail</note>
@@ -3798,7 +3806,7 @@
         <source>No readable backups are currently visible.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">1068</context>
+          <context context-type="linenumber">1110</context>
         </context-group>
         <note priority="1" from="description">No qualified archives are visible</note>
         <note priority="1" from="meaning">Recovery coverage detail</note>
@@ -3807,7 +3815,7 @@
         <source>Coverage is still building toward the configured target.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">1070</context>
+          <context context-type="linenumber">1112</context>
         </context-group>
         <note priority="1" from="description">The configured horizon has not elapsed yet</note>
         <note priority="1" from="meaning">Recovery coverage detail</note>
@@ -3816,7 +3824,7 @@
         <source>A readable recovery candidate was observed in the configured target bucket.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">1072</context>
+          <context context-type="linenumber">1114</context>
         </context-group>
         <note priority="1" from="description">The outer target bucket has a qualified candidate</note>
         <note priority="1" from="meaning">Recovery coverage detail</note>
@@ -3825,7 +3833,7 @@
         <source>The visible recovery history does not reach the configured target.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">1074</context>
+          <context context-type="linenumber">1116</context>
         </context-group>
         <note priority="1" from="description">History is mature but sparse or failing</note>
         <note priority="1" from="meaning">Recovery coverage detail</note>
@@ -3834,7 +3842,7 @@
         <source>Storage limits shortened the configured recovery window.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">1076</context>
+          <context context-type="linenumber">1118</context>
         </context-group>
         <note priority="1" from="description">A limit caused qualified history to be removed</note>
         <note priority="1" from="meaning">Recovery coverage detail</note>
@@ -3843,7 +3851,7 @@
         <source>Available evidence cannot establish the configured recovery window.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">1078</context>
+          <context context-type="linenumber">1120</context>
         </context-group>
         <note priority="1" from="description">Bounded probes or anomalies prevent a conclusion</note>
         <note priority="1" from="meaning">Recovery coverage detail</note>
@@ -3852,7 +3860,7 @@
         <source>Read probe complete.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">1085</context>
+          <context context-type="linenumber">1127</context>
         </context-group>
         <note priority="1" from="description">The endpoint qualification pass completed</note>
         <note priority="1" from="meaning">Recovery probe state</note>
@@ -3861,7 +3869,7 @@
         <source>Read probe partial; endpoint readability is not fully known.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">1087</context>
+          <context context-type="linenumber">1129</context>
         </context-group>
         <note priority="1" from="description">Only part of the inventory was qualified</note>
         <note priority="1" from="meaning">Recovery probe state</note>
@@ -3870,7 +3878,7 @@
         <source>Read probe unavailable; recovery dates are unknown.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">1089</context>
+          <context context-type="linenumber">1131</context>
         </context-group>
         <note priority="1" from="description">No endpoint could be qualified</note>
         <note priority="1" from="meaning">Recovery probe state</note>
@@ -3879,7 +3887,7 @@
         <source>Capacity observation is within the configured reserve.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">1096</context>
+          <context context-type="linenumber">1138</context>
         </context-group>
         <note priority="1" from="description">Observed headroom is within policy</note>
         <note priority="1" from="meaning">Backup capacity state</note>
@@ -3888,7 +3896,7 @@
         <source>Available space is approaching the configured reserve.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">1098</context>
+          <context context-type="linenumber">1140</context>
         </context-group>
         <note priority="1" from="description">Observed headroom is near the warning buffer</note>
         <note priority="1" from="meaning">Backup capacity state</note>
@@ -3897,7 +3905,7 @@
         <source>Available space cannot cover the reserve and estimated next backup.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">1100</context>
+          <context context-type="linenumber">1142</context>
         </context-group>
         <note priority="1" from="description">Observed headroom cannot accept the estimate</note>
         <note priority="1" from="meaning">Backup capacity state</note>
@@ -3906,7 +3914,7 @@
         <source>Capacity could not be measured; backups will still be attempted.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">1102</context>
+          <context context-type="linenumber">1144</context>
         </context-group>
         <note priority="1" from="description">This destination cannot report capacity</note>
         <note priority="1" from="meaning">Backup capacity state</note>
@@ -3915,7 +3923,7 @@
         <source>Capacity is unavailable; an attempted backup may fail.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">1104</context>
+          <context context-type="linenumber">1146</context>
         </context-group>
         <note priority="1" from="description">Capacity could not be queried because the destination failed</note>
         <note priority="1" from="meaning">Backup capacity state</note>
@@ -3924,7 +3932,7 @@
         <source>next backup estimate unknown</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">1112</context>
+          <context context-type="linenumber">1154</context>
         </context-group>
         <note priority="1" from="description">No next-backup estimate is available</note>
         <note priority="1" from="meaning">Capacity summary</note>
@@ -3933,7 +3941,7 @@
         <source>next backup estimate <x id="estimate" equiv-text="this.formatBytes(capacity.estimated_next_backup_bytes)"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">1113</context>
+          <context context-type="linenumber">1155</context>
         </context-group>
         <note priority="1" from="description">Estimated size of the next archive</note>
         <note priority="1" from="meaning">Capacity summary</note>
@@ -3942,7 +3950,7 @@
         <source><x id="available" equiv-text="this.formatBytes(capacity.available_bytes)"/> available of <x id="total" equiv-text="this.formatBytes(capacity.total_bytes)"/> · <x id="estimate" equiv-text="estimate"/> · <x id="reserve" equiv-text="reserve"/> reserved.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">1115</context>
+          <context context-type="linenumber">1157</context>
         </context-group>
         <note priority="1" from="description">Caller-visible storage totals and policy headroom</note>
         <note priority="1" from="meaning">Capacity summary</note>
@@ -3951,7 +3959,7 @@
         <source><x id="available" equiv-text="this.formatBytes(capacity.available_bytes)"/> available · <x id="estimate" equiv-text="estimate"/> · <x id="reserve" equiv-text="reserve"/> reserved.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">1118</context>
+          <context context-type="linenumber">1160</context>
         </context-group>
         <note priority="1" from="description">Caller-visible storage headroom without a total</note>
         <note priority="1" from="meaning">Capacity summary</note>
@@ -3960,7 +3968,7 @@
         <source><x id="estimate" equiv-text="estimate"/> · <x id="reserve" equiv-text="reserve"/> reserved.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">1120</context>
+          <context context-type="linenumber">1162</context>
         </context-group>
         <note priority="1" from="description">Storage totals are not measurable</note>
         <note priority="1" from="meaning">Capacity summary</note>
@@ -3969,7 +3977,7 @@
         <source>Unknown</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">1130</context>
+          <context context-type="linenumber">1172</context>
         </context-group>
         <note priority="1" from="description">A qualified recovery date is unavailable</note>
         <note priority="1" from="meaning">Unknown date</note>
@@ -3978,7 +3986,7 @@
         <source>Unknown</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">1134</context>
+          <context context-type="linenumber">1176</context>
         </context-group>
         <note priority="1" from="description">A byte count is unavailable</note>
         <note priority="1" from="meaning">Unknown size</note>
@@ -3987,7 +3995,7 @@
         <source>Delete this on-box backup?</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">1146</context>
+          <context context-type="linenumber">1188</context>
         </context-group>
         <note priority="1" from="description">Browser confirm before an on-box backup is deleted</note>
         <note priority="1" from="meaning">Confirmation</note>
@@ -3996,14 +4004,14 @@
         <source>Failed to delete backup.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">1156</context>
+          <context context-type="linenumber">1198</context>
         </context-group>
       </trans-unit>
       <trans-unit id="3633120544781746646" datatype="html">
         <source>On-box backup deleted.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">1159</context>
+          <context context-type="linenumber">1201</context>
         </context-group>
         <note priority="1" from="description">An on-box backup was deleted</note>
         <note priority="1" from="meaning">Status message</note>
@@ -4012,7 +4020,7 @@
         <source>Delete <x id="filename" equiv-text="filename"/> from the Synology?</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">1172</context>
+          <context context-type="linenumber">1214</context>
         </context-group>
         <note priority="1" from="description">Browser confirm before an off-box snapshot is deleted</note>
         <note priority="1" from="meaning">Confirmation</note>
@@ -4021,14 +4029,14 @@
         <source>Failed to delete from Synology.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">1182</context>
+          <context context-type="linenumber">1224</context>
         </context-group>
       </trans-unit>
       <trans-unit id="3603108857551276802" datatype="html">
         <source>Synology backup deleted.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
-          <context context-type="linenumber">1185</context>
+          <context context-type="linenumber">1227</context>
         </context-group>
         <note priority="1" from="description">An off-box snapshot was deleted</note>
         <note priority="1" from="meaning">Status message</note>

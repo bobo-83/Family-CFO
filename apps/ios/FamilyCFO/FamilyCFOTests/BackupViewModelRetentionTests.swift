@@ -106,8 +106,10 @@ private final class MockRetentionBackupAPI: BackupAPI, @unchecked Sendable {
     nonisolated let localRestores = ControlledEndpoint<Void>()
     nonisolated let localDeletes = ControlledEndpoint<Void>()
     nonisolated let remoteDeletes = ControlledEndpoint<Void>()
+    nonisolated let encryptionKeys = ControlledEndpoint<String?>()
     nonisolated let locals = ImmediateEndpoint<[Components.Schemas.BackupJob]>(.success([]))
-    nonisolated let remotes = ImmediateEndpoint<[Components.Schemas.RemoteBackup]>(.success([]))
+    nonisolated let remotes = ImmediateEndpoint<Components.Schemas.RemoteBackupListResponse>(
+        .success(.init(backups: [], status: .available, asOf: BackupFixtures.baseDate)))
 
     nonisolated func config() async throws -> Components.Schemas.BackupConfig {
         try await configs.call()
@@ -130,13 +132,13 @@ private final class MockRetentionBackupAPI: BackupAPI, @unchecked Sendable {
         try await locals.call()
     }
     nonisolated func restoreLocal(id: String) async throws { try await localRestores.call() }
-    nonisolated func remoteBackups() async throws -> [Components.Schemas.RemoteBackup] {
-        try await remotes.call()
-    }
+    nonisolated func remoteBackups() async throws
+        -> Components.Schemas.RemoteBackupListResponse
+    { try await remotes.call() }
     nonisolated func restoreRemote(filename: String) async throws {}
     nonisolated func deleteLocal(id: String) async throws { try await localDeletes.call() }
     nonisolated func deleteRemote(filename: String) async throws { try await remoteDeletes.call() }
-    nonisolated func encryptionKey() async throws -> String? { nil }
+    nonisolated func encryptionKey() async throws -> String? { try await encryptionKeys.call() }
     nonisolated func householdKeyStatus() async throws -> Components.Schemas.HouseholdKeyStatus {
         throw APIError.server(501)
     }
@@ -471,6 +473,20 @@ struct BackupViewModelRetentionTests {
         #expect(viewModel.configError == nil)
     }
 
+    @Test func successfulUnavailableRemoteListIsNotPresentedAsEmpty() async {
+        let (viewModel, api) = await loaded()
+        await api.remotes.set(
+            .success(
+                .init(
+                    backups: [], status: .unavailable, asOf: BackupFixtures.baseDate,
+                    reason: "The Synology inventory is unavailable.")))
+
+        await viewModel.loadBackups(refreshStatus: false)
+
+        #expect(viewModel.remoteBackups.isEmpty)
+        #expect(viewModel.remoteListError == "The Synology inventory is unavailable.")
+    }
+
     @Test func newestStatusCompletionOwnsSuccessAndOldFailureCannotClearIt() async {
         let api = MockRetentionBackupAPI()
         let viewModel = BackupViewModel(api: api)
@@ -507,6 +523,35 @@ struct BackupViewModelRetentionTests {
         #expect(viewModel.recoveryStatus?.overallStatus == .healthy)
     }
 
+    @Test func oldSessionKeyCompletionCannotRevealThePreviousSessionsSecret() async {
+        let api = MockRetentionBackupAPI()
+        var session = "session-a"
+        let viewModel = BackupViewModel(api: api, sessionIdentity: { session })
+        let reveal = Task { await viewModel.revealKey() }
+        await api.encryptionKeys.waitForCalls(1)
+
+        session = "session-b"
+        await api.encryptionKeys.resolve(0, .success("old-session-secret"))
+        await reveal.value
+
+        #expect(viewModel.revealedKey == nil)
+    }
+
+    @Test func restoreRefreshesRotatedConfigAndRecoveryState() async {
+        let (viewModel, api) = await loaded()
+        let refreshedConfig = BackupFixtures.config(revision: 60, review: true)
+        let refreshedStatus = BackupFixtures.recovery(overall: .degraded)
+        await api.localRestores.enqueue(.success(()))
+        await api.configs.enqueue(.success(refreshedConfig))
+        await api.statuses.enqueue(.success(refreshedStatus))
+
+        await viewModel.restoreLocal(BackupFixtures.job())
+
+        #expect(viewModel.configUpdatedAt == refreshedConfig.updatedAt)
+        #expect(viewModel.retentionReviewRequired)
+        #expect(viewModel.recoveryStatus?.overallStatus == .degraded)
+    }
+
     @Test func differentConcurrentActionsKeepIndependentOwnersAndClearBusyState() async {
         let (viewModel, api) = await loaded()
 
@@ -528,6 +573,8 @@ struct BackupViewModelRetentionTests {
         #expect(viewModel.isBackingUp)
         #expect(viewModel.isRestoring)
 
+        await api.configs.enqueue(.success(BackupFixtures.config(revision: 1)))
+        await api.statuses.enqueue(.success(BackupFixtures.recovery()))
         await api.localRestores.resolve(0, .success(()))
         await restore.value
         #expect(!viewModel.isRestoring)

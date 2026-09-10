@@ -82,6 +82,7 @@ export class Backups implements OnInit {
   private conflictRequestGeneration = 0;
   private remoteRequestGeneration = 0;
   private keyRequestGeneration = 0;
+  private keyRevealRequestGeneration = 0;
   private checkRequestGeneration = 0;
   private mutationRequestGeneration = 0;
   private pendingMutationConfigRefresh = false;
@@ -130,6 +131,7 @@ export class Backups implements OnInit {
     remote_error?: string | null;
   } | null>(null);
   protected readonly remoteBackups = signal<RemoteBackup[]>([]);
+  protected readonly remoteListError = signal<string | null>(null);
 
   /** Grouped by day, newest first — four snapshots a day made the flat list
    * an endless scroll (user report 2026-07-26). Mirrors the iOS grouping. */
@@ -226,6 +228,7 @@ export class Backups implements OnInit {
     ++this.conflictRequestGeneration;
     ++this.remoteRequestGeneration;
     ++this.keyRequestGeneration;
+    ++this.keyRevealRequestGeneration;
     ++this.checkRequestGeneration;
     ++this.mutationRequestGeneration;
     this.pendingMutationConfigRefresh = false;
@@ -238,6 +241,7 @@ export class Backups implements OnInit {
     this.recoveryStatusError.set(null);
     this.recoveryStatusLoading.set(false);
     this.remoteBackups.set([]);
+    this.remoteListError.set(null);
     this.latest.set(null);
     this.keyStatus.set(null);
     this.actionError.set(null);
@@ -642,8 +646,17 @@ export class Backups implements OnInit {
     }
     if (!error && data) {
       this.remoteBackups.set(data.backups);
+      this.remoteListError.set(
+        data.status === 'unavailable'
+          ? (data.reason ??
+              $localize`:Recovery state detail|Synology listing failed:Synology inventory is unavailable, so its recovery window is unknown.`)
+          : null,
+      );
     } else {
       this.remoteBackups.set([]);
+      this.remoteListError.set(
+        apiErrorMessage(error, $localize`Failed to load backups.`),
+      );
     }
     if (refreshStatus) {
       await this.loadRecoveryStatus(mutationOwner);
@@ -752,7 +765,12 @@ export class Backups implements OnInit {
   }
 
   protected async revealKey(): Promise<void> {
+    const generation = ++this.keyRevealRequestGeneration;
+    const owner = this.captureOwner(generation);
     const { data, error } = await this.api.getBackupEncryptionKey();
+    if (!this.owns(owner, this.keyRevealRequestGeneration, false)) {
+      return;
+    }
     if (error) {
       this.actionError.set(apiErrorMessage(error, $localize`Failed to load key.`));
       return;

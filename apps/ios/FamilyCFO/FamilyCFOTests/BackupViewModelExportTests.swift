@@ -33,7 +33,9 @@ final class MockExportBackupAPI: BackupAPI, @unchecked Sendable {
     }
     nonisolated func localBackups() async throws -> [Components.Schemas.BackupJob] { [] }
     nonisolated func restoreLocal(id: String) async throws { throw APIError.server(500) }
-    nonisolated func remoteBackups() async throws -> [Components.Schemas.RemoteBackup] { [] }
+    nonisolated func remoteBackups() async throws
+        -> Components.Schemas.RemoteBackupListResponse
+    { .init(backups: [], status: .available, asOf: Date()) }
     nonisolated func restoreRemote(filename: String) async throws { throw APIError.server(500) }
     nonisolated func deleteLocal(id: String) async throws { throw APIError.server(500) }
     nonisolated func deleteRemote(filename: String) async throws { throw APIError.server(500) }
