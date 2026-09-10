@@ -31,6 +31,17 @@ def _env_positive_int(name: str, default: int) -> int:
     return value if value > 0 else default
 
 
+def _env_nonnegative_int(name: str, default: int) -> int:
+    raw = os.getenv(name, "").strip()
+    if not raw:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        return default
+    return value if value >= 0 else default
+
+
 def _env_bool(name: str, default: bool) -> bool:
     value = os.getenv(name)
     if value is None:
@@ -156,10 +167,11 @@ class Settings:
             ),
             import_staging_dir=os.getenv("FAMILY_CFO_IMPORT_STAGING_DIR", cls.import_staging_dir),
             backup_dir=os.getenv("FAMILY_CFO_BACKUP_DIR", cls.backup_dir),
-            offbox_backup_retention_days=int(
-                os.getenv(
-                    "FAMILY_CFO_OFFBOX_BACKUP_RETENTION_DAYS", cls.offbox_backup_retention_days
-                )
+            # ADR 0077: bootstrap-only for one compatibility release. Invalid
+            # values must never prevent the durable singleton from materializing.
+            offbox_backup_retention_days=_env_nonnegative_int(
+                "FAMILY_CFO_OFFBOX_BACKUP_RETENTION_DAYS",
+                cls.offbox_backup_retention_days,
             ),
             chat_hourly_limit=int(os.getenv("FAMILY_CFO_CHAT_HOURLY_LIMIT", cls.chat_hourly_limit)),
             chat_turn_timeout_seconds=_env_positive_int(
@@ -173,8 +185,9 @@ class Settings:
                     "FAMILY_CFO_REVOKED_DEVICE_RETENTION_DAYS", cls.revoked_device_retention_days
                 )
             ),
-            backup_retention_count=int(
-                os.getenv("FAMILY_CFO_BACKUP_RETENTION_COUNT", str(cls.backup_retention_count))
+            # ADR 0077: bootstrap-only for one compatibility release.
+            backup_retention_count=_env_positive_int(
+                "FAMILY_CFO_BACKUP_RETENTION_COUNT", cls.backup_retention_count
             ),
             master_key=os.getenv("FAMILY_CFO_MASTER_KEY", cls.master_key),
             backup_encryption_key=os.getenv(
