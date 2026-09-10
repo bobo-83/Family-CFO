@@ -9,6 +9,7 @@ import tarfile
 import tempfile
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -254,31 +255,107 @@ def _journal(
         if destination == "local"
         else config.offbox_destination_generation
     )
+    repository.record_backup_retention_event(
+        engine,
+        destination=destination,
+        destination_generation=generation,
+        operation_id=operation_id,
+        action=action,
+        reason=reason,
+        archive_key=item.archive_key if item is not None else archive_key,
+        backup_job_id=item.job_id if item is not None else backup_job_id,
+        archive_taken_at=item.taken_at if item is not None else None,
+        timestamp_source=(item.timestamp_source.value if item is not None else None),
+        size_bytes=item.size_bytes if item is not None else None,
+        policy_updated_at=config.settings_updated_at,
+        policy_snapshot=_policy_snapshot(policy, maximum, reserve),
+        detail=detail,
+        occurred_at=occurred_at,
+    )
+
+
+def _journal_best_effort(
+    engine: Engine,
+    config: BackupExecutionConfig,
+    **kwargs: object,
+) -> None:
     try:
-        repository.record_backup_retention_event(
-            engine,
-            destination=destination,
-            destination_generation=generation,
-            operation_id=operation_id,
-            action=action,
-            reason=reason,
-            archive_key=item.archive_key if item is not None else archive_key,
-            backup_job_id=item.job_id if item is not None else backup_job_id,
-            archive_taken_at=item.taken_at if item is not None else None,
-            timestamp_source=(item.timestamp_source.value if item is not None else None),
-            size_bytes=item.size_bytes if item is not None else None,
-            policy_updated_at=config.settings_updated_at,
-            policy_snapshot=_policy_snapshot(policy, maximum, reserve),
-            detail=detail,
-            occurred_at=occurred_at,
-        )
-    except Exception as exc:  # noqa: BLE001 - journal failure must not affect archives
+        _journal(engine, config, **kwargs)  # type: ignore[arg-type]
+    except Exception as exc:  # noqa: BLE001 - observation journaling is non-destructive
         logger.warning(
             "backup journal write failed action=%s reason=%s error_type=%s",
-            action,
-            reason,
+            kwargs.get("action"),
+            kwargs.get("reason"),
             type(exc).__name__,
         )
+
+
+def _journal_delete_pending(
+    engine: Engine,
+    config: BackupExecutionConfig,
+    *,
+    operation_id: str,
+    destination: str,
+    reason: str,
+    item: BackupInventoryItem | None = None,
+    archive_key: str | None = None,
+    backup_job_id: str | None = None,
+) -> None:
+    """Durably identify a destructive target before touching external storage."""
+    _journal(
+        engine,
+        config,
+        operation_id=operation_id,
+        destination=destination,
+        action="delete_pending",
+        reason=reason,
+        item=item,
+        archive_key=archive_key,
+        backup_job_id=backup_job_id,
+    )
+
+
+def _reconcile_delete_intents(
+    engine: Engine,
+    config: BackupExecutionConfig,
+    lease: BackupOperationLease,
+    *,
+    destination: str,
+    visible_archive_keys: set[str],
+) -> int:
+    generation = (
+        config.local_destination_generation
+        if destination == "local"
+        else config.offbox_destination_generation
+    )
+    reconciled = 0
+    for intent in repository.list_unresolved_backup_delete_intents(
+        engine,
+        destination=destination,
+        destination_generation=generation,
+    ):
+        if intent.archive_key is not None and intent.archive_key in visible_archive_keys:
+            continue
+        if destination == "local" and intent.backup_job_id is not None:
+            lease.assert_owned()
+            if intent.reason == "explicit_delete":
+                repository.delete_backup_job(engine, intent.backup_job_id)
+            else:
+                repository.mark_backup_job_pruned(
+                    engine, intent.backup_job_id, intent.reason
+                )
+        _journal(
+            engine,
+            config,
+            operation_id=intent.operation_id,
+            destination=destination,
+            action="reconciled",
+            reason=intent.reason,
+            archive_key=intent.archive_key,
+            backup_job_id=intent.backup_job_id,
+        )
+        reconciled += 1
+    return reconciled
 
 
 def _record_lock_skipped(
@@ -288,7 +365,7 @@ def _record_lock_skipped(
     operation_id: str,
     as_of: datetime,
 ) -> None:
-    _journal(
+    _journal_best_effort(
         engine,
         config,
         operation_id=operation_id,
@@ -298,7 +375,7 @@ def _record_lock_skipped(
         occurred_at=as_of,
     )
     if config.smb_target is not None:
-        _journal(
+        _journal_best_effort(
             engine,
             config,
             operation_id=operation_id,
@@ -344,11 +421,20 @@ def _reconcile_missing_local(
     *,
     operation_id: str,
 ) -> int:
+    inventory.require_available()
     reconciled = 0
     for entry in inventory.entries:
         if not {"missing_file", "missing_storage_path"}.intersection(entry.item.anomaly_codes):
             continue
         try:
+            _journal_delete_pending(
+                engine,
+                config,
+                operation_id=operation_id,
+                destination="local",
+                reason="missing_file",
+                item=entry.item,
+            )
             lease.assert_owned()
             repository.mark_backup_job_pruned(engine, entry.record.id, "missing_file")
             _journal(
@@ -361,8 +447,10 @@ def _reconcile_missing_local(
                 item=entry.item,
             )
             reconciled += 1
+        except BackupOperationLockLostError:
+            raise
         except Exception as exc:  # noqa: BLE001 - reconcile each archive independently
-            _journal(
+            _journal_best_effort(
                 engine,
                 config,
                 operation_id=operation_id,
@@ -387,8 +475,10 @@ def _apply_local_retention(
     operation_id: str,
     as_of: datetime,
     incoming_bytes: int | None = None,
+    inventory: LocalInventory | None = None,
 ) -> int:
-    inventory = collect_local_inventory(engine, config.backup_dir, as_of=as_of)
+    inventory = inventory or collect_local_inventory(engine, config.backup_dir, as_of=as_of)
+    inventory.require_available()
     plan = _retention_plan(
         as_of=as_of,
         inventory=inventory.items,
@@ -407,23 +497,32 @@ def _apply_local_retention(
         if entry is None or entry.path is None:
             continue
         try:
+            reason = _prune_reason(decision)
+            _journal_delete_pending(
+                engine,
+                config,
+                operation_id=operation_id,
+                destination="local",
+                reason=reason,
+                item=entry.item,
+            )
             lease.assert_owned()
             entry.path.unlink(missing_ok=True)
-            repository.mark_backup_job_pruned(engine, entry.record.id, _prune_reason(decision))
+            repository.mark_backup_job_pruned(engine, entry.record.id, reason)
             _journal(
                 engine,
                 config,
                 operation_id=operation_id,
                 destination="local",
                 action="pruned",
-                reason=_prune_reason(decision),
+                reason=reason,
                 item=entry.item,
             )
             deleted += 1
         except BackupOperationLockLostError:
             raise
         except Exception as exc:  # noqa: BLE001 - reconcile each archive independently
-            _journal(
+            _journal_best_effort(
                 engine,
                 config,
                 operation_id=operation_id,
@@ -511,6 +610,15 @@ def _apply_remote_retention(
             continue
         item = item_by_key[decision.archive_key]
         try:
+            reason = _prune_reason(decision)
+            _journal_delete_pending(
+                engine,
+                config,
+                operation_id=operation_id,
+                destination="offbox",
+                reason=reason,
+                item=item,
+            )
             lease.assert_owned()
             smb_backup.delete(
                 config.smb_target,
@@ -523,14 +631,14 @@ def _apply_remote_retention(
                 operation_id=operation_id,
                 destination="offbox",
                 action="pruned",
-                reason=_prune_reason(decision),
+                reason=reason,
                 item=item,
             )
             deleted += 1
         except BackupOperationLockLostError:
             raise
         except smb_backup.SmbReadProbeError:
-            _journal(
+            _journal_best_effort(
                 engine,
                 config,
                 operation_id=operation_id,
@@ -540,7 +648,7 @@ def _apply_remote_retention(
                 item=item,
             )
         except Exception as exc:  # noqa: BLE001 - reconcile each archive independently
-            _journal(
+            _journal_best_effort(
                 engine,
                 config,
                 operation_id=operation_id,
@@ -630,10 +738,12 @@ def run_backup_once(
                 raise BackupConfigurationError("FAMILY_CFO_BACKUP_ENCRYPTION_KEY is not configured")
             os.makedirs(config.backup_dir, exist_ok=True)
             local_inventory = collect_local_inventory(engine, config.backup_dir, as_of=as_of)
+            local_inventory.require_available()
             _reconcile_missing_local(
                 engine, config, local_inventory, lease, operation_id=operation_id
             )
             local_inventory = collect_local_inventory(engine, config.backup_dir, as_of=as_of)
+            local_inventory.require_available()
             estimate = estimate_next_backup_bytes(local_inventory)
             _apply_local_retention(
                 engine,
@@ -650,7 +760,7 @@ def run_backup_once(
                 as_of=as_of,
             )
             if capacity.status == "insufficient":
-                _journal(
+                _journal_best_effort(
                     engine,
                     config,
                     operation_id=operation_id,
@@ -699,7 +809,7 @@ def run_backup_once(
             except BackupOperationLockLostError:
                 raise
             except Exception as exc:  # noqa: BLE001 - postflight cannot undo local success
-                _journal(
+                _journal_best_effort(
                     engine,
                     config,
                     operation_id=operation_id,
@@ -766,7 +876,7 @@ def _sync_remote(
     inventory: smb_backup.SmbInventory | None = None
     try:
         inventory = smb_backup.list_inventory(config.smb_target)
-        _journal(
+        _journal_best_effort(
             engine,
             config,
             operation_id=operation_id,
@@ -775,7 +885,7 @@ def _sync_remote(
             reason="inventory_available",
         )
     except smb_backup.SmbInventoryError:
-        _journal(
+        _journal_best_effort(
             engine,
             config,
             operation_id=operation_id,
@@ -801,7 +911,7 @@ def _sync_remote(
             as_of=as_of,
         )
         if capacity.status == "insufficient":
-            _journal(
+            _journal_best_effort(
                 engine,
                 config,
                 operation_id=operation_id,
@@ -842,7 +952,7 @@ def _sync_remote(
         except BackupOperationLockLostError:
             raise
         except Exception as exc:  # noqa: BLE001 - postflight cannot undo remote success
-            _journal(
+            _journal_best_effort(
                 engine,
                 config,
                 operation_id=operation_id,
@@ -890,16 +1000,39 @@ def run_backup_maintenance(
         return BackupMaintenanceResult(lock_skipped=True)
     with lease:
         inventory = collect_local_inventory(engine, config.backup_dir, as_of=as_of)
-        reconciled = _reconcile_missing_local(
-            engine, config, inventory, lease, operation_id=operation_id
-        )
+        if inventory.available:
+            visible_local_keys = {
+                entry.item.archive_key for entry in inventory.entries if entry.item.present
+            }
+            visible_local_keys.update(item.archive_key for item in inventory.protected_entries)
+            visible_local_keys.update(item.archive_key for item in inventory.partial_entries)
+            reconciled = _reconcile_missing_local(
+                engine, config, inventory, lease, operation_id=operation_id
+            )
+            _reconcile_delete_intents(
+                engine,
+                config,
+                lease,
+                destination="local",
+                visible_archive_keys=visible_local_keys,
+            )
+        else:
+            reconciled = 0
+            _journal_best_effort(
+                engine,
+                config,
+                operation_id=operation_id,
+                destination="local",
+                action="inventory_failed",
+                reason=inventory.failure_code or "local_inventory_unavailable",
+            )
         lease.assert_owned()
         interrupted_ids = repository.mark_interrupted_backup_jobs(
             engine,
             older_than=as_of - timedelta(seconds=config.io_timeout_seconds) - _WORKER_INTERVAL,
         )
         for job_id in interrupted_ids:
-            _journal(
+            _journal_best_effort(
                 engine,
                 config,
                 operation_id=operation_id,
@@ -910,13 +1043,20 @@ def run_backup_maintenance(
             )
         local_partials = 0
         stale_before = as_of - _STALE_PARTIAL_AGE
-        for partial in inventory.partial_entries:
+        for partial in inventory.partial_entries if inventory.available else ():
             if partial.modified_at >= stale_before:
                 continue
-            lease.assert_owned()
             try:
+                _journal_delete_pending(
+                    engine,
+                    config,
+                    operation_id=operation_id,
+                    destination="local",
+                    reason="stale_partial",
+                    archive_key=partial.archive_key,
+                )
+                lease.assert_owned()
                 partial.path.unlink(missing_ok=True)
-                local_partials += 1
                 _journal(
                     engine,
                     config,
@@ -926,43 +1066,72 @@ def run_backup_maintenance(
                     reason="stale_partial",
                     archive_key=partial.archive_key,
                 )
-            except OSError as exc:
-                logger.warning("local partial cleanup failed error_type=%s", type(exc).__name__)
-        _journal(
-            engine,
-            config,
-            operation_id=operation_id,
-            destination="local",
-            action="inventory_succeeded",
-            reason="inventory_available",
-        )
-        local_capacity = query_local_capacity(
-            config.backup_dir,
-            reserve_bytes=config.local_min_free_bytes,
-            estimated_next_backup_bytes=estimate_next_backup_bytes(inventory),
-            as_of=as_of,
-        )
-        if local_capacity.status == "insufficient":
-            _journal(
+                local_partials += 1
+            except BackupOperationLockLostError:
+                raise
+            except Exception as exc:  # noqa: BLE001 - pending intent supports reconciliation
+                _journal_best_effort(
+                    engine,
+                    config,
+                    operation_id=operation_id,
+                    destination="local",
+                    action="prune_failed",
+                    reason="stale_partial_delete_failed",
+                    archive_key=partial.archive_key,
+                )
+                logger.warning(
+                    "local partial cleanup failed error_type=%s", type(exc).__name__
+                )
+        if inventory.available:
+            _journal_best_effort(
                 engine,
                 config,
                 operation_id=operation_id,
                 destination="local",
-                action="capacity_blocked",
-                reason="local_capacity_insufficient",
+                action="inventory_succeeded",
+                reason="inventory_available",
             )
-        local_pruned = _apply_local_retention(
-            engine,
-            config,
-            lease,
-            operation_id=operation_id,
-            as_of=as_of,
-        )
+            local_capacity = query_local_capacity(
+                config.backup_dir,
+                reserve_bytes=config.local_min_free_bytes,
+                estimated_next_backup_bytes=estimate_next_backup_bytes(inventory),
+                as_of=as_of,
+            )
+            if local_capacity.status == "insufficient":
+                _journal_best_effort(
+                    engine,
+                    config,
+                    operation_id=operation_id,
+                    destination="local",
+                    action="capacity_blocked",
+                    reason="local_capacity_insufficient",
+                )
+            local_pruned = _apply_local_retention(
+                engine,
+                config,
+                lease,
+                operation_id=operation_id,
+                as_of=as_of,
+                inventory=inventory,
+            )
+        else:
+            local_pruned = 0
         remote_partials = remote_pruned = 0
         if config.smb_target is not None:
             try:
                 remote_inventory = smb_backup.list_inventory(config.smb_target)
-                _journal(
+                visible_remote_keys = {item.filename for item in remote_inventory.items}
+                visible_remote_keys.update(
+                    item.filename for item in remote_inventory.protected_entries
+                )
+                _reconcile_delete_intents(
+                    engine,
+                    config,
+                    lease,
+                    destination="offbox",
+                    visible_archive_keys=visible_remote_keys,
+                )
+                _journal_best_effort(
                     engine,
                     config,
                     operation_id=operation_id,
@@ -974,6 +1143,23 @@ def run_backup_maintenance(
                     config.smb_target,
                     older_than=int(stale_before.timestamp()),
                     assert_mutation_owned=lease.assert_owned,
+                    before_delete=lambda archive_key: _journal_delete_pending(
+                        engine,
+                        config,
+                        operation_id=operation_id,
+                        destination="offbox",
+                        reason="stale_partial",
+                        archive_key=archive_key,
+                    ),
+                    after_delete=lambda archive_key: _journal(
+                        engine,
+                        config,
+                        operation_id=operation_id,
+                        destination="offbox",
+                        action="reconciled",
+                        reason="stale_partial",
+                        archive_key=archive_key,
+                    ),
                 )
                 remote_pruned = _apply_remote_retention(
                     engine,
@@ -990,7 +1176,7 @@ def run_backup_maintenance(
                     as_of=as_of,
                 )
                 if remote_capacity.status == "insufficient":
-                    _journal(
+                    _journal_best_effort(
                         engine,
                         config,
                         operation_id=operation_id,
@@ -1001,7 +1187,7 @@ def run_backup_maintenance(
             except BackupOperationLockLostError:
                 raise
             except Exception as exc:  # noqa: BLE001 - remote maintenance is best-effort
-                _journal(
+                _journal_best_effort(
                     engine,
                     config,
                     operation_id=operation_id,
@@ -1026,14 +1212,27 @@ def delete_local_backup(engine: Engine, backup_job_id: str, config: BackupExecut
         raise ValueError("backup job not found")
     operation_id = str(uuid.uuid4())
     with acquire_backup_operation_lock(engine) as lease:
+        path = None
         if record.storage_path:
             path = resolve_managed_local_path(
                 config.backup_dir,
                 record.storage_path,
                 expected_job_id=record.id,
             )
+        _journal_delete_pending(
+            engine,
+            config,
+            operation_id=operation_id,
+            destination="local",
+            reason="explicit_delete",
+            archive_key=record.storage_path,
+            backup_job_id=record.id,
+        )
+        if path is not None:
             lease.assert_owned()
             path.unlink(missing_ok=True)
+        lease.assert_owned()
+        repository.delete_backup_job(engine, record.id)
         _journal(
             engine,
             config,
@@ -1044,8 +1243,6 @@ def delete_local_backup(engine: Engine, backup_job_id: str, config: BackupExecut
             archive_key=record.storage_path,
             backup_job_id=record.id,
         )
-        lease.assert_owned()
-        repository.delete_backup_job(engine, record.id)
 
 
 def delete_remote_backup(engine: Engine, filename: str, config: BackupExecutionConfig) -> None:
@@ -1053,6 +1250,14 @@ def delete_remote_backup(engine: Engine, filename: str, config: BackupExecutionC
         raise BackupConfigurationError("No Synology backup destination is configured")
     operation_id = str(uuid.uuid4())
     with acquire_backup_operation_lock(engine) as lease:
+        _journal_delete_pending(
+            engine,
+            config,
+            operation_id=operation_id,
+            destination="offbox",
+            reason="explicit_delete",
+            archive_key=filename,
+        )
         lease.assert_owned()
         smb_backup.delete(
             config.smb_target,
@@ -1102,7 +1307,7 @@ def restore_from_bytes(
     ciphertext: bytes,
     config: BackupExecutionConfig,
 ) -> None:
-    """Restore an already-downloaded remote archive under mutation ownership."""
+    """Restore caller-provided bytes under mutation ownership."""
     with acquire_backup_operation_lock(engine) as lease:
         captured_settings = repository.get_backup_settings(engine)
         _restore_ciphertext_locked(
@@ -1113,6 +1318,36 @@ def restore_from_bytes(
             captured_settings=captured_settings,
             source_job=None,
         )
+
+
+def restore_remote_backup(
+    engine: Engine,
+    filename: str,
+    config: BackupExecutionConfig,
+    *,
+    before_restore: Callable[[datetime | None], tuple[int | None, str]],
+) -> tuple[int | None, str]:
+    """Hold one mutation lease from remote selection through destructive restore."""
+    if config.smb_target is None:
+        raise BackupConfigurationError("No Synology backup destination is configured")
+    with acquire_backup_operation_lock(engine) as lease:
+        snapshot_at: datetime | None = None
+        for item in smb_backup.list_backups(config.smb_target):
+            if item["filename"] == filename:
+                snapshot_at = datetime.fromtimestamp(item["modified_at"], tz=UTC)
+                break
+        ciphertext = smb_backup.download(config.smb_target, filename)
+        boundary = before_restore(snapshot_at)
+        captured_settings = repository.get_backup_settings(engine)
+        _restore_ciphertext_locked(
+            engine,
+            ciphertext,
+            config=config,
+            lease=lease,
+            captured_settings=captured_settings,
+            source_job=None,
+        )
+        return boundary
 
 
 def _restore_ciphertext_locked(
@@ -1135,6 +1370,7 @@ def _restore_ciphertext_locked(
         dump_path.write_bytes(database_dump)
         lease.assert_owned()
         adapter.restore_database(dump_path)
+    lease.assert_owned()
     _migrate_after_restore(
         config.database_url,
         manifest,

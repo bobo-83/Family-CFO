@@ -5387,6 +5387,46 @@ def list_backup_retention_events_for_status(
     return [_backup_retention_event_from_row(row) for row in rows]
 
 
+def list_unresolved_backup_delete_intents(
+    engine: Engine,
+    *,
+    destination: str,
+    destination_generation: str,
+) -> list[BackupRetentionEventRecord]:
+    """Return durable delete intents that have no completion/reconciliation fact."""
+    query = (
+        select(models.backup_retention_events)
+        .where(
+            models.backup_retention_events.c.destination == destination,
+            models.backup_retention_events.c.destination_generation
+            == destination_generation,
+            models.backup_retention_events.c.action.in_(
+                ("delete_pending", "pruned", "explicit_deleted", "reconciled")
+            ),
+        )
+        .order_by(
+            models.backup_retention_events.c.occurred_at.asc(),
+            models.backup_retention_events.c.event_key.asc(),
+        )
+    )
+    with engine.connect() as conn:
+        events = [
+            _backup_retention_event_from_row(row)
+            for row in conn.execute(query).mappings().all()
+        ]
+    resolved = {
+        (event.operation_id, event.archive_key)
+        for event in events
+        if event.action != "delete_pending"
+    }
+    return [
+        event
+        for event in events
+        if event.action == "delete_pending"
+        and (event.operation_id, event.archive_key) not in resolved
+    ]
+
+
 @dataclass(frozen=True, slots=True)
 class BackupJobRecord:
     id: str

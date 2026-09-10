@@ -252,31 +252,23 @@ async def restore_remote_backup(
     if filename != payload.filename or not filename.endswith(".enc"):
         raise HTTPException(status_code=400, detail="Invalid backup filename")
 
-    # #62: the same boundary the on-box restore records. There is no backup_jobs
-    # row here (this is the box-rebuild path), so the snapshot's timestamp comes
-    # from the archive's mtime on the share — the file is uploaded immediately
-    # after the dump. A share that won't list leaves it unknown, not zero.
-    snapshot_at: datetime | None = None
-    for item in await _run_sync(smb_backup.list_backups, target):
-        if item["filename"] == filename:
-            snapshot_at = datetime.fromtimestamp(item["modified_at"], tz=UTC)
-            break
-    discarded, restore_summary = _restore_boundary(
-        engine, session.household_id, snapshot_at, f"Restored from {filename}"
-    )
-
+    # Hold the global mutation lease across share selection/read and restore so
+    # maintenance or explicit deletion cannot invalidate the selected source.
     try:
-        ciphertext = await _run_sync(smb_backup.download, target, filename)
-    except Exception as exc:
-        raise HTTPException(status_code=404, detail="Backup file not found on the share") from exc
-
-    try:
-        await _run_sync(
-            backup_processing.restore_from_bytes,
+        discarded, restore_summary = await _run_sync(
+            backup_processing.restore_remote_backup,
             engine,
-            ciphertext,
+            filename,
             config,
+            before_restore=lambda snapshot_at: _restore_boundary(
+                engine,
+                session.household_id,
+                snapshot_at,
+                f"Restored from {filename}",
+            ),
         )
+    except smb_backup.SmbStorageError as exc:
+        raise HTTPException(status_code=404, detail="Backup file not found on the share") from exc
     except backup_processing.BackupCompatibilityError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except backup_processing.BackupOperationBusyError as exc:

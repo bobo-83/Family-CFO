@@ -77,6 +77,7 @@ BACKUP_FREQUENCIES = ("off", "every_15min", "hourly", "every_6h", "daily", "week
 BACKUP_RETENTION_MODES = ("tiered", "keep_all")
 BACKUP_RETENTION_DESTINATIONS = ("local", "offbox")
 BACKUP_RETENTION_EVENT_ACTIONS = (
+    "delete_pending",
     "pruned",
     "explicit_deleted",
     "reconciled",

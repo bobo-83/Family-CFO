@@ -31,6 +31,10 @@ class LocalArchiveConflictError(FileExistsError):
     """A final archive already exists and must never be overwritten."""
 
 
+class LocalInventoryUnavailableError(OSError):
+    """The local destination could not be enumerated and is not an empty inventory."""
+
+
 @dataclass(frozen=True, slots=True)
 class LocalInventoryEntry:
     record: repository.BackupJobRecord
@@ -59,10 +63,18 @@ class LocalInventory:
     entries: tuple[LocalInventoryEntry, ...]
     protected_entries: tuple[LocalProtectedEntry, ...]
     partial_entries: tuple[LocalPartialEntry, ...]
+    available: bool
+    failure_code: str | None
 
     @property
     def items(self) -> tuple[BackupInventoryItem, ...]:
         return tuple(entry.item for entry in self.entries)
+
+    def require_available(self) -> None:
+        if not self.available:
+            raise LocalInventoryUnavailableError(
+                self.failure_code or "local_inventory_unavailable"
+            )
 
 
 @dataclass(frozen=True, slots=True)
@@ -211,7 +223,13 @@ def collect_local_inventory(
     try:
         children = list(base.iterdir())
     except OSError:
-        children = []
+        return LocalInventory(
+            entries,
+            (),
+            (),
+            available=False,
+            failure_code="local_inventory_unavailable",
+        )
     for path in children:
         name = path.name
         if not name.endswith((".enc", ".partial")):
@@ -232,7 +250,13 @@ def collect_local_inventory(
         protected.append(LocalProtectedEntry(name, size, modified, anomaly))
     protected.sort(key=lambda item: item.archive_key)
     partials.sort(key=lambda item: item.archive_key)
-    return LocalInventory(entries, tuple(protected), tuple(partials))
+    return LocalInventory(
+        entries,
+        tuple(protected),
+        tuple(partials),
+        available=True,
+        failure_code=None,
+    )
 
 
 def estimate_next_backup_bytes(inventory: LocalInventory) -> int | None:

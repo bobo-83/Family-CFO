@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import os
 from types import SimpleNamespace
 
 import pytest
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 
 from family_cfo_api.backup_operation_lock import (
@@ -89,6 +90,64 @@ def test_postgres_ownership_loss_aborts_destructive_phase() -> None:
             lease.assert_owned()
     finally:
         lease.release()
+
+
+def test_real_postgres_conflict_and_connection_loss() -> None:
+    required = os.getenv("FAMILY_CFO_REQUIRE_POSTGRESQL", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+    }
+    database_url = os.getenv("FAMILY_CFO_TEST_DATABASE_URL", "").strip()
+    if not database_url:
+        if required:
+            pytest.fail(
+                "FAMILY_CFO_REQUIRE_POSTGRESQL is set but "
+                "FAMILY_CFO_TEST_DATABASE_URL is not configured"
+            )
+        pytest.skip("FAMILY_CFO_TEST_DATABASE_URL is not configured")
+
+    try:
+        engine = create_engine(database_url)
+    except Exception as exc:  # noqa: BLE001 - required mode turns environment failure loud
+        if required:
+            pytest.fail(
+                f"required PostgreSQL test driver is unavailable: {type(exc).__name__}"
+            )
+        pytest.skip(f"PostgreSQL test driver is unavailable: {type(exc).__name__}")
+    try:
+        if engine.dialect.name != "postgresql":
+            pytest.fail("FAMILY_CFO_TEST_DATABASE_URL must identify PostgreSQL")
+        try:
+            with engine.connect() as connection:
+                connection.execute(text("SELECT 1"))
+        except Exception as exc:  # noqa: BLE001 - required mode turns environment failure loud
+            if required:
+                pytest.fail(f"required PostgreSQL test database is unavailable: {type(exc).__name__}")
+            pytest.skip(f"PostgreSQL test database is unavailable: {type(exc).__name__}")
+
+        first = acquire_backup_operation_lock(engine)
+        try:
+            assert try_acquire_backup_operation_lock(engine) is None
+            dedicated_connection = first.connection  # type: ignore[attr-defined]
+            backend_pid = dedicated_connection.execute(
+                text("SELECT pg_backend_pid()")
+            ).scalar_one()
+            with engine.connect() as terminator:
+                terminated = terminator.execute(
+                    text("SELECT pg_terminate_backend(:pid)"), {"pid": backend_pid}
+                ).scalar_one()
+                terminator.commit()
+            assert terminated is True
+            with pytest.raises(BackupOperationLockLostError):
+                first.assert_owned()
+        finally:
+            first.release()
+
+        replacement = acquire_backup_operation_lock(engine)
+        replacement.release()
+    finally:
+        engine.dispose()
 
 
 def test_sqlite_lock_conflicts_across_engines_for_same_database(

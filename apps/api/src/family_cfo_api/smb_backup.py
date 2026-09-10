@@ -76,7 +76,11 @@ class SmbInventoryError(SmbStorageError):
 
 
 class SmbReadProbeError(SmbStorageError):
-    pass
+    """A specific remote archive could not be read before deletion."""
+
+
+class SmbMutationCallbackError(RuntimeError):
+    """A caller-owned durability callback failed before or after remote mutation."""
 
 
 class SmbCapacityError(SmbStorageError):
@@ -488,6 +492,8 @@ def delete_stale_partials(
     *,
     older_than: int,
     assert_mutation_owned: Callable[[], None] | None = None,
+    before_delete: Callable[[str], None] | None = None,
+    after_delete: Callable[[str], None] | None = None,
 ) -> int:
     """Remove only old, top-level Family CFO partials during locked maintenance."""
     with SMB_CLIENT_GATE.hold():
@@ -508,13 +514,23 @@ def delete_stale_partials(
                 info = entry.stat()
                 if not stat.S_ISREG(info.st_mode) or int(info.st_mtime) >= older_than:
                     continue
+                if before_delete is not None:
+                    try:
+                        before_delete(name)
+                    except Exception as exc:
+                        raise SmbMutationCallbackError from exc
                 if assert_mutation_owned is not None:
                     assert_mutation_owned()
                 smbclient.remove(base + "\\" + name)
+                if after_delete is not None:
+                    try:
+                        after_delete(name)
+                    except Exception as exc:
+                        raise SmbMutationCallbackError from exc
                 removed += 1
             return removed
         except Exception as exc:
-            if isinstance(exc, BackupOperationLockLostError):
+            if isinstance(exc, (BackupOperationLockLostError, SmbMutationCallbackError)):
                 raise
             code, reason = _classify(exc)
             logger.warning(

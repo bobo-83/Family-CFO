@@ -86,6 +86,22 @@ def test_inventory_protects_symlink_archive(demo_file_engine: Engine, demo_file_
     assert outside.read_bytes() == b"evidence"
 
 
+def test_inventory_reports_unavailable_directory_instead_of_empty(
+    demo_file_engine: Engine, tmp_path: Path
+) -> None:
+    not_a_directory = tmp_path / "not-a-directory"
+    not_a_directory.write_bytes(b"evidence")
+
+    inventory = backup_storage.collect_local_inventory(
+        demo_file_engine, str(not_a_directory)
+    )
+
+    assert inventory.available is False
+    assert inventory.failure_code == "local_inventory_unavailable"
+    with pytest.raises(backup_storage.LocalInventoryUnavailableError):
+        inventory.require_available()
+
+
 def test_capacity_uses_caller_available_bytes_and_warning_math(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(
         os,
