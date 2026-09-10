@@ -106,6 +106,62 @@ never converted. The dashboard renders that rule; it never re-derives a figure.
 - Every string is a `$localize`/`i18n` message with `vi` and `lt` entries;
   currency codes are never translated.
 
+## Box-Global Backup Retention (issue #116, ADR 0077)
+
+The Backups page is a system-administrator surface over one box-global stream.
+Rename client-local owner concepts to `canManageBackups` and say “Only a system
+administrator can manage whole-box backups”; server `BACKUPS_MANAGE`
+authorization remains authoritative.
+
+Initial load fetches global configuration, recovery status, local history, and
+key status; remote detail may reuse status or the existing remote list. Add the
+generated-client-backed `getBackupRecoveryStatus()` service seam and refresh it
+after create, configuration save, destination check, local/remote deletion, and
+remote-list refresh.
+
+The page adds a **Retention and capacity** card with **On this box** and
+**Synology** subsections. Each destination has:
+
+- Tiered / Keep every backup mode;
+- numeric “Keep every backup for,” “Keep one per day through,” and “Keep one per
+  week through” day fields with `1 <= all <= daily <= weekly <= 3650` validation;
+- independent maximum total size and minimum free-space reserve;
+- a policy summary such as “Every backup for 3 days · one daily through 14 days
+  · one weekly through 90 days.”
+
+Retention/cap/reserve edits are drafts and use one explicit **Save and activate
+retention** action with optimistic `updated_at` and confirmation. They are never
+auto-saved on blur. Show migrated/restore review and pending-prune count/bytes
+before confirmation. Existing cadence/destination autosaves may remain only if
+serialized/coalesced and unable to clear pending review. A 409 preserves the
+unsaved draft, reloads current configuration separately, and requires deliberate
+reconciliation rather than replay.
+
+A **Recovery window** card renders one destination row/card each with configured
+target, “Oldest readable backup currently visible,” timestamp-basis caveat,
+visible count, nullable exact-readable count, number probed and probe
+completeness, coverage, capacity, anomalies, and stable reason text. Required
+states distinguish not configured, empty, building, met, incomplete, shortened,
+unknown, healthy, constrained, degraded, and unavailable. Unknown capacity says
+backups will still be attempted; unavailable inventory never looks empty; every
+state says archive integrity and key correctness are checked during restore.
+
+Config/status requests bind authenticated session, monotonic request generation,
+and the config token observed at start. Only a still-current completion may
+apply. A slow pre-save success/failure cannot replace post-save state, and an
+older failure cannot clear newer success. Only a current status failure clears
+prior recovery dates and shows “Recovery status unavailable”; existing
+create/restore/delete actions remain usable.
+
+Use accessible headings; `role=status` for non-fatal observations and
+`role=alert` for constrained/unavailable warnings; every icon/color has text.
+Every new `$localize`/template primary string receives Lithuanian and Vietnamese
+catalog entries. Tests cover policy mapping/validation, explicit activation,
+pending preview and 409 draft preservation, independent destination values,
+every state and timestamp caveat, refresh and reverse completion/session
+ownership, current-failure stale clearing, accessibility, narrow viewport,
+translations, and removal of the obsolete shared cap/“last 7” copy.
+
 ## Qualified and Unavailable Aggregates (M124, ADR 0076)
 
 The dashboard regenerates its client from the coordinated OpenAPI contract and

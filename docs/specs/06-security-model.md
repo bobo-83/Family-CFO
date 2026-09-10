@@ -108,6 +108,63 @@ scope, record only a non-sensitive retryable skip, preserve prior durable output
 do not persist invented zeros. Synthetic corruption fixtures contain no
 personal data and require no secrets.
 
+## Box-Global Backup Security Boundary (issue #116, ADR 0077)
+
+Backup configuration, inventory, recovery status, destination checks, create,
+restore, maintenance, and local/remote deletion are whole-box operations. Every
+HTTP route requires `BACKUPS_MANAGE`; ADR 0065 grants that box right only to a
+system administrator, regardless of the administrator's active household role.
+A household role never implies it.
+
+Required controls:
+
+- The persisted singleton and retention journal carry no household foreign key.
+  Existing household-scoped audit records may identify the acting administrator,
+  but automatic pruning is recorded only in the box-global operational journal.
+- SMB passwords stay encrypted at rest and are never returned, logged, journaled,
+  included in audit summaries, or captured for undo. Omitted or JSON-null
+  password preserves the ciphertext; explicit empty input retains the existing
+  password-clear behavior without clearing unrelated destination fields.
+- Public responses, audits, journal detail, and ordinary logs expose stable
+  allowlisted reason codes and constant friendly text only. Raw exceptions, UNC
+  paths, host/share identity in error text, usernames, credentials, archive
+  contents, and financial data are prohibited.
+- Local archive paths must resolve beneath `Settings.backup_dir`; remote
+  restore/delete retains basename and `.enc` validation. Automatic management
+  recognizes only supported Family CFO archive names. Orphaned, unrecognized,
+  unreadable, size-mismatched, future-version, and other anomalous evidence is
+  protected rather than deleted.
+- One cross-process operation lock excludes backup, restore, maintenance, and
+  delete. The synchronous I/O owner retains the lock across HTTP cancellation,
+  observes a positive I/O deadline, and revalidates PostgreSQL advisory-lock
+  ownership before destructive phases. Connection loss fails closed.
+- Local and SMB writes use same-destination partial files and atomic promotion;
+  caught failure cleans a partial best-effort and never deletes an uncertain
+  promoted final archive.
+- Automatic pruning is irreversible. File deletion decisions are deterministic,
+  generation-scoped, idempotently journaled, preserve the newest eligible
+  archive and anomalies, and are disabled after upgrade/restore until explicit
+  system-administrator confirmation. `backup.config_updated` stays classified
+  irreversible and its audit summary names changed groups without values.
+- Restore captures current operational settings, including encrypted credential,
+  in memory only; after database rollback it re-applies them, rotates destination
+  generations, and pauses pruning for review. No plaintext or durable temporary
+  secret copy is permitted.
+- Recovery status proves only current inventory visibility plus bounded read
+  probing. It never claims key availability, authenticated decryption, archive
+  integrity/completeness, migration viability, or successful destructive
+  restore. Capacity is caller-available observation subject to TOCTOU, never a
+  guarantee.
+
+Ordinary household advisor chat does not receive backup configuration,
+inventory, or recovery status. Its executor lacks authenticated box-global
+system-administrator context. A future administrator advisor requires a separate
+security design and ADR; tests must not assert that a tool is absent.
+
+Synthetic fixtures and error strings contain no credentials or personal data.
+PostgreSQL lock integration and SMB behavior use tool-owned/test credentials or
+platform credential stores; no human or agent is asked to disclose a secret.
+
 ## Mobile Authentication
 
 The iPhone app should use Face ID where available for local unlock. Server authorization remains token-based and revocable.

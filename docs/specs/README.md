@@ -29,7 +29,7 @@ dedupe, the SwiftUI app and Angular dashboard at parity ([ADR 0025](../adr/0025-
 the Bills payment timeline, cash outlook and month spending plan, budgets, goals,
 loans, income & tax, backups (local + off-box), and a full undo/audit framework
 ([ADR 0023](../adr/0023-every-mutation-is-undoable.md)). Decisions through
-**ADR 0030** are recorded in [02-adrs.md](./02-adrs.md); deferrals in
+**ADR 0077** are recorded in [02-adrs.md](./02-adrs.md); deferrals in
 `docs/RELEASE-CHECKLIST.md`. See the [guides](../guides/README.md).
 
 The per-milestone log below is historical (it starts at M0 and does not run to
@@ -233,6 +233,13 @@ the current milestone); the ADR index and `VERSION` are the current-state source
 - M39 upcoming bills: implemented. Fixed a latent drop — bills stored a `next_due_date` and the schema declared it, but the bills `_to_schema` (and `create_bill`'s return) never populated it, so the due date was invisible everywhere. A pure `next_bill_occurrence` helper rolls a stored due date forward to its next occurrence (day-based for weekly/biweekly/semimonthly, calendar-month arithmetic with end-of-month clamping for monthly/quarterly/annual) so stale dates never read as overdue. `HouseholdContext` gains additive `upcoming_bills` (next 14 days, soonest first, with `days_until`); the Overview shows an upcoming-bills card and the Bills page gained a due-date input and shows each bill's next due date. No migration.
 
 - M38 overview dashboard enrichment: implemented. `HouseholdContext` gains an `emergency_fund` summary (months of coverage vs the standard 3/6-month guidance, the fund balance and its provenance, the dollar gap to the recommended target, and a status enum), `monthly_cash_flow` (recurring income − bills), an ordered `asset_breakdown` (M33 spendability categories, map now shared between ai_tools and the API via `finance_service`), and `total_debt` — all additive. The Overview page becomes a card grid with a detailed emergency-fund card (status chip, reserved amount, gap to target, actionable empty states linking to Bills/Accounts), cash flow, assets, and debt. A dashboard-feature-ideas backlog was recorded in the task list.
+
+- M125 tiered backup retention and recovery-window visibility (issue #116):
+  Spec Kit/ADR gate accepted (ADR 0077); implementation is pending in ordered
+  WI-2 through WI-8. The change replaces cadence-dependent flat-count intent
+  with independently configurable box-global local/off-box UTC tiers, capacity
+  observations, and truthful recovery-candidate status. Historical M8 completion
+  remains unchanged.
 
 A post-M8 spec-kit audit surfaced M9–M11 (write APIs, audit log, conversation history, dashboard shell upgrades) as promised-but-unowned work, plus the deferred follow-ups and vector-store/retrieval work now tracked in `docs/specs/12-implementation-tasks.md`. All are documented before implementation, per the spec-driven rule above.
 

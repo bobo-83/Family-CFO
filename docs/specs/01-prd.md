@@ -122,3 +122,54 @@ normal count-0 path to match existing behavior, the synthetic corruption and
 privacy matrices to pass, strict 409 and locked 423 boundaries to remain
 distinct, and the coordinated contract/client release to pass compatibility and
 platform tests.
+
+## Tiered Backup Retention and Recovery Visibility (issue #116)
+
+A system administrator must be able to preserve useful backup history without
+making its length depend on backup cadence. Family CFO therefore keeps one
+box-global backup stream and configures local and off-box destinations
+independently.
+
+Product requirements:
+
+- The default policy keeps every eligible archive for 3 days, the newest archive
+  in each UTC day through 14 days, and the newest archive in each ISO week
+  through 90 days. Each destination may instead use validated operator-defined
+  cumulative horizons or keep every backup.
+- Local and off-box policies, logical maximum sizes, and caller-available
+  free-space reserves are independent. A safe preflight may delete archives
+  already disposable under an activated policy, but always preserves the newest
+  eligible archive and every anomalous or unrecognized artifact.
+- Active cadence, destination, and policy belong to the box, not to the acting
+  administrator's household. Existing household values are bootstrap-only
+  compatibility inputs and automatic pruning remains disabled after upgrade or
+  restore until a system administrator explicitly confirms the policy.
+- Configuration names the target history. Status separately reports the oldest
+  readable backup currently visible, bounded probe completeness, capacity, and
+  whether coverage is building, met, incomplete, shortened, or unknown.
+- A visible/read-probed archive is a recovery candidate, not a guaranteed restore
+  point. Status does not prove that the historical key is available, ciphertext
+  authenticates, archive contents are complete, migrations can run, or a
+  destructive restore succeeds.
+- Backup, restore, retention maintenance, and archive deletion share one
+  box-global mutation lock. Writes promote atomically, automatic decisions are
+  deterministic and journaled, and inventory/capacity/retention failures never
+  convert a valid local backup into a failed backup.
+- Web and iOS expose the same global configuration, recovery states, warnings,
+  optimistic-conflict behavior, accessibility semantics, and translated primary
+  copy. Destructive policy edits require an explicit Save and activate action;
+  a stale draft is never replayed after a conflict.
+
+Only principals with the box right `backups.manage` may read or mutate this
+state. Ordinary household advisor chat is an explicit non-goal: its executor is
+household-scoped and has no authenticated system-administrator context, so it
+must not receive box-wide backup inventory. A future system-administrator
+advisor requires a separate executor and ADR. Other non-goals are per-household
+archives, key recovery or archive-format changes, status-time decrypt/restore
+tests, cloud backup providers, automatic deletion of anomalies, and a capacity
+guarantee after preflight.
+
+Acceptance requires the pure selector's interval/tie/cap/newest/anomaly matrix,
+upgrade and restore review gates, strict local and SMB inventory/capacity states,
+production lock and reconciliation tests, additive OpenAPI and generated-client
+compatibility, localized accessible web/iOS parity, and API/worker-first rollout.

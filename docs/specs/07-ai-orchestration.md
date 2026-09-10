@@ -190,6 +190,26 @@ household/job, emit a count-safe retryable skip, and continue. Vector indexing
 catches before any per-household wipe so existing vectors remain intact. No
 durable retry record is added; the next scheduled run retries naturally.
 
+## Backup Administration Is Not an Ordinary Advisor Domain (issue #116)
+
+ADR 0077 records an explicit exception to the normal M16 visible-domain rule.
+Backup configuration, archive inventory, retention decisions, capacity, and
+recovery status describe one whole-box stream and are authorized by the
+system-administrator-only box right `BACKUPS_MANAGE`. The ordinary advisor
+executor is authenticated only in a household context and cannot prove that box
+right.
+
+Therefore issue #116 adds no `ai_tools.py` backup tool and does not pass any
+backup status into prompts, recommendations, memories, or grounded values. This
+is an authorization boundary, not a claim that system administrators would find
+the information unhelpful. Tests must not assert that a tool is absent; the
+documented non-goal and positive authorization tests define the boundary.
+
+A future system-administrator advisor must first introduce an authenticated
+box-global executor and a separate ADR covering its data and audit scope. It
+must reuse the same recovery-status service as HTTP rather than create parallel
+retention/capacity arithmetic.
+
 ## Guardrails
 
 - The LLM must not invent account balances, debt terms, or investment performance.

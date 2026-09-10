@@ -222,6 +222,62 @@ Parity with the dashboard (ADR 0025): the same rule, the same three places.
   sent in the declared currency.
 - Strings live in `Localizable.xcstrings` with `vi` and `lt` values.
 
+## Box-Global Backup Retention on iOS (issue #116, ADR 0077)
+
+The existing system-administrator Backups screen is an exception to the older
+operator-features non-responsibility above. It manages the same box-global
+configuration and recovery-status contract as the dashboard; server
+`BACKUPS_MANAGE` authorization remains authoritative regardless of active
+household role.
+
+`BackupAPI` adds `recoveryStatus()` from generated OpenAPI and
+`BackupConfigDraft` gains independent local/off-box policy, maximum, reserve,
+and optimistic `updatedAt` fields. `@MainActor BackupViewModel` owns editable
+policy drafts, validation, pending-prune preview, explicit save/activation,
+recovery status, configuration conflict, and a distinct status error.
+
+The screen adds matching **Retention and capacity** and **Recovery window**
+sections:
+
+- Each destination chooses Tiered or Keep every backup. Tiered fields are “Keep
+  every backup for,” “Keep one per day through,” and “Keep one per week through”
+  with `1 <= all <= daily <= weekly <= 3650` validation. Maximum size and
+  minimum free-space reserve are independent.
+- Destructive retention/cap/reserve edits remain a draft until **Save and
+  activate retention** sends the current optimistic token and explicit
+  confirmation. Field blur never activates or prunes. Pending prune count/bytes
+  and migrated/restore review warnings are visible before confirmation.
+- A 409 preserves the unsaved draft, loads current server configuration
+  separately, and requires deliberate reconciliation; it never blindly retries
+  stale values. Valid auto-saves are serialized/coalesced and cannot clear a
+  pending review.
+- Recovery renders configured target separately from observed candidates,
+  qualified oldest/newest dates, visible and nullable exact-readable counts,
+  number probed/probe completeness, coverage, capacity, anomalies, and disclosed
+  remote-mtime fallback. Empty, building, met, incomplete, shortened, unknown,
+  constrained, degraded, unavailable, and not-configured states retain distinct
+  text.
+- Every destination says that archive integrity and key correctness are checked
+  only during restore. Copy says “oldest readable backup currently visible” or
+  “recovery candidate,” never guaranteed restore point. The old “last 7” wording
+  is removed.
+- `LabeledContent`, `Picker`, numeric `TextField`, and text-bearing `Label`
+  controls provide visible plus VoiceOver-readable destination/state/date
+  semantics. Primary strings have Lithuanian and Vietnamese catalog values.
+
+Configuration/status requests carry authenticated-session revision, request
+generation, and the config token observed at start. Only a still-owned
+completion may update state. Status refreshes after backup create, config save,
+destination check, local/remote delete, and remote-list refresh. Only a current
+failure clears stale recovery dates and shows unavailable copy; create, restore,
+and delete remain usable when status is unavailable.
+
+All generated Swift, app Swift, Xcode-project, and Apple tests are implemented
+and verified only on macOS with the Swift toolchain, Xcode, and installed
+iOS/watchOS platforms. Acceptance includes every state, validation and conflict,
+reverse-order/session-replacement completions, refresh/clearing, VoiceOver and
+localized copy, protocol-mock parity, client drift, and removal of “last 7.”
+
 ## Qualified and Unavailable Aggregates on Apple Clients (M124, ADR 0076)
 
 The generated Swift client consumes the coordinated qualified-aggregate

@@ -1773,6 +1773,145 @@ boundary.
 - [ ] Deploy API and clients together; roll back together. Mixed `0.158`/new
       artifacts are unsupported.
 
+## M125: Tiered Backup Retention and Recovery-Window Visibility (#116)
+
+Issue #116 is governed by ADR 0077 and
+`docs/plans/backup-retention-recovery-window-2026-09-10.md`. Work is ordered so
+the policy is accepted before behavior, pure decisions precede I/O, persistence
+precedes routes, OpenAPI precedes clients, and API/worker deploy before dependent
+web/iOS. Historical M8 completion remains unchanged: this milestone amends its
+flat-count retention decision.
+
+### WI-1 — Accept the backup policy specification (documentation owner)
+
+- [x] Update the Spec Kit in required order: PRD; ADR 0077 and ADR index; domain
+      model; OpenAPI; database; security; AI; iOS; Angular; Docker; this task
+      index.
+- [x] Fix box-global ownership; independently configurable local/off-box
+      policies, caps, and reserves; default UTC `3/14/90` tiers; newest/anomaly
+      protection; capacity as observation; lock/atomicity/reconciliation;
+      configured target versus qualified visible candidates; and
+      upgrade/restore review activation.
+- [x] Record ordinary household advisor access as an explicit non-goal because
+      the executor lacks system-administrator box context. Do not add a backup
+      tool or a test asserting tool absence.
+- [x] Record web/iOS parity, OpenAPI-first contract compatibility, macOS-only
+      Apple work, API/worker-first rollout, downgrade limits, test expectations,
+      and rejected alternatives.
+- [x] Stop before product code, migrations, authoritative OpenAPI, version/build
+      metadata, generated clients, tests, web, or Swift changes; WI-2–WI-8 own
+      them.
+
+### WI-2 — Build and prove the pure retention model
+
+- [ ] Add a synchronous I/O-free retention module with immutable policy,
+      inventory, decision, and plan types. Implement exact recent/daily/weekly/
+      expired UTC boundaries, ISO Monday buckets, stable timestamp/key ordering,
+      keep-all mode, logical cap ordering, and newest/anomaly protection.
+- [ ] Unit-test every cutoff and overlap, ties, cadence/sparse independence,
+      future clocks, equal horizons, invalid policies, missing/unreadable/
+      mismatched/orphan/unrecognized/known-newer evidence, idempotence, protected
+      physical bytes, and newest-larger-than-cap.
+- [ ] Dependency: WI-1. Owner boundary: pure module/tests only; no persistence or
+      filesystem/SMB behavior.
+
+### WI-3 — Migrate to box-global persisted settings
+
+- [ ] Add the next-head migration (expected `0093`) for the `backup_settings`
+      singleton, `backup_retention_events`, and `backup_jobs.prune_reason`;
+      implement validation, optimistic CRUD/activation, deterministic event
+      keys/generations, restore re-upsert, and no automated row hard-delete.
+- [ ] Implement transaction-safe bootstrap: deterministic legacy household
+      winner/conflict, count/cadence/observed-history horizon, remote age mapping,
+      shared-cap copy, every-upgrade review pause, unrepresentable keep-all, DB
+      authority after materialization, and documented downgrade.
+- [ ] Verify empty/legacy/conflicting/off/unrepresentable/race/downgrade cases on
+      SQLite and PostgreSQL 17. Provision the synthetic CI service and loud
+      `FAMILY_CFO_REQUIRE_POSTGRESQL=1` rule in the same reviewable item.
+- [ ] Dependencies: WI-1 and WI-2 policy types.
+
+### WI-4 — Make inventory, capacity, and mutation lifecycle safe
+
+- [ ] Add strict stable local/SMB inventories, path containment, timestamp
+      provenance, bounded endpoint and mandatory pre-delete read probes, public
+      `statvfs`/`smbclient.stat_volume` capacity observations, safe failure
+      classification, and per-process SMB serialization.
+- [ ] Add same-destination partial writes/atomic promotion and cleanup; the
+      production advisory-lock adapter; global manual cooldown; request-
+      cancellation/I/O-deadline ownership; pre/postflight tier/cap behavior;
+      independent maintenance; reconciliation; deterministic journal outcomes;
+      and restore preservation/review reset.
+- [ ] Verify empty versus unavailable, quota/capacity states, redaction, probe
+      budgets, remote/local independence, concurrent helpers/mutations,
+      connection loss, ENOSPC/upload boundaries, interrupted work, partials,
+      delete/metadata repair, and completed-local preservation.
+- [ ] Dependencies: WI-2 and WI-3.
+
+### WI-5 — Publish the recovery contract and server behavior
+
+- [ ] Add FastAPI schemas/services/routes for global config and
+      `GET /backups/status`; extend destination-check and remote-list state;
+      implement compatibility aliases/tokenless rules, 409 conflicts, auth,
+      audit/redaction, hosted-household approximation, and every destination/
+      coverage/overall precedence rule.
+- [ ] Edit authoritative OpenAPI before clients. At the pinned baseline move
+      contract `0.159` to `0.160`, reset component builds, and add immutable
+      `compatibility/0.160.yaml`; if main advances, select the next contract.
+- [ ] Verify runtime OpenAPI parity, auth matrix, password semantics, aliases,
+      optimistic activation, status truthfulness/timestamp source, journal
+      causality/generation, manual/scheduled execution parity, restore behavior,
+      version/fixture/client compatibility, API lint, and coverage.
+- [ ] Dependencies: WI-3 and WI-4.
+
+### WI-6 — Add web configuration and disclosure
+
+- [ ] Regenerate the web client; add status service/data flow; implement
+      independent retention/capacity drafts, validation, pending preview,
+      explicit activation, optimistic-conflict reconciliation, serialized valid
+      autosaves, and stale session/request ownership.
+- [ ] Render accessible localized target/candidate, probe, capacity, coverage,
+      anomaly, not-configured/empty/constrained/degraded/unavailable states;
+      refresh after each mutation and clear stale status only on a current
+      failure. Remove obsolete shared-cap and “last 7” copy.
+- [ ] Verify generated drift/compatibility, unit tests, build, i18n extraction and
+      Lithuanian/Vietnamese catalogs, accessibility, narrow viewport, every
+      state, reverse completions, refresh and draft preservation.
+- [ ] Dependency: WI-5.
+
+### WI-7 — Add iOS parity on macOS
+
+- [ ] On macOS/Xcode, regenerate Swift; extend `BackupAPI`, draft/view model,
+      mocks, and SwiftUI with the same independent policies, explicit activation,
+      conflict/session ownership, refresh/clearing, truthful recovery/capacity
+      states, VoiceOver, and Lithuanian/Vietnamese catalog values.
+- [ ] Add focused view-model/view tests and run Swift generation/compatibility
+      plus the available-simulator Xcode iOS/watchOS matrix. Never hand-edit
+      generated Swift or perform Swift/Xcode changes from Linux.
+- [ ] Dependency: WI-5.
+
+### WI-8 — Complete operator docs, compatibility, and rollout
+
+- [ ] Update backup/API/database/deployment documentation, `.env.example`, and
+      Compose comments for DB authority, bootstrap-only legacy inputs, capacity
+      limitations, upgrade activation, downgrade loss, and restore behavior.
+- [ ] Declare/provision PostgreSQL 17 in the full matrix, run targeted/full API,
+      web, OpenAPI, fixture, client compatibility, version, Swift/Xcode, and
+      generated-directory checks, and record the supported-NAS manual
+      stat-volume/quota/upload/rename/list/delete check through user-controlled
+      credentials.
+- [ ] Deploy API and worker first, verify live config/status and real local/SMB
+      backup paths, then web and TestFlight/OTA separately. Close #116 only after
+      both clients truthfully show observed recovery and degraded paths and a new
+      archive restores through the existing guarded workflow.
+- [ ] Schedule later removal of legacy environment variables/household columns;
+      do not remove them in this compatibility release.
+- [ ] Dependencies: WI-3 through WI-7.
+
+Advisor tool access: explicit non-goal. This is box-global,
+system-administrator-only operational data; the ordinary advisor executor is
+household-scoped. A future administrator advisor needs its own authenticated
+executor and ADR. No absence assertion is permitted.
+
 ## Backlog: Annual Report
 
 The PRD (`docs/specs/01-prd.md`) lists "weekly, monthly, and annual reports" as a functional requirement, but the M8 roadmap bullets (`docs/specs/11-milestone-roadmap.md`) name only weekly and monthly, so M8's spec gate scoped annual out rather than silently dropping it. No milestone currently owns it.
