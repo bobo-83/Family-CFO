@@ -742,17 +742,24 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /backups/{backup_id}/restore`.
     /// - Remark: Generated from `#/paths//backups/{backup_id}/restore/post(restoreBackup)`.
     func restoreBackup(_ input: Operations.RestoreBackup.Input) async throws -> Operations.RestoreBackup.Output
-    /// Backup destination + schedule, with the latest backup's status
+    /// Get the box-global backup configuration and pending retention preview
     ///
     /// - Remark: HTTP `GET /backups/config`.
     /// - Remark: Generated from `#/paths//backups/config/get(getBackupConfig)`.
     func getBackupConfig(_ input: Operations.GetBackupConfig.Input) async throws -> Operations.GetBackupConfig.Output
-    /// Set the backup destination (a mounted share) and schedule
+    /// Update the box-global backup configuration
     ///
     /// - Remark: HTTP `PUT /backups/config`.
     /// - Remark: Generated from `#/paths//backups/config/put(updateBackupConfig)`.
     func updateBackupConfig(_ input: Operations.UpdateBackupConfig.Input) async throws -> Operations.UpdateBackupConfig.Output
-    /// Test whether the server can write backups to a path (a mounted share)
+    /// Get qualified box-global backup recovery-candidate status
+    ///
+    /// Inventories both destinations at one instant and reports bounded read-probe qualification. Dates are visible recovery candidates, not guaranteed restore points; integrity, keys, decryption, and database restore are checked by restore.
+    ///
+    /// - Remark: HTTP `GET /backups/status`.
+    /// - Remark: Generated from `#/paths//backups/status/get(getBackupRecoveryStatus)`.
+    func getBackupRecoveryStatus(_ input: Operations.GetBackupRecoveryStatus.Input) async throws -> Operations.GetBackupRecoveryStatus.Output
+    /// Test the Synology SMB connection and report capacity
     ///
     /// - Remark: HTTP `POST /backups/destination-check`.
     /// - Remark: Generated from `#/paths//backups/destination-check/post(checkBackupDestination)`.
@@ -2552,14 +2559,14 @@ extension APIProtocol {
             headers: headers
         ))
     }
-    /// Backup destination + schedule, with the latest backup's status
+    /// Get the box-global backup configuration and pending retention preview
     ///
     /// - Remark: HTTP `GET /backups/config`.
     /// - Remark: Generated from `#/paths//backups/config/get(getBackupConfig)`.
     public func getBackupConfig(headers: Operations.GetBackupConfig.Input.Headers = .init()) async throws -> Operations.GetBackupConfig.Output {
         try await getBackupConfig(Operations.GetBackupConfig.Input(headers: headers))
     }
-    /// Set the backup destination (a mounted share) and schedule
+    /// Update the box-global backup configuration
     ///
     /// - Remark: HTTP `PUT /backups/config`.
     /// - Remark: Generated from `#/paths//backups/config/put(updateBackupConfig)`.
@@ -2572,7 +2579,16 @@ extension APIProtocol {
             body: body
         ))
     }
-    /// Test whether the server can write backups to a path (a mounted share)
+    /// Get qualified box-global backup recovery-candidate status
+    ///
+    /// Inventories both destinations at one instant and reports bounded read-probe qualification. Dates are visible recovery candidates, not guaranteed restore points; integrity, keys, decryption, and database restore are checked by restore.
+    ///
+    /// - Remark: HTTP `GET /backups/status`.
+    /// - Remark: Generated from `#/paths//backups/status/get(getBackupRecoveryStatus)`.
+    public func getBackupRecoveryStatus(headers: Operations.GetBackupRecoveryStatus.Input.Headers = .init()) async throws -> Operations.GetBackupRecoveryStatus.Output {
+        try await getBackupRecoveryStatus(Operations.GetBackupRecoveryStatus.Input(headers: headers))
+    }
+    /// Test the Synology SMB connection and report capacity
     ///
     /// - Remark: HTTP `POST /backups/destination-check`.
     /// - Remark: Generated from `#/paths//backups/destination-check/post(checkBackupDestination)`.
@@ -9092,7 +9108,14 @@ public enum Components {
             /// - Remark: Generated from `#/components/schemas/BackupJob/id`.
             public var id: Swift.String
             /// - Remark: Generated from `#/components/schemas/BackupJob/status`.
-            public var status: Components.Schemas.BackupJobStatus
+            @frozen public enum StatusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case pending = "pending"
+                case running = "running"
+                case completed = "completed"
+                case failed = "failed"
+            }
+            /// - Remark: Generated from `#/components/schemas/BackupJob/status`.
+            public var status: Components.Schemas.BackupJob.StatusPayload
             /// - Remark: Generated from `#/components/schemas/BackupJob/size_bytes`.
             public var sizeBytes: Swift.Int64?
             /// - Remark: Generated from `#/components/schemas/BackupJob/error_message`.
@@ -9133,7 +9156,7 @@ public enum Components {
             ///   - appVersion: The app version that made this backup — the restore-compatibility label. Null on backups taken before versioning shipped.
             public init(
                 id: Swift.String,
-                status: Components.Schemas.BackupJobStatus,
+                status: Components.Schemas.BackupJob.StatusPayload,
                 sizeBytes: Swift.Int64? = nil,
                 errorMessage: Swift.String? = nil,
                 startedAt: Foundation.Date,
@@ -9185,6 +9208,8 @@ public enum Components {
                 case backups
             }
         }
+        /// Box-global backup destination, cadence, retention, and review state.
+        ///
         /// - Remark: Generated from `#/components/schemas/BackupConfig`.
         public struct BackupConfig: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/BackupConfig/frequency`.
@@ -9197,9 +9222,7 @@ public enum Components {
                 case off = "off"
             }
             /// - Remark: Generated from `#/components/schemas/BackupConfig/frequency`.
-            public var frequency: Components.Schemas.BackupConfig.FrequencyPayload?
-            /// M98: Synology address (IP or hostname) backups upload to over SMB.
-            ///
+            public var frequency: Components.Schemas.BackupConfig.FrequencyPayload
             /// - Remark: Generated from `#/components/schemas/BackupConfig/smb_host`.
             public var smbHost: Swift.String?
             /// - Remark: Generated from `#/components/schemas/BackupConfig/smb_share`.
@@ -9210,38 +9233,92 @@ public enum Components {
             public var smbUsername: Swift.String?
             /// - Remark: Generated from `#/components/schemas/BackupConfig/smb_domain`.
             public var smbDomain: Swift.String?
-            /// M98: whether a Synology password is stored (the password itself is never returned).
-            ///
             /// - Remark: Generated from `#/components/schemas/BackupConfig/has_password`.
-            public var hasPassword: Swift.Bool?
-            /// M98: cap on combined size of all backups (bytes); null = no cap.
+            public var hasPassword: Swift.Bool
+            /// Deprecated shared-cap alias; null when destination caps differ.
             ///
             /// - Remark: Generated from `#/components/schemas/BackupConfig/max_bytes`.
             public var maxBytes: Swift.Int64?
+            /// - Remark: Generated from `#/components/schemas/BackupConfig/local_retention`.
+            public var localRetention: Components.Schemas.BackupRetentionPolicy
+            /// - Remark: Generated from `#/components/schemas/BackupConfig/offbox_retention`.
+            public var offboxRetention: Components.Schemas.BackupRetentionPolicy
+            /// - Remark: Generated from `#/components/schemas/BackupConfig/local_max_bytes`.
+            public var localMaxBytes: Swift.Int64?
+            /// - Remark: Generated from `#/components/schemas/BackupConfig/offbox_max_bytes`.
+            public var offboxMaxBytes: Swift.Int64?
+            /// - Remark: Generated from `#/components/schemas/BackupConfig/local_min_free_bytes`.
+            public var localMinFreeBytes: Swift.Int64
+            /// - Remark: Generated from `#/components/schemas/BackupConfig/offbox_min_free_bytes`.
+            public var offboxMinFreeBytes: Swift.Int64
+            /// - Remark: Generated from `#/components/schemas/BackupConfig/legacy_conflict_detected`.
+            public var legacyConflictDetected: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/BackupConfig/retention_review_required`.
+            public var retentionReviewRequired: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/BackupConfig/retention_activated_at`.
+            public var retentionActivatedAt: Foundation.Date?
+            /// - Remark: Generated from `#/components/schemas/BackupConfig/updated_at`.
+            public var updatedAt: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/BackupConfig/local_pending_prune_count`.
+            public var localPendingPruneCount: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/BackupConfig/local_pending_prune_bytes`.
+            public var localPendingPruneBytes: Swift.Int64?
+            /// - Remark: Generated from `#/components/schemas/BackupConfig/offbox_pending_prune_count`.
+            public var offboxPendingPruneCount: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/BackupConfig/offbox_pending_prune_bytes`.
+            public var offboxPendingPruneBytes: Swift.Int64?
             /// - Remark: Generated from `#/components/schemas/BackupConfig/latest`.
-            public var latest: Components.Schemas.BackupJob?
+            public var latest: Components.Schemas.NullableBackupJob?
             /// Creates a new `BackupConfig`.
             ///
             /// - Parameters:
             ///   - frequency:
-            ///   - smbHost: M98: Synology address (IP or hostname) backups upload to over SMB.
+            ///   - smbHost:
             ///   - smbShare:
             ///   - smbFolder:
             ///   - smbUsername:
             ///   - smbDomain:
-            ///   - hasPassword: M98: whether a Synology password is stored (the password itself is never returned).
-            ///   - maxBytes: M98: cap on combined size of all backups (bytes); null = no cap.
+            ///   - hasPassword:
+            ///   - maxBytes: Deprecated shared-cap alias; null when destination caps differ.
+            ///   - localRetention:
+            ///   - offboxRetention:
+            ///   - localMaxBytes:
+            ///   - offboxMaxBytes:
+            ///   - localMinFreeBytes:
+            ///   - offboxMinFreeBytes:
+            ///   - legacyConflictDetected:
+            ///   - retentionReviewRequired:
+            ///   - retentionActivatedAt:
+            ///   - updatedAt:
+            ///   - localPendingPruneCount:
+            ///   - localPendingPruneBytes:
+            ///   - offboxPendingPruneCount:
+            ///   - offboxPendingPruneBytes:
             ///   - latest:
             public init(
-                frequency: Components.Schemas.BackupConfig.FrequencyPayload? = nil,
+                frequency: Components.Schemas.BackupConfig.FrequencyPayload,
                 smbHost: Swift.String? = nil,
                 smbShare: Swift.String? = nil,
                 smbFolder: Swift.String? = nil,
                 smbUsername: Swift.String? = nil,
                 smbDomain: Swift.String? = nil,
-                hasPassword: Swift.Bool? = nil,
+                hasPassword: Swift.Bool,
                 maxBytes: Swift.Int64? = nil,
-                latest: Components.Schemas.BackupJob? = nil
+                localRetention: Components.Schemas.BackupRetentionPolicy,
+                offboxRetention: Components.Schemas.BackupRetentionPolicy,
+                localMaxBytes: Swift.Int64? = nil,
+                offboxMaxBytes: Swift.Int64? = nil,
+                localMinFreeBytes: Swift.Int64,
+                offboxMinFreeBytes: Swift.Int64,
+                legacyConflictDetected: Swift.Bool,
+                retentionReviewRequired: Swift.Bool,
+                retentionActivatedAt: Foundation.Date? = nil,
+                updatedAt: Foundation.Date,
+                localPendingPruneCount: Swift.Int? = nil,
+                localPendingPruneBytes: Swift.Int64? = nil,
+                offboxPendingPruneCount: Swift.Int? = nil,
+                offboxPendingPruneBytes: Swift.Int64? = nil,
+                latest: Components.Schemas.NullableBackupJob? = nil
             ) {
                 self.frequency = frequency
                 self.smbHost = smbHost
@@ -9251,6 +9328,20 @@ public enum Components {
                 self.smbDomain = smbDomain
                 self.hasPassword = hasPassword
                 self.maxBytes = maxBytes
+                self.localRetention = localRetention
+                self.offboxRetention = offboxRetention
+                self.localMaxBytes = localMaxBytes
+                self.offboxMaxBytes = offboxMaxBytes
+                self.localMinFreeBytes = localMinFreeBytes
+                self.offboxMinFreeBytes = offboxMinFreeBytes
+                self.legacyConflictDetected = legacyConflictDetected
+                self.retentionReviewRequired = retentionReviewRequired
+                self.retentionActivatedAt = retentionActivatedAt
+                self.updatedAt = updatedAt
+                self.localPendingPruneCount = localPendingPruneCount
+                self.localPendingPruneBytes = localPendingPruneBytes
+                self.offboxPendingPruneCount = offboxPendingPruneCount
+                self.offboxPendingPruneBytes = offboxPendingPruneBytes
                 self.latest = latest
             }
             public enum CodingKeys: String, CodingKey {
@@ -9262,6 +9353,20 @@ public enum Components {
                 case smbDomain = "smb_domain"
                 case hasPassword = "has_password"
                 case maxBytes = "max_bytes"
+                case localRetention = "local_retention"
+                case offboxRetention = "offbox_retention"
+                case localMaxBytes = "local_max_bytes"
+                case offboxMaxBytes = "offbox_max_bytes"
+                case localMinFreeBytes = "local_min_free_bytes"
+                case offboxMinFreeBytes = "offbox_min_free_bytes"
+                case legacyConflictDetected = "legacy_conflict_detected"
+                case retentionReviewRequired = "retention_review_required"
+                case retentionActivatedAt = "retention_activated_at"
+                case updatedAt = "updated_at"
+                case localPendingPruneCount = "local_pending_prune_count"
+                case localPendingPruneBytes = "local_pending_prune_bytes"
+                case offboxPendingPruneCount = "offbox_pending_prune_count"
+                case offboxPendingPruneBytes = "offbox_pending_prune_bytes"
                 case latest
             }
         }
@@ -9286,14 +9391,30 @@ public enum Components {
             public var smbFolder: Swift.String?
             /// - Remark: Generated from `#/components/schemas/BackupConfigUpdateRequest/smb_username`.
             public var smbUsername: Swift.String?
-            /// M98: write-only; omit/null to keep the stored password.
-            ///
             /// - Remark: Generated from `#/components/schemas/BackupConfigUpdateRequest/smb_password`.
             public var smbPassword: Swift.String?
             /// - Remark: Generated from `#/components/schemas/BackupConfigUpdateRequest/smb_domain`.
             public var smbDomain: Swift.String?
+            /// Deprecated shared-cap alias used only when neither new cap is supplied.
+            ///
             /// - Remark: Generated from `#/components/schemas/BackupConfigUpdateRequest/max_bytes`.
             public var maxBytes: Swift.Int64?
+            /// - Remark: Generated from `#/components/schemas/BackupConfigUpdateRequest/local_retention`.
+            public var localRetention: Components.Schemas.BackupRetentionPolicyUpdate?
+            /// - Remark: Generated from `#/components/schemas/BackupConfigUpdateRequest/offbox_retention`.
+            public var offboxRetention: Components.Schemas.BackupRetentionPolicyUpdate?
+            /// - Remark: Generated from `#/components/schemas/BackupConfigUpdateRequest/local_max_bytes`.
+            public var localMaxBytes: Swift.Int64?
+            /// - Remark: Generated from `#/components/schemas/BackupConfigUpdateRequest/offbox_max_bytes`.
+            public var offboxMaxBytes: Swift.Int64?
+            /// - Remark: Generated from `#/components/schemas/BackupConfigUpdateRequest/local_min_free_bytes`.
+            public var localMinFreeBytes: Swift.Int64?
+            /// - Remark: Generated from `#/components/schemas/BackupConfigUpdateRequest/offbox_min_free_bytes`.
+            public var offboxMinFreeBytes: Swift.Int64?
+            /// - Remark: Generated from `#/components/schemas/BackupConfigUpdateRequest/expected_updated_at`.
+            public var expectedUpdatedAt: Foundation.Date?
+            /// - Remark: Generated from `#/components/schemas/BackupConfigUpdateRequest/confirm_retention_policy`.
+            public var confirmRetentionPolicy: Swift.Bool?
             /// Creates a new `BackupConfigUpdateRequest`.
             ///
             /// - Parameters:
@@ -9302,9 +9423,17 @@ public enum Components {
             ///   - smbShare:
             ///   - smbFolder:
             ///   - smbUsername:
-            ///   - smbPassword: M98: write-only; omit/null to keep the stored password.
+            ///   - smbPassword:
             ///   - smbDomain:
-            ///   - maxBytes:
+            ///   - maxBytes: Deprecated shared-cap alias used only when neither new cap is supplied.
+            ///   - localRetention:
+            ///   - offboxRetention:
+            ///   - localMaxBytes:
+            ///   - offboxMaxBytes:
+            ///   - localMinFreeBytes:
+            ///   - offboxMinFreeBytes:
+            ///   - expectedUpdatedAt:
+            ///   - confirmRetentionPolicy:
             public init(
                 frequency: Components.Schemas.BackupConfigUpdateRequest.FrequencyPayload? = nil,
                 smbHost: Swift.String? = nil,
@@ -9313,7 +9442,15 @@ public enum Components {
                 smbUsername: Swift.String? = nil,
                 smbPassword: Swift.String? = nil,
                 smbDomain: Swift.String? = nil,
-                maxBytes: Swift.Int64? = nil
+                maxBytes: Swift.Int64? = nil,
+                localRetention: Components.Schemas.BackupRetentionPolicyUpdate? = nil,
+                offboxRetention: Components.Schemas.BackupRetentionPolicyUpdate? = nil,
+                localMaxBytes: Swift.Int64? = nil,
+                offboxMaxBytes: Swift.Int64? = nil,
+                localMinFreeBytes: Swift.Int64? = nil,
+                offboxMinFreeBytes: Swift.Int64? = nil,
+                expectedUpdatedAt: Foundation.Date? = nil,
+                confirmRetentionPolicy: Swift.Bool? = nil
             ) {
                 self.frequency = frequency
                 self.smbHost = smbHost
@@ -9323,6 +9460,14 @@ public enum Components {
                 self.smbPassword = smbPassword
                 self.smbDomain = smbDomain
                 self.maxBytes = maxBytes
+                self.localRetention = localRetention
+                self.offboxRetention = offboxRetention
+                self.localMaxBytes = localMaxBytes
+                self.offboxMaxBytes = offboxMaxBytes
+                self.localMinFreeBytes = localMinFreeBytes
+                self.offboxMinFreeBytes = offboxMinFreeBytes
+                self.expectedUpdatedAt = expectedUpdatedAt
+                self.confirmRetentionPolicy = confirmRetentionPolicy
             }
             public enum CodingKeys: String, CodingKey {
                 case frequency
@@ -9333,8 +9478,444 @@ public enum Components {
                 case smbPassword = "smb_password"
                 case smbDomain = "smb_domain"
                 case maxBytes = "max_bytes"
+                case localRetention = "local_retention"
+                case offboxRetention = "offbox_retention"
+                case localMaxBytes = "local_max_bytes"
+                case offboxMaxBytes = "offbox_max_bytes"
+                case localMinFreeBytes = "local_min_free_bytes"
+                case offboxMinFreeBytes = "offbox_min_free_bytes"
+                case expectedUpdatedAt = "expected_updated_at"
+                case confirmRetentionPolicy = "confirm_retention_policy"
             }
         }
+        /// - Remark: Generated from `#/components/schemas/BackupRetentionPolicyUpdate`.
+        public struct BackupRetentionPolicyUpdate: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/BackupRetentionPolicyUpdate/mode`.
+            @frozen public enum ModePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case tiered = "tiered"
+                case keepAll = "keep_all"
+            }
+            /// - Remark: Generated from `#/components/schemas/BackupRetentionPolicyUpdate/mode`.
+            public var mode: Components.Schemas.BackupRetentionPolicyUpdate.ModePayload
+            /// - Remark: Generated from `#/components/schemas/BackupRetentionPolicyUpdate/keep_all_days`.
+            public var keepAllDays: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/BackupRetentionPolicyUpdate/daily_until_days`.
+            public var dailyUntilDays: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/BackupRetentionPolicyUpdate/weekly_until_days`.
+            public var weeklyUntilDays: Swift.Int?
+            /// Creates a new `BackupRetentionPolicyUpdate`.
+            ///
+            /// - Parameters:
+            ///   - mode:
+            ///   - keepAllDays:
+            ///   - dailyUntilDays:
+            ///   - weeklyUntilDays:
+            public init(
+                mode: Components.Schemas.BackupRetentionPolicyUpdate.ModePayload,
+                keepAllDays: Swift.Int? = nil,
+                dailyUntilDays: Swift.Int? = nil,
+                weeklyUntilDays: Swift.Int? = nil
+            ) {
+                self.mode = mode
+                self.keepAllDays = keepAllDays
+                self.dailyUntilDays = dailyUntilDays
+                self.weeklyUntilDays = weeklyUntilDays
+            }
+            public enum CodingKeys: String, CodingKey {
+                case mode
+                case keepAllDays = "keep_all_days"
+                case dailyUntilDays = "daily_until_days"
+                case weeklyUntilDays = "weekly_until_days"
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/BackupRetentionPolicy`.
+        public struct BackupRetentionPolicy: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/BackupRetentionPolicy/mode`.
+            @frozen public enum ModePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case tiered = "tiered"
+                case keepAll = "keep_all"
+            }
+            /// - Remark: Generated from `#/components/schemas/BackupRetentionPolicy/mode`.
+            public var mode: Components.Schemas.BackupRetentionPolicy.ModePayload
+            /// - Remark: Generated from `#/components/schemas/BackupRetentionPolicy/keep_all_days`.
+            public var keepAllDays: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/BackupRetentionPolicy/daily_until_days`.
+            public var dailyUntilDays: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/BackupRetentionPolicy/weekly_until_days`.
+            public var weeklyUntilDays: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/BackupRetentionPolicy/target_oldest_at`.
+            public var targetOldestAt: Foundation.Date?
+            /// Creates a new `BackupRetentionPolicy`.
+            ///
+            /// - Parameters:
+            ///   - mode:
+            ///   - keepAllDays:
+            ///   - dailyUntilDays:
+            ///   - weeklyUntilDays:
+            ///   - targetOldestAt:
+            public init(
+                mode: Components.Schemas.BackupRetentionPolicy.ModePayload,
+                keepAllDays: Swift.Int? = nil,
+                dailyUntilDays: Swift.Int? = nil,
+                weeklyUntilDays: Swift.Int? = nil,
+                targetOldestAt: Foundation.Date? = nil
+            ) {
+                self.mode = mode
+                self.keepAllDays = keepAllDays
+                self.dailyUntilDays = dailyUntilDays
+                self.weeklyUntilDays = weeklyUntilDays
+                self.targetOldestAt = targetOldestAt
+            }
+            public enum CodingKeys: String, CodingKey {
+                case mode
+                case keepAllDays = "keep_all_days"
+                case dailyUntilDays = "daily_until_days"
+                case weeklyUntilDays = "weekly_until_days"
+                case targetOldestAt = "target_oldest_at"
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/BackupCapacityObservation`.
+        public struct BackupCapacityObservation: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/BackupCapacityObservation/status`.
+            @frozen public enum StatusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case ok = "ok"
+                case warning = "warning"
+                case insufficient = "insufficient"
+                case unknown = "unknown"
+                case unavailable = "unavailable"
+            }
+            /// - Remark: Generated from `#/components/schemas/BackupCapacityObservation/status`.
+            public var status: Components.Schemas.BackupCapacityObservation.StatusPayload
+            /// - Remark: Generated from `#/components/schemas/BackupCapacityObservation/total_bytes`.
+            public var totalBytes: Swift.Int64?
+            /// - Remark: Generated from `#/components/schemas/BackupCapacityObservation/available_bytes`.
+            public var availableBytes: Swift.Int64?
+            /// - Remark: Generated from `#/components/schemas/BackupCapacityObservation/reserve_bytes`.
+            public var reserveBytes: Swift.Int64
+            /// - Remark: Generated from `#/components/schemas/BackupCapacityObservation/estimated_next_backup_bytes`.
+            public var estimatedNextBackupBytes: Swift.Int64?
+            /// - Remark: Generated from `#/components/schemas/BackupCapacityObservation/can_accept_estimated_backup`.
+            public var canAcceptEstimatedBackup: Swift.Bool?
+            /// - Remark: Generated from `#/components/schemas/BackupCapacityObservation/as_of`.
+            public var asOf: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/BackupCapacityObservation/reason_code`.
+            public var reasonCode: Swift.String
+            /// - Remark: Generated from `#/components/schemas/BackupCapacityObservation/reason`.
+            public var reason: Swift.String?
+            /// Creates a new `BackupCapacityObservation`.
+            ///
+            /// - Parameters:
+            ///   - status:
+            ///   - totalBytes:
+            ///   - availableBytes:
+            ///   - reserveBytes:
+            ///   - estimatedNextBackupBytes:
+            ///   - canAcceptEstimatedBackup:
+            ///   - asOf:
+            ///   - reasonCode:
+            ///   - reason:
+            public init(
+                status: Components.Schemas.BackupCapacityObservation.StatusPayload,
+                totalBytes: Swift.Int64? = nil,
+                availableBytes: Swift.Int64? = nil,
+                reserveBytes: Swift.Int64,
+                estimatedNextBackupBytes: Swift.Int64? = nil,
+                canAcceptEstimatedBackup: Swift.Bool? = nil,
+                asOf: Foundation.Date,
+                reasonCode: Swift.String,
+                reason: Swift.String? = nil
+            ) {
+                self.status = status
+                self.totalBytes = totalBytes
+                self.availableBytes = availableBytes
+                self.reserveBytes = reserveBytes
+                self.estimatedNextBackupBytes = estimatedNextBackupBytes
+                self.canAcceptEstimatedBackup = canAcceptEstimatedBackup
+                self.asOf = asOf
+                self.reasonCode = reasonCode
+                self.reason = reason
+            }
+            public enum CodingKeys: String, CodingKey {
+                case status
+                case totalBytes = "total_bytes"
+                case availableBytes = "available_bytes"
+                case reserveBytes = "reserve_bytes"
+                case estimatedNextBackupBytes = "estimated_next_backup_bytes"
+                case canAcceptEstimatedBackup = "can_accept_estimated_backup"
+                case asOf = "as_of"
+                case reasonCode = "reason_code"
+                case reason
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/BackupDestinationRecoveryStatus`.
+        public struct BackupDestinationRecoveryStatus: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/BackupDestinationRecoveryStatus/destination`.
+            @frozen public enum DestinationPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case local = "local"
+                case offbox = "offbox"
+            }
+            /// - Remark: Generated from `#/components/schemas/BackupDestinationRecoveryStatus/destination`.
+            public var destination: Components.Schemas.BackupDestinationRecoveryStatus.DestinationPayload
+            /// - Remark: Generated from `#/components/schemas/BackupDestinationRecoveryStatus/configured`.
+            public var configured: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/BackupDestinationRecoveryStatus/status`.
+            @frozen public enum StatusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case notConfigured = "not_configured"
+                case empty = "empty"
+                case healthy = "healthy"
+                case constrained = "constrained"
+                case degraded = "degraded"
+                case unavailable = "unavailable"
+            }
+            /// - Remark: Generated from `#/components/schemas/BackupDestinationRecoveryStatus/status`.
+            public var status: Components.Schemas.BackupDestinationRecoveryStatus.StatusPayload
+            /// - Remark: Generated from `#/components/schemas/BackupDestinationRecoveryStatus/coverage_status`.
+            @frozen public enum CoverageStatusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case notApplicable = "not_applicable"
+                case empty = "empty"
+                case building = "building"
+                case met = "met"
+                case incomplete = "incomplete"
+                case shortened = "shortened"
+                case unknown = "unknown"
+            }
+            /// - Remark: Generated from `#/components/schemas/BackupDestinationRecoveryStatus/coverage_status`.
+            public var coverageStatus: Components.Schemas.BackupDestinationRecoveryStatus.CoverageStatusPayload
+            /// - Remark: Generated from `#/components/schemas/BackupDestinationRecoveryStatus/policy`.
+            public var policy: Components.Schemas.BackupRetentionPolicy
+            /// - Remark: Generated from `#/components/schemas/BackupDestinationRecoveryStatus/retention_review_required`.
+            public var retentionReviewRequired: Swift.Bool
+            /// - Remark: Generated from `#/components/schemas/BackupDestinationRecoveryStatus/retention_activated_at`.
+            public var retentionActivatedAt: Foundation.Date?
+            /// - Remark: Generated from `#/components/schemas/BackupDestinationRecoveryStatus/pending_prune_count`.
+            public var pendingPruneCount: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/BackupDestinationRecoveryStatus/pending_prune_bytes`.
+            public var pendingPruneBytes: Swift.Int64?
+            /// - Remark: Generated from `#/components/schemas/BackupDestinationRecoveryStatus/visible_archive_count`.
+            public var visibleArchiveCount: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/BackupDestinationRecoveryStatus/readable_archive_count`.
+            public var readableArchiveCount: Swift.Int?
+            /// - Remark: Generated from `#/components/schemas/BackupDestinationRecoveryStatus/probe_status`.
+            @frozen public enum ProbeStatusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case complete = "complete"
+                case partial = "partial"
+                case unavailable = "unavailable"
+            }
+            /// - Remark: Generated from `#/components/schemas/BackupDestinationRecoveryStatus/probe_status`.
+            public var probeStatus: Components.Schemas.BackupDestinationRecoveryStatus.ProbeStatusPayload
+            /// - Remark: Generated from `#/components/schemas/BackupDestinationRecoveryStatus/probed_archive_count`.
+            public var probedArchiveCount: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/BackupDestinationRecoveryStatus/oldest_readable_at`.
+            public var oldestReadableAt: Foundation.Date?
+            /// - Remark: Generated from `#/components/schemas/BackupDestinationRecoveryStatus/newest_readable_at`.
+            public var newestReadableAt: Foundation.Date?
+            /// - Remark: Generated from `#/components/schemas/BackupDestinationRecoveryStatus/oldest_timestamp_source`.
+            @frozen public enum OldestTimestampSourcePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case jobStartedAt = "job_started_at"
+                case remoteModifiedAt = "remote_modified_at"
+                case _empty_ = ""
+            }
+            /// - Remark: Generated from `#/components/schemas/BackupDestinationRecoveryStatus/oldest_timestamp_source`.
+            public var oldestTimestampSource: Components.Schemas.BackupDestinationRecoveryStatus.OldestTimestampSourcePayload?
+            /// - Remark: Generated from `#/components/schemas/BackupDestinationRecoveryStatus/metadata_mismatch_count`.
+            public var metadataMismatchCount: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/BackupDestinationRecoveryStatus/protected_anomaly_count`.
+            public var protectedAnomalyCount: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/BackupDestinationRecoveryStatus/compatibility_unknown_count`.
+            public var compatibilityUnknownCount: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/BackupDestinationRecoveryStatus/known_incompatible_count`.
+            public var knownIncompatibleCount: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/BackupDestinationRecoveryStatus/capacity`.
+            public var capacity: Components.Schemas.BackupCapacityObservation
+            /// - Remark: Generated from `#/components/schemas/BackupDestinationRecoveryStatus/reason_codes`.
+            public var reasonCodes: [Swift.String]
+            /// - Remark: Generated from `#/components/schemas/BackupDestinationRecoveryStatus/reason`.
+            public var reason: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/BackupDestinationRecoveryStatus/as_of`.
+            public var asOf: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/BackupDestinationRecoveryStatus/verification_scope`.
+            @frozen public enum VerificationScopePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case inventoryReadProbe = "inventory_read_probe"
+            }
+            /// - Remark: Generated from `#/components/schemas/BackupDestinationRecoveryStatus/verification_scope`.
+            public var verificationScope: Components.Schemas.BackupDestinationRecoveryStatus.VerificationScopePayload
+            /// Creates a new `BackupDestinationRecoveryStatus`.
+            ///
+            /// - Parameters:
+            ///   - destination:
+            ///   - configured:
+            ///   - status:
+            ///   - coverageStatus:
+            ///   - policy:
+            ///   - retentionReviewRequired:
+            ///   - retentionActivatedAt:
+            ///   - pendingPruneCount:
+            ///   - pendingPruneBytes:
+            ///   - visibleArchiveCount:
+            ///   - readableArchiveCount:
+            ///   - probeStatus:
+            ///   - probedArchiveCount:
+            ///   - oldestReadableAt:
+            ///   - newestReadableAt:
+            ///   - oldestTimestampSource:
+            ///   - metadataMismatchCount:
+            ///   - protectedAnomalyCount:
+            ///   - compatibilityUnknownCount:
+            ///   - knownIncompatibleCount:
+            ///   - capacity:
+            ///   - reasonCodes:
+            ///   - reason:
+            ///   - asOf:
+            ///   - verificationScope:
+            public init(
+                destination: Components.Schemas.BackupDestinationRecoveryStatus.DestinationPayload,
+                configured: Swift.Bool,
+                status: Components.Schemas.BackupDestinationRecoveryStatus.StatusPayload,
+                coverageStatus: Components.Schemas.BackupDestinationRecoveryStatus.CoverageStatusPayload,
+                policy: Components.Schemas.BackupRetentionPolicy,
+                retentionReviewRequired: Swift.Bool,
+                retentionActivatedAt: Foundation.Date? = nil,
+                pendingPruneCount: Swift.Int? = nil,
+                pendingPruneBytes: Swift.Int64? = nil,
+                visibleArchiveCount: Swift.Int,
+                readableArchiveCount: Swift.Int? = nil,
+                probeStatus: Components.Schemas.BackupDestinationRecoveryStatus.ProbeStatusPayload,
+                probedArchiveCount: Swift.Int,
+                oldestReadableAt: Foundation.Date? = nil,
+                newestReadableAt: Foundation.Date? = nil,
+                oldestTimestampSource: Components.Schemas.BackupDestinationRecoveryStatus.OldestTimestampSourcePayload? = nil,
+                metadataMismatchCount: Swift.Int,
+                protectedAnomalyCount: Swift.Int,
+                compatibilityUnknownCount: Swift.Int,
+                knownIncompatibleCount: Swift.Int,
+                capacity: Components.Schemas.BackupCapacityObservation,
+                reasonCodes: [Swift.String],
+                reason: Swift.String? = nil,
+                asOf: Foundation.Date,
+                verificationScope: Components.Schemas.BackupDestinationRecoveryStatus.VerificationScopePayload
+            ) {
+                self.destination = destination
+                self.configured = configured
+                self.status = status
+                self.coverageStatus = coverageStatus
+                self.policy = policy
+                self.retentionReviewRequired = retentionReviewRequired
+                self.retentionActivatedAt = retentionActivatedAt
+                self.pendingPruneCount = pendingPruneCount
+                self.pendingPruneBytes = pendingPruneBytes
+                self.visibleArchiveCount = visibleArchiveCount
+                self.readableArchiveCount = readableArchiveCount
+                self.probeStatus = probeStatus
+                self.probedArchiveCount = probedArchiveCount
+                self.oldestReadableAt = oldestReadableAt
+                self.newestReadableAt = newestReadableAt
+                self.oldestTimestampSource = oldestTimestampSource
+                self.metadataMismatchCount = metadataMismatchCount
+                self.protectedAnomalyCount = protectedAnomalyCount
+                self.compatibilityUnknownCount = compatibilityUnknownCount
+                self.knownIncompatibleCount = knownIncompatibleCount
+                self.capacity = capacity
+                self.reasonCodes = reasonCodes
+                self.reason = reason
+                self.asOf = asOf
+                self.verificationScope = verificationScope
+            }
+            public enum CodingKeys: String, CodingKey {
+                case destination
+                case configured
+                case status
+                case coverageStatus = "coverage_status"
+                case policy
+                case retentionReviewRequired = "retention_review_required"
+                case retentionActivatedAt = "retention_activated_at"
+                case pendingPruneCount = "pending_prune_count"
+                case pendingPruneBytes = "pending_prune_bytes"
+                case visibleArchiveCount = "visible_archive_count"
+                case readableArchiveCount = "readable_archive_count"
+                case probeStatus = "probe_status"
+                case probedArchiveCount = "probed_archive_count"
+                case oldestReadableAt = "oldest_readable_at"
+                case newestReadableAt = "newest_readable_at"
+                case oldestTimestampSource = "oldest_timestamp_source"
+                case metadataMismatchCount = "metadata_mismatch_count"
+                case protectedAnomalyCount = "protected_anomaly_count"
+                case compatibilityUnknownCount = "compatibility_unknown_count"
+                case knownIncompatibleCount = "known_incompatible_count"
+                case capacity
+                case reasonCodes = "reason_codes"
+                case reason
+                case asOf = "as_of"
+                case verificationScope = "verification_scope"
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/BackupRecoveryStatus`.
+        public struct BackupRecoveryStatus: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/BackupRecoveryStatus/as_of`.
+            public var asOf: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/BackupRecoveryStatus/overall_status`.
+            @frozen public enum OverallStatusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case empty = "empty"
+                case healthy = "healthy"
+                case constrained = "constrained"
+                case degraded = "degraded"
+                case unavailable = "unavailable"
+            }
+            /// - Remark: Generated from `#/components/schemas/BackupRecoveryStatus/overall_status`.
+            public var overallStatus: Components.Schemas.BackupRecoveryStatus.OverallStatusPayload
+            /// - Remark: Generated from `#/components/schemas/BackupRecoveryStatus/overall_oldest_readable_at`.
+            public var overallOldestReadableAt: Foundation.Date?
+            /// - Remark: Generated from `#/components/schemas/BackupRecoveryStatus/overall_newest_readable_at`.
+            public var overallNewestReadableAt: Foundation.Date?
+            /// - Remark: Generated from `#/components/schemas/BackupRecoveryStatus/local`.
+            public var local: Components.Schemas.BackupDestinationRecoveryStatus
+            /// - Remark: Generated from `#/components/schemas/BackupRecoveryStatus/offbox`.
+            public var offbox: Components.Schemas.BackupDestinationRecoveryStatus
+            /// - Remark: Generated from `#/components/schemas/BackupRecoveryStatus/verification_scope`.
+            @frozen public enum VerificationScopePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case inventoryReadProbe = "inventory_read_probe"
+            }
+            /// - Remark: Generated from `#/components/schemas/BackupRecoveryStatus/verification_scope`.
+            public var verificationScope: Components.Schemas.BackupRecoveryStatus.VerificationScopePayload
+            /// Creates a new `BackupRecoveryStatus`.
+            ///
+            /// - Parameters:
+            ///   - asOf:
+            ///   - overallStatus:
+            ///   - overallOldestReadableAt:
+            ///   - overallNewestReadableAt:
+            ///   - local:
+            ///   - offbox:
+            ///   - verificationScope:
+            public init(
+                asOf: Foundation.Date,
+                overallStatus: Components.Schemas.BackupRecoveryStatus.OverallStatusPayload,
+                overallOldestReadableAt: Foundation.Date? = nil,
+                overallNewestReadableAt: Foundation.Date? = nil,
+                local: Components.Schemas.BackupDestinationRecoveryStatus,
+                offbox: Components.Schemas.BackupDestinationRecoveryStatus,
+                verificationScope: Components.Schemas.BackupRecoveryStatus.VerificationScopePayload
+            ) {
+                self.asOf = asOf
+                self.overallStatus = overallStatus
+                self.overallOldestReadableAt = overallOldestReadableAt
+                self.overallNewestReadableAt = overallNewestReadableAt
+                self.local = local
+                self.offbox = offbox
+                self.verificationScope = verificationScope
+            }
+            public enum CodingKeys: String, CodingKey {
+                case asOf = "as_of"
+                case overallStatus = "overall_status"
+                case overallOldestReadableAt = "overall_oldest_readable_at"
+                case overallNewestReadableAt = "overall_newest_readable_at"
+                case local
+                case offbox
+                case verificationScope = "verification_scope"
+            }
+        }
+        /// Test the entered connection before saving. Password omitted → use the
+        /// stored one (so re-testing a saved target doesn't require retyping it).
+        ///
         /// - Remark: Generated from `#/components/schemas/BackupDestinationCheckRequest`.
         public struct BackupDestinationCheckRequest: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/BackupDestinationCheckRequest/smb_host`.
@@ -9388,21 +9969,27 @@ public enum Components {
             public var writable: Swift.Bool
             /// - Remark: Generated from `#/components/schemas/BackupDestinationCheckResponse/reason`.
             public var reason: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/BackupDestinationCheckResponse/capacity`.
+            public var capacity: Components.Schemas.BackupCapacityObservation
             /// Creates a new `BackupDestinationCheckResponse`.
             ///
             /// - Parameters:
             ///   - writable:
             ///   - reason:
+            ///   - capacity:
             public init(
                 writable: Swift.Bool,
-                reason: Swift.String? = nil
+                reason: Swift.String? = nil,
+                capacity: Components.Schemas.BackupCapacityObservation
             ) {
                 self.writable = writable
                 self.reason = reason
+                self.capacity = capacity
             }
             public enum CodingKeys: String, CodingKey {
                 case writable
                 case reason
+                case capacity
             }
         }
         /// - Remark: Generated from `#/components/schemas/RemoteBackup`.
@@ -9411,12 +9998,10 @@ public enum Components {
             public var filename: Swift.String
             /// - Remark: Generated from `#/components/schemas/RemoteBackup/size_bytes`.
             public var sizeBytes: Swift.Int64
-            /// Epoch seconds of the file's last-modified time.
+            /// Epoch seconds of the file's last-modified time; recovery status uses qualified date-time fields.
             ///
             /// - Remark: Generated from `#/components/schemas/RemoteBackup/modified_at`.
             public var modifiedAt: Swift.Int64
-            /// Parsed from the `{id}.v{version}.enc` filename; null for archives uploaded before backups carried a version.
-            ///
             /// - Remark: Generated from `#/components/schemas/RemoteBackup/app_version`.
             public var appVersion: Swift.String?
             /// Creates a new `RemoteBackup`.
@@ -9424,8 +10009,8 @@ public enum Components {
             /// - Parameters:
             ///   - filename:
             ///   - sizeBytes:
-            ///   - modifiedAt: Epoch seconds of the file's last-modified time.
-            ///   - appVersion: Parsed from the `{id}.v{version}.enc` filename; null for archives uploaded before backups carried a version.
+            ///   - modifiedAt: Epoch seconds of the file's last-modified time; recovery status uses qualified date-time fields.
+            ///   - appVersion:
             public init(
                 filename: Swift.String,
                 sizeBytes: Swift.Int64,
@@ -9448,15 +10033,41 @@ public enum Components {
         public struct RemoteBackupListResponse: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/RemoteBackupListResponse/backups`.
             public var backups: [Components.Schemas.RemoteBackup]
+            /// - Remark: Generated from `#/components/schemas/RemoteBackupListResponse/status`.
+            @frozen public enum StatusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case available = "available"
+                case notConfigured = "not_configured"
+                case unavailable = "unavailable"
+            }
+            /// - Remark: Generated from `#/components/schemas/RemoteBackupListResponse/status`.
+            public var status: Components.Schemas.RemoteBackupListResponse.StatusPayload
+            /// - Remark: Generated from `#/components/schemas/RemoteBackupListResponse/as_of`.
+            public var asOf: Foundation.Date
+            /// - Remark: Generated from `#/components/schemas/RemoteBackupListResponse/reason`.
+            public var reason: Swift.String?
             /// Creates a new `RemoteBackupListResponse`.
             ///
             /// - Parameters:
             ///   - backups:
-            public init(backups: [Components.Schemas.RemoteBackup]) {
+            ///   - status:
+            ///   - asOf:
+            ///   - reason:
+            public init(
+                backups: [Components.Schemas.RemoteBackup],
+                status: Components.Schemas.RemoteBackupListResponse.StatusPayload,
+                asOf: Foundation.Date,
+                reason: Swift.String? = nil
+            ) {
                 self.backups = backups
+                self.status = status
+                self.asOf = asOf
+                self.reason = reason
             }
             public enum CodingKeys: String, CodingKey {
                 case backups
+                case status
+                case asOf = "as_of"
+                case reason
             }
         }
         /// - Remark: Generated from `#/components/schemas/RemoteRestoreRequest`.
@@ -9474,6 +10085,8 @@ public enum Components {
                 case filename
             }
         }
+        /// - Remark: Generated from `#/components/schemas/NullableBackupJob`.
+        public typealias NullableBackupJob = Components.Schemas.BackupJob
         /// ADR 0072 Phase 2: which unwrap paths exist for the household's data key.
         ///
         /// - Remark: Generated from `#/components/schemas/HouseholdKeyStatus`.
@@ -9739,7 +10352,7 @@ public enum Components {
         public struct HostedHouseholdList: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/HostedHouseholdList/households`.
             public var households: [Components.Schemas.HostedHousehold]
-            /// #192: off-box backup age limit in days (0 = kept forever).
+            /// Deprecated approximate off-box outer horizon: 0 for keep-all, otherwise weekly_until_days.
             ///
             /// - Remark: Generated from `#/components/schemas/HostedHouseholdList/offbox_backup_retention_days`.
             public var offboxBackupRetentionDays: Swift.Int
@@ -9747,7 +10360,7 @@ public enum Components {
             ///
             /// - Parameters:
             ///   - households:
-            ///   - offboxBackupRetentionDays: #192: off-box backup age limit in days (0 = kept forever).
+            ///   - offboxBackupRetentionDays: Deprecated approximate off-box outer horizon: 0 for keep-all, otherwise weekly_until_days.
             public init(
                 households: [Components.Schemas.HostedHousehold],
                 offboxBackupRetentionDays: Swift.Int
@@ -37559,6 +38172,29 @@ public enum Operations {
                     }
                 }
             }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//backups/post(createBackup)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
+                            response: self
+                        )
+                    }
+                }
+            }
             /// Rate limited. `Retry-After` carries the remaining wait in seconds, so a client can say how long instead of guessing — the auth lockout is minutes long, not the "wait a minute" clients used to print (#92). Treat the header as advisory: an older server or an intermediary that strips it leaves it absent, and a client must then say "later" rather than name a duration it does not know.
             ///
             /// - Remark: Generated from `#/paths//backups/post(createBackup)/responses/429`.
@@ -37856,7 +38492,7 @@ public enum Operations {
             }
         }
     }
-    /// Backup destination + schedule, with the latest backup's status
+    /// Get the box-global backup configuration and pending retention preview
     ///
     /// - Remark: HTTP `GET /backups/config`.
     /// - Remark: Generated from `#/paths//backups/config/get(getBackupConfig)`.
@@ -38012,7 +38648,7 @@ public enum Operations {
             }
         }
     }
-    /// Set the backup destination (a mounted share) and schedule
+    /// Update the box-global backup configuration
     ///
     /// - Remark: HTTP `PUT /backups/config`.
     /// - Remark: Generated from `#/paths//backups/config/put(updateBackupConfig)`.
@@ -38148,6 +38784,52 @@ public enum Operations {
                     }
                 }
             }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//backups/config/put(updateBackupConfig)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//backups/config/put(updateBackupConfig)/responses/422`.
+            ///
+            /// HTTP response code: `422 unprocessableContent`.
+            case unprocessableContent(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unprocessableContent`.
+            ///
+            /// - Throws: An error if `self` is not `.unprocessableContent`.
+            /// - SeeAlso: `.unprocessableContent`.
+            public var unprocessableContent: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unprocessableContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unprocessableContent",
+                            response: self
+                        )
+                    }
+                }
+            }
             /// Undocumented response.
             ///
             /// A response with a code that is not documented in the OpenAPI document.
@@ -38179,7 +38861,165 @@ public enum Operations {
             }
         }
     }
-    /// Test whether the server can write backups to a path (a mounted share)
+    /// Get qualified box-global backup recovery-candidate status
+    ///
+    /// Inventories both destinations at one instant and reports bounded read-probe qualification. Dates are visible recovery candidates, not guaranteed restore points; integrity, keys, decryption, and database restore are checked by restore.
+    ///
+    /// - Remark: HTTP `GET /backups/status`.
+    /// - Remark: Generated from `#/paths//backups/status/get(getBackupRecoveryStatus)`.
+    public enum GetBackupRecoveryStatus {
+        public static let id: Swift.String = "getBackupRecoveryStatus"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/backups/status/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GetBackupRecoveryStatus.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GetBackupRecoveryStatus.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.GetBackupRecoveryStatus.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            public init(headers: Operations.GetBackupRecoveryStatus.Input.Headers = .init()) {
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/backups/status/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/backups/status/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.BackupRecoveryStatus)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.BackupRecoveryStatus {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.GetBackupRecoveryStatus.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.GetBackupRecoveryStatus.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Qualified recovery-candidate status
+            ///
+            /// - Remark: Generated from `#/paths//backups/status/get(getBackupRecoveryStatus)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.GetBackupRecoveryStatus.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.GetBackupRecoveryStatus.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//backups/status/get(getBackupRecoveryStatus)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//backups/status/get(getBackupRecoveryStatus)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Test the Synology SMB connection and report capacity
     ///
     /// - Remark: HTTP `POST /backups/destination-check`.
     /// - Remark: Generated from `#/paths//backups/destination-check/post(checkBackupDestination)`.
@@ -38897,6 +39737,29 @@ public enum Operations {
                     }
                 }
             }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//backups/remote/delete/post(deleteRemoteBackup)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
+                            response: self
+                        )
+                    }
+                }
+            }
             /// Undocumented response.
             ///
             /// A response with a code that is not documented in the OpenAPI document.
@@ -39229,6 +40092,29 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//backups/{backup_id}/delete(deleteBackup)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
                             response: self
                         )
                     }

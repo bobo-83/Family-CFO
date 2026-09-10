@@ -10,6 +10,16 @@ from typing import Any
 # parent object's `required` list authoritative for presence versus omission.
 SWIFT_GENERATOR_NULLABLE_COMPONENTS = frozenset(
     {
+        "BackupCapacityObservation",
+        "BackupConfig",
+        "BackupConfigUpdateRequest",
+        "BackupDestinationCheckRequest",
+        "BackupDestinationCheckResponse",
+        "BackupDestinationRecoveryStatus",
+        "BackupJob",
+        "BackupRecoveryStatus",
+        "BackupRetentionPolicy",
+        "BackupRetentionPolicyUpdate",
         "Budget",
         "BudgetListResponse",
         "BudgetSummary",
@@ -25,6 +35,8 @@ SWIFT_GENERATOR_NULLABLE_COMPONENTS = frozenset(
         "PaymentTimelineItem",
         "PaymentTimelineResponse",
         "QualifiedMoney",
+        "RemoteBackup",
+        "RemoteBackupListResponse",
         "SafeToSpend",
         "SavingsContributionSet",
         "SavingsRate",
@@ -41,6 +53,7 @@ SWIFT_GENERATOR_NULLABLE_COMPONENTS = frozenset(
 # null. These nullable copies are real union schemas. The Swift generator config
 # type-aliases them back to the corresponding existing generated Swift types.
 SWIFT_GENERATOR_NULLABLE_ALIASES = {
+    "BackupJob": "NullableBackupJob",
     "BudgetSummary": "NullableBudgetSummary",
     "EmergencyFundSummary": "NullableEmergencyFundSummary",
     "GoalProgress": "NullableGoalProgress",
@@ -75,9 +88,7 @@ def _rewrite_nullable_schema(schema: dict[str, Any]) -> None:
         return
 
     null_options = [
-        option
-        for option in options
-        if isinstance(option, dict) and option.get("type") == "null"
+        option for option in options if isinstance(option, dict) and option.get("type") == "null"
     ]
     non_null_options = [option for option in options if option not in null_options]
     if len(null_options) != 1 or len(non_null_options) != 1:

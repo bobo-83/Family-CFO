@@ -3,24 +3,37 @@ from __future__ import annotations
 import logging
 import os
 import threading
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from functools import partial
 
 import anyio
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import audit, backup_processing, banksync, repository, rights, smb_backup
+from family_cfo_api import (
+    audit,
+    backup_processing,
+    backup_recovery,
+    backup_storage,
+    banksync,
+    repository,
+    rights,
+    smb_backup,
+)
 from family_cfo_api.config import Settings
 from family_cfo_api.deps import get_app_settings, get_engine, require_right
 from family_cfo_api.schemas import (
+    BackupCapacityObservation,
     BackupConfig,
     BackupConfigUpdateRequest,
     BackupDestinationCheckRequest,
     BackupDestinationCheckResponse,
+    BackupDestinationRecoveryStatus,
     BackupEncryptionKey,
     BackupJob,
     BackupJobListResponse,
+    BackupRecoveryStatus,
+    BackupRetentionPolicy,
     ErrorResponse,
     RemoteBackup,
     RemoteBackupListResponse,
@@ -100,6 +113,188 @@ def _to_schema(record: repository.BackupJobRecord) -> BackupJob:
     )
 
 
+def _policy_schema(policy, *, target_oldest_at: datetime | None) -> BackupRetentionPolicy:
+    return BackupRetentionPolicy(
+        mode=policy.mode.value,
+        keep_all_days=policy.keep_all_days,
+        daily_until_days=policy.daily_until_days,
+        weekly_until_days=policy.weekly_until_days,
+        target_oldest_at=target_oldest_at,
+    )
+
+
+def _policy_target(policy, as_of: datetime) -> datetime | None:
+    return (
+        as_of - timedelta(days=policy.weekly_until_days)
+        if policy.weekly_until_days is not None
+        else None
+    )
+
+
+def _capacity_schema(observation) -> BackupCapacityObservation:
+    return BackupCapacityObservation(
+        status=observation.status,
+        total_bytes=observation.total_bytes,
+        available_bytes=observation.available_bytes,
+        reserve_bytes=observation.reserve_bytes,
+        estimated_next_backup_bytes=observation.estimated_next_backup_bytes,
+        can_accept_estimated_backup=observation.can_accept_estimated_backup,
+        as_of=observation.as_of,
+        reason_code=observation.reason_code,
+        reason=observation.reason,
+    )
+
+
+def _destination_status_schema(
+    snapshot: backup_recovery.DestinationRecoverySnapshot,
+) -> BackupDestinationRecoveryStatus:
+    return BackupDestinationRecoveryStatus(
+        destination=snapshot.destination,
+        configured=snapshot.configured,
+        status=snapshot.status,
+        coverage_status=snapshot.coverage_status,
+        policy=_policy_schema(snapshot.policy, target_oldest_at=snapshot.target_oldest_at),
+        retention_review_required=snapshot.retention_review_required,
+        retention_activated_at=snapshot.retention_activated_at,
+        pending_prune_count=snapshot.pending_prune_count,
+        pending_prune_bytes=snapshot.pending_prune_bytes,
+        visible_archive_count=snapshot.visible_archive_count,
+        readable_archive_count=snapshot.readable_archive_count,
+        probe_status=snapshot.probe_status,
+        probed_archive_count=snapshot.probed_archive_count,
+        oldest_readable_at=snapshot.oldest_readable_at,
+        newest_readable_at=snapshot.newest_readable_at,
+        oldest_timestamp_source=snapshot.oldest_timestamp_source,
+        metadata_mismatch_count=snapshot.metadata_mismatch_count,
+        protected_anomaly_count=snapshot.protected_anomaly_count,
+        compatibility_unknown_count=snapshot.compatibility_unknown_count,
+        known_incompatible_count=snapshot.known_incompatible_count,
+        capacity=_capacity_schema(snapshot.capacity),
+        reason_codes=list(snapshot.reason_codes),
+        reason=snapshot.reason,
+        as_of=snapshot.as_of,
+        verification_scope=snapshot.verification_scope,
+    )
+
+
+def _recovery_status_schema(
+    snapshot: backup_recovery.BackupRecoverySnapshot,
+) -> BackupRecoveryStatus:
+    return BackupRecoveryStatus(
+        as_of=snapshot.as_of,
+        overall_status=snapshot.overall_status,
+        overall_oldest_readable_at=snapshot.overall_oldest_readable_at,
+        overall_newest_readable_at=snapshot.overall_newest_readable_at,
+        local=_destination_status_schema(snapshot.local),
+        offbox=_destination_status_schema(snapshot.offbox),
+        verification_scope=snapshot.verification_scope,
+    )
+
+
+def _load_backup_config(engine: Engine, settings: Settings) -> BackupConfig:
+    as_of = datetime.now(UTC)
+    stored = repository.get_backup_settings(engine, settings=settings, as_of=as_of)
+    local_pending, offbox_pending = backup_recovery.calculate_pending_prunes(
+        engine, settings, stored, as_of=as_of
+    )
+    jobs = repository.list_backup_jobs(engine)
+    latest = next((job for job in jobs if job.status in ("completed", "failed")), None)
+    shared_max = (
+        stored.local_max_bytes if stored.local_max_bytes == stored.offbox_max_bytes else None
+    )
+    return BackupConfig(
+        frequency=stored.frequency,
+        smb_host=stored.smb_host,
+        smb_share=stored.smb_share,
+        smb_folder=stored.smb_folder,
+        smb_username=stored.smb_username,
+        smb_domain=stored.smb_domain,
+        has_password=bool(stored.smb_password_encrypted),
+        max_bytes=shared_max,
+        local_retention=_policy_schema(
+            stored.local_retention,
+            target_oldest_at=_policy_target(stored.local_retention, as_of),
+        ),
+        offbox_retention=_policy_schema(
+            stored.offbox_retention,
+            target_oldest_at=_policy_target(stored.offbox_retention, as_of),
+        ),
+        local_max_bytes=stored.local_max_bytes,
+        offbox_max_bytes=stored.offbox_max_bytes,
+        local_min_free_bytes=stored.local_min_free_bytes,
+        offbox_min_free_bytes=stored.offbox_min_free_bytes,
+        legacy_conflict_detected=stored.legacy_conflict_detected,
+        retention_review_required=stored.retention_review_required,
+        retention_activated_at=stored.retention_activated_at,
+        updated_at=stored.updated_at,
+        local_pending_prune_count=local_pending.count,
+        local_pending_prune_bytes=local_pending.size_bytes,
+        offbox_pending_prune_count=offbox_pending.count,
+        offbox_pending_prune_bytes=offbox_pending.size_bytes,
+        latest=_to_schema(latest) if latest else None,
+    )
+
+
+def _changed_config_groups(
+    before: repository.BackupSettingsRecord,
+    after: repository.BackupSettingsRecord,
+) -> list[str]:
+    groups: list[str] = []
+    if before.frequency != after.frequency:
+        groups.append("cadence")
+    if any(
+        getattr(before, name) != getattr(after, name)
+        for name in (
+            "smb_host",
+            "smb_share",
+            "smb_folder",
+            "smb_username",
+            "smb_password_encrypted",
+            "smb_domain",
+        )
+    ):
+        groups.append("Synology destination")
+    if before.local_retention != after.local_retention:
+        groups.append("local retention")
+    if before.offbox_retention != after.offbox_retention:
+        groups.append("off-box retention")
+    if any(
+        getattr(before, name) != getattr(after, name)
+        for name in (
+            "local_max_bytes",
+            "offbox_max_bytes",
+            "local_min_free_bytes",
+            "offbox_min_free_bytes",
+        )
+    ):
+        groups.append("caps and reserves")
+    if (
+        before.retention_review_required != after.retention_review_required
+        or before.retention_activated_at != after.retention_activated_at
+    ):
+        groups.append("retention activation")
+    return groups
+
+
+def _remote_capacity_response(
+    engine: Engine,
+    settings: Settings,
+    target: smb_backup.SmbTarget,
+    *,
+    reserve_bytes: int,
+    as_of: datetime | None = None,
+):
+    when = as_of or datetime.now(UTC)
+    local = backup_storage.collect_local_inventory(engine, settings.backup_dir, as_of=when)
+    estimate = backup_storage.estimate_next_backup_bytes(local) if local.available else None
+    return backup_processing.query_remote_capacity_observation(
+        target,
+        reserve_bytes=reserve_bytes,
+        estimate=estimate,
+        as_of=when,
+    )
+
+
 @router.get(
     "/backups",
     operation_id="listBackups",
@@ -168,6 +363,7 @@ async def _run_sync(function, /, *args, **kwargs):
     responses={
         401: {"description": "Unauthorized", "model": ErrorResponse},
         403: {"description": "Role does not permit this action", "model": ErrorResponse},
+        409: {"description": "A backup operation is already in progress", "model": ErrorResponse},
         429: {"description": "A backup ran moments ago (cooldown)", "model": ErrorResponse},
     },
     summary="Create an on-demand encrypted backup",
@@ -231,7 +427,7 @@ async def create_backup(
         403: {"description": "Role does not permit this action", "model": ErrorResponse},
         404: {"description": "Backup file not found on the share", "model": ErrorResponse},
         409: {
-            "description": "Backup is from a newer app version than this box",
+            "description": "Backup is incompatible or another backup operation is in progress",
             "model": ErrorResponse,
         },
     },
@@ -293,7 +489,16 @@ async def restore_remote_backup(
     logger.info(
         "backup restored from share filename=%s discarded_audit_events=%s", filename, discarded
     )
-    return BackupDestinationCheckResponse(writable=True, reason=None)
+    capacity = await _run_sync(
+        _remote_capacity_response,
+        engine,
+        settings,
+        target,
+        reserve_bytes=config.offbox_min_free_bytes,
+    )
+    return BackupDestinationCheckResponse(
+        writable=True, reason=None, capacity=_capacity_schema(capacity)
+    )
 
 
 @router.post(
@@ -371,29 +576,14 @@ async def restore_backup(
         401: {"description": "Unauthorized", "model": ErrorResponse},
         403: {"description": "Role does not permit this action", "model": ErrorResponse},
     },
-    summary="Backup destination + schedule, with the latest backup's status",
+    summary="Get the box-global backup configuration and pending retention preview",
 )
 async def get_backup_config(
     session: repository.SessionContext = Depends(require_right(rights.BACKUPS_MANAGE)),
     engine: Engine = Depends(get_engine),
+    settings: Settings = Depends(get_app_settings),
 ) -> BackupConfig:
-    stored = repository.get_backup_settings(engine)
-    jobs = repository.list_backup_jobs(engine)
-    latest = next((j for j in jobs if j.status in ("completed", "failed")), None)
-    shared_max = (
-        stored.local_max_bytes if stored.local_max_bytes == stored.offbox_max_bytes else None
-    )
-    return BackupConfig(
-        frequency=stored.frequency,
-        smb_host=stored.smb_host,
-        smb_share=stored.smb_share,
-        smb_folder=stored.smb_folder,
-        smb_username=stored.smb_username,
-        smb_domain=stored.smb_domain,
-        has_password=bool(stored.smb_password_encrypted),
-        max_bytes=shared_max,
-        latest=_to_schema(latest) if latest else None,
-    )
+    return await _run_sync(_load_backup_config, engine, settings)
 
 
 @router.put(
@@ -403,8 +593,13 @@ async def get_backup_config(
     responses={
         401: {"description": "Unauthorized", "model": ErrorResponse},
         403: {"description": "Role does not permit this action", "model": ErrorResponse},
+        409: {
+            "description": "Configuration changed; reload and reconcile the draft",
+            "model": ErrorResponse,
+        },
+        422: {"description": "Invalid backup configuration", "model": ErrorResponse},
     },
-    summary="Set the backup destination (a mounted share) and schedule",
+    summary="Update the box-global backup configuration",
 )
 async def update_backup_config(
     payload: BackupConfigUpdateRequest,
@@ -412,40 +607,109 @@ async def update_backup_config(
     engine: Engine = Depends(get_engine),
     settings: Settings = Depends(get_app_settings),
 ) -> BackupConfig:
-    # The password is a secret: encrypt it at rest, and only rewrite it when the
-    # client actually sent one (blank field = keep the stored password).
-    update_password = payload.smb_password is not None
-    encrypted = (
-        banksync.encrypt_credential(settings, payload.smb_password)
-        if payload.smb_password
-        else None
+    before = repository.get_backup_settings(engine, settings=settings)
+    supplied = payload.model_fields_set
+    patch: dict[str, object] = {}
+    for name in (
+        "frequency",
+        "smb_host",
+        "smb_share",
+        "smb_folder",
+        "smb_username",
+        "smb_domain",
+        "local_min_free_bytes",
+        "offbox_min_free_bytes",
+    ):
+        if name in supplied:
+            patch[name] = getattr(payload, name)
+
+    if "smb_password" in supplied and payload.smb_password is not None:
+        patch["smb_password_encrypted"] = (
+            banksync.encrypt_credential(settings, payload.smb_password)
+            if payload.smb_password
+            else ""
+        )
+
+    new_cap_fields = {"local_max_bytes", "offbox_max_bytes"} & supplied
+    if new_cap_fields:
+        for name in new_cap_fields:
+            patch[name] = getattr(payload, name)
+    elif "max_bytes" in supplied:
+        patch["local_max_bytes"] = payload.max_bytes
+        patch["offbox_max_bytes"] = payload.max_bytes
+
+    for destination in ("local", "offbox"):
+        field = f"{destination}_retention"
+        if field not in supplied:
+            continue
+        policy = getattr(payload, field)
+        assert policy is not None
+        patch.update(
+            {
+                f"{destination}_retention_mode": policy.mode,
+                f"{destination}_keep_all_days": policy.keep_all_days,
+                f"{destination}_daily_until_days": policy.daily_until_days,
+                f"{destination}_weekly_until_days": policy.weekly_until_days,
+            }
+        )
+
+    try:
+        if payload.confirm_retention_policy:
+            assert payload.expected_updated_at is not None
+            after = repository.update_and_activate_backup_settings(
+                engine,
+                patch,
+                expected_updated_at=payload.expected_updated_at,
+            )
+        else:
+            after = repository.update_backup_settings(
+                engine,
+                patch,
+                expected_updated_at=payload.expected_updated_at,
+            )
+    except repository.BackupSettingsConflictError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail="Backup configuration changed. Reload it and reconcile your draft.",
+        ) from exc
+    except repository.BackupSettingsValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    changed = _changed_config_groups(before, after)
+    summary = (
+        "Backup configuration changed: " + ", ".join(changed)
+        if changed
+        else "Backup configuration reviewed with no value changes"
     )
-    # This legacy response shape updates the global singleton without exposing
-    # WI-5 policy/status fields. Its shared max alias deliberately updates both.
-    repository.get_backup_settings(engine, settings=settings)
-    patch = {
-        "frequency": payload.frequency,
-        "smb_host": payload.smb_host,
-        "smb_share": payload.smb_share,
-        "smb_folder": payload.smb_folder,
-        "smb_username": payload.smb_username,
-        "smb_domain": payload.smb_domain,
-        "local_max_bytes": payload.max_bytes,
-        "offbox_max_bytes": payload.max_bytes,
-    }
-    if update_password:
-        patch["smb_password_encrypted"] = encrypted or ""
-    repository.update_backup_settings(engine, patch, expected_updated_at=None)
     audit.write_audit(
         engine,
         session.household_id,
         session.user_id,
         "backup.config_updated",
-        "household",
-        session.household_id,
-        "Backup destination/schedule changed",
+        "backup_settings",
+        "global",
+        summary,
     )
-    return await get_backup_config(session=session, engine=engine)
+    return await _run_sync(_load_backup_config, engine, settings)
+
+
+@router.get(
+    "/backups/status",
+    operation_id="getBackupRecoveryStatus",
+    response_model=BackupRecoveryStatus,
+    responses={
+        401: {"description": "Unauthorized", "model": ErrorResponse},
+        403: {"description": "Role does not permit this action", "model": ErrorResponse},
+    },
+    summary="Get qualified box-global backup recovery-candidate status",
+)
+async def get_backup_recovery_status(
+    session: repository.SessionContext = Depends(require_right(rights.BACKUPS_MANAGE)),
+    engine: Engine = Depends(get_engine),
+    settings: Settings = Depends(get_app_settings),
+) -> BackupRecoveryStatus:
+    snapshot = await _run_sync(backup_recovery.build_backup_recovery_snapshot, engine, settings)
+    return _recovery_status_schema(snapshot)
 
 
 @router.post(
@@ -464,28 +728,64 @@ async def check_backup_destination(
     engine: Engine = Depends(get_engine),
     settings: Settings = Depends(get_app_settings),
 ) -> BackupDestinationCheckResponse:
-    # Use the just-entered password, or fall back to the stored one when the field
-    # was left blank (re-testing a saved target).
-    password = payload.smb_password
-    if password is None:
-        stored = repository.get_backup_settings(engine, settings=settings)
-        if stored.smb_password_encrypted:
-            password = banksync.decrypt_credential(settings, stored.smb_password_encrypted)
-    if not password:
-        return BackupDestinationCheckResponse(
-            writable=False, reason="Enter the Synology password to test the connection."
+    def check() -> BackupDestinationCheckResponse:
+        as_of = datetime.now(UTC)
+        stored = repository.get_backup_settings(engine, settings=settings, as_of=as_of)
+        password = payload.smb_password
+        if password is None and stored.smb_password_encrypted:
+            try:
+                password = banksync.decrypt_credential(settings, stored.smb_password_encrypted)
+            except Exception:  # noqa: BLE001 - never expose credential failures
+                password = None
+        if not password:
+            reason = "Enter the Synology password to test the connection."
+            capacity = backup_storage.capacity_observation(
+                total_bytes=None,
+                available_bytes=None,
+                reserve_bytes=stored.offbox_min_free_bytes,
+                estimated_next_backup_bytes=None,
+                as_of=as_of,
+                unavailable=True,
+                reason_code="credentials_required",
+                reason=reason,
+            )
+            return BackupDestinationCheckResponse(
+                writable=False, reason=reason, capacity=_capacity_schema(capacity)
+            )
+        target = smb_backup.SmbTarget(
+            host=payload.smb_host,
+            share=payload.smb_share,
+            folder=payload.smb_folder,
+            username=payload.smb_username,
+            password=password,
+            domain=payload.smb_domain,
+            io_timeout_seconds=settings.backup_io_timeout_seconds,
         )
-    target = smb_backup.SmbTarget(
-        host=payload.smb_host,
-        share=payload.smb_share,
-        folder=payload.smb_folder,
-        username=payload.smb_username,
-        password=password,
-        domain=payload.smb_domain,
-        io_timeout_seconds=settings.backup_io_timeout_seconds,
-    )
-    ok, reason = await _run_sync(smb_backup.verify, target)
-    return BackupDestinationCheckResponse(writable=ok, reason=reason)
+        writable, reason = smb_backup.verify(target)
+        if writable:
+            capacity = _remote_capacity_response(
+                engine,
+                settings,
+                target,
+                reserve_bytes=stored.offbox_min_free_bytes,
+                as_of=as_of,
+            )
+        else:
+            capacity = backup_storage.capacity_observation(
+                total_bytes=None,
+                available_bytes=None,
+                reserve_bytes=stored.offbox_min_free_bytes,
+                estimated_next_backup_bytes=None,
+                as_of=as_of,
+                unavailable=True,
+                reason_code="destination_unwritable",
+                reason=reason,
+            )
+        return BackupDestinationCheckResponse(
+            writable=writable, reason=reason, capacity=_capacity_schema(capacity)
+        )
+
+    return await _run_sync(check)
 
 
 @router.get(
@@ -503,23 +803,47 @@ async def list_remote_backups(
     engine: Engine = Depends(get_engine),
     settings: Settings = Depends(get_app_settings),
 ) -> RemoteBackupListResponse:
-    config = backup_processing.build_backup_execution_config(engine, settings)
-    target = config.smb_target
-    try:
-        items = await _run_sync(smb_backup.list_backups, target) if target is not None else []
-    except smb_backup.SmbInventoryError as exc:
-        raise HTTPException(status_code=503, detail=exc.reason) from exc
-    return RemoteBackupListResponse(
-        backups=[
-            RemoteBackup(
-                filename=item["filename"],
-                size_bytes=item["size_bytes"],
-                modified_at=item["modified_at"],
-                app_version=backup_processing._app_version_from_filename(item["filename"]),
+    def load() -> RemoteBackupListResponse:
+        as_of = datetime.now(UTC)
+        stored = repository.get_backup_settings(engine, settings=settings, as_of=as_of)
+        target, target_error = backup_recovery.resolve_smb_target(stored, settings)
+        if target_error == "destination_not_configured":
+            return RemoteBackupListResponse(
+                backups=[],
+                status="not_configured",
+                as_of=as_of,
+                reason="No off-box backup destination is configured.",
             )
-            for item in items
-        ]
-    )
+        if target is None:
+            return RemoteBackupListResponse(
+                backups=[],
+                status="unavailable",
+                as_of=as_of,
+                reason="The stored Synology credential could not be opened.",
+            )
+        try:
+            inventory = smb_backup.list_inventory(target)
+        except smb_backup.SmbInventoryError as exc:
+            return RemoteBackupListResponse(
+                backups=[], status="unavailable", as_of=as_of, reason=exc.reason
+            )
+        return RemoteBackupListResponse(
+            backups=[
+                RemoteBackup(
+                    filename=item.filename,
+                    size_bytes=item.size_bytes,
+                    modified_at=item.modified_at,
+                    app_version=item.app_version,
+                )
+                for item in inventory.items
+                if item.readable_candidate
+            ],
+            status="available",
+            as_of=as_of,
+            reason=None,
+        )
+
+    return await _run_sync(load)
 
 
 @router.get(
@@ -558,6 +882,7 @@ async def get_backup_encryption_key(
         401: {"description": "Unauthorized", "model": ErrorResponse},
         403: {"description": "Role does not permit this action", "model": ErrorResponse},
         404: {"description": "Backup not found", "model": ErrorResponse},
+        409: {"description": "A backup operation is already in progress", "model": ErrorResponse},
     },
     summary="Delete an on-box backup",
 )
@@ -599,6 +924,7 @@ async def delete_backup(
         400: {"description": "No destination / invalid filename", "model": ErrorResponse},
         401: {"description": "Unauthorized", "model": ErrorResponse},
         403: {"description": "Role does not permit this action", "model": ErrorResponse},
+        409: {"description": "A backup operation is already in progress", "model": ErrorResponse},
     },
     summary="Delete a backup file from the Synology share",
 )
@@ -622,7 +948,20 @@ async def delete_remote_backup(
             status_code=409, detail="A backup operation is already in progress"
         ) from exc
     except Exception as exc:  # noqa: BLE001
-        return BackupDestinationCheckResponse(writable=False, reason=smb_backup._friendly(exc))
+        reason = smb_backup._friendly(exc)
+        capacity = backup_storage.capacity_observation(
+            total_bytes=None,
+            available_bytes=None,
+            reserve_bytes=config.offbox_min_free_bytes,
+            estimated_next_backup_bytes=None,
+            as_of=datetime.now(UTC),
+            unavailable=True,
+            reason_code="destination_unwritable",
+            reason=reason,
+        )
+        return BackupDestinationCheckResponse(
+            writable=False, reason=reason, capacity=_capacity_schema(capacity)
+        )
     audit.write_audit(
         engine,
         session.household_id,
@@ -632,4 +971,13 @@ async def delete_remote_backup(
         os.path.splitext(filename)[0][:36],
         f"Deleted {filename} from Synology",
     )
-    return BackupDestinationCheckResponse(writable=True, reason=None)
+    capacity = await _run_sync(
+        _remote_capacity_response,
+        engine,
+        settings,
+        target,
+        reserve_bytes=config.offbox_min_free_bytes,
+    )
+    return BackupDestinationCheckResponse(
+        writable=True, reason=None, capacity=_capacity_schema(capacity)
+    )

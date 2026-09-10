@@ -14,12 +14,23 @@ TOOL_DIR="$REPO_ROOT/apps/ios/openapi-generator"
 CONTRACT="${FAMILY_CFO_OPENAPI_CONTRACT:-$REPO_ROOT/shared/openapi/family-cfo.v1.yaml}"
 OUTPUT_DIR="${FAMILY_CFO_OPENAPI_OUTPUT_DIR:-$REPO_ROOT/apps/ios/FamilyCFO/FamilyCFOShared/APIClient/Generated}"
 
+# swift-openapi-generator 1.10.3 marks deprecated properties and then references
+# them from the generated initializer, which fails consumers that compile with
+# warnings-as-errors. Keep deprecation authoritative in OpenAPI (and the web
+# client), but remove only that annotation from a temporary Swift input.
+GENERATOR_CONTRACT="$(mktemp)"
+cleanup() {
+  rm -f "$GENERATOR_CONTRACT"
+}
+trap cleanup EXIT INT TERM
+sed '/^[[:space:]]*deprecated: true[[:space:]]*$/d' "$CONTRACT" > "$GENERATOR_CONTRACT"
+
 swift build --package-path "$TOOL_DIR" -c release --product swift-openapi-generator >/dev/null
 
 "$TOOL_DIR/.build/release/swift-openapi-generator" generate \
   --config "$TOOL_DIR/openapi-generator-config.yaml" \
   --output-directory "$OUTPUT_DIR" \
-  "$CONTRACT"
+  "$GENERATOR_CONTRACT"
 
 if [[ "${1:-}" == "--check" ]]; then
   if ! git -C "$REPO_ROOT" diff --exit-code -- "$OUTPUT_DIR"; then

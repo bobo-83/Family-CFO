@@ -1,4 +1,5 @@
 import time
+from datetime import datetime
 from pathlib import Path
 
 import httpx
@@ -6,7 +7,7 @@ import pytest
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import fixtures, repository, security, smb_backup
+from family_cfo_api import banksync, fixtures, repository, security, smb_backup
 from family_cfo_api.backup_operation_lock import acquire_backup_operation_lock
 
 NEWCOMER_EMAIL = "newcomer@example.com"
@@ -241,6 +242,14 @@ async def test_remote_restore_of_a_snapshot_older_than_the_actor_records_no_acto
     # The archive the share would hand back is the one the box just wrote. The
     # destination is configured after the backup so nothing tries a real upload.
     archive = (Path(demo_file_settings.backup_dir) / f"{backup['id']}.enc").read_bytes()
+    monkeypatch.setattr(
+        smb_backup, "list_inventory", lambda target: smb_backup.SmbInventory((), ())
+    )
+    monkeypatch.setattr(
+        smb_backup,
+        "query_capacity",
+        lambda target: smb_backup.SmbCapacity(10_000_000, 9_000_000, 9_000_000),
+    )
     config_response = await demo_file_client.put(
         "/api/v1/backups/config",
         headers=owner_headers,
@@ -331,3 +340,192 @@ async def test_viewer_cannot_create_or_list_backups(demo_client, demo_viewer_tok
         "/api/v1/backups", headers={"Authorization": f"Bearer {demo_viewer_token}"}
     )
     assert list_response.status_code == 403
+
+
+@pytest.mark.anyio
+async def test_backup_config_exposes_global_policy_and_password_write_semantics(
+    demo_file_client,
+    demo_file_token,
+    demo_file_engine: Engine,
+) -> None:
+    headers = {"Authorization": f"Bearer {demo_file_token}"}
+
+    initial = await demo_file_client.get("/api/v1/backups/config", headers=headers)
+    assert initial.status_code == 200
+    body = initial.json()
+    assert body["local_retention"]["mode"] == "tiered"
+    assert body["offbox_retention"]["mode"] == "keep_all"
+    assert body["offbox_retention"]["weekly_until_days"] is None
+    assert body["max_bytes"] is None
+    assert body["updated_at"]
+    assert "smb_password" not in body
+
+    supplied = await demo_file_client.put(
+        "/api/v1/backups/config", headers=headers, json={"smb_password": "top-secret"}
+    )
+    assert supplied.status_code == 200
+    assert supplied.json()["has_password"] is True
+
+    preserved = await demo_file_client.put(
+        "/api/v1/backups/config", headers=headers, json={"smb_password": None}
+    )
+    assert preserved.status_code == 200
+    assert preserved.json()["has_password"] is True
+
+    cleared = await demo_file_client.put(
+        "/api/v1/backups/config", headers=headers, json={"smb_password": ""}
+    )
+    assert cleared.status_code == 200
+    assert cleared.json()["has_password"] is False
+
+    events = repository.list_audit_events(demo_file_engine, fixtures.DEMO_HOUSEHOLD_ID)
+    summaries = " ".join(event.summary for event in events)
+    assert "top-secret" not in summaries
+
+
+@pytest.mark.anyio
+async def test_backup_config_activation_is_cas_guarded_and_alias_compatible(
+    demo_file_client, demo_file_token
+) -> None:
+    headers = {"Authorization": f"Bearer {demo_file_token}"}
+    legacy = await demo_file_client.put(
+        "/api/v1/backups/config", headers=headers, json={"max_bytes": 123456}
+    )
+    assert legacy.status_code == 200
+    assert legacy.json()["local_max_bytes"] == 123456
+    assert legacy.json()["offbox_max_bytes"] == 123456
+    assert legacy.json()["max_bytes"] == 123456
+
+    token = legacy.json()["updated_at"]
+    activated = await demo_file_client.put(
+        "/api/v1/backups/config",
+        headers=headers,
+        json={
+            "local_retention": {
+                "mode": "tiered",
+                "keep_all_days": 2,
+                "daily_until_days": 10,
+                "weekly_until_days": 60,
+            },
+            "local_max_bytes": 222222,
+            "expected_updated_at": token,
+            "confirm_retention_policy": True,
+        },
+    )
+    assert activated.status_code == 200
+    assert activated.json()["retention_review_required"] is False
+    assert activated.json()["retention_activated_at"] is not None
+    assert activated.json()["max_bytes"] is None
+
+    stale = await demo_file_client.put(
+        "/api/v1/backups/config",
+        headers=headers,
+        json={
+            "frequency": "weekly",
+            "expected_updated_at": token,
+        },
+    )
+    assert stale.status_code == 409
+    current = await demo_file_client.get("/api/v1/backups/config", headers=headers)
+    assert current.json()["frequency"] != "weekly"
+
+
+@pytest.mark.anyio
+async def test_backup_status_is_one_qualified_snapshot_and_requires_box_right(
+    demo_file_client, demo_file_token
+) -> None:
+    unauthorized = await demo_file_client.get("/api/v1/backups/status")
+    assert unauthorized.status_code == 401
+    viewer_login = await demo_file_client.post(
+        "/api/v1/auth/sessions",
+        json={
+            "email": fixtures.DEMO_VIEWER_EMAIL,
+            "password": fixtures.DEMO_VIEWER_PASSWORD,
+        },
+    )
+    assert viewer_login.status_code == 201
+    viewer_token = viewer_login.json()["access_token"]
+    forbidden = await demo_file_client.get(
+        "/api/v1/backups/status",
+        headers={"Authorization": f"Bearer {viewer_token}"},
+    )
+    assert forbidden.status_code == 403
+
+    response = await demo_file_client.get(
+        "/api/v1/backups/status",
+        headers={"Authorization": f"Bearer {demo_file_token}"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["verification_scope"] == "inventory_read_probe"
+    assert body["local"]["as_of"] == body["as_of"]
+    assert body["offbox"]["as_of"] == body["as_of"]
+    assert body["offbox"]["status"] == "not_configured"
+    assert body["offbox"]["probe_status"] == "unavailable"
+    assert body["offbox"]["readable_archive_count"] is None
+
+
+@pytest.mark.anyio
+async def test_remote_list_distinguishes_unavailable_from_empty(
+    demo_file_client,
+    demo_file_token,
+    demo_file_engine: Engine,
+    demo_file_settings,
+    monkeypatch,
+) -> None:
+    headers = {"Authorization": f"Bearer {demo_file_token}"}
+    encrypted = banksync.encrypt_credential(demo_file_settings, "not-a-real-password")
+    repository.update_backup_settings(
+        demo_file_engine,
+        {
+            "smb_host": "nas.invalid",
+            "smb_share": "backups",
+            "smb_username": "backup-user",
+            "smb_password_encrypted": encrypted,
+        },
+        expected_updated_at=None,
+    )
+    monkeypatch.setattr(
+        smb_backup,
+        "list_inventory",
+        lambda target: (_ for _ in ()).throw(
+            smb_backup.SmbInventoryError(
+                "destination_unreachable", "The Synology inventory is unavailable."
+            )
+        ),
+    )
+
+    response = await demo_file_client.get("/api/v1/backups/remote", headers=headers)
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "unavailable"
+    assert response.json()["backups"] == []
+    assert response.json()["reason"] == "The Synology inventory is unavailable."
+    datetime.fromisoformat(response.json()["as_of"])
+
+
+@pytest.mark.anyio
+async def test_destination_check_reports_capacity(
+    demo_file_client, demo_file_token, monkeypatch
+) -> None:
+    monkeypatch.setattr(smb_backup, "verify", lambda target: (True, None))
+    monkeypatch.setattr(
+        smb_backup,
+        "query_capacity",
+        lambda target: smb_backup.SmbCapacity(20_000_000_000, 10_000_000_000, 10_000_000_000),
+    )
+    response = await demo_file_client.post(
+        "/api/v1/backups/destination-check",
+        headers={"Authorization": f"Bearer {demo_file_token}"},
+        json={
+            "smb_host": "nas.invalid",
+            "smb_share": "backups",
+            "smb_username": "backup-user",
+            "smb_password": "not-a-real-password",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["writable"] is True
+    assert response.json()["capacity"]["status"] in ("ok", "warning")
+    assert response.json()["capacity"]["available_bytes"] == 10_000_000_000

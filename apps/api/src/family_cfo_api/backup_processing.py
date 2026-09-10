@@ -341,9 +341,7 @@ def _reconcile_delete_intents(
             if intent.reason == "explicit_delete":
                 repository.delete_backup_job(engine, intent.backup_job_id)
             else:
-                repository.mark_backup_job_pruned(
-                    engine, intent.backup_job_id, intent.reason
-                )
+                repository.mark_backup_job_pruned(engine, intent.backup_job_id, intent.reason)
         _journal(
             engine,
             config,
@@ -539,7 +537,7 @@ def _apply_local_retention(
     return deleted
 
 
-def _remote_inventory_items(
+def remote_inventory_items(
     engine: Engine,
     inventory: smb_backup.SmbInventory,
     *,
@@ -593,7 +591,7 @@ def _apply_remote_retention(
     incoming_bytes: int | None = None,
 ) -> int:
     assert config.smb_target is not None
-    items = _remote_inventory_items(engine, inventory, as_of=as_of)
+    items = remote_inventory_items(engine, inventory, as_of=as_of)
     plan = _retention_plan(
         as_of=as_of,
         inventory=items,
@@ -665,7 +663,7 @@ def _apply_remote_retention(
     return deleted
 
 
-def _remote_capacity(
+def query_remote_capacity_observation(
     target: smb_backup.SmbTarget,
     *,
     reserve_bytes: int,
@@ -904,7 +902,7 @@ def _sync_remote(
                 as_of=as_of,
                 incoming_bytes=ciphertext_size,
             )
-        capacity = _remote_capacity(
+        capacity = query_remote_capacity_observation(
             config.smb_target,
             reserve_bytes=config.offbox_min_free_bytes,
             estimate=ciphertext_size,
@@ -1079,9 +1077,7 @@ def run_backup_maintenance(
                     reason="stale_partial_delete_failed",
                     archive_key=partial.archive_key,
                 )
-                logger.warning(
-                    "local partial cleanup failed error_type=%s", type(exc).__name__
-                )
+                logger.warning("local partial cleanup failed error_type=%s", type(exc).__name__)
         if inventory.available:
             _journal_best_effort(
                 engine,
@@ -1169,7 +1165,7 @@ def run_backup_maintenance(
                     operation_id=operation_id,
                     as_of=as_of,
                 )
-                remote_capacity = _remote_capacity(
+                remote_capacity = query_remote_capacity_observation(
                     config.smb_target,
                     reserve_bytes=config.offbox_min_free_bytes,
                     estimate=estimate_next_backup_bytes(inventory),

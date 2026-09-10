@@ -5038,6 +5038,88 @@ def update_backup_settings(
     return _backup_settings_from_row(updated)
 
 
+def update_and_activate_backup_settings(
+    engine: Engine,
+    patch: Mapping[str, Any],
+    *,
+    expected_updated_at: datetime,
+) -> BackupSettingsRecord:
+    """Atomically apply a reviewed policy patch and activate retention.
+
+    Confirmation is one compare-and-swap: clients must never expose a newly
+    destructive policy in a separate transaction before its review gate is
+    cleared, or clear the gate after a concurrent edit.
+    """
+    get_backup_settings(engine)
+    normalized = _normalized_backup_settings_patch(patch)
+    expected_revision = _backup_input_utc(expected_updated_at, "expected_updated_at")
+    with engine.begin() as conn:
+        row = (
+            conn.execute(
+                select(models.backup_settings)
+                .where(models.backup_settings.c.key == BACKUP_SETTINGS_KEY)
+                .with_for_update()
+            )
+            .mappings()
+            .one()
+        )
+        current = _backup_settings_from_row(row)
+        if expected_revision != current.updated_at:
+            raise BackupSettingsConflictError("backup settings changed")
+
+        merged = _backup_settings_values(current) | normalized | {"key": current.key}
+        if {"smb_host", "smb_share", "smb_folder"} & set(normalized) and (
+            merged["smb_host"],
+            merged["smb_share"],
+            merged["smb_folder"],
+        ) != (current.smb_host, current.smb_share, current.smb_folder):
+            merged["offbox_destination_generation"] = new_id()
+        if (
+            "local_path_fingerprint" in normalized
+            and merged["local_path_fingerprint"] != current.local_path_fingerprint
+        ):
+            merged["local_destination_generation"] = new_id()
+
+        revision = _next_backup_settings_revision(current.updated_at)
+        merged.update(
+            legacy_conflict_detected=False,
+            retention_review_required=False,
+            retention_activated_at=revision,
+            updated_at=revision,
+        )
+        validate_backup_settings(merged)
+        values = {name: merged[name] for name in normalized}
+        for name in (
+            "offbox_destination_generation",
+            "local_destination_generation",
+            "legacy_conflict_detected",
+            "retention_review_required",
+            "retention_activated_at",
+            "updated_at",
+        ):
+            values[name] = merged[name]
+        result = conn.execute(
+            update(models.backup_settings)
+            .where(
+                models.backup_settings.c.key == BACKUP_SETTINGS_KEY,
+                models.backup_settings.c.updated_at == expected_revision,
+            )
+            .values(**values)
+        )
+        if result.rowcount != 1:
+            raise BackupSettingsConflictError("backup settings changed")
+        updated = (
+            conn.execute(
+                select(models.backup_settings).where(
+                    models.backup_settings.c.key == BACKUP_SETTINGS_KEY
+                )
+            )
+            .mappings()
+            .one()
+        )
+    return _backup_settings_from_row(updated)
+
+
 def activate_backup_retention(
     engine: Engine,
     *,

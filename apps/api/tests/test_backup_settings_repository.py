@@ -112,9 +112,10 @@ def test_concurrent_bootstrap_materializes_one_singleton(tmp_path) -> None:
             records[0].local_destination_generation
         }
         with engine.connect() as conn:
-            assert conn.execute(
-                select(func.count()).select_from(models.backup_settings)
-            ).scalar_one() == 1
+            assert (
+                conn.execute(select(func.count()).select_from(models.backup_settings)).scalar_one()
+                == 1
+            )
     finally:
         engine.dispose()
 
@@ -378,6 +379,48 @@ def test_update_cas_activation_and_generation_rotation(demo_engine: Engine) -> N
         )
 
 
+def test_atomic_settings_update_and_activation_is_all_or_nothing(
+    demo_engine: Engine,
+) -> None:
+    initial = repository.get_backup_settings(demo_engine)
+    assert initial.retention_review_required is True
+
+    updated = repository.update_and_activate_backup_settings(
+        demo_engine,
+        {
+            "frequency": "weekly",
+            "local_retention_mode": "tiered",
+            "local_keep_all_days": 2,
+            "local_daily_until_days": 10,
+            "local_weekly_until_days": 60,
+            "smb_host": "nas.local",
+        },
+        expected_updated_at=initial.updated_at,
+    )
+    assert updated.frequency == "weekly"
+    assert updated.local_keep_all_days == 2
+    assert updated.retention_review_required is False
+    assert updated.retention_activated_at == updated.updated_at
+    assert updated.offbox_destination_generation != initial.offbox_destination_generation
+
+    with pytest.raises(repository.BackupSettingsConflictError):
+        repository.update_and_activate_backup_settings(
+            demo_engine,
+            {"frequency": "off"},
+            expected_updated_at=initial.updated_at,
+        )
+    after_conflict = repository.get_backup_settings(demo_engine)
+    assert after_conflict == updated
+
+    with pytest.raises(repository.BackupSettingsValidationError):
+        repository.update_and_activate_backup_settings(
+            demo_engine,
+            {"local_daily_until_days": 1},
+            expected_updated_at=updated.updated_at,
+        )
+    assert repository.get_backup_settings(demo_engine) == updated
+
+
 def test_repository_normalizes_aware_instants_and_rejects_malformed_values() -> None:
     engine = _engine()
     eastern = timezone(timedelta(hours=-4))
@@ -550,9 +593,12 @@ def test_retention_journal_is_idempotent_and_generation_scoped() -> None:
                 occurred_at=datetime(2026, 9, 10, 12, tzinfo=UTC).replace(tzinfo=None),
             )
         with engine.connect() as conn:
-            assert conn.execute(
-                select(func.count()).select_from(models.backup_retention_events)
-            ).scalar_one() == 2
+            assert (
+                conn.execute(
+                    select(func.count()).select_from(models.backup_retention_events)
+                ).scalar_one()
+                == 2
+            )
     finally:
         engine.dispose()
 
