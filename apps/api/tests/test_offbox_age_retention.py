@@ -66,6 +66,5 @@ def test_zero_days_is_a_noop(monkeypatch, demo_file_engine, demo_file_settings) 
         "_enforce_age_cap_remote",
         lambda *a, **k: calls.append(a) or 0,
     )
-    config = backup_processing.build_backup_execution_config(demo_file_engine, demo_file_settings)
-    backup_processing.run_backup_once(demo_file_engine, config)
+    backup_processing.run_backup_once(demo_file_engine, demo_file_settings)
     assert calls == []

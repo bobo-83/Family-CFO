@@ -9,7 +9,10 @@ from sqlalchemy.engine import Engine
 
 from family_cfo_api import backup_processing, banksync, fixtures, repository, security, smb_backup
 from family_cfo_api.api import backups as backups_api
-from family_cfo_api.backup_operation_lock import acquire_backup_operation_lock
+from family_cfo_api.backup_operation_lock import (
+    acquire_backup_operation_lock,
+    try_acquire_backup_operation_lock,
+)
 
 NEWCOMER_EMAIL = "newcomer@example.com"
 NEWCOMER_PASSWORD = "newcomer-password-123"
@@ -65,6 +68,42 @@ async def test_create_backup_requires_authentication(demo_file_client) -> None:
 
 
 @pytest.mark.anyio
+async def test_create_audit_and_response_job_reads_finish_inside_lease(
+    demo_file_client,
+    demo_file_token,
+    demo_file_engine: Engine,
+    monkeypatch,
+) -> None:
+    headers = {"Authorization": f"Bearer {demo_file_token}"}
+    original_audit = backups_api.audit.write_audit
+    original_get = repository.get_backup_job
+    audited = False
+    job_reads = 0
+
+    def assert_locked_audit(*args, **kwargs):
+        nonlocal audited
+        if len(args) > 3 and args[3] == "backup.created":
+            audited = True
+            assert try_acquire_backup_operation_lock(demo_file_engine) is None
+        return original_audit(*args, **kwargs)
+
+    def assert_locked_job_read(engine: Engine, backup_job_id: str):
+        nonlocal job_reads
+        job_reads += 1
+        assert try_acquire_backup_operation_lock(demo_file_engine) is None
+        return original_get(engine, backup_job_id)
+
+    monkeypatch.setattr(backups_api.audit, "write_audit", assert_locked_audit)
+    monkeypatch.setattr(repository, "get_backup_job", assert_locked_job_read)
+
+    response = await demo_file_client.post("/api/v1/backups", headers=headers)
+
+    assert response.status_code == 201, response.text
+    assert audited is True
+    assert job_reads >= 2
+
+
+@pytest.mark.anyio
 async def test_manual_backup_returns_conflict_while_global_operation_is_owned(
     demo_file_client, demo_file_token, demo_file_engine: Engine
 ) -> None:
@@ -89,7 +128,7 @@ async def test_manual_backup_pre_job_failure_releases_cooldown(
     monkeypatch.setattr(
         backup_processing,
         "build_backup_execution_config",
-        lambda engine, settings: (_ for _ in ()).throw(
+        lambda engine, settings, *, lease: (_ for _ in ()).throw(
             backup_processing.BackupConfigurationError("stored SMB credential could not be opened")
         ),
     )
@@ -110,7 +149,7 @@ async def test_manual_backup_lifecycle_failure_keeps_cooldown(
     monkeypatch.setattr(
         backup_processing,
         "run_backup_once",
-        lambda engine, config: (_ for _ in ()).throw(
+        lambda engine, settings, **kwargs: (_ for _ in ()).throw(
             backup_processing.BackupOperationLockLostError("operation lock lost")
         ),
     )
@@ -120,6 +159,11 @@ async def test_manual_backup_lifecycle_failure_keeps_cooldown(
     retry = await demo_file_client.post("/api/v1/backups", headers=headers)
 
     assert retry.status_code == 429
+    assert "Retry-After" in retry.headers
+    message = retry.json()["error"]["message"].lower()
+    assert "attempt" in message
+    assert "saved" not in message
+    assert "complete" not in message
 
 
 @pytest.mark.anyio
@@ -149,6 +193,34 @@ async def test_create_list_and_restore_backup(demo_file_client, demo_file_token)
     # data-level round trip is covered by test_backup_processing.py; here we only
     # assert the restore endpoint completed without error.
     assert restore_response.json()["id"] == backup["id"]
+
+
+@pytest.mark.anyio
+async def test_restore_migration_failure_is_non_2xx_and_redacted(
+    demo_file_client,
+    demo_file_token,
+    monkeypatch,
+) -> None:
+    headers = {"Authorization": f"Bearer {demo_file_token}"}
+
+    def fail_restore(*args, **kwargs):
+        try:
+            raise RuntimeError("synthetic command output /private/secret/database")
+        except RuntimeError as cause:
+            raise backup_processing.BackupMigrationError("nonzero_exit") from cause
+
+    monkeypatch.setattr(backup_processing, "restore_backup", fail_restore)
+
+    response = await demo_file_client.post(
+        "/api/v1/backups/00000000-0000-0000-0000-000000000000/restore",
+        headers=headers,
+    )
+
+    assert response.status_code == 500
+    message = response.json()["error"]["message"]
+    assert message == "Backup database migration failed; current data was preserved."
+    assert "synthetic" not in response.text
+    assert "private" not in response.text
 
 
 @pytest.mark.anyio
@@ -609,6 +681,36 @@ async def test_remote_delete_rejects_unrecognized_archive_name(
 
     assert response.status_code == 400
     assert response.json()["error"]["message"] == "Invalid backup filename"
+
+
+@pytest.mark.anyio
+async def test_local_delete_returns_redacted_400_for_unsafe_stored_path(
+    demo_file_client,
+    demo_file_token,
+    demo_file_engine: Engine,
+) -> None:
+    record = repository.create_backup_job(demo_file_engine)
+    repository.update_backup_job(demo_file_engine, record.id, status="running")
+    repository.complete_backup_job_local(
+        demo_file_engine,
+        record.id,
+        storage_path="../private/synthetic-household.enc",
+        size_bytes=1,
+        remote_status="skipped",
+        app_version=None,
+        schema_revision=None,
+    )
+
+    response = await demo_file_client.delete(
+        f"/api/v1/backups/{record.id}",
+        headers={"Authorization": f"Bearer {demo_file_token}"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["message"] == "backup storage path must be a basename"
+    assert "private" not in response.text
+    assert "synthetic-household" not in response.text
+    assert repository.get_backup_job(demo_file_engine, record.id) is not None
 
 
 @pytest.mark.anyio

@@ -413,21 +413,29 @@ After successful local promotion and after successful SMB promotion, re-run tier
 
 Create immutable `BackupExecutionConfig`, assembled once from process `Settings` plus `BackupSettingsRecord`, containing database/staging/local paths, encryption key, cadence, SMB target, both policies, both logical caps, and both reserves.
 
-Both scheduler and manual route call one builder and then conceptually:
+The operation owner acquires the mutation lease before calling the builder. The
+builder requires that lease, and the resulting snapshot is consumed only by the
+same lease-owned lifecycle. Manual creation conceptually calls:
 
 ```text
-run_backup_once(engine, execution_config, now=None) -> backup_job_id
+run_backup_once(engine, settings, now=None, finalize=None) -> terminal_backup_job
 ```
 
-Remove the separate `retention_count`, shared `max_bytes`, and `offbox_retention_days` arguments only after every caller migrates. This eliminates the current manual/scheduled divergence.
+Scheduled creation acquires non-blockingly, builds the same configuration, makes
+the cadence decision, and calls an internal locked helper without reacquiring.
+Remove the separate `retention_count`, shared `max_bytes`, and
+`offbox_retention_days` arguments only after every caller migrates. This
+eliminates the current manual/scheduled divergence and any stale pre-lock target
+or policy snapshot.
 
 #### 6.2 Box-global scheduling
 
 `run_due_backups()` becomes one box-level cadence decision:
 
-- Load the singleton once.
+- Try the mutation lease before reading operational configuration or cadence.
+- After acquisition, load the singleton and latest completed job once.
 - Return `0` when frequency is `off` or a completed global job is within cadence.
-- Otherwise run one backup and return `1`.
+- Otherwise run one backup under that same lease and return `1`.
 - Remove the household loop and household-attributed target selection.
 - Scheduled audit/journal entries describe box-global work; do not imply the archive belongs only to the administrator’s active household.
 
@@ -441,7 +449,10 @@ Add a `BackupOperationLock` seam:
 - SQLite tests use a process-local lock behind the same interface; concurrency tests patch/acquire the seam explicitly rather than depending on host behavior.
 - Scheduled execution skips if busy and records `lock_skipped`.
 - Manual creation returns `409 backup_in_progress`. Globalize the current per-household, process-local 60-second `429` anti-hammer cooldown to the single box backup stream; it remains a separate rate-limit rule, not the cross-process exclusion mechanism.
-- Restore and explicit local/remote delete acquire the same lock.
+- Restore and explicit local/remote delete acquire the same lock before source,
+  path, target, policy, or capacity selection.
+- The lease spans terminal job/remote-result writes, request audit finalizers,
+  restore boundary/final audit work, and response-driving record/capacity reads.
 
 Do not hold an ordinary row transaction open across `pg_dump`/SMB I/O. Repository mutations use their normal short transactions while the session-level advisory lock supplies cross-process exclusion.
 
@@ -467,13 +478,16 @@ Before every destructive retention/restore phase, verify the dedicated PostgreSQ
 
 Operational settings control external-file deletion, so restore must deliberately differ from ordinary whole-database rollback:
 
-1. Under the mutation lock, capture the current singleton—including encrypted SMB credential—in memory only; never log or persist a plaintext/temporary copy.
-2. Restore the database and run migrations as today.
-3. Re-upsert the captured current operational settings, rotate both destination generations, set `retention_review_required = true` and `retention_activated_at = null`, and journal `restore_reset` after the restored database is live. Restored historical policy/journal rows do not resume pruning automatically.
-4. Reconcile the source local job to `completed` using the pre-restore record/path when it still exists; mark other stale restored `running` rows `interrupted`. Newer physical files whose rows vanished are protected orphans.
-5. Return status as degraded/unknown until a system administrator reviews the post-restore inventories and explicitly confirms policy.
+1. Under the mutation lock, capture the current singleton—including encrypted SMB credential—in memory only; never log or persist a plaintext credential copy.
+2. Fully extract the archive document tar into a same-filesystem sibling directory. Any extraction/capacity/permission failure stops before live state changes.
+3. For SQLite, migrate the isolated archive database file to head before promotion. For every destructive backend, pause retention and rotate the current destination generations to a fresh archive-external rollback marker, then capture a live rollback dump. PostgreSQL custom dumps cannot be migrated in place, so its archive migration remains inside the reversible live phase.
+4. Restore/promote the database and require its migration to current head. A timeout or nonzero exit remains a typed, redacted failure, never a logged success.
+5. Re-upsert the captured current operational settings, rotate both destination generations, set `retention_review_required = true` and `retention_activated_at = null`, and journal `restore_reset`. Restored historical policy/journal rows do not resume pruning automatically.
+6. Reconcile the source local job to `completed` using the pre-restore record/path when it still exists; mark other stale restored `running` rows `interrupted`. Newer physical files whose rows vanished are protected orphans.
+7. Atomically replace the live document directory with the completely staged archive tree, but retain its old-tree rollback path and the database rollback image through the final audit callback, response-driving job/capacity reads, and post-read lease certification. Discard the rollback assets only after those steps succeed.
+8. On any caught failure after live database mutation, restore and verify the pre-request database/document pair by both prior schema revision and the archive-external settings marker, then reapply the captured settings with fresh generations/review pause before propagating the redacted primary failure. If ownership was lost, reacquire the exclusive lease before any compensation; if another operation owns it, perform no unowned rollback and return the operator-intervention failure. SQLite pre-migration failures leave live data untouched but apply the same policy pause.
 
-This preserves the currently configured physical destinations/credentials across financial-data rollback and prevents an old aggressive policy from deleting newer external files. Record the exception to whole-database semantics in the ADR, restore warning, guide, and tests. Remote restore follows the same settings preservation/review gate even when no local job row exists.
+This preserves the currently configured physical destinations/credentials across financial-data rollback and prevents an old schema or aggressive policy from deleting newer external files. The compensating sequence guarantees one coherent old/new pair for completed calls and caught failures while ownership is retained or reacquired. Database and filesystem promotion have no shared crash-atomic transaction: process/host/power loss between them, or lease loss when a successor already owns the lock, remains an operator-recovery case. Record that boundary in the ADR, restore warning, guide, and tests. Remote restore follows the same settings preservation/review gate even when no local job row exists.
 
 #### 6.7 Failure and cancellation matrix
 
@@ -482,6 +496,7 @@ This preserves the currently configured physical destinations/credentials across
 - Inventory, retention, or journal failure after local completion: preserve completed state; destination is degraded and warning-logged.
 - File deletion followed by metadata failure: next pass reconciles missing file.
 - Unexpected exceptions must not leave a permanent running row silently; outer orchestration records a sanitized failure when the job ID exists.
+- Restore document staging/extraction failure leaves the live database/tree untouched. A caught failure after database mutation restores and verifies the pre-request database/tree, including failures in final audit/response reads, and re-enables the review pause while ownership is retained or reacquired. Rollback-verification failure and inability to reacquire after lease loss are distinct redacted operator-intervention errors; compensation never writes without exclusive ownership.
 - Blocking filesystem/SMB/status work invoked by FastAPI runs in a thread pool, under the per-process SMB gate where applicable. Repository/filesystem/SMB code stays synchronous; Angular and Swift clients remain asynchronous.
 - Request cancellation never releases an in-flight synchronous operation’s lock. Cleanup is best-effort and never deletes a promoted final archive merely because metadata completion is uncertain.
 
@@ -696,7 +711,13 @@ All Swift, generated Swift, Xcode-project, and iOS test work must be performed o
 
 ### Manual backup
 
-Use the same steps and execution config. The differences are actor/audit context, the newly box-globalized 60-second process-local cooldown, and a 409 response when the operation lock is busy. It must no longer omit off-box policy.
+Use the same lease-owned steps and execution config. The differences are
+actor/audit context, the newly box-globalized 60-second process-local cooldown,
+and a 409 response when the operation lock is busy. The cooldown is retained
+after a lifecycle that produces a failed job, but its 429 copy says only that a
+recent attempt is cooling down; it never claims the data was saved. Create audit
+and the response-driving terminal record read happen before lease release. It
+must no longer omit off-box policy.
 
 ### Read-only status
 
@@ -714,7 +735,16 @@ Every worker interval tries the same lock even when backup frequency is `off` or
 
 ### Restore/delete
 
-Acquire the same global lock before touching an archive. Restore captures and re-applies current operational settings, rotates destination generations, pauses automatic pruning for review, reconciles the source/interrupted jobs, and protects post-snapshot physical orphans. Explicit deletion remains distinct from automated pruning and records both `explicit_deleted` journal facts and irreversible household audit state.
+Acquire the same global lock before selecting or touching an archive or target.
+Restore captures and re-applies current operational settings, rotates destination
+generations, pauses automatic pruning for review, reconciles the
+source/interrupted jobs, and protects post-snapshot physical orphans. The
+pre-restore audit boundary, successful post-restore audit, source/capacity result,
+and explicit-delete audit remain inside the same lease. A migration timeout or
+nonzero exit is surfaced only after the pre-request database/document pair is
+preserved or restored and settings/review/journal safety is durable. Explicit
+deletion remains distinct from automated pruning and records both
+`explicit_deleted` journal facts and irreversible household audit state.
 
 ## Orchestration progress
 

@@ -339,7 +339,7 @@ async def list_backups(
     return BackupJobListResponse(backups=[_to_schema(record) for record in records])
 
 
-# #181: minimum gap between on-demand backups per household — whole-box work
+# #181: minimum gap between on-demand backups across the whole box — work
 # (pg_dump + SMB push) that a stuck client or loop must not hammer.
 _BACKUP_COOLDOWN_SECONDS = 60
 _last_manual_backup: float | None = None
@@ -407,41 +407,40 @@ async def create_backup(
         raise HTTPException(
             status_code=429,
             detail=(
-                f"A backup just ran — the next one can start in {retry_after}s. "
-                "Your data is already saved."
+                f"A backup attempt ran moments ago — the next one can start in "
+                f"{retry_after}s. Check the latest backup status before trying again."
             ),
             headers={"Retry-After": str(retry_after)},
         )
 
-    try:
-        config = await _run_sync(backup_processing.build_backup_execution_config, engine, settings)
-    except backup_processing.BackupConfigurationError as exc:
-        # Configuration assembly happens before a job exists. Do not reserve the
-        # cooldown for work that never entered the backup lifecycle.
-        _release_backup_cooldown(reservation)
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except Exception:
-        _release_backup_cooldown(reservation)
-        raise
+    def finalize(record: repository.BackupJobRecord) -> None:
+        audit.write_audit(
+            engine,
+            session.household_id,
+            session.user_id,
+            "backup.created",
+            "backup_job",
+            record.id,
+            "Backup requested",
+        )
 
     try:
-        backup_job_id = await _run_sync(backup_processing.run_backup_once, engine, config)
+        record = await _run_sync(
+            backup_processing.run_backup_once,
+            engine,
+            settings,
+            finalize=finalize,
+        )
     except backup_processing.BackupOperationBusyError as exc:
         _release_backup_cooldown(reservation)
         raise HTTPException(
             status_code=409, detail="A backup operation is already in progress"
         ) from exc
-    audit.write_audit(
-        engine,
-        session.household_id,
-        session.user_id,
-        "backup.created",
-        "backup_job",
-        backup_job_id,
-        "Backup requested",
-    )
-    record = repository.get_backup_job(engine, backup_job_id)
-    assert record is not None
+    except backup_processing.BackupConfigurationError as exc:
+        # Configuration assembly failed before a job existed. A configuration
+        # failure after job creation is returned as a terminal failed job.
+        _release_backup_cooldown(reservation)
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     logger.info("backup requested backup_id=%s status=%s", record.id, record.status)
     return _to_schema(record)
 
@@ -473,29 +472,48 @@ async def restore_remote_backup(
     engine: Engine = Depends(get_engine),
     settings: Settings = Depends(get_app_settings),
 ) -> BackupDestinationCheckResponse:
-    config = backup_processing.build_backup_execution_config(engine, settings)
-    target = config.smb_target
-    if target is None:
-        raise HTTPException(status_code=400, detail="No Synology backup destination is configured")
     # Guard against path traversal — only a bare filename from the share.
     filename = os.path.basename(payload.filename)
     if filename != payload.filename or not filename.endswith(".enc"):
         raise HTTPException(status_code=400, detail="Invalid backup filename")
 
-    # Hold the global mutation lease across share selection/read and restore so
-    # maintenance or explicit deletion cannot invalidate the selected source.
+    def before_restore(snapshot_at: datetime | None) -> backup_processing.RestoreBoundary:
+        return _restore_boundary(
+            engine,
+            session.household_id,
+            snapshot_at,
+            f"Restored from {filename}",
+        )
+
+    def finalize(boundary: backup_processing.RestoreBoundary) -> None:
+        _discarded, restore_summary = boundary
+        audit_household_id, restore_summary = _household_after_restore(
+            engine, session.household_id, restore_summary
+        )
+        actor_id, restore_summary = _actor_after_restore(engine, session.user_id, restore_summary)
+        if audit_household_id is not None:
+            audit.write_audit(
+                engine,
+                audit_household_id,
+                actor_id,
+                "backup.restored_remote",
+                "backup_file",
+                os.path.splitext(filename)[0][:36],
+                restore_summary,
+            )
+        else:
+            logger.error("post-restore audit omitted because the snapshot has no household")
+
+    # Selection, download, restore, final audit, and response capacity all use
+    # one target snapshot under one mutation lease.
     try:
-        discarded, restore_summary = await _run_sync(
+        result = await _run_sync(
             backup_processing.restore_remote_backup,
             engine,
             filename,
-            config,
-            before_restore=lambda snapshot_at: _restore_boundary(
-                engine,
-                session.household_id,
-                snapshot_at,
-                f"Restored from {filename}",
-            ),
+            settings,
+            before_restore=before_restore,
+            finalize=finalize,
         )
     except smb_backup.SmbStorageError as exc:
         raise HTTPException(status_code=404, detail="Backup file not found on the share") from exc
@@ -505,39 +523,22 @@ async def restore_remote_backup(
         raise HTTPException(
             status_code=409, detail="A backup operation is already in progress"
         ) from exc
+    except backup_processing.BackupRestoreError as exc:
+        logger.error("remote backup restore failed kind=%s", exc.kind)
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
     except (ValueError, backup_processing.BackupConfigurationError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    # #68: same as the on-box path — the acting member may not exist in the
-    # database this archive just became.
-    audit_household_id, restore_summary = _household_after_restore(
-        engine, session.household_id, restore_summary
-    )
-    actor_id, restore_summary = _actor_after_restore(engine, session.user_id, restore_summary)
-    if audit_household_id is not None:
-        audit.write_audit(
-            engine,
-            audit_household_id,
-            actor_id,
-            "backup.restored_remote",
-            "backup_file",
-            os.path.splitext(filename)[0][:36],
-            restore_summary,
-        )
-    else:
-        logger.error("post-restore audit omitted because the snapshot has no household")
+    discarded = result.boundary[0] if result.boundary is not None else None
     logger.info(
-        "backup restored from share filename=%s discarded_audit_events=%s", filename, discarded
-    )
-    capacity = await _run_sync(
-        _remote_capacity_response,
-        engine,
-        settings,
-        target,
-        reserve_bytes=config.offbox_min_free_bytes,
+        "backup restored from share filename=%s discarded_audit_events=%s",
+        filename,
+        discarded,
     )
     return BackupDestinationCheckResponse(
-        writable=True, reason=None, capacity=_capacity_schema(capacity)
+        writable=True,
+        reason=None,
+        capacity=_capacity_schema(result.capacity),
     )
 
 
@@ -563,55 +564,63 @@ async def restore_backup(
     engine: Engine = Depends(get_engine),
     settings: Settings = Depends(get_app_settings),
 ) -> BackupJob:
-    record = repository.get_backup_job(engine, backup_id)
-    if record is None:
-        raise HTTPException(status_code=404, detail="Backup not found")
+    def before_restore(snapshot_at: datetime | None) -> backup_processing.RestoreBoundary:
+        return _restore_boundary(
+            engine,
+            session.household_id,
+            snapshot_at,
+            "Backup restore executed",
+        )
 
-    # #62: count the audit events this restore is about to destroy BEFORE it runs.
-    # `started_at` is the honest bound — the database dump is taken at the top of
-    # the job, so anything logged from that moment on is absent from the snapshot.
-    discarded, restore_summary = _restore_boundary(
-        engine,
-        session.household_id,
-        record.started_at or record.created_at,
-        "Backup restore executed",
-    )
+    def finalize(boundary: backup_processing.RestoreBoundary) -> None:
+        _discarded, restore_summary = boundary
+        audit_household_id, restore_summary = _household_after_restore(
+            engine, session.household_id, restore_summary
+        )
+        actor_id, restore_summary = _actor_after_restore(engine, session.user_id, restore_summary)
+        if audit_household_id is not None:
+            audit.write_audit(
+                engine,
+                audit_household_id,
+                actor_id,
+                "backup.restored",
+                "backup_job",
+                backup_id,
+                restore_summary,
+            )
+        else:
+            logger.error("post-restore audit omitted because the snapshot has no household")
 
     try:
-        config = backup_processing.build_backup_execution_config(engine, settings)
-        await _run_sync(backup_processing.restore_backup, engine, backup_id, config)
+        result = await _run_sync(
+            backup_processing.restore_backup,
+            engine,
+            backup_id,
+            settings,
+            before_restore=before_restore,
+            finalize=finalize,
+        )
+    except backup_processing.BackupNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Backup not found") from exc
     except backup_processing.BackupCompatibilityError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except backup_processing.BackupOperationBusyError as exc:
         raise HTTPException(
             status_code=409, detail="A backup operation is already in progress"
         ) from exc
-    except ValueError as exc:
+    except backup_processing.BackupRestoreError as exc:
+        logger.error("local backup restore failed kind=%s", exc.kind)
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    except (ValueError, backup_processing.BackupConfigurationError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    logger.info("backup restored backup_id=%s discarded_audit_events=%s", backup_id, discarded)
-    updated = repository.get_backup_job(engine, backup_id)
-    assert updated is not None
-    # Written AFTER the replace, deliberately: a row written before it would be
-    # wiped by the very restore it describes (#62). Which is also why the actor
-    # has to be re-checked against the restored database (#68).
-    audit_household_id, restore_summary = _household_after_restore(
-        engine, session.household_id, restore_summary
+    discarded = result.boundary[0] if result.boundary is not None else None
+    logger.info(
+        "backup restored backup_id=%s discarded_audit_events=%s",
+        backup_id,
+        discarded,
     )
-    actor_id, restore_summary = _actor_after_restore(engine, session.user_id, restore_summary)
-    if audit_household_id is not None:
-        audit.write_audit(
-            engine,
-            audit_household_id,
-            actor_id,
-            "backup.restored",
-            "backup_job",
-            backup_id,
-            restore_summary,
-        )
-    else:
-        logger.error("post-restore audit omitted because the snapshot has no household")
-    return _to_schema(updated)
+    return _to_schema(result.job)
 
 
 @router.get(
@@ -950,27 +959,37 @@ async def delete_backup(
     engine: Engine = Depends(get_engine),
     settings: Settings = Depends(get_app_settings),
 ) -> Response:
-    record = repository.get_backup_job(engine, backup_id)
-    if record is None:
-        raise HTTPException(status_code=404, detail="Backup not found")
-    config = backup_processing.build_backup_execution_config(engine, settings)
+    def finalize() -> None:
+        audit.write_audit(
+            engine,
+            session.household_id,
+            session.user_id,
+            "backup.deleted",
+            "backup_job",
+            backup_id,
+            "Deleted an on-box backup",
+        )
+
     try:
-        await _run_sync(backup_processing.delete_local_backup, engine, backup_id, config)
+        await _run_sync(
+            backup_processing.delete_local_backup,
+            engine,
+            backup_id,
+            settings,
+            finalize=finalize,
+        )
+    except backup_processing.BackupNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Backup not found") from exc
     except backup_processing.BackupOperationBusyError as exc:
         raise HTTPException(
             status_code=409, detail="A backup operation is already in progress"
         ) from exc
-    except (ValueError, backup_processing.UnsafeBackupPathError) as exc:
+    except (
+        ValueError,
+        backup_processing.BackupConfigurationError,
+        backup_storage.UnsafeBackupPathError,
+    ) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    audit.write_audit(
-        engine,
-        session.household_id,
-        session.user_id,
-        "backup.deleted",
-        "backup_job",
-        backup_id,
-        "Deleted an on-box backup",
-    )
     return Response(status_code=204)
 
 
@@ -992,52 +1011,39 @@ async def delete_remote_backup(
     engine: Engine = Depends(get_engine),
     settings: Settings = Depends(get_app_settings),
 ) -> BackupDestinationCheckResponse:
-    config = backup_processing.build_backup_execution_config(engine, settings)
-    target = config.smb_target
-    if target is None:
-        raise HTTPException(status_code=400, detail="No Synology backup destination is configured")
     filename = os.path.basename(payload.filename)
     if filename != payload.filename or not filename.endswith(".enc"):
         raise HTTPException(status_code=400, detail="Invalid backup filename")
+
+    def finalize() -> None:
+        audit.write_audit(
+            engine,
+            session.household_id,
+            session.user_id,
+            "backup.deleted_remote",
+            "backup_file",
+            os.path.splitext(filename)[0][:36],
+            f"Deleted {filename} from Synology",
+        )
+
     try:
-        await _run_sync(backup_processing.delete_remote_backup, engine, filename, config)
+        result = await _run_sync(
+            backup_processing.delete_remote_backup,
+            engine,
+            filename,
+            settings,
+            finalize=finalize,
+        )
     except backup_processing.BackupOperationBusyError as exc:
         raise HTTPException(
             status_code=409, detail="A backup operation is already in progress"
         ) from exc
+    except backup_processing.BackupConfigurationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail="Invalid backup filename") from exc
-    except Exception as exc:  # noqa: BLE001
-        reason = smb_backup._friendly(exc)
-        capacity = backup_storage.capacity_observation(
-            total_bytes=None,
-            available_bytes=None,
-            reserve_bytes=config.offbox_min_free_bytes,
-            estimated_next_backup_bytes=None,
-            as_of=datetime.now(UTC),
-            unavailable=True,
-            reason_code="destination_unwritable",
-            reason=reason,
-        )
-        return BackupDestinationCheckResponse(
-            writable=False, reason=reason, capacity=_capacity_schema(capacity)
-        )
-    audit.write_audit(
-        engine,
-        session.household_id,
-        session.user_id,
-        "backup.deleted_remote",
-        "backup_file",
-        os.path.splitext(filename)[0][:36],
-        f"Deleted {filename} from Synology",
-    )
-    capacity = await _run_sync(
-        _remote_capacity_response,
-        engine,
-        settings,
-        target,
-        reserve_bytes=config.offbox_min_free_bytes,
-    )
     return BackupDestinationCheckResponse(
-        writable=True, reason=None, capacity=_capacity_schema(capacity)
+        writable=result.writable,
+        reason=result.reason,
+        capacity=_capacity_schema(result.capacity),
     )

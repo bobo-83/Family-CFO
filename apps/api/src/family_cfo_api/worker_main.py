@@ -162,7 +162,7 @@ def main() -> None:
         ai_study.run_study_tick(engine, settings, households=worker_households())
 
     def run_backup_lifecycle() -> None:
-        """One box-global cadence decision plus independent locked maintenance."""
+        """Run independently leased due and maintenance snapshots."""
         try:
             backup_processing.run_due_backups(engine, settings)
         except Exception:

@@ -158,20 +158,26 @@ use an explicit process-local seam. Scheduled/maintenance work skips and
 journals when busy, while manual conflicting mutations return 409. The existing
 manual cooldown becomes box-global but remains separate from exclusion.
 
-API and worker assemble one immutable `BackupExecutionConfig` from process
-paths/key/deadline plus the singleton's cadence, destination, policies, caps,
-and reserves. Manual and scheduled creation call the same `run_backup_once`
-shape; neither accepts separate legacy retention arguments. Scheduling loads the
-singleton once, makes one box-level cadence decision, and runs at most one job—
-there is no household loop or household-attributed target selection.
+After acquiring the mutation lease, the operation owner assembles one immutable
+`BackupExecutionConfig` from process paths/key/deadline plus the singleton's
+cadence, destination, policies, caps, and reserves. No mutating caller may build
+or retain an operational configuration snapshot before ownership. Manual and
+scheduled creation call the same locked lifecycle; neither accepts separate
+legacy retention arguments. Scheduling acquires first, loads the singleton and
+latest completed job once, makes one box-level cadence decision, and runs at
+most one job under that same lease—there is no household loop, duplicate
+pre-lock due decision, or household-attributed target selection.
 
 The synchronous operation owns the lock, not the HTTP waiter. Cancellation or a
-client disconnect cannot release it while blocking I/O continues. Dump/restore
-and supported SMB operations have a positive configured I/O deadline. Before a
-destructive phase the PostgreSQL adapter verifies that its dedicated connection
-still owns the lock; connection loss aborts further deletion/promotion.
-`SmbClientGate` serializes each process's public SMB helper use through final
-connection-cache reset because that cache is process-global.
+client disconnect cannot release it while blocking I/O continues. The lease
+also covers terminal job/remote-result writes, create/delete audit callbacks,
+restore boundary and final audit work, and response-driving result/capacity
+reads. Dump/restore and supported SMB operations have a positive configured I/O
+deadline. Before a destructive or terminal phase the PostgreSQL adapter verifies
+that its dedicated connection still owns the lock; connection loss aborts
+further deletion, promotion, terminal writes, and finalizers. `SmbClientGate`
+serializes each process's public SMB helper use through final connection-cache
+reset because that cache is process-global.
 
 A cadence-independent maintenance pass runs every worker interval even when
 frequency is `off` or a backup is not due. Under the lock it reconciles missing
@@ -198,11 +204,38 @@ Legacy remote age `0` becomes `keep_all`; positive representable `N` becomes
 inside the request; the next independent locked maintenance pass applies it.
 
 Restore deliberately preserves current operational configuration and encrypted
-SMB credential in memory across whole-database rollback, re-upserts it after
-migration, rotates both destination generations, and re-enables the review
-pause. It reconciles the restore source/interrupted rows and protects newer
-physical files that became orphans. This exception prevents a historical
-aggressive policy or destination from deleting newer external evidence.
+SMB credential in memory across whole-database rollback. It fully extracts the
+archive's document tree into a same-filesystem sibling before changing live
+state. SQLite archive files are migrated in that scratch location before live
+promotion. PostgreSQL custom dumps cannot be migrated in place. Before taking
+the rollback image, every destructive backend rotates the current destination
+generations to an archive-external marker and pauses retention; the rollback
+image therefore carries an identity that the older archive cannot reproduce.
+PostgreSQL restores and migrates live under the lease, with compensating restore
+from that image on caught failures. The restored database is brought to the
+current schema, current settings are re-upserted, both destination generations
+rotate, the review pause is re-enabled, source/interrupted rows are reconciled,
+and reset events are journaled before the staged document directory replaces the
+live tree.
+The prior document tree and database rollback image remain available until the
+post-restore audit callback, response-driving reads, and their post-read lease
+certification all succeed.
+
+Migration, database, finalization, document-extraction, and document-promotion
+failures never report success. A caught failure after database mutation restores
+the pre-request database and document pair, then verifies the prior schema and
+archive-external settings marker. It durably reapplies the captured settings with
+new generations and the review pause before returning a redacted error. If lease
+ownership was lost, compensation first acquires a fresh exclusive lease; if
+another owner already holds it, the failed operation performs no unowned rollback
+and returns the distinct redacted operator-intervention failure instead. This
+prevents one failed process from overwriting a successor's valid work. The
+database and filesystem do not offer a shared transaction: process termination,
+host/power loss between destructive steps, or lease loss followed by failed
+reacquisition is not crash-atomic and requires operator recovery from a verified
+backup. The coherent-pair guarantee covers completed calls and caught I/O,
+migration, promotion, audit-finalization, and response-certification failures
+while exclusive ownership is retained or reacquired.
 
 ### 7. Journal and recovery status tell only what is known
 

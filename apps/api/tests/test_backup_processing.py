@@ -1,4 +1,6 @@
 import os
+import threading
+from dataclasses import replace
 
 from sqlalchemy import delete
 from sqlalchemy.engine import Engine
@@ -8,11 +10,7 @@ from family_cfo_api.config import Settings
 
 
 def _run_backup(engine: Engine, settings: Settings) -> repository.BackupJobRecord:
-    config = backup_processing.build_backup_execution_config(engine, settings)
-    backup_job_id = backup_processing.run_backup_once(engine, config)
-    record = repository.get_backup_job(engine, backup_job_id)
-    assert record is not None
-    return record
+    return backup_processing.run_backup_once(engine, settings)
 
 
 def test_run_due_backups_runs_the_scheduled_wiring_and_respects_cadence(
@@ -28,6 +26,53 @@ def test_run_due_backups_runs_the_scheduled_wiring_and_respects_cadence(
 
     skipped = backup_processing.run_due_backups(demo_file_engine, demo_file_settings)
     assert skipped == 0  # a backup just completed → within the daily window
+
+
+def test_scheduler_contender_cannot_make_a_duplicate_due_decision(
+    demo_file_engine: Engine, demo_file_settings: Settings, monkeypatch
+) -> None:
+    original_builder = backup_processing.build_backup_execution_config
+    entered = threading.Event()
+    release = threading.Event()
+    results: list[int] = []
+    failures: list[BaseException] = []
+    build_calls = 0
+
+    def blocking_builder(engine, settings, *, lease):
+        nonlocal build_calls
+        lease.assert_owned()
+        build_calls += 1
+        if build_calls == 1:
+            entered.set()
+            assert release.wait(timeout=5)
+        return original_builder(engine, settings, lease=lease)
+
+    def first_scheduler() -> None:
+        try:
+            results.append(backup_processing.run_due_backups(demo_file_engine, demo_file_settings))
+        except Exception as exc:  # noqa: BLE001 - forwarded to the test thread
+            failures.append(exc)
+
+    monkeypatch.setattr(
+        backup_processing,
+        "build_backup_execution_config",
+        blocking_builder,
+    )
+    thread = threading.Thread(target=first_scheduler)
+    thread.start()
+    assert entered.wait(timeout=5)
+
+    assert backup_processing.run_due_backups(demo_file_engine, demo_file_settings) == 0
+    assert build_calls == 1
+
+    release.set()
+    thread.join(timeout=10)
+    assert not thread.is_alive()
+    assert failures == []
+    assert results == [1]
+    assert len(repository.list_backup_jobs(demo_file_engine)) == 1
+
+    assert backup_processing.run_due_backups(demo_file_engine, demo_file_settings) == 0
 
 
 def test_scheduled_backup_is_box_global_not_household_attributed(
@@ -111,8 +156,7 @@ def test_restore_backup_recovers_deleted_household(
 
     assert repository.get_household(demo_file_engine, fixtures.DEMO_HOUSEHOLD_ID) is None
 
-    config = backup_processing.build_backup_execution_config(demo_file_engine, demo_file_settings)
-    backup_processing.restore_backup(demo_file_engine, record.id, config)
+    backup_processing.restore_backup(demo_file_engine, record.id, demo_file_settings)
 
     restored = repository.get_household(demo_file_engine, fixtures.DEMO_HOUSEHOLD_ID)
     assert restored is not None
@@ -133,8 +177,7 @@ def test_restore_backup_recovers_staged_documents(
     os.remove(staged_file)
     assert not os.path.exists(staged_file)
 
-    config = backup_processing.build_backup_execution_config(demo_file_engine, demo_file_settings)
-    backup_processing.restore_backup(demo_file_engine, record.id, config)
+    backup_processing.restore_backup(demo_file_engine, record.id, demo_file_settings)
 
     assert os.path.exists(staged_file)
     with open(staged_file) as handle:
@@ -161,8 +204,7 @@ def test_restore_backup_recovers_transaction_attachments(
     os.remove(image_path)
     assert not os.path.exists(image_path)
 
-    config = backup_processing.build_backup_execution_config(demo_file_engine, demo_file_settings)
-    backup_processing.restore_backup(demo_file_engine, record.id, config)
+    backup_processing.restore_backup(demo_file_engine, record.id, demo_file_settings)
 
     assert os.path.exists(image_path)
     with open(image_path, "rb") as handle:
@@ -175,17 +217,12 @@ def test_restore_backup_wrong_key_raises(
     record = _run_backup(demo_file_engine, demo_file_settings)
 
     try:
-        config = backup_processing.build_backup_execution_config(
-            demo_file_engine, demo_file_settings
-        )
-        from dataclasses import replace
-
         backup_processing.restore_backup(
             demo_file_engine,
             record.id,
             replace(
-                config,
-                encryption_key="wrongkeywrongkeywrongkeywrongkeywrongkeyAAA=",
+                demo_file_settings,
+                backup_encryption_key="wrongkeywrongkeywrongkeywrongkeywrongkeyAAA=",
             ),
         )
         raise AssertionError("expected BackupEncryptionError")

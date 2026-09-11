@@ -5441,6 +5441,79 @@ def record_backup_retention_event(
         return _backup_retention_event_from_row(row)
 
 
+def record_backup_lock_skipped_events(
+    engine: Engine,
+    *,
+    operation_id: str,
+    occurred_at: datetime,
+) -> int:
+    """Journal a busy pass without assembling operational configuration.
+
+    This observational read is intentionally narrow: it never bootstraps the
+    singleton, decrypts credentials, or returns cadence/policy data to a caller
+    that does not own the backup mutation lease.
+    """
+    with engine.connect() as conn:
+        row = (
+            conn.execute(
+                select(models.backup_settings).where(
+                    models.backup_settings.c.key == BACKUP_SETTINGS_KEY
+                )
+            )
+            .mappings()
+            .first()
+        )
+    if row is None:
+        return 0
+    stored = _backup_settings_from_row(row)
+    destinations = [
+        (
+            "local",
+            stored.local_retention,
+            stored.local_max_bytes,
+            stored.local_min_free_bytes,
+            stored.local_destination_generation,
+        )
+    ]
+    if all(
+        (
+            stored.smb_host,
+            stored.smb_share,
+            stored.smb_username,
+            stored.smb_password_encrypted,
+        )
+    ):
+        destinations.append(
+            (
+                "offbox",
+                stored.offbox_retention,
+                stored.offbox_max_bytes,
+                stored.offbox_min_free_bytes,
+                stored.offbox_destination_generation,
+            )
+        )
+    for destination, policy, maximum, reserve, generation in destinations:
+        record_backup_retention_event(
+            engine,
+            destination=destination,
+            destination_generation=generation,
+            operation_id=operation_id,
+            action="lock_skipped",
+            reason="backup_in_progress",
+            policy_updated_at=stored.updated_at,
+            policy_snapshot={
+                "mode": policy.mode.value,
+                "keep_all_days": policy.keep_all_days,
+                "daily_until_days": policy.daily_until_days,
+                "weekly_until_days": policy.weekly_until_days,
+                "max_bytes": maximum,
+                "reserve_bytes": reserve,
+            },
+            occurred_at=occurred_at,
+        )
+    return len(destinations)
+
+
 def list_backup_retention_events_for_status(
     engine: Engine,
     *,

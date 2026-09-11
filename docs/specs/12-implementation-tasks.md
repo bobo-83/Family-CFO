@@ -1840,11 +1840,18 @@ flat-count retention decision.
       production advisory-lock adapter; global manual cooldown; request-
       cancellation/I/O-deadline ownership; pre/postflight tier/cap behavior;
       independent maintenance; reconciliation; deterministic journal outcomes;
-      and restore preservation/review reset.
+      and restore preservation/review reset. Restore pre-stages the complete
+      document tree, pre-migrates SQLite archives, keeps a verified database
+      rollback image for destructive backends, promotes documents last, and
+      keeps both rollback assets through audit/result certification. A fresh
+      settings-generation marker rejects no-op/wrong-image rollback, and lease-
+      loss compensation must reacquire exclusivity before writing.
 - [x] Verify empty versus unavailable, quota/capacity states, redaction, probe
       budgets, remote/local independence, concurrent helpers/mutations,
       connection loss, ENOSPC/upload boundaries, interrupted work, partials,
-      delete/metadata repair, and completed-local preservation.
+      delete/metadata repair, completed-local preservation, a genuine 0092
+      archive, migration timeout/nonzero rollback, document extraction/promotion
+      faults, and lease loss during response-driving reads.
 - [x] Dependencies: WI-2 and WI-3.
 
 ### WI-5 — Publish the recovery contract and server behavior
@@ -1912,6 +1919,25 @@ flat-count retention decision.
 - [ ] Schedule later removal of legacy environment variables/household columns;
       do not remove them in this compatibility release.
 - [ ] Dependencies: WI-3 through WI-7.
+
+### PR #161 correctness remediation
+
+- [x] Acquire the box-global mutation lease before building operational config,
+      reading cadence/latest completion, selecting an archive, or resolving a
+      remote target; use one immutable snapshot and prevent duplicate scheduler
+      due decisions.
+- [x] Keep create/delete/restore terminal writes, audit callbacks, restore
+      boundary work, and response-driving record/capacity reads inside that same
+      lease. Do not finalize after lease loss.
+- [x] Propagate restore migration timeout/nonzero exit only after preserving or
+      restoring the pre-request database/document pair and durably reapplying
+      captured current backup settings, retention review pause, destination
+      generations, source/interrupted reconciliation, and reset journal facts.
+- [x] Preserve failed-job cooldown reservation, but make 429 copy describe a
+      recent attempt rather than claiming a completed backup.
+- [x] Add focused SQLite/backend API regressions plus the repository-defined
+      PostgreSQL 17 lock/migration checks. No OpenAPI or generated-client change
+      is expected because response shapes and documented statuses are unchanged.
 
 Advisor tool access: explicit non-goal. This is box-global,
 system-administrator-only operational data; the ordinary advisor executor is

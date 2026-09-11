@@ -72,7 +72,10 @@ or a destructive restore works. Only a restore test verifies those properties.
   Cadence `off` stops scheduled creation, but hourly maintenance and status
   reconciliation still run.
 
-A failed off-box copy never changes a completed local backup to failed.
+A failed off-box copy never changes a completed local backup to failed. The
+box-global 60-second on-demand cooldown follows every attempt that entered the
+backup lifecycle, including a failed job. A cooldown response is not evidence
+that data was saved; check the latest job status before retrying.
 
 ## Off-box backup to a Synology (SMB)
 
@@ -151,10 +154,32 @@ tree with the backup's contents. It requires a system administrator.
 - After loss of the local volume, use the remote list and remote-restore flow.
   You still need the encryption key that encrypted the chosen archive.
 
-Restore preserves the current operational backup configuration and encrypted SMB
-credential across the database replacement, reapplies migrations, rotates both
-destination generations, and pauses automatic retention for administrator review.
-It can roll `backup_jobs` bookkeeping back to the dump-time state; reconciliation
+Restore first extracts the archive's documents into a same-filesystem staging
+directory. SQLite archives are migrated there before promotion; PostgreSQL uses a
+captured live-database rollback image because its custom dump cannot be migrated
+in place. Immediately before that rollback image is taken, the server rotates the
+current destination generations and pauses retention. Those archive-external
+values certify that rollback restored this request's preimage rather than merely
+landing on a database with the same migration head. Only a current-schema
+restored database with the captured operational configuration, rotated
+destination generations, retention review pause, and reconciled bookkeeping may
+receive the staged document tree.
+
+If migration, database restore, reconciliation, or document promotion fails, the
+request returns a redacted non-success response. The database rollback image and
+old document tree remain available through the restore-audit write and the final
+response reads. A caught failure in that window restores and verifies the
+pre-request database/document pair, then reapplies the captured settings with
+retention paused for administrator review. After lease loss the server must first
+reacquire exclusive ownership; if another operation owns the lease, it does not
+overwrite that owner's work and reports that operator intervention is required.
+Restore never treats a failed migration as successful. Inspect operator logs
+before another attempt. This compensating rollback covers caught failures while
+ownership is retained or reacquired, not a process/host/power loss between database
+and filesystem steps or a failed lease reacquisition; the two stores have no
+shared crash-atomic transaction, so the deployed-box restore check and independent
+verified backups remain required. A successful
+restore can roll `backup_jobs` bookkeeping back to dump time; reconciliation
 repairs interrupted/current evidence without deleting protected newer orphans.
 
 ## Downgrade and rollback
