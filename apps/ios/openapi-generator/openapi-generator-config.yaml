@@ -9,6 +9,7 @@ namingStrategy: idiomatic
 # existing generated Swift model types with generator 1.10.3.
 typeOverrides:
   schemas:
+    NullableBackupJob: Components.Schemas.BackupJob
     NullableBudgetSummary: Components.Schemas.BudgetSummary
     NullableEmergencyFundSummary: Components.Schemas.EmergencyFundSummary
     NullableGoalProgress: Components.Schemas.GoalProgress

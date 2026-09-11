@@ -379,7 +379,11 @@ struct SettingsView: View {
                     }
                     if model.rolePolicy.canManageBackups, let backups = model.backups {
                         NavigationLink {
-                            BackupSettingsView(viewModel: BackupViewModel(api: backups))
+                            BackupSettingsView(
+                                viewModel: BackupViewModel(
+                                    api: backups,
+                                    sessionIdentity: { model.householdSessionIdentity }),
+                                sessionIdentity: model.householdSessionIdentity)
                         } label: {
                             Label("Backups", systemImage: "externaldrive")
                         }
@@ -555,7 +559,11 @@ struct SettingsView: View {
         .font(.caption)
         if let backups = model.backups {
             NavigationLink {
-                BackupSettingsView(viewModel: BackupViewModel(api: backups))
+                BackupSettingsView(
+                    viewModel: BackupViewModel(
+                        api: backups,
+                        sessionIdentity: { model.householdSessionIdentity }),
+                    sessionIdentity: model.householdSessionIdentity)
             } label: {
                 Label("Privacy mode", systemImage: "lock.rotation")
             }

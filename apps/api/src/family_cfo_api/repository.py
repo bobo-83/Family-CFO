@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
+import math
 import os
 import uuid
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal
@@ -14,6 +17,8 @@ from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.exc import IntegrityError
 
 from family_cfo_api import household_crypto, models
+from family_cfo_api.backup_retention import RetentionPolicy
+from family_cfo_api.config import Settings, get_settings
 from family_cfo_api.qualified_amounts import (
     AmountCandidate,
     CategorySpendingTotals,
@@ -4346,6 +4351,1236 @@ def list_net_worth_snapshots(
 
 # --- Backups -----------------------------------------------------------------
 
+BACKUP_SETTINGS_KEY = "global"
+DEFAULT_BACKUP_POLICY_DAYS = (3, 14, 90)
+DEFAULT_BACKUP_MIN_FREE_BYTES = 1_073_741_824
+_BACKUP_CADENCE_MINUTES = {
+    "every_15min": 15,
+    "hourly": 60,
+    "every_6h": 360,
+    "daily": 1_440,
+    "weekly": 10_080,
+}
+_BACKUP_SETTINGS_TOKENLESS_FIELDS = frozenset(
+    {
+        "frequency",
+        "smb_host",
+        "smb_share",
+        "smb_folder",
+        "smb_username",
+        "smb_password_encrypted",
+        "smb_domain",
+        "local_max_bytes",
+        "offbox_max_bytes",
+    }
+)
+_BACKUP_SETTINGS_PATCH_FIELDS = frozenset(
+    {
+        "frequency",
+        "smb_host",
+        "smb_share",
+        "smb_folder",
+        "smb_username",
+        "smb_password_encrypted",
+        "smb_domain",
+        "local_retention_mode",
+        "local_keep_all_days",
+        "local_daily_until_days",
+        "local_weekly_until_days",
+        "offbox_retention_mode",
+        "offbox_keep_all_days",
+        "offbox_daily_until_days",
+        "offbox_weekly_until_days",
+        "local_max_bytes",
+        "offbox_max_bytes",
+        "local_min_free_bytes",
+        "offbox_min_free_bytes",
+        "local_path_fingerprint",
+    }
+)
+
+
+class BackupSettingsValidationError(ValueError):
+    """A non-HTTP caller supplied an invalid global backup policy."""
+
+
+class BackupSettingsConflictError(RuntimeError):
+    """The optimistic backup-settings revision no longer matches."""
+
+
+@dataclass(frozen=True, slots=True)
+class BackupSettingsRecord:
+    key: str
+    frequency: str
+    smb_host: str | None
+    smb_share: str | None
+    smb_folder: str | None
+    smb_username: str | None
+    smb_password_encrypted: str | None
+    smb_domain: str | None
+    local_retention_mode: str
+    local_keep_all_days: int | None
+    local_daily_until_days: int | None
+    local_weekly_until_days: int | None
+    offbox_retention_mode: str
+    offbox_keep_all_days: int | None
+    offbox_daily_until_days: int | None
+    offbox_weekly_until_days: int | None
+    local_max_bytes: int | None
+    offbox_max_bytes: int | None
+    local_min_free_bytes: int
+    offbox_min_free_bytes: int
+    legacy_conflict_detected: bool
+    retention_review_required: bool
+    retention_activated_at: datetime | None
+    local_destination_generation: str
+    offbox_destination_generation: str
+    local_path_fingerprint: str | None
+    created_at: datetime
+    updated_at: datetime
+
+    @property
+    def local_retention(self) -> RetentionPolicy:
+        return RetentionPolicy(
+            self.local_retention_mode,
+            self.local_keep_all_days,
+            self.local_daily_until_days,
+            self.local_weekly_until_days,
+        )
+
+    @property
+    def offbox_retention(self) -> RetentionPolicy:
+        return RetentionPolicy(
+            self.offbox_retention_mode,
+            self.offbox_keep_all_days,
+            self.offbox_daily_until_days,
+            self.offbox_weekly_until_days,
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class LegacyBackupSettingsCandidate:
+    household_id: str
+    frequency: str
+    smb_host: str | None
+    smb_share: str | None
+    smb_folder: str | None
+    smb_username: str | None
+    smb_password_encrypted: str | None
+    smb_domain: str | None
+    max_bytes: int | None
+    updated_at: datetime
+    complete_smb: bool
+    destination_path: str | None = None
+
+    @property
+    def identity(self) -> tuple[object, ...]:
+        return (
+            self.frequency,
+            self.destination_path,
+            self.smb_host,
+            self.smb_share,
+            self.smb_folder,
+            self.smb_username,
+            self.smb_password_encrypted,
+            self.smb_domain,
+            self.max_bytes,
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class BackupRetentionEventRecord:
+    id: str
+    destination: str
+    archive_key: str | None
+    backup_job_id: str | None
+    operation_id: str
+    event_key: str
+    destination_generation: str
+    action: str
+    reason: str
+    archive_taken_at: datetime | None
+    timestamp_source: str | None
+    size_bytes: int | None
+    policy_updated_at: datetime | None
+    policy_snapshot: dict[str, Any] | None
+    detail: str | None
+    occurred_at: datetime
+
+
+def _backup_datetime_from_row(value: datetime) -> datetime:
+    """Treat SQLite's naive values as UTC and normalize aware database values."""
+    return _as_aware(value).astimezone(UTC)
+
+
+def _backup_input_utc(value: datetime, field: str) -> datetime:
+    """Validate a caller-supplied instant and normalize it before persistence."""
+    if not isinstance(value, datetime) or value.tzinfo is None or value.utcoffset() is None:
+        raise BackupSettingsValidationError(f"{field} must be timezone-aware")
+    return value.astimezone(UTC)
+
+
+def _validate_backup_uuid(value: object, field: str) -> None:
+    if not isinstance(value, str):
+        raise BackupSettingsValidationError(f"{field} must be a UUID string")
+    try:
+        uuid.UUID(value)
+    except ValueError as exc:
+        raise BackupSettingsValidationError(f"{field} must be a UUID string") from exc
+
+
+def _backup_settings_from_row(row: Mapping[str, Any]) -> BackupSettingsRecord:
+    return BackupSettingsRecord(
+        key=row["key"],
+        frequency=row["frequency"],
+        smb_host=row["smb_host"],
+        smb_share=row["smb_share"],
+        smb_folder=row["smb_folder"],
+        smb_username=row["smb_username"],
+        smb_password_encrypted=row["smb_password_encrypted"],
+        smb_domain=row["smb_domain"],
+        local_retention_mode=row["local_retention_mode"],
+        local_keep_all_days=row["local_keep_all_days"],
+        local_daily_until_days=row["local_daily_until_days"],
+        local_weekly_until_days=row["local_weekly_until_days"],
+        offbox_retention_mode=row["offbox_retention_mode"],
+        offbox_keep_all_days=row["offbox_keep_all_days"],
+        offbox_daily_until_days=row["offbox_daily_until_days"],
+        offbox_weekly_until_days=row["offbox_weekly_until_days"],
+        local_max_bytes=row["local_max_bytes"],
+        offbox_max_bytes=row["offbox_max_bytes"],
+        local_min_free_bytes=row["local_min_free_bytes"],
+        offbox_min_free_bytes=row["offbox_min_free_bytes"],
+        legacy_conflict_detected=bool(row["legacy_conflict_detected"]),
+        retention_review_required=bool(row["retention_review_required"]),
+        retention_activated_at=(
+            _backup_datetime_from_row(row["retention_activated_at"])
+            if row["retention_activated_at"] is not None
+            else None
+        ),
+        local_destination_generation=row["local_destination_generation"],
+        offbox_destination_generation=row["offbox_destination_generation"],
+        local_path_fingerprint=row["local_path_fingerprint"],
+        created_at=_backup_datetime_from_row(row["created_at"]),
+        updated_at=_backup_datetime_from_row(row["updated_at"]),
+    )
+
+
+def _backup_settings_values(record: BackupSettingsRecord) -> dict[str, Any]:
+    return {
+        column.name: getattr(record, column.name)
+        for column in models.backup_settings.c
+        if column.name != "key"
+    }
+
+
+def _validate_retention_policy(values: Mapping[str, Any], prefix: str) -> None:
+    try:
+        RetentionPolicy(
+            mode=values[f"{prefix}_retention_mode"],
+            keep_all_days=values[f"{prefix}_keep_all_days"],
+            daily_until_days=values[f"{prefix}_daily_until_days"],
+            weekly_until_days=values[f"{prefix}_weekly_until_days"],
+        )
+    except ValueError as exc:
+        raise BackupSettingsValidationError(f"invalid {prefix} retention policy") from exc
+
+
+def validate_backup_settings(values: BackupSettingsRecord | Mapping[str, Any]) -> None:
+    data: Mapping[str, Any]
+    if isinstance(values, BackupSettingsRecord):
+        data = _backup_settings_values(values) | {"key": values.key}
+    else:
+        data = values
+    if data.get("key", BACKUP_SETTINGS_KEY) != BACKUP_SETTINGS_KEY:
+        raise BackupSettingsValidationError("backup settings key must be global")
+    if data["frequency"] not in models.BACKUP_FREQUENCIES:
+        raise BackupSettingsValidationError("invalid backup frequency")
+    _validate_retention_policy(data, "local")
+    _validate_retention_policy(data, "offbox")
+    for name in ("local_max_bytes", "offbox_max_bytes"):
+        value = data[name]
+        if value is not None and (
+            isinstance(value, bool) or not isinstance(value, int) or value <= 0
+        ):
+            raise BackupSettingsValidationError(f"{name} must be null or positive")
+    for name in ("local_min_free_bytes", "offbox_min_free_bytes"):
+        value = data[name]
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            raise BackupSettingsValidationError(f"{name} must be non-negative")
+    for name, maximum in (
+        ("smb_host", 255),
+        ("smb_share", 255),
+        ("smb_folder", 500),
+        ("smb_username", 255),
+        ("smb_domain", 120),
+    ):
+        value = data.get(name)
+        if value is not None and (not isinstance(value, str) or len(value) > maximum):
+            raise BackupSettingsValidationError(f"invalid {name}")
+    password = data.get("smb_password_encrypted")
+    if password is not None and not isinstance(password, str):
+        raise BackupSettingsValidationError("invalid smb_password_encrypted")
+    fingerprint = data.get("local_path_fingerprint")
+    if fingerprint is not None:
+        if not isinstance(fingerprint, str) or len(fingerprint) != 64:
+            raise BackupSettingsValidationError("invalid local_path_fingerprint")
+        try:
+            int(fingerprint, 16)
+        except ValueError as exc:
+            raise BackupSettingsValidationError("invalid local_path_fingerprint") from exc
+    for name in ("legacy_conflict_detected", "retention_review_required"):
+        if not isinstance(data[name], bool):
+            raise BackupSettingsValidationError(f"{name} must be boolean")
+    for name in ("local_destination_generation", "offbox_destination_generation"):
+        _validate_backup_uuid(data[name], name)
+    created_at = _backup_input_utc(data["created_at"], "created_at")
+    updated_at = _backup_input_utc(data["updated_at"], "updated_at")
+    if updated_at < created_at:
+        raise BackupSettingsValidationError("updated_at must not precede created_at")
+    activated_at = data["retention_activated_at"]
+    if activated_at is not None:
+        _backup_input_utc(activated_at, "retention_activated_at")
+    if data["retention_review_required"] != (activated_at is None):
+        raise BackupSettingsValidationError(
+            "retention review and activation state must be consistent"
+        )
+
+
+def _legacy_candidate_from_row(row: Mapping[str, Any]) -> LegacyBackupSettingsCandidate:
+    password = row["backup_smb_password_encrypted"]
+    return LegacyBackupSettingsCandidate(
+        household_id=row["id"],
+        frequency=row["backup_frequency"] or "daily",
+        destination_path=row["backup_destination_path"],
+        smb_host=row["backup_smb_host"],
+        smb_share=row["backup_smb_share"],
+        smb_folder=row["backup_smb_folder"],
+        smb_username=row["backup_smb_username"],
+        smb_password_encrypted=password,
+        smb_domain=row["backup_smb_domain"],
+        max_bytes=row["backup_max_bytes"],
+        updated_at=_as_aware(row["updated_at"]),
+        complete_smb=all(
+            (
+                row["backup_smb_host"],
+                row["backup_smb_share"],
+                row["backup_smb_username"],
+                password,
+            )
+        ),
+    )
+
+
+def _is_nonempty_legacy_candidate(candidate: LegacyBackupSettingsCandidate) -> bool:
+    return candidate.frequency != "daily" or any(
+        value is not None and value != ""
+        for value in (
+            candidate.destination_path,
+            candidate.smb_host,
+            candidate.smb_share,
+            candidate.smb_folder,
+            candidate.smb_username,
+            candidate.smb_password_encrypted,
+            candidate.smb_domain,
+            candidate.max_bytes,
+        )
+    )
+
+
+def _legacy_candidates(conn: Connection) -> list[LegacyBackupSettingsCandidate]:
+    rows = conn.execute(select(models.households)).mappings().all()
+    candidates = [
+        candidate
+        for candidate in (_legacy_candidate_from_row(row) for row in rows)
+        if _is_nonempty_legacy_candidate(candidate)
+    ]
+    # Stable sorts implement: complete SMB first, newest update second, then
+    # ascending household id.  Python's stable ordering keeps the later keys.
+    candidates.sort(key=lambda item: item.household_id)
+    candidates.sort(key=lambda item: item.updated_at, reverse=True)
+    candidates.sort(key=lambda item: item.complete_smb, reverse=True)
+    return candidates
+
+
+def list_backup_settings_legacy_candidates(
+    engine: Engine,
+) -> list[LegacyBackupSettingsCandidate]:
+    """Return only meaningful legacy rows in deterministic bootstrap order."""
+    with engine.connect() as conn:
+        return _legacy_candidates(conn)
+
+
+def _positive_legacy_count(value: object) -> int:
+    try:
+        parsed = int(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return 7
+    return parsed if parsed > 0 else 7
+
+
+def _legacy_offbox_policy(value: object) -> tuple[str, int | None, int | None, int | None]:
+    try:
+        days = int(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        days = 0
+    if 1 <= days <= 3650:
+        return ("tiered", days, days, days)
+    return ("keep_all", None, None, None)
+
+
+def _oldest_visible_backup_started_at(conn: Connection) -> datetime | None:
+    value = conn.execute(
+        select(func.min(models.backup_jobs.c.started_at)).where(
+            models.backup_jobs.c.status == "completed",
+            models.backup_jobs.c.pruned_at.is_(None),
+        )
+    ).scalar_one_or_none()
+    return _backup_datetime_from_row(value) if value is not None else None
+
+
+def _bootstrap_backup_settings_values(
+    conn: Connection,
+    *,
+    settings: Settings,
+    as_of: datetime,
+    local_path_fingerprint: str | None,
+) -> dict[str, Any]:
+    household_count = conn.execute(select(func.count()).select_from(models.households)).scalar_one()
+    job_count = conn.execute(select(func.count()).select_from(models.backup_jobs)).scalar_one()
+    fresh_install = household_count == 0 and job_count == 0
+    now = _backup_input_utc(as_of, "as_of")
+    default_keep_all, default_daily, default_weekly = DEFAULT_BACKUP_POLICY_DAYS
+    values: dict[str, Any] = {
+        "key": BACKUP_SETTINGS_KEY,
+        "frequency": "daily",
+        "smb_host": None,
+        "smb_share": None,
+        "smb_folder": None,
+        "smb_username": None,
+        "smb_password_encrypted": None,
+        "smb_domain": None,
+        "local_retention_mode": "tiered",
+        "local_keep_all_days": default_keep_all,
+        "local_daily_until_days": default_daily,
+        "local_weekly_until_days": default_weekly,
+        "offbox_retention_mode": "tiered",
+        "offbox_keep_all_days": default_keep_all,
+        "offbox_daily_until_days": default_daily,
+        "offbox_weekly_until_days": default_weekly,
+        "local_max_bytes": None,
+        "offbox_max_bytes": None,
+        "local_min_free_bytes": DEFAULT_BACKUP_MIN_FREE_BYTES,
+        "offbox_min_free_bytes": DEFAULT_BACKUP_MIN_FREE_BYTES,
+        "legacy_conflict_detected": False,
+        "retention_review_required": not fresh_install,
+        "retention_activated_at": now if fresh_install else None,
+        "local_destination_generation": new_id(),
+        "offbox_destination_generation": new_id(),
+        "local_path_fingerprint": local_path_fingerprint,
+        "created_at": now,
+        "updated_at": now,
+    }
+    if fresh_install:
+        validate_backup_settings(values)
+        return values
+
+    candidates = _legacy_candidates(conn)
+    winner = candidates[0] if candidates else None
+    if winner is not None:
+        values.update(
+            frequency=(
+                winner.frequency if winner.frequency in models.BACKUP_FREQUENCIES else "daily"
+            ),
+            smb_host=winner.smb_host or None,
+            smb_share=winner.smb_share or None,
+            smb_folder=winner.smb_folder or None,
+            smb_username=winner.smb_username or None,
+            smb_password_encrypted=winner.smb_password_encrypted or None,
+            smb_domain=winner.smb_domain or None,
+            local_max_bytes=(winner.max_bytes if winner.max_bytes and winner.max_bytes > 0 else None),
+            offbox_max_bytes=(winner.max_bytes if winner.max_bytes and winner.max_bytes > 0 else None),
+            legacy_conflict_detected=len({candidate.identity for candidate in candidates}) > 1,
+        )
+
+    cadence_minutes = _BACKUP_CADENCE_MINUTES.get(values["frequency"])
+    cadence_horizon = 0
+    if cadence_minutes is not None:
+        count = _positive_legacy_count(settings.backup_retention_count)
+        cadence_horizon = math.ceil(max(0, count - 1) * cadence_minutes / 1_440)
+    oldest = _oldest_visible_backup_started_at(conn)
+    observed_horizon = 0
+    if oldest is not None:
+        observed_horizon = math.ceil(max(0.0, (now - oldest).total_seconds()) / 86_400)
+    outer_days = max(90, cadence_horizon, observed_horizon + 1)
+    if outer_days <= 3650:
+        values["local_weekly_until_days"] = outer_days
+    else:
+        values.update(
+            local_retention_mode="keep_all",
+            local_keep_all_days=None,
+            local_daily_until_days=None,
+            local_weekly_until_days=None,
+        )
+    (
+        values["offbox_retention_mode"],
+        values["offbox_keep_all_days"],
+        values["offbox_daily_until_days"],
+        values["offbox_weekly_until_days"],
+    ) = _legacy_offbox_policy(settings.offbox_backup_retention_days)
+    logger.warning(
+        "backup_settings_bootstrap legacy_inputs_consumed review_required=true"
+    )
+    validate_backup_settings(values)
+    return values
+
+
+def backup_local_path_fingerprint(backup_dir: str) -> str:
+    """Hash canonical local identity so journal scope never exposes the path."""
+    canonical = os.path.realpath(os.path.abspath(os.path.expanduser(backup_dir)))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def get_backup_settings(
+    engine: Engine,
+    *,
+    settings: Settings | None = None,
+    as_of: datetime | None = None,
+    local_path_fingerprint: str | None = None,
+) -> BackupSettingsRecord:
+    """Read or transactionally materialize the application-owned singleton.
+
+    Once the row exists no legacy environment or household value is consulted.
+    A concurrent first reader loses only the unique-key insert race, then reads
+    the winner, so exactly one authoritative row survives.
+    """
+    effective_settings = settings or get_settings()
+    bootstrap_at = _backup_input_utc(as_of or utcnow(), "as_of")
+    bootstrap_fingerprint = (
+        local_path_fingerprint
+        if local_path_fingerprint is not None
+        else backup_local_path_fingerprint(effective_settings.backup_dir)
+    )
+    try:
+        with engine.begin() as conn:
+            row = (
+                conn.execute(
+                    select(models.backup_settings).where(
+                        models.backup_settings.c.key == BACKUP_SETTINGS_KEY
+                    )
+                )
+                .mappings()
+                .first()
+            )
+            if row is not None:
+                return _backup_settings_from_row(row)
+            values = _bootstrap_backup_settings_values(
+                conn,
+                settings=effective_settings,
+                as_of=bootstrap_at,
+                local_path_fingerprint=bootstrap_fingerprint,
+            )
+            conn.execute(insert(models.backup_settings).values(**values))
+            return _backup_settings_from_row(values)
+    except IntegrityError:
+        with engine.connect() as conn:
+            row = (
+                conn.execute(
+                    select(models.backup_settings).where(
+                        models.backup_settings.c.key == BACKUP_SETTINGS_KEY
+                    )
+                )
+                .mappings()
+                .first()
+            )
+        if row is None:
+            raise
+        return _backup_settings_from_row(row)
+
+
+def _next_backup_settings_revision(previous: datetime) -> datetime:
+    now = utcnow().astimezone(UTC)
+    previous = _backup_input_utc(previous, "updated_at")
+    return now if now > previous else previous + timedelta(microseconds=1)
+
+
+def _normalized_backup_settings_patch(patch: Mapping[str, Any]) -> dict[str, Any]:
+    unknown = set(patch) - _BACKUP_SETTINGS_PATCH_FIELDS
+    if unknown:
+        raise BackupSettingsValidationError(
+            f"unsupported backup settings fields: {', '.join(sorted(unknown))}"
+        )
+    values = dict(patch)
+    for name in (
+        "smb_host",
+        "smb_share",
+        "smb_folder",
+        "smb_username",
+        "smb_domain",
+        "local_path_fingerprint",
+    ):
+        if name in values:
+            value = values[name]
+            values[name] = value.strip() or None if isinstance(value, str) else value
+    # The API's omitted/null password means preserve.  Empty ciphertext is the
+    # explicit compatibility clear signal after its write-only input is handled.
+    if values.get("smb_password_encrypted", _UNSET) is None:
+        values.pop("smb_password_encrypted", None)
+    elif values.get("smb_password_encrypted") == "":
+        values["smb_password_encrypted"] = None
+    for name in ("local_max_bytes", "offbox_max_bytes"):
+        if values.get(name, _UNSET) == 0:
+            values[name] = None
+    return values
+
+
+def update_backup_settings(
+    engine: Engine,
+    patch: Mapping[str, Any],
+    *,
+    expected_updated_at: datetime | None,
+) -> BackupSettingsRecord:
+    """Apply a partial settings update.
+
+    A missing token is the one-window last-write-wins compatibility path.  It
+    can edit legacy fields but cannot activate retention; activation is a
+    separate token-required compare-and-swap.
+    """
+    get_backup_settings(engine)
+    normalized = _normalized_backup_settings_patch(patch)
+    expected_revision = (
+        _backup_input_utc(expected_updated_at, "expected_updated_at")
+        if expected_updated_at is not None
+        else None
+    )
+    if expected_revision is None:
+        disallowed = set(normalized) - _BACKUP_SETTINGS_TOKENLESS_FIELDS
+        if disallowed:
+            raise BackupSettingsValidationError(
+                "tokenless backup settings updates may change only legacy fields"
+            )
+        cap_fields = {"local_max_bytes", "offbox_max_bytes"}
+        if set(normalized) & cap_fields and (
+            not cap_fields <= set(normalized)
+            or normalized["local_max_bytes"] != normalized["offbox_max_bytes"]
+        ):
+            raise BackupSettingsValidationError(
+                "tokenless max-bytes compatibility updates must set equal destination caps"
+            )
+    with engine.begin() as conn:
+        row = (
+            conn.execute(
+                select(models.backup_settings)
+                .where(models.backup_settings.c.key == BACKUP_SETTINGS_KEY)
+                .with_for_update()
+            )
+            .mappings()
+            .one()
+        )
+        current = _backup_settings_from_row(row)
+        if not normalized:
+            if (
+                expected_revision is not None
+                and expected_revision != current.updated_at
+            ):
+                raise BackupSettingsConflictError("backup settings changed")
+            return current
+        merged = _backup_settings_values(current) | normalized | {"key": current.key}
+        if (
+            "smb_host" in normalized
+            or "smb_share" in normalized
+            or "smb_folder" in normalized
+        ) and (
+            merged["smb_host"], merged["smb_share"], merged["smb_folder"]
+        ) != (current.smb_host, current.smb_share, current.smb_folder):
+            merged["offbox_destination_generation"] = new_id()
+        if (
+            "local_path_fingerprint" in normalized
+            and merged["local_path_fingerprint"] != current.local_path_fingerprint
+        ):
+            merged["local_destination_generation"] = new_id()
+        validate_backup_settings(merged)
+        next_revision = _next_backup_settings_revision(current.updated_at)
+        values = {name: merged[name] for name in normalized}
+        if "offbox_destination_generation" in merged and (
+            merged["offbox_destination_generation"]
+            != current.offbox_destination_generation
+        ):
+            values["offbox_destination_generation"] = merged[
+                "offbox_destination_generation"
+            ]
+        if "local_destination_generation" in merged and (
+            merged["local_destination_generation"] != current.local_destination_generation
+        ):
+            values["local_destination_generation"] = merged[
+                "local_destination_generation"
+            ]
+        values["updated_at"] = next_revision
+        statement = update(models.backup_settings).where(
+            models.backup_settings.c.key == BACKUP_SETTINGS_KEY
+        )
+        if expected_revision is not None:
+            statement = statement.where(
+                models.backup_settings.c.updated_at == expected_revision
+            )
+        result = conn.execute(statement.values(**values))
+        if result.rowcount != 1:
+            raise BackupSettingsConflictError("backup settings changed")
+        updated = (
+            conn.execute(
+                select(models.backup_settings).where(
+                    models.backup_settings.c.key == BACKUP_SETTINGS_KEY
+                )
+            )
+            .mappings()
+            .one()
+        )
+    return _backup_settings_from_row(updated)
+
+
+def update_and_activate_backup_settings(
+    engine: Engine,
+    patch: Mapping[str, Any],
+    *,
+    expected_updated_at: datetime,
+) -> BackupSettingsRecord:
+    """Atomically apply a reviewed policy patch and activate retention.
+
+    Confirmation is one compare-and-swap: clients must never expose a newly
+    destructive policy in a separate transaction before its review gate is
+    cleared, or clear the gate after a concurrent edit.
+    """
+    get_backup_settings(engine)
+    normalized = _normalized_backup_settings_patch(patch)
+    expected_revision = _backup_input_utc(expected_updated_at, "expected_updated_at")
+    with engine.begin() as conn:
+        row = (
+            conn.execute(
+                select(models.backup_settings)
+                .where(models.backup_settings.c.key == BACKUP_SETTINGS_KEY)
+                .with_for_update()
+            )
+            .mappings()
+            .one()
+        )
+        current = _backup_settings_from_row(row)
+        if expected_revision != current.updated_at:
+            raise BackupSettingsConflictError("backup settings changed")
+
+        merged = _backup_settings_values(current) | normalized | {"key": current.key}
+        if {"smb_host", "smb_share", "smb_folder"} & set(normalized) and (
+            merged["smb_host"],
+            merged["smb_share"],
+            merged["smb_folder"],
+        ) != (current.smb_host, current.smb_share, current.smb_folder):
+            merged["offbox_destination_generation"] = new_id()
+        if (
+            "local_path_fingerprint" in normalized
+            and merged["local_path_fingerprint"] != current.local_path_fingerprint
+        ):
+            merged["local_destination_generation"] = new_id()
+
+        revision = _next_backup_settings_revision(current.updated_at)
+        merged.update(
+            legacy_conflict_detected=False,
+            retention_review_required=False,
+            retention_activated_at=revision,
+            updated_at=revision,
+        )
+        validate_backup_settings(merged)
+        values = {name: merged[name] for name in normalized}
+        for name in (
+            "offbox_destination_generation",
+            "local_destination_generation",
+            "legacy_conflict_detected",
+            "retention_review_required",
+            "retention_activated_at",
+            "updated_at",
+        ):
+            values[name] = merged[name]
+        result = conn.execute(
+            update(models.backup_settings)
+            .where(
+                models.backup_settings.c.key == BACKUP_SETTINGS_KEY,
+                models.backup_settings.c.updated_at == expected_revision,
+            )
+            .values(**values)
+        )
+        if result.rowcount != 1:
+            raise BackupSettingsConflictError("backup settings changed")
+        updated = (
+            conn.execute(
+                select(models.backup_settings).where(
+                    models.backup_settings.c.key == BACKUP_SETTINGS_KEY
+                )
+            )
+            .mappings()
+            .one()
+        )
+    return _backup_settings_from_row(updated)
+
+
+def activate_backup_retention(
+    engine: Engine,
+    *,
+    expected_updated_at: datetime,
+) -> BackupSettingsRecord:
+    """Optimistically activate a reviewed policy without pruning in this call."""
+    expected_revision = _backup_input_utc(expected_updated_at, "expected_updated_at")
+    current = get_backup_settings(engine)
+    activated_at = _next_backup_settings_revision(current.updated_at)
+    with engine.begin() as conn:
+        result = conn.execute(
+            update(models.backup_settings)
+            .where(
+                models.backup_settings.c.key == BACKUP_SETTINGS_KEY,
+                models.backup_settings.c.updated_at == expected_revision,
+            )
+            .values(
+                legacy_conflict_detected=False,
+                retention_review_required=False,
+                retention_activated_at=activated_at,
+                updated_at=activated_at,
+            )
+        )
+        if result.rowcount != 1:
+            raise BackupSettingsConflictError("backup settings changed")
+        row = (
+            conn.execute(
+                select(models.backup_settings).where(
+                    models.backup_settings.c.key == BACKUP_SETTINGS_KEY
+                )
+            )
+            .mappings()
+            .one()
+        )
+    return _backup_settings_from_row(row)
+
+
+def rotate_backup_destination_generation(
+    engine: Engine,
+    destination: str,
+    *,
+    expected_updated_at: datetime | None = None,
+    local_path_fingerprint: str | None | Any = _UNSET,
+) -> BackupSettingsRecord:
+    """Rotate one opaque journal scope after a physical identity change."""
+    if destination not in models.BACKUP_RETENTION_DESTINATIONS:
+        raise BackupSettingsValidationError("invalid backup destination")
+    expected_revision = (
+        _backup_input_utc(expected_updated_at, "expected_updated_at")
+        if expected_updated_at is not None
+        else None
+    )
+    get_backup_settings(engine)
+    with engine.begin() as conn:
+        current_row = (
+            conn.execute(
+                select(models.backup_settings)
+                .where(models.backup_settings.c.key == BACKUP_SETTINGS_KEY)
+                .with_for_update()
+            )
+            .mappings()
+            .one()
+        )
+        current = _backup_settings_from_row(current_row)
+        if expected_revision is not None and expected_revision != current.updated_at:
+            raise BackupSettingsConflictError("backup settings changed")
+        values: dict[str, Any] = {
+            f"{destination}_destination_generation": new_id(),
+            "updated_at": _next_backup_settings_revision(current.updated_at),
+        }
+        if destination == "local" and local_path_fingerprint is not _UNSET:
+            values["local_path_fingerprint"] = local_path_fingerprint
+        validate_backup_settings(
+            _backup_settings_values(current) | values | {"key": current.key}
+        )
+        conn.execute(
+            update(models.backup_settings)
+            .where(models.backup_settings.c.key == BACKUP_SETTINGS_KEY)
+            .values(**values)
+        )
+        row = (
+            conn.execute(
+                select(models.backup_settings).where(
+                    models.backup_settings.c.key == BACKUP_SETTINGS_KEY
+                )
+            )
+            .mappings()
+            .one()
+        )
+    return _backup_settings_from_row(row)
+
+
+def ensure_backup_local_destination_generation(
+    engine: Engine,
+    backup_dir: str,
+) -> BackupSettingsRecord:
+    """Rotate local causality exactly when the canonical path identity changes."""
+    fingerprint = backup_local_path_fingerprint(backup_dir)
+    current = get_backup_settings(engine)
+    if current.local_path_fingerprint == fingerprint:
+        return current
+    return update_backup_settings(
+        engine,
+        {"local_path_fingerprint": fingerprint},
+        expected_updated_at=current.updated_at,
+    )
+
+
+def reupsert_backup_settings_after_restore(
+    engine: Engine,
+    captured: BackupSettingsRecord,
+    *,
+    restored_at: datetime | None = None,
+    local_path_fingerprint: str | None | Any = _UNSET,
+) -> BackupSettingsRecord:
+    """Restore current operational settings, rotate scopes, and pause pruning."""
+    when = _backup_input_utc(restored_at or utcnow(), "restored_at")
+    captured_updated_at = _backup_input_utc(captured.updated_at, "updated_at")
+    if when <= captured_updated_at:
+        when = captured_updated_at + timedelta(microseconds=1)
+    values = _backup_settings_values(captured)
+    values.update(
+        created_at=captured.created_at,
+        updated_at=when,
+        local_destination_generation=new_id(),
+        offbox_destination_generation=new_id(),
+        retention_review_required=True,
+        retention_activated_at=None,
+    )
+    if local_path_fingerprint is not _UNSET:
+        values["local_path_fingerprint"] = local_path_fingerprint
+    validate_backup_settings(values | {"key": BACKUP_SETTINGS_KEY})
+    with engine.begin() as conn:
+        exists = conn.execute(
+            select(models.backup_settings.c.key).where(
+                models.backup_settings.c.key == BACKUP_SETTINGS_KEY
+            )
+        ).first()
+        if exists is None:
+            conn.execute(
+                insert(models.backup_settings).values(key=BACKUP_SETTINGS_KEY, **values)
+            )
+        else:
+            conn.execute(
+                update(models.backup_settings)
+                .where(models.backup_settings.c.key == BACKUP_SETTINGS_KEY)
+                .values(**values)
+            )
+        row = (
+            conn.execute(
+                select(models.backup_settings).where(
+                    models.backup_settings.c.key == BACKUP_SETTINGS_KEY
+                )
+            )
+            .mappings()
+            .one()
+        )
+    return _backup_settings_from_row(row)
+
+
+# Short alias for restore orchestration added in WI-4.
+restore_backup_settings = reupsert_backup_settings_after_restore
+
+
+def backup_retention_event_key(
+    *,
+    operation_id: str,
+    destination_generation: str,
+    archive_key: str | None,
+    action: str,
+    reason: str,
+) -> str:
+    """Stable idempotency key, including a sentinel for destination-wide facts."""
+    canonical = json.dumps(
+        [
+            operation_id,
+            destination_generation,
+            archive_key if archive_key is not None else "<destination>",
+            action,
+            reason,
+        ],
+        ensure_ascii=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _backup_retention_event_from_row(
+    row: Mapping[str, Any],
+) -> BackupRetentionEventRecord:
+    return BackupRetentionEventRecord(
+        id=row["id"],
+        destination=row["destination"],
+        archive_key=row["archive_key"],
+        backup_job_id=row["backup_job_id"],
+        operation_id=row["operation_id"],
+        event_key=row["event_key"],
+        destination_generation=row["destination_generation"],
+        action=row["action"],
+        reason=row["reason"],
+        archive_taken_at=(
+            _backup_datetime_from_row(row["archive_taken_at"])
+            if row["archive_taken_at"] is not None
+            else None
+        ),
+        timestamp_source=row["timestamp_source"],
+        size_bytes=row["size_bytes"],
+        policy_updated_at=(
+            _backup_datetime_from_row(row["policy_updated_at"])
+            if row["policy_updated_at"] is not None
+            else None
+        ),
+        policy_snapshot=row["policy_snapshot"],
+        detail=row["detail"],
+        occurred_at=_backup_datetime_from_row(row["occurred_at"]),
+    )
+
+
+def record_backup_retention_event(
+    engine: Engine,
+    *,
+    destination: str,
+    destination_generation: str,
+    operation_id: str,
+    action: str,
+    reason: str,
+    archive_key: str | None = None,
+    backup_job_id: str | None = None,
+    archive_taken_at: datetime | None = None,
+    timestamp_source: str | None = None,
+    size_bytes: int | None = None,
+    policy_updated_at: datetime | None = None,
+    policy_snapshot: dict[str, Any] | None = None,
+    detail: str | None = None,
+    occurred_at: datetime | None = None,
+) -> BackupRetentionEventRecord:
+    """Insert one idempotent global operational fact and return the durable row."""
+    if destination not in models.BACKUP_RETENTION_DESTINATIONS:
+        raise ValueError("invalid backup retention destination")
+    if action not in models.BACKUP_RETENTION_EVENT_ACTIONS:
+        raise ValueError("invalid backup retention action")
+    if timestamp_source not in (None, *models.BACKUP_TIMESTAMP_SOURCES):
+        raise ValueError("invalid backup timestamp source")
+    if size_bytes is not None and (
+        isinstance(size_bytes, bool) or not isinstance(size_bytes, int) or size_bytes < 0
+    ):
+        raise ValueError("backup retention size must be a non-negative integer")
+    if not operation_id or len(operation_id) > 64:
+        raise ValueError("invalid backup retention operation id")
+    try:
+        uuid.UUID(destination_generation)
+    except (TypeError, ValueError, AttributeError) as exc:
+        raise ValueError("invalid backup destination generation") from exc
+    if not reason or len(reason) > 64:
+        raise ValueError("invalid backup retention reason")
+    if archive_key is not None and (
+        not isinstance(archive_key, str) or not archive_key or len(archive_key) > 500
+    ):
+        raise ValueError("invalid backup retention archive key")
+    if backup_job_id is not None and (
+        not isinstance(backup_job_id, str) or not backup_job_id or len(backup_job_id) > 36
+    ):
+        raise ValueError("invalid backup retention job id")
+    normalized_archive_taken_at = (
+        _backup_input_utc(archive_taken_at, "archive_taken_at")
+        if archive_taken_at is not None
+        else None
+    )
+    normalized_policy_updated_at = (
+        _backup_input_utc(policy_updated_at, "policy_updated_at")
+        if policy_updated_at is not None
+        else None
+    )
+    normalized_occurred_at = _backup_input_utc(
+        occurred_at or utcnow(), "occurred_at"
+    )
+    stable_key = backup_retention_event_key(
+        operation_id=operation_id,
+        destination_generation=destination_generation,
+        archive_key=archive_key,
+        action=action,
+        reason=reason,
+    )
+    values = {
+        "id": new_id(),
+        "destination": destination,
+        "archive_key": archive_key,
+        "backup_job_id": backup_job_id,
+        "operation_id": operation_id,
+        "event_key": stable_key,
+        "destination_generation": destination_generation,
+        "action": action,
+        "reason": reason,
+        "archive_taken_at": normalized_archive_taken_at,
+        "timestamp_source": timestamp_source,
+        "size_bytes": size_bytes,
+        "policy_updated_at": normalized_policy_updated_at,
+        "policy_snapshot": policy_snapshot,
+        "detail": detail,
+        "occurred_at": normalized_occurred_at,
+    }
+    try:
+        with engine.begin() as conn:
+            conn.execute(insert(models.backup_retention_events).values(**values))
+        return _backup_retention_event_from_row(values)
+    except IntegrityError:
+        with engine.connect() as conn:
+            row = (
+                conn.execute(
+                    select(models.backup_retention_events).where(
+                        models.backup_retention_events.c.event_key == stable_key
+                    )
+                )
+                .mappings()
+                .first()
+            )
+        if row is None:
+            raise
+        return _backup_retention_event_from_row(row)
+
+
+def record_backup_lock_skipped_events(
+    engine: Engine,
+    *,
+    operation_id: str,
+    occurred_at: datetime,
+) -> int:
+    """Journal a busy pass without assembling operational configuration.
+
+    This observational read is intentionally narrow: it never bootstraps the
+    singleton, decrypts credentials, or returns cadence/policy data to a caller
+    that does not own the backup mutation lease.
+    """
+    with engine.connect() as conn:
+        row = (
+            conn.execute(
+                select(models.backup_settings).where(
+                    models.backup_settings.c.key == BACKUP_SETTINGS_KEY
+                )
+            )
+            .mappings()
+            .first()
+        )
+    if row is None:
+        return 0
+    stored = _backup_settings_from_row(row)
+    destinations = [
+        (
+            "local",
+            stored.local_retention,
+            stored.local_max_bytes,
+            stored.local_min_free_bytes,
+            stored.local_destination_generation,
+        )
+    ]
+    if all(
+        (
+            stored.smb_host,
+            stored.smb_share,
+            stored.smb_username,
+            stored.smb_password_encrypted,
+        )
+    ):
+        destinations.append(
+            (
+                "offbox",
+                stored.offbox_retention,
+                stored.offbox_max_bytes,
+                stored.offbox_min_free_bytes,
+                stored.offbox_destination_generation,
+            )
+        )
+    for destination, policy, maximum, reserve, generation in destinations:
+        record_backup_retention_event(
+            engine,
+            destination=destination,
+            destination_generation=generation,
+            operation_id=operation_id,
+            action="lock_skipped",
+            reason="backup_in_progress",
+            policy_updated_at=stored.updated_at,
+            policy_snapshot={
+                "mode": policy.mode.value,
+                "keep_all_days": policy.keep_all_days,
+                "daily_until_days": policy.daily_until_days,
+                "weekly_until_days": policy.weekly_until_days,
+                "max_bytes": maximum,
+                "reserve_bytes": reserve,
+            },
+            occurred_at=occurred_at,
+        )
+    return len(destinations)
+
+
+def list_backup_retention_events_for_status(
+    engine: Engine,
+    *,
+    destination_generation: str,
+    since: datetime | None = None,
+    limit: int = 500,
+) -> list[BackupRetentionEventRecord]:
+    """Current-generation facts, newest first with a deterministic tie-break."""
+    if limit <= 0:
+        return []
+    query = select(models.backup_retention_events).where(
+        models.backup_retention_events.c.destination_generation
+        == destination_generation
+    )
+    if since is not None:
+        query = query.where(
+            models.backup_retention_events.c.occurred_at
+            >= _backup_input_utc(since, "since")
+        )
+    query = query.order_by(
+        models.backup_retention_events.c.occurred_at.desc(),
+        models.backup_retention_events.c.event_key.asc(),
+    ).limit(limit)
+    with engine.connect() as conn:
+        rows = conn.execute(query).mappings().all()
+    return [_backup_retention_event_from_row(row) for row in rows]
+
+
+def list_unresolved_backup_delete_intents(
+    engine: Engine,
+    *,
+    destination: str,
+    destination_generation: str,
+) -> list[BackupRetentionEventRecord]:
+    """Return durable delete intents that have no completion/reconciliation fact."""
+    query = (
+        select(models.backup_retention_events)
+        .where(
+            models.backup_retention_events.c.destination == destination,
+            models.backup_retention_events.c.destination_generation
+            == destination_generation,
+            models.backup_retention_events.c.action.in_(
+                ("delete_pending", "pruned", "explicit_deleted", "reconciled")
+            ),
+        )
+        .order_by(
+            models.backup_retention_events.c.occurred_at.asc(),
+            models.backup_retention_events.c.event_key.asc(),
+        )
+    )
+    with engine.connect() as conn:
+        events = [
+            _backup_retention_event_from_row(row)
+            for row in conn.execute(query).mappings().all()
+        ]
+    resolved = {
+        (event.operation_id, event.archive_key)
+        for event in events
+        if event.action != "delete_pending"
+    }
+    return [
+        event
+        for event in events
+        if event.action == "delete_pending"
+        and (event.operation_id, event.archive_key) not in resolved
+    ]
+
 
 @dataclass(frozen=True, slots=True)
 class BackupJobRecord:
@@ -4358,6 +5593,7 @@ class BackupJobRecord:
     completed_at: datetime | None
     pruned_at: datetime | None
     created_at: datetime
+    prune_reason: str | None = None
     # M98: whether the completed archive reached the off-box share, and why not.
     remote_status: str | None = None
     remote_error: str | None = None
@@ -4378,6 +5614,7 @@ def _backup_job_record_from_row(row: Any) -> BackupJobRecord:
         completed_at=row["completed_at"],
         pruned_at=row["pruned_at"],
         created_at=row["created_at"],
+        prune_reason=row.get("prune_reason"),
         remote_status=row.get("remote_status"),
         remote_error=row.get("remote_error"),
         app_version=row.get("app_version"),
@@ -4385,9 +5622,11 @@ def _backup_job_record_from_row(row: Any) -> BackupJobRecord:
     )
 
 
-def create_backup_job(engine: Engine) -> BackupJobRecord:
+def create_backup_job(
+    engine: Engine, *, started_at: datetime | None = None
+) -> BackupJobRecord:
     backup_job_id = new_id()
-    now = utcnow()
+    now = _backup_input_utc(started_at or utcnow(), "started_at")
     with engine.begin() as conn:
         conn.execute(
             insert(models.backup_jobs).values(
@@ -4412,6 +5651,7 @@ def create_backup_job(engine: Engine) -> BackupJobRecord:
         completed_at=None,
         pruned_at=None,
         created_at=now,
+        prune_reason=None,
     )
 
 
@@ -4453,8 +5693,89 @@ def update_backup_job(
         )
 
 
+def complete_backup_job_local(
+    engine: Engine,
+    backup_job_id: str,
+    *,
+    storage_path: str,
+    size_bytes: int,
+    remote_status: str,
+    app_version: str,
+    schema_revision: str | None,
+) -> None:
+    """Certify the promoted local archive before any best-effort remote work."""
+    values: dict[str, Any] = {
+        "status": "completed",
+        "storage_path": storage_path,
+        "size_bytes": size_bytes,
+        "error_message": None,
+        "remote_status": remote_status,
+        "remote_error": None,
+        "app_version": app_version,
+        "schema_revision": schema_revision,
+        "completed_at": utcnow(),
+    }
+    with engine.begin() as conn:
+        result = conn.execute(
+            update(models.backup_jobs)
+            .where(
+                models.backup_jobs.c.id == backup_job_id,
+                models.backup_jobs.c.status == "running",
+            )
+            .values(**values)
+        )
+        if result.rowcount != 1:
+            raise RuntimeError("backup job was not running at local completion")
+
+
+def update_backup_job_remote_result(
+    engine: Engine,
+    backup_job_id: str,
+    *,
+    remote_status: str,
+    remote_error: str | None,
+) -> None:
+    """Update only remote outcome; never rewrite local completion time/state."""
+    with engine.begin() as conn:
+        conn.execute(
+            update(models.backup_jobs)
+            .where(
+                models.backup_jobs.c.id == backup_job_id,
+                models.backup_jobs.c.status == "completed",
+            )
+            .values(remote_status=remote_status, remote_error=remote_error)
+        )
+
+
+def fail_backup_job_if_running(
+    engine: Engine, backup_job_id: str, *, reason: str
+) -> bool:
+    with engine.begin() as conn:
+        result = conn.execute(
+            update(models.backup_jobs)
+            .where(
+                models.backup_jobs.c.id == backup_job_id,
+                models.backup_jobs.c.status.in_(("pending", "running")),
+            )
+            .values(status="failed", error_message=reason, completed_at=utcnow())
+        )
+    return result.rowcount == 1
+
+
 def get_backup_job(engine: Engine, backup_job_id: str) -> BackupJobRecord | None:
     query = select(models.backup_jobs).where(models.backup_jobs.c.id == backup_job_id)
+    with engine.connect() as conn:
+        row = conn.execute(query).mappings().first()
+    return _backup_job_record_from_row(row) if row is not None else None
+
+
+def latest_completed_backup_job(engine: Engine) -> BackupJobRecord | None:
+    query = (
+        select(models.backup_jobs)
+        .where(models.backup_jobs.c.status == "completed")
+        .order_by(models.backup_jobs.c.completed_at.desc(), models.backup_jobs.c.id.asc())
+        .limit(1)
+    )
     with engine.connect() as conn:
         row = conn.execute(query).mappings().first()
     return _backup_job_record_from_row(row) if row is not None else None
@@ -4467,6 +5788,75 @@ def list_backup_jobs(engine: Engine) -> list[BackupJobRecord]:
     return [_backup_job_record_from_row(row) for row in rows]
 
 
+def mark_interrupted_backup_jobs(
+    engine: Engine,
+    *,
+    older_than: datetime | None = None,
+    exclude_ids: tuple[str, ...] = (),
+) -> list[str]:
+    """Fail rows that cannot have a conforming lock owner; return changed IDs."""
+    query = select(models.backup_jobs.c.id).where(models.backup_jobs.c.status == "running")
+    if older_than is not None:
+        query = query.where(
+            models.backup_jobs.c.started_at < _backup_input_utc(older_than, "older_than")
+        )
+    if exclude_ids:
+        query = query.where(models.backup_jobs.c.id.not_in(exclude_ids))
+    with engine.begin() as conn:
+        ids = [row[0] for row in conn.execute(query).all()]
+        if ids:
+            conn.execute(
+                update(models.backup_jobs)
+                .where(
+                    models.backup_jobs.c.id.in_(ids),
+                    models.backup_jobs.c.status == "running",
+                )
+                .values(
+                    status="failed",
+                    error_message="interrupted",
+                    completed_at=utcnow(),
+                )
+            )
+    return ids
+
+
+def restore_backup_job_after_restore(
+    engine: Engine,
+    captured: BackupJobRecord,
+) -> BackupJobRecord:
+    """Reconcile the restore source row after its own snapshot rolled it backward."""
+    values = {
+        "status": "completed",
+        "storage_path": captured.storage_path,
+        "size_bytes": captured.size_bytes,
+        "error_message": None,
+        "remote_status": captured.remote_status,
+        "remote_error": captured.remote_error,
+        "app_version": captured.app_version,
+        "schema_revision": captured.schema_revision,
+        "started_at": captured.started_at,
+        "completed_at": captured.completed_at or utcnow(),
+        "pruned_at": None,
+        "prune_reason": None,
+        "created_at": captured.created_at,
+    }
+    with engine.begin() as conn:
+        exists = conn.execute(
+            select(models.backup_jobs.c.id).where(models.backup_jobs.c.id == captured.id)
+        ).first()
+        if exists is None:
+            conn.execute(insert(models.backup_jobs).values(id=captured.id, **values))
+        else:
+            conn.execute(
+                update(models.backup_jobs)
+                .where(models.backup_jobs.c.id == captured.id)
+                .values(**values)
+            )
+    restored = get_backup_job(engine, captured.id)
+    assert restored is not None
+    return restored
+
+
 def delete_backup_job(engine: Engine, backup_job_id: str) -> None:
     """Remove a backup job row (its .enc file is removed by the caller)."""
     with engine.begin() as conn:
@@ -4476,23 +5866,51 @@ def delete_backup_job(engine: Engine, backup_job_id: str) -> None:
 
 
 def list_completed_backup_jobs_for_retention(engine: Engine) -> list[BackupJobRecord]:
-    """Completed, not-yet-pruned backups, oldest first (the order retention deletes in)."""
+    """Completed, unpruned backups, oldest first for legacy count callers.
+
+    WI-4 moves planning to the inventory-order method below.  This compatibility
+    query remains stable so the current processor is not changed in WI-3.
+    """
     query = (
         select(models.backup_jobs)
-        .where(models.backup_jobs.c.status == "completed", models.backup_jobs.c.pruned_at.is_(None))
-        .order_by(models.backup_jobs.c.completed_at.asc())
+        .where(
+            models.backup_jobs.c.status == "completed",
+            models.backup_jobs.c.pruned_at.is_(None),
+        )
+        .order_by(models.backup_jobs.c.started_at.asc(), models.backup_jobs.c.id.desc())
     )
     with engine.connect() as conn:
         rows = conn.execute(query).mappings().all()
     return [_backup_job_record_from_row(row) for row in rows]
 
 
-def mark_backup_job_pruned(engine: Engine, backup_job_id: str) -> None:
+def list_completed_backup_jobs_for_inventory(engine: Engine) -> list[BackupJobRecord]:
+    """Completed, unpruned metadata in ADR-0077's canonical stable order."""
+    query = (
+        select(models.backup_jobs)
+        .where(
+            models.backup_jobs.c.status == "completed",
+            models.backup_jobs.c.pruned_at.is_(None),
+        )
+        .order_by(models.backup_jobs.c.started_at.desc(), models.backup_jobs.c.id.asc())
+    )
+    with engine.connect() as conn:
+        rows = conn.execute(query).mappings().all()
+    return [_backup_job_record_from_row(row) for row in rows]
+
+
+def mark_backup_job_pruned(
+    engine: Engine,
+    backup_job_id: str,
+    reason: str | None = None,
+) -> None:
+    if reason is not None and reason not in models.BACKUP_PRUNE_REASONS:
+        raise ValueError("invalid backup prune reason")
     with engine.begin() as conn:
         conn.execute(
             update(models.backup_jobs)
             .where(models.backup_jobs.c.id == backup_job_id)
-            .values(pruned_at=utcnow(), storage_path=None)
+            .values(pruned_at=utcnow(), prune_reason=reason, storage_path=None)
         )
 
 

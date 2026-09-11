@@ -1813,102 +1813,612 @@ export type ReportGenerateRequest = {
 
 export type BackupJobStatus = 'pending' | 'running' | 'completed' | 'failed';
 
+/**
+ * BackupJob
+ */
 export type BackupJob = {
+    /**
+     * Id
+     */
     id: string;
-    status: BackupJobStatus;
-    size_bytes?: number;
-    error_message?: string;
+    /**
+     * Status
+     */
+    status: 'pending' | 'running' | 'completed' | 'failed';
+    /**
+     * Size Bytes
+     */
+    size_bytes?: number | null;
+    /**
+     * Error Message
+     */
+    error_message?: string | null;
+    /**
+     * Started At
+     */
     started_at: string;
-    completed_at?: string;
-    pruned_at?: string;
+    /**
+     * Completed At
+     */
+    completed_at?: string | null;
+    /**
+     * Pruned At
+     */
+    pruned_at?: string | null;
+    /**
+     * Created At
+     */
     created_at: string;
     /**
+     * Remote Status
+     *
      * M98: whether this backup reached the off-box share (synced/failed/skipped).
      */
     remote_status?: string | null;
     /**
+     * Remote Error
+     *
      * M98: the reason a copy to the share failed.
      */
     remote_error?: string | null;
     /**
+     * App Version
+     *
      * The app version that made this backup — the restore-compatibility label. Null on backups taken before versioning shipped.
      */
     app_version?: string | null;
 };
 
+/**
+ * BackupJobListResponse
+ */
 export type BackupJobListResponse = {
+    /**
+     * Backups
+     */
     backups: Array<BackupJob>;
 };
 
+/**
+ * BackupConfig
+ *
+ * Box-global backup destination, cadence, retention, and review state.
+ */
 export type BackupConfig = {
-    frequency?: 'every_15min' | 'hourly' | 'every_6h' | 'daily' | 'weekly' | 'off';
     /**
-     * M98: Synology address (IP or hostname) backups upload to over SMB.
+     * Frequency
      */
-    smb_host?: string | null;
-    smb_share?: string | null;
-    smb_folder?: string | null;
-    smb_username?: string | null;
-    smb_domain?: string | null;
+    frequency: 'every_15min' | 'hourly' | 'every_6h' | 'daily' | 'weekly' | 'off';
     /**
-     * M98: whether a Synology password is stored (the password itself is never returned).
+     * Smb Host
      */
-    has_password?: boolean;
+    smb_host: string | null;
     /**
-     * M98: cap on combined size of all backups (bytes); null = no cap.
+     * Smb Share
      */
-    max_bytes?: number | null;
-    latest?: BackupJob;
+    smb_share: string | null;
+    /**
+     * Smb Folder
+     */
+    smb_folder: string | null;
+    /**
+     * Smb Username
+     */
+    smb_username: string | null;
+    /**
+     * Smb Domain
+     */
+    smb_domain: string | null;
+    /**
+     * Has Password
+     */
+    has_password: boolean;
+    /**
+     * Max Bytes
+     *
+     * Deprecated shared-cap alias; null when destination caps differ.
+     *
+     * @deprecated
+     */
+    max_bytes: number | null;
+    local_retention: BackupRetentionPolicy;
+    offbox_retention: BackupRetentionPolicy;
+    /**
+     * Local Max Bytes
+     */
+    local_max_bytes: number | null;
+    /**
+     * Offbox Max Bytes
+     */
+    offbox_max_bytes: number | null;
+    /**
+     * Local Min Free Bytes
+     */
+    local_min_free_bytes: number;
+    /**
+     * Offbox Min Free Bytes
+     */
+    offbox_min_free_bytes: number;
+    /**
+     * Legacy Conflict Detected
+     */
+    legacy_conflict_detected: boolean;
+    /**
+     * Retention Review Required
+     */
+    retention_review_required: boolean;
+    /**
+     * Retention Activated At
+     */
+    retention_activated_at: string | null;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+    /**
+     * Local Pending Prune Count
+     */
+    local_pending_prune_count: number | null;
+    /**
+     * Local Pending Prune Bytes
+     */
+    local_pending_prune_bytes: number | null;
+    /**
+     * Offbox Pending Prune Count
+     */
+    offbox_pending_prune_count: number | null;
+    /**
+     * Offbox Pending Prune Bytes
+     */
+    offbox_pending_prune_bytes: number | null;
+    latest: NullableBackupJob;
 };
 
+/**
+ * BackupConfigUpdateRequest
+ */
 export type BackupConfigUpdateRequest = {
+    /**
+     * Frequency
+     */
     frequency?: 'every_15min' | 'hourly' | 'every_6h' | 'daily' | 'weekly' | 'off';
+    /**
+     * Smb Host
+     */
     smb_host?: string | null;
+    /**
+     * Smb Share
+     */
     smb_share?: string | null;
+    /**
+     * Smb Folder
+     */
     smb_folder?: string | null;
+    /**
+     * Smb Username
+     */
     smb_username?: string | null;
     /**
-     * M98: write-only; omit/null to keep the stored password.
+     * Smb Password
      */
     smb_password?: string | null;
+    /**
+     * Smb Domain
+     */
     smb_domain?: string | null;
+    /**
+     * Max Bytes
+     *
+     * Deprecated shared-cap alias used only when neither new cap is supplied.
+     *
+     * @deprecated
+     */
     max_bytes?: number | null;
+    local_retention?: BackupRetentionPolicyUpdate;
+    offbox_retention?: BackupRetentionPolicyUpdate;
+    /**
+     * Local Max Bytes
+     */
+    local_max_bytes?: number | null;
+    /**
+     * Offbox Max Bytes
+     */
+    offbox_max_bytes?: number | null;
+    /**
+     * Local Min Free Bytes
+     */
+    local_min_free_bytes?: number;
+    /**
+     * Offbox Min Free Bytes
+     */
+    offbox_min_free_bytes?: number;
+    /**
+     * Expected Updated At
+     */
+    expected_updated_at?: string | null;
+    /**
+     * Confirm Retention Policy
+     */
+    confirm_retention_policy?: boolean;
 };
 
+/**
+ * BackupRetentionPolicyUpdate
+ */
+export type BackupRetentionPolicyUpdate = {
+    /**
+     * Mode
+     */
+    mode: 'tiered' | 'keep_all';
+    /**
+     * Keep All Days
+     */
+    keep_all_days: number | null;
+    /**
+     * Daily Until Days
+     */
+    daily_until_days: number | null;
+    /**
+     * Weekly Until Days
+     */
+    weekly_until_days: number | null;
+};
+
+/**
+ * BackupRetentionPolicy
+ */
+export type BackupRetentionPolicy = {
+    /**
+     * Mode
+     */
+    mode: 'tiered' | 'keep_all';
+    /**
+     * Keep All Days
+     */
+    keep_all_days: number | null;
+    /**
+     * Daily Until Days
+     */
+    daily_until_days: number | null;
+    /**
+     * Weekly Until Days
+     */
+    weekly_until_days: number | null;
+    /**
+     * Target Oldest At
+     */
+    target_oldest_at: string | null;
+};
+
+/**
+ * BackupCapacityObservation
+ */
+export type BackupCapacityObservation = {
+    /**
+     * Status
+     */
+    status: 'ok' | 'warning' | 'insufficient' | 'unknown' | 'unavailable';
+    /**
+     * Total Bytes
+     */
+    total_bytes: number | null;
+    /**
+     * Available Bytes
+     */
+    available_bytes: number | null;
+    /**
+     * Reserve Bytes
+     */
+    reserve_bytes: number;
+    /**
+     * Estimated Next Backup Bytes
+     */
+    estimated_next_backup_bytes: number | null;
+    /**
+     * Can Accept Estimated Backup
+     */
+    can_accept_estimated_backup: boolean | null;
+    /**
+     * As Of
+     */
+    as_of: string;
+    /**
+     * Reason Code
+     */
+    reason_code: string;
+    /**
+     * Reason
+     */
+    reason: string | null;
+};
+
+/**
+ * BackupDestinationRecoveryStatus
+ */
+export type BackupDestinationRecoveryStatus = {
+    /**
+     * Destination
+     */
+    destination: 'local' | 'offbox';
+    /**
+     * Configured
+     */
+    configured: boolean;
+    /**
+     * Status
+     */
+    status: 'not_configured' | 'empty' | 'healthy' | 'constrained' | 'degraded' | 'unavailable';
+    /**
+     * Coverage Status
+     */
+    coverage_status: 'not_applicable' | 'empty' | 'building' | 'met' | 'incomplete' | 'shortened' | 'unknown';
+    policy: BackupRetentionPolicy;
+    /**
+     * Retention Review Required
+     */
+    retention_review_required: boolean;
+    /**
+     * Retention Activated At
+     */
+    retention_activated_at: string | null;
+    /**
+     * Pending Prune Count
+     */
+    pending_prune_count: number | null;
+    /**
+     * Pending Prune Bytes
+     */
+    pending_prune_bytes: number | null;
+    /**
+     * Visible Archive Count
+     */
+    visible_archive_count: number;
+    /**
+     * Readable Archive Count
+     */
+    readable_archive_count: number | null;
+    /**
+     * Probe Status
+     */
+    probe_status: 'complete' | 'partial' | 'unavailable';
+    /**
+     * Probed Archive Count
+     */
+    probed_archive_count: number;
+    /**
+     * Oldest Readable At
+     */
+    oldest_readable_at: string | null;
+    /**
+     * Newest Readable At
+     */
+    newest_readable_at: string | null;
+    /**
+     * Oldest Timestamp Source
+     */
+    oldest_timestamp_source: 'job_started_at' | 'remote_modified_at' | null;
+    /**
+     * Metadata Mismatch Count
+     */
+    metadata_mismatch_count: number;
+    /**
+     * Protected Anomaly Count
+     */
+    protected_anomaly_count: number;
+    /**
+     * Compatibility Unknown Count
+     */
+    compatibility_unknown_count: number;
+    /**
+     * Known Incompatible Count
+     */
+    known_incompatible_count: number;
+    capacity: BackupCapacityObservation;
+    /**
+     * Reason Codes
+     */
+    reason_codes: Array<string>;
+    /**
+     * Reason
+     */
+    reason: string | null;
+    /**
+     * As Of
+     */
+    as_of: string;
+    /**
+     * Verification Scope
+     */
+    verification_scope: 'inventory_read_probe';
+};
+
+/**
+ * BackupRecoveryStatus
+ */
+export type BackupRecoveryStatus = {
+    /**
+     * As Of
+     */
+    as_of: string;
+    /**
+     * Overall Status
+     */
+    overall_status: 'empty' | 'healthy' | 'constrained' | 'degraded' | 'unavailable';
+    /**
+     * Overall Oldest Readable At
+     */
+    overall_oldest_readable_at: string | null;
+    /**
+     * Overall Newest Readable At
+     */
+    overall_newest_readable_at: string | null;
+    local: BackupDestinationRecoveryStatus;
+    offbox: BackupDestinationRecoveryStatus;
+    /**
+     * Verification Scope
+     */
+    verification_scope: 'inventory_read_probe';
+};
+
+/**
+ * BackupDestinationCheckRequest
+ *
+ * Test the entered connection before saving. Password omitted → use the
+ * stored one (so re-testing a saved target doesn't require retyping it).
+ */
 export type BackupDestinationCheckRequest = {
+    /**
+     * Smb Host
+     */
     smb_host: string;
+    /**
+     * Smb Share
+     */
     smb_share: string;
+    /**
+     * Smb Folder
+     */
     smb_folder?: string | null;
+    /**
+     * Smb Username
+     */
     smb_username: string;
+    /**
+     * Smb Password
+     */
     smb_password?: string | null;
+    /**
+     * Smb Domain
+     */
     smb_domain?: string | null;
 };
 
+/**
+ * BackupDestinationCheckResponse
+ */
 export type BackupDestinationCheckResponse = {
+    /**
+     * Writable
+     */
     writable: boolean;
-    reason?: string | null;
+    /**
+     * Reason
+     */
+    reason: string | null;
+    capacity: BackupCapacityObservation;
 };
 
+/**
+ * RemoteBackup
+ */
 export type RemoteBackup = {
+    /**
+     * Filename
+     */
     filename: string;
+    /**
+     * Size Bytes
+     */
     size_bytes: number;
     /**
-     * Epoch seconds of the file's last-modified time.
+     * Modified At
+     *
+     * Epoch seconds of the file's last-modified time; recovery status uses qualified date-time fields.
      */
     modified_at: number;
     /**
-     * Parsed from the `{id}.v{version}.enc` filename; null for archives uploaded before backups carried a version.
+     * App Version
      */
     app_version?: string | null;
 };
 
+/**
+ * RemoteBackupListResponse
+ */
 export type RemoteBackupListResponse = {
+    /**
+     * Backups
+     */
     backups: Array<RemoteBackup>;
+    /**
+     * Status
+     */
+    status: 'available' | 'not_configured' | 'unavailable';
+    /**
+     * As Of
+     */
+    as_of: string;
+    /**
+     * Reason
+     */
+    reason: string | null;
 };
 
+/**
+ * RemoteRestoreRequest
+ */
 export type RemoteRestoreRequest = {
+    /**
+     * Filename
+     */
     filename: string;
 };
+
+/**
+ * NullableBackupJob
+ */
+export type NullableBackupJob = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Status
+     */
+    status: 'pending' | 'running' | 'completed' | 'failed';
+    /**
+     * Size Bytes
+     */
+    size_bytes?: number | null;
+    /**
+     * Error Message
+     */
+    error_message?: string | null;
+    /**
+     * Started At
+     */
+    started_at: string;
+    /**
+     * Completed At
+     */
+    completed_at?: string | null;
+    /**
+     * Pruned At
+     */
+    pruned_at?: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Remote Status
+     *
+     * M98: whether this backup reached the off-box share (synced/failed/skipped).
+     */
+    remote_status?: string | null;
+    /**
+     * Remote Error
+     *
+     * M98: the reason a copy to the share failed.
+     */
+    remote_error?: string | null;
+    /**
+     * App Version
+     *
+     * The app version that made this backup — the restore-compatibility label. Null on backups taken before versioning shipped.
+     */
+    app_version?: string | null;
+} | null;
 
 /**
  * ADR 0072 Phase 2: which unwrap paths exist for the household's data key.
@@ -1988,7 +2498,9 @@ export type HostedHousehold = {
 export type HostedHouseholdList = {
     households: Array<HostedHousehold>;
     /**
-     * #192: off-box backup age limit in days (0 = kept forever).
+     * Deprecated approximate off-box outer horizon: 0 for keep-all, otherwise weekly_until_days.
+     *
+     * @deprecated
      */
     offbox_backup_retention_days: number;
 };
@@ -7375,6 +7887,10 @@ export type CreateBackupErrors = {
      */
     403: ErrorResponse;
     /**
+     * Error response
+     */
+    409: ErrorResponse;
+    /**
      * Rate limited. `Retry-After` carries the remaining wait in seconds, so a client can say how long instead of guessing — the auth lockout is minutes long, not the "wait a minute" clients used to print (#92). Treat the header as advisory: an older server or an intermediary that strips it leaves it absent, and a client must then say "later" rather than name a duration it does not know.
      */
     429: ErrorResponse;
@@ -7479,6 +7995,14 @@ export type UpdateBackupConfigErrors = {
      * Error response
      */
     403: ErrorResponse;
+    /**
+     * Error response
+     */
+    409: ErrorResponse;
+    /**
+     * Error response
+     */
+    422: ErrorResponse;
 };
 
 export type UpdateBackupConfigError = UpdateBackupConfigErrors[keyof UpdateBackupConfigErrors];
@@ -7491,6 +8015,35 @@ export type UpdateBackupConfigResponses = {
 };
 
 export type UpdateBackupConfigResponse = UpdateBackupConfigResponses[keyof UpdateBackupConfigResponses];
+
+export type GetBackupRecoveryStatusData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/backups/status';
+};
+
+export type GetBackupRecoveryStatusErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+};
+
+export type GetBackupRecoveryStatusError = GetBackupRecoveryStatusErrors[keyof GetBackupRecoveryStatusErrors];
+
+export type GetBackupRecoveryStatusResponses = {
+    /**
+     * Qualified recovery-candidate status
+     */
+    200: BackupRecoveryStatus;
+};
+
+export type GetBackupRecoveryStatusResponse = GetBackupRecoveryStatusResponses[keyof GetBackupRecoveryStatusResponses];
 
 export type CheckBackupDestinationData = {
     body: BackupDestinationCheckRequest;
@@ -7611,6 +8164,10 @@ export type DeleteRemoteBackupErrors = {
      * Error response
      */
     403: ErrorResponse;
+    /**
+     * Error response
+     */
+    409: ErrorResponse;
 };
 
 export type DeleteRemoteBackupError = DeleteRemoteBackupErrors[keyof DeleteRemoteBackupErrors];
@@ -7675,6 +8232,10 @@ export type DeleteBackupErrors = {
      * Error response
      */
     404: ErrorResponse;
+    /**
+     * Error response
+     */
+    409: ErrorResponse;
 };
 
 export type DeleteBackupError = DeleteBackupErrors[keyof DeleteBackupErrors];

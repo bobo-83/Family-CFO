@@ -66,6 +66,10 @@ CI. Operator directive (2026-09-04):
 - Node 22 + npm — web unit tests, generated-client checks, Playwright e2e.
 - tesseract (`brew install tesseract` / `apt-get install tesseract-ocr`) —
   real-OCR tests; also present in the production API image.
+- PostgreSQL 17 — real migrations, backup-settings bootstrap, advisory-lock, and
+  connection-loss tests. CI provisions a synthetic service and sets
+  `FAMILY_CFO_REQUIRE_POSTGRESQL=1`, so an unavailable server or driver fails
+  instead of silently skipping.
 - Xcode with the iOS and watchOS platforms — Apple targets.
 
 ## One Input, Not Two — Minimize Duplicate User Entry

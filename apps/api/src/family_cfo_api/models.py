@@ -73,6 +73,30 @@ IMPORT_STATUSES = ("pending", "processing", "needs_review", "completed", "discar
 DOCUMENT_EXTRACTION_TYPES = ("pdf_text", "ocr")
 REPORT_TYPES = ("weekly", "monthly", "annual")
 BACKUP_JOB_STATUSES = ("pending", "running", "completed", "failed")
+BACKUP_FREQUENCIES = ("off", "every_15min", "hourly", "every_6h", "daily", "weekly")
+BACKUP_RETENTION_MODES = ("tiered", "keep_all")
+BACKUP_RETENTION_DESTINATIONS = ("local", "offbox")
+BACKUP_RETENTION_EVENT_ACTIONS = (
+    "delete_pending",
+    "pruned",
+    "explicit_deleted",
+    "reconciled",
+    "prune_failed",
+    "inventory_failed",
+    "inventory_succeeded",
+    "capacity_blocked",
+    "lock_skipped",
+    "anomaly_detected",
+    "restore_reset",
+)
+BACKUP_TIMESTAMP_SOURCES = ("job_started_at", "remote_modified_at")
+BACKUP_PRUNE_REASONS = (
+    "policy_expired",
+    "bucket_superseded",
+    "max_bytes",
+    "missing_file",
+    "explicit_delete",
+)
 CONVERSATION_MESSAGE_ROLES = ("user", "assistant")
 
 
@@ -705,6 +729,85 @@ reports = Table(
     ),
 )
 
+backup_settings = Table(
+    "backup_settings",
+    metadata,
+    Column("key", String(16), primary_key=True),
+    Column("frequency", String(20), nullable=False),
+    Column("smb_host", String(255), nullable=True),
+    Column("smb_share", String(255), nullable=True),
+    Column("smb_folder", String(500), nullable=True),
+    Column("smb_username", String(255), nullable=True),
+    Column("smb_password_encrypted", Text, nullable=True),
+    Column("smb_domain", String(120), nullable=True),
+    Column("local_retention_mode", String(16), nullable=False),
+    Column("local_keep_all_days", Integer, nullable=True),
+    Column("local_daily_until_days", Integer, nullable=True),
+    Column("local_weekly_until_days", Integer, nullable=True),
+    Column("offbox_retention_mode", String(16), nullable=False),
+    Column("offbox_keep_all_days", Integer, nullable=True),
+    Column("offbox_daily_until_days", Integer, nullable=True),
+    Column("offbox_weekly_until_days", Integer, nullable=True),
+    Column("local_max_bytes", BigInteger, nullable=True),
+    Column("offbox_max_bytes", BigInteger, nullable=True),
+    Column("local_min_free_bytes", BigInteger, nullable=False),
+    Column("offbox_min_free_bytes", BigInteger, nullable=False),
+    Column("legacy_conflict_detected", Boolean, nullable=False),
+    Column("retention_review_required", Boolean, nullable=False),
+    Column("retention_activated_at", DateTime(timezone=True), nullable=True),
+    Column("local_destination_generation", String(36), nullable=False),
+    Column("offbox_destination_generation", String(36), nullable=False),
+    Column("local_path_fingerprint", String(64), nullable=True),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("updated_at", DateTime(timezone=True), nullable=False),
+    CheckConstraint("key = 'global'", name="ck_backup_settings_global_key"),
+    CheckConstraint(
+        f"frequency in {_sql_in(BACKUP_FREQUENCIES)}", name="ck_backup_settings_frequency"
+    ),
+    CheckConstraint(
+        f"local_retention_mode in {_sql_in(BACKUP_RETENTION_MODES)}",
+        name="ck_backup_settings_local_mode",
+    ),
+    CheckConstraint(
+        f"offbox_retention_mode in {_sql_in(BACKUP_RETENTION_MODES)}",
+        name="ck_backup_settings_offbox_mode",
+    ),
+    CheckConstraint(
+        "((local_retention_mode = 'keep_all' AND local_keep_all_days IS NULL "
+        "AND local_daily_until_days IS NULL AND local_weekly_until_days IS NULL) "
+        "OR (local_retention_mode = 'tiered' AND local_keep_all_days IS NOT NULL "
+        "AND local_daily_until_days IS NOT NULL AND local_weekly_until_days IS NOT NULL "
+        "AND local_keep_all_days >= 1 AND local_keep_all_days <= local_daily_until_days "
+        "AND local_daily_until_days <= local_weekly_until_days "
+        "AND local_weekly_until_days <= 3650))",
+        name="ck_backup_settings_local_policy",
+    ),
+    CheckConstraint(
+        "((offbox_retention_mode = 'keep_all' AND offbox_keep_all_days IS NULL "
+        "AND offbox_daily_until_days IS NULL AND offbox_weekly_until_days IS NULL) "
+        "OR (offbox_retention_mode = 'tiered' AND offbox_keep_all_days IS NOT NULL "
+        "AND offbox_daily_until_days IS NOT NULL AND offbox_weekly_until_days IS NOT NULL "
+        "AND offbox_keep_all_days >= 1 AND offbox_keep_all_days <= offbox_daily_until_days "
+        "AND offbox_daily_until_days <= offbox_weekly_until_days "
+        "AND offbox_weekly_until_days <= 3650))",
+        name="ck_backup_settings_offbox_policy",
+    ),
+    CheckConstraint(
+        "local_max_bytes IS NULL OR local_max_bytes > 0",
+        name="ck_backup_settings_local_max_bytes",
+    ),
+    CheckConstraint(
+        "offbox_max_bytes IS NULL OR offbox_max_bytes > 0",
+        name="ck_backup_settings_offbox_max_bytes",
+    ),
+    CheckConstraint(
+        "local_min_free_bytes >= 0", name="ck_backup_settings_local_min_free_bytes"
+    ),
+    CheckConstraint(
+        "offbox_min_free_bytes >= 0", name="ck_backup_settings_offbox_min_free_bytes"
+    ),
+)
+
 backup_jobs = Table(
     "backup_jobs",
     metadata,
@@ -723,8 +826,52 @@ backup_jobs = Table(
     Column("started_at", DateTime(timezone=True), nullable=False),
     Column("completed_at", DateTime(timezone=True), nullable=True),
     Column("pruned_at", DateTime(timezone=True), nullable=True),
+    Column("prune_reason", String(32), nullable=True),
     Column("created_at", DateTime(timezone=True), nullable=False),
     CheckConstraint(f"status in {_sql_in(BACKUP_JOB_STATUSES)}", name="ck_backup_jobs_status"),
+)
+
+backup_retention_events = Table(
+    "backup_retention_events",
+    metadata,
+    _uuid_pk(),
+    Column("destination", String(16), nullable=False),
+    Column("archive_key", String(500), nullable=True),
+    Column("backup_job_id", String(36), nullable=True),
+    Column("operation_id", String(64), nullable=False),
+    Column("event_key", String(64), nullable=False),
+    Column("destination_generation", String(36), nullable=False),
+    Column("action", String(32), nullable=False),
+    Column("reason", String(64), nullable=False),
+    Column("archive_taken_at", DateTime(timezone=True), nullable=True),
+    Column("timestamp_source", String(32), nullable=True),
+    Column("size_bytes", BigInteger, nullable=True),
+    Column("policy_updated_at", DateTime(timezone=True), nullable=True),
+    Column("policy_snapshot", JSON, nullable=True),
+    Column("detail", Text, nullable=True),
+    Column("occurred_at", DateTime(timezone=True), nullable=False),
+    CheckConstraint(
+        f"destination in {_sql_in(BACKUP_RETENTION_DESTINATIONS)}",
+        name="ck_backup_retention_events_destination",
+    ),
+    CheckConstraint(
+        f"action in {_sql_in(BACKUP_RETENTION_EVENT_ACTIONS)}",
+        name="ck_backup_retention_events_action",
+    ),
+    CheckConstraint(
+        f"timestamp_source IS NULL OR timestamp_source in {_sql_in(BACKUP_TIMESTAMP_SOURCES)}",
+        name="ck_backup_retention_events_timestamp_source",
+    ),
+    CheckConstraint(
+        "size_bytes IS NULL OR size_bytes >= 0",
+        name="ck_backup_retention_events_size_bytes",
+    ),
+    UniqueConstraint("event_key", name="uq_backup_retention_events_event_key"),
+    Index(
+        "ix_backup_retention_events_generation_occurred",
+        "destination_generation",
+        "occurred_at",
+    ),
 )
 
 audit_events = Table(

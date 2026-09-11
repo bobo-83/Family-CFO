@@ -1141,12 +1141,6 @@
         <note priority="1" from="description">Backup and restore settings</note>
         <note priority="1" from="meaning">Page title</note>
       </trans-unit>
-      <trans-unit id="7677917896485970803" datatype="html">
-        <source>Off-box backup — Synology (SMB)</source>
-        <target state="needs-review-translation">Kopijos už serverio ribų — Synology (SMB)</target>
-        <note priority="1" from="description">Copying backups off the box to a Synology NAS over SMB</note>
-        <note priority="1" from="meaning">Section heading</note>
-      </trans-unit>
       <trans-unit id="5214459324657357801" datatype="html">
         <source> Encrypted backups upload straight to your Synology over SMB — no mounting. Enable SMB on the Synology, create a shared folder, give a user read/write, then enter the details below. Settings save as you change them. The password is encrypted on the box and never shown again. </source>
         <target state="needs-review-translation"> Užšifruotos atsarginės kopijos keliamos tiesiai į jūsų Synology per SMB — nieko prijungti nereikia. Synology įjunkite SMB, sukurkite bendrinamą aplanką, suteikite vartotojui skaitymo ir rašymo teises, tada įveskite duomenis žemiau. Nustatymai išsaugomi juos keičiant. Slaptažodis serveryje užšifruojamas ir daugiau nerodomas. </target>
@@ -1212,18 +1206,6 @@
         <target state="needs-review-translation">Išjungta</target>
         <note priority="1" from="description">Never back up automatically</note>
         <note priority="1" from="meaning">Backup schedule</note>
-      </trans-unit>
-      <trans-unit id="6812072037941184690" datatype="html">
-        <source>Max total size (GB, 0 = no limit)</source>
-        <target state="needs-review-translation">Didžiausias bendras dydis (GB, 0 = be ribos)</target>
-        <note priority="1" from="description">Cap on the space every backup may use together; GB is a unit symbol and stays untranslated</note>
-        <note priority="1" from="meaning">Form field label</note>
-      </trans-unit>
-      <trans-unit id="1104267382627743772" datatype="html">
-        <source>When all backups combined exceed the limit, the oldest are deleted first.</source>
-        <target state="needs-review-translation">Kai visos kopijos kartu viršija ribą, pirmiausia ištrinamos seniausios.</target>
-        <note priority="1" from="description">What happens when the size cap is reached</note>
-        <note priority="1" from="meaning">Section hint</note>
       </trans-unit>
       <trans-unit id="2428044898169783146" datatype="html">
         <source>{VAR_SELECT, select, true {Testing…} other {Test connection}}</source>
@@ -1545,12 +1527,6 @@
         <note priority="1" from="description">A finished backup whose file has since been pruned</note>
         <note priority="1" from="meaning">Backup state</note>
       </trans-unit>
-      <trans-unit id="3146250733395387248" datatype="html">
-        <source>Only the household owner can manage backups.</source>
-        <target state="needs-review-translation">Atsargines kopijas tvarkyti gali tik namų ūkio savininkas.</target>
-        <note priority="1" from="description">Shown to members who are not the household owner</note>
-        <note priority="1" from="meaning">Permission notice</note>
-      </trans-unit>
       <trans-unit id="3749325975366710672" datatype="html">
         <source>saved — leave blank to keep</source>
         <target state="needs-review-translation">išsaugotas — palikite tuščią, kad liktų</target>
@@ -1591,6 +1567,18 @@
         <note priority="1" from="description">A backup finished successfully</note>
         <note priority="1" from="meaning">Status message</note>
       </trans-unit>
+      <trans-unit id="7361065305382543185" datatype="html">
+        <source>Last backup failed: <x id="errorMessage" equiv-text="data.error_message"/>.</source>
+        <target state="needs-review-translation">Paskutinė atsarginė kopija nepavyko: <x id="errorMessage" equiv-text="data.error_message"/>.</target>
+        <note priority="1" from="description">The server returned a failed backup job</note>
+        <note priority="1" from="meaning">Backup failure</note>
+      </trans-unit>
+      <trans-unit id="8597578187121629928" datatype="html">
+        <source>Last backup failed.</source>
+        <target state="needs-review-translation">Paskutinė atsarginė kopija nepavyko.</target>
+        <note priority="1" from="description">The server returned a failed backup job without a reason</note>
+        <note priority="1" from="meaning">Backup failure</note>
+      </trans-unit>
       <trans-unit id="6850477135295181028" datatype="html">
         <source>Restore this backup? This REPLACES all current data with the backup contents. This cannot be undone.</source>
         <target state="needs-review-translation">Atkurti šią kopiją? Tai PAKEIS visus dabartinius duomenis kopijos turiniu. Atšaukti nebus galima.</target>
@@ -1600,6 +1588,12 @@
       <trans-unit id="128671496967762422" datatype="html">
         <source>Failed to restore backup.</source>
         <target state="needs-review-translation">Nepavyko atkurti iš kopijos.</target>
+      </trans-unit>
+      <trans-unit id="6367804662132701016" datatype="html">
+        <source>On-box backup restored.</source>
+        <target state="translated">Vietinė atsarginė kopija atkurta.</target>
+        <note priority="1" from="description">An on-box backup was restored</note>
+        <note priority="1" from="meaning">Status message</note>
       </trans-unit>
       <trans-unit id="515378623932975188" datatype="html">
         <source>Restore from <x id="filename" equiv-text="filename"/>? This REPLACES all current data with the backup contents. This cannot be undone.</source>
@@ -1615,6 +1609,18 @@
         <source>Restored from <x id="filename" equiv-text="filename"/>.</source>
         <target state="needs-review-translation">Atkurta iš <x id="filename" equiv-text="filename"/>.</target>
         <note priority="1" from="description">An off-box snapshot was restored</note>
+        <note priority="1" from="meaning">Status message</note>
+      </trans-unit>
+      <trans-unit id="3633120544781746646" datatype="html">
+        <source>On-box backup deleted.</source>
+        <target state="translated">Vietinė atsarginė kopija ištrinta.</target>
+        <note priority="1" from="description">An on-box backup was deleted</note>
+        <note priority="1" from="meaning">Status message</note>
+      </trans-unit>
+      <trans-unit id="3603108857551276802" datatype="html">
+        <source>Synology backup deleted.</source>
+        <target state="translated">„Synology“ atsarginė kopija ištrinta.</target>
+        <note priority="1" from="description">An off-box snapshot was deleted</note>
         <note priority="1" from="meaning">Status message</note>
       </trans-unit>
       <trans-unit id="4785891910369666441" datatype="html">
@@ -7467,6 +7473,640 @@
         </context-group>
         <note priority="1" from="description">A month bar omits unreadable stored amounts</note>
         <note priority="1" from="meaning">Year chart partial state</note>
+      </trans-unit>
+      <trans-unit id="1035045287962440655" datatype="html">
+        <source>No readable backups are currently visible.</source>
+        <target state="translated">Šiuo metu nematyti nuskaitomų atsarginių kopijų.</target>
+        <note priority="1" from="description">Qualified inventory is empty</note>
+        <note priority="1" from="meaning">Recovery state detail</note>
+      </trans-unit>
+      <trans-unit id="132427872997429944" datatype="html">
+        <source>Constrained</source>
+        <target state="translated">Apribota</target>
+        <note priority="1" from="description">Capacity or retention limits constrain recovery</note>
+        <note priority="1" from="meaning">Recovery destination state</note>
+      </trans-unit>
+      <trans-unit id="1572823238135445192" datatype="html">
+        <source>Keep one per week through</source>
+        <target state="translated">Saugoti po vieną per savaitę iki</target>
+        <note priority="1" from="description">Weekly retention horizon</note>
+        <note priority="1" from="meaning">Form field label</note>
+      </trans-unit>
+      <trans-unit id="1602677750670102272" datatype="html">
+        <source>Recovery candidates are visible and no destination problem was observed.</source>
+        <target state="translated">Atkūrimo kopijos matomos, paskirties vietos problemų nepastebėta.</target>
+        <note priority="1" from="description">Inventory and capacity observations are healthy</note>
+        <note priority="1" from="meaning">Recovery state detail</note>
+      </trans-unit>
+      <trans-unit id="174302765450390277" datatype="html">
+        <source>Keep every backup; the optional size limit still applies.</source>
+        <target state="translated">Saugoti kiekvieną kopiją; pasirinktinis dydžio limitas vis tiek taikomas.</target>
+        <note priority="1" from="description">No time-based pruning</note>
+        <note priority="1" from="meaning">Retention policy summary</note>
+      </trans-unit>
+      <trans-unit id="175854486802623471" datatype="html">
+        <source>Building</source>
+        <target state="translated">Kuriama</target>
+        <note priority="1" from="description">History has not matured to the target yet</note>
+        <note priority="1" from="meaning">Recovery coverage state</note>
+      </trans-unit>
+      <trans-unit id="1810315140151509903" datatype="html">
+        <source>Storage limits shortened the configured recovery window.</source>
+        <target state="translated">Saugyklos limitai sutrumpino sukonfigūruotą atkūrimo laikotarpį.</target>
+        <note priority="1" from="description">A limit caused qualified history to be removed</note>
+        <note priority="1" from="meaning">Recovery coverage detail</note>
+      </trans-unit>
+      <trans-unit id="186553471537305960" datatype="html">
+        <source>Backup settings saved.</source>
+        <target state="translated">Atsarginių kopijų nuostatos išsaugotos.</target>
+        <note priority="1" from="description">Backup destination or schedule settings were saved</note>
+        <note priority="1" from="meaning">Status message</note>
+      </trans-unit>
+      <trans-unit id="1905448855160405779" datatype="html">
+        <source>Unknown</source>
+        <target state="translated">Nežinoma</target>
+        <note priority="1" from="description">A byte count is unavailable</note>
+        <note priority="1" from="meaning">Unknown size</note>
+      </trans-unit>
+      <trans-unit id="193641646630787466" datatype="html">
+        <source>Keep every backup for</source>
+        <target state="translated">Saugoti kiekvieną kopiją</target>
+        <note priority="1" from="description">Dense retention horizon</note>
+        <note priority="1" from="meaning">Form field label</note>
+      </trans-unit>
+      <trans-unit id="2061485000140270388" datatype="html">
+        <source>Keep-everything days must be no greater than daily days, which must be no greater than weekly days.</source>
+        <target state="translated">Visų kopijų dienų skaičius negali viršyti dieninių kopijų laikotarpio, o šis – savaitinių kopijų laikotarpio.</target>
+        <note priority="1" from="description">Tier horizons must be cumulative</note>
+        <note priority="1" from="meaning">Retention validation</note>
+      </trans-unit>
+      <trans-unit id="2251560102238778882" datatype="html">
+        <source>0 = no limit</source>
+        <target state="translated">0 = be ribos</target>
+        <note priority="1" from="description">Zero disables the logical size cap</note>
+        <note priority="1" from="meaning">Form field hint</note>
+      </trans-unit>
+      <trans-unit id="2374659292364937614" datatype="html">
+        <source>Tiered</source>
+        <target state="translated">Pakopinis</target>
+        <note priority="1" from="description">Keep dense recent backups and thin older ones</note>
+        <note priority="1" from="meaning">Retention mode</note>
+      </trans-unit>
+      <trans-unit id="2593130298375896114" datatype="html">
+        <source>Keep at least this much space free</source>
+        <target state="translated">Palikti bent tiek laisvos vietos</target>
+        <note priority="1" from="description">Destination-specific caller-available reserve in decimal gigabytes</note>
+        <note priority="1" from="meaning">Form field label</note>
+      </trans-unit>
+      <trans-unit id="2729450822676697196" datatype="html">
+        <source>Maximum total size</source>
+        <target state="translated">Didžiausias bendras dydis</target>
+        <note priority="1" from="description">Destination-specific logical size cap in decimal gigabytes</note>
+        <note priority="1" from="meaning">Form field label</note>
+      </trans-unit>
+      <trans-unit id="2847401803963877109" datatype="html">
+        <source>Degraded</source>
+        <target state="translated">Pablogėjusi</target>
+        <note priority="1" from="description">Anomalies or incomplete evidence degrade recovery</note>
+        <note priority="1" from="meaning">Recovery destination state</note>
+      </trans-unit>
+      <trans-unit id="2912315870466971087" datatype="html">
+        <source>No on-box destination is configured.</source>
+        <target state="translated">Nesukonfigūruota vietinė paskirties vieta.</target>
+        <note priority="1" from="description">The local destination does not exist</note>
+        <note priority="1" from="meaning">Recovery state detail</note>
+      </trans-unit>
+      <trans-unit id="2964530366141012352" datatype="html">
+        <source>Healthy</source>
+        <target state="translated">Gera</target>
+        <note priority="1" from="description">Destination has a healthy recovery observation</note>
+        <note priority="1" from="meaning">Recovery destination state</note>
+      </trans-unit>
+      <trans-unit id="3047351260118762485" datatype="html">
+        <source>On-box inventory is unavailable, so its recovery window is unknown.</source>
+        <target state="translated">Vietinis inventorius nepasiekiamas, todėl jo atkūrimo laikotarpis nežinomas.</target>
+        <note priority="1" from="description">Local listing failed</note>
+        <note priority="1" from="meaning">Recovery state detail</note>
+      </trans-unit>
+      <trans-unit id="3053205060823563869" datatype="html">
+        <source>Keep one per day through</source>
+        <target state="translated">Saugoti po vieną per dieną iki</target>
+        <note priority="1" from="description">Daily retention horizon</note>
+        <note priority="1" from="meaning">Form field label</note>
+      </trans-unit>
+      <trans-unit id="3216030772407550156" datatype="html">
+        <source>Visible managed backups</source>
+        <target state="translated">Matomos valdomos kopijos</target>
+        <note priority="1" from="description">Listed managed archives</note>
+        <note priority="1" from="meaning">Recovery field</note>
+      </trans-unit>
+      <trans-unit id="3254991850333907452" datatype="html">
+        <source>Capacity</source>
+        <target state="translated">Talpa</target>
+        <note priority="1" from="description">Observed caller-visible storage capacity</note>
+        <note priority="1" from="meaning">Recovery field</note>
+      </trans-unit>
+      <trans-unit id="3420382363470491765" datatype="html">
+        <source>Shortened</source>
+        <target state="translated">Sutrumpinta</target>
+        <note priority="1" from="description">Capacity or pruning shortened history</note>
+        <note priority="1" from="meaning">Recovery coverage state</note>
+      </trans-unit>
+      <trans-unit id="3467414515655471874" datatype="html">
+        <source>Storage capacity or configured limits constrain this destination.</source>
+        <target state="translated">Šią paskirties vietą riboja saugyklos talpa arba sukonfigūruoti limitai.</target>
+        <note priority="1" from="description">Storage limits affect the target</note>
+        <note priority="1" from="meaning">Recovery state detail</note>
+      </trans-unit>
+      <trans-unit id="3781339058581464069" datatype="html">
+        <source>Synology inventory is unavailable, so its recovery window is unknown.</source>
+        <target state="translated">„Synology“ inventorius nepasiekiamas, todėl jo atkūrimo laikotarpis nežinomas.</target>
+        <note priority="1" from="description">Synology listing failed</note>
+        <note priority="1" from="meaning">Recovery state detail</note>
+      </trans-unit>
+      <trans-unit id="3814836518635514384" datatype="html">
+        <source>Keep every backup</source>
+        <target state="translated">Saugoti kiekvieną kopiją</target>
+        <note priority="1" from="description">Disable time-based pruning</note>
+        <note priority="1" from="meaning">Retention mode</note>
+      </trans-unit>
+      <trans-unit id="3986654284462893896" datatype="html">
+        <source>Available evidence cannot establish the configured recovery window.</source>
+        <target state="translated">Turimų duomenų nepakanka nustatyti sukonfigūruotą atkūrimo laikotarpį.</target>
+        <note priority="1" from="description">Bounded probes or anomalies prevent a conclusion</note>
+        <note priority="1" from="meaning">Recovery coverage detail</note>
+      </trans-unit>
+      <trans-unit id="421845196608782901" datatype="html">
+        <source>Available space cannot cover the reserve and estimated next backup.</source>
+        <target state="translated">Laisvos vietos nepakanka rezervui ir numatomai kitai kopijai.</target>
+        <note priority="1" from="description">Observed headroom cannot accept the estimate</note>
+        <note priority="1" from="meaning">Backup capacity state</note>
+      </trans-unit>
+      <trans-unit id="4226951877396202249" datatype="html">
+        <source>Coverage does not apply to this destination.</source>
+        <target state="translated">Šiai paskirties vietai aprėptis netaikoma.</target>
+        <note priority="1" from="description">No configured target applies</note>
+        <note priority="1" from="meaning">Recovery coverage detail</note>
+      </trans-unit>
+      <trans-unit id="4310720460907104169" datatype="html">
+        <source>Incomplete</source>
+        <target state="translated">Neužbaigta</target>
+        <note priority="1" from="description">Mature history does not reach the target</note>
+        <note priority="1" from="meaning">Recovery coverage state</note>
+      </trans-unit>
+      <trans-unit id="4314398287923608536" datatype="html">
+        <source>Saving…</source>
+        <target state="translated">Išsaugoma…</target>
+        <note priority="1" from="description">A backup configuration write is in progress</note>
+        <note priority="1" from="meaning">Saving state</note>
+      </trans-unit>
+      <trans-unit id="4430267012577989270" datatype="html">
+        <source>Hourly</source>
+        <target state="translated">Kas valandą</target>
+        <note priority="1" from="description">Back up once an hour</note>
+        <note priority="1" from="meaning">Backup schedule</note>
+      </trans-unit>
+      <trans-unit id="4450523421897659492" datatype="html">
+        <source>Backup configuration changed elsewhere. Your draft is preserved; choose how to reconcile it.</source>
+        <target state="translated">Atsarginių kopijų konfigūracija pakeista kitur. Jūsų juodraštis išsaugotas; pasirinkite, kaip suderinti pakeitimus.</target>
+        <note priority="1" from="description">Another administrator changed backup settings while this draft was open</note>
+        <note priority="1" from="meaning">Configuration conflict</note>
+      </trans-unit>
+      <trans-unit id="4558742199489660775" datatype="html">
+        <source>days</source>
+        <target state="translated">d.</target>
+        <note priority="1" from="description">Days</note>
+        <note priority="1" from="meaning">Unit</note>
+      </trans-unit>
+      <trans-unit id="4661905686275745065" datatype="html">
+        <source>Minimum free space must be zero or greater.</source>
+        <target state="translated">Mažiausias laisvos vietos kiekis turi būti nulis arba daugiau.</target>
+        <note priority="1" from="description">Free-space reserve must be non-negative</note>
+        <note priority="1" from="meaning">Capacity validation</note>
+      </trans-unit>
+      <trans-unit id="4675202448804145276" datatype="html">
+        <source>Every 6 hours</source>
+        <target state="translated">Kas 6 valandas</target>
+        <note priority="1" from="description">Back up every six hours</note>
+        <note priority="1" from="meaning">Backup schedule</note>
+      </trans-unit>
+      <trans-unit id="4771873826091495231" datatype="html">
+        <source>Read probe partial; endpoint readability is not fully known.</source>
+        <target state="translated">Skaitymo patikra dalinė; galinių kopijų nuskaitomumas nėra visiškai žinomas.</target>
+        <note priority="1" from="description">Only part of the inventory was qualified</note>
+        <note priority="1" from="meaning">Recovery probe state</note>
+      </trans-unit>
+      <trans-unit id="4828084783500568835" datatype="html">
+        <source>Available space is approaching the configured reserve.</source>
+        <target state="translated">Laisvos vietos kiekis artėja prie sukonfigūruoto rezervo.</target>
+        <note priority="1" from="description">Observed headroom is near the warning buffer</note>
+        <note priority="1" from="meaning">Backup capacity state</note>
+      </trans-unit>
+      <trans-unit id="491918042955171404" datatype="html">
+        <source>Maximum total size must be zero or greater.</source>
+        <target state="translated">Didžiausias bendras dydis turi būti nulis arba daugiau.</target>
+        <note priority="1" from="description">Maximum logical size must be non-negative</note>
+        <note priority="1" from="meaning">Capacity validation</note>
+      </trans-unit>
+      <trans-unit id="4938057583464237502" datatype="html">
+        <source>Empty</source>
+        <target state="translated">Tuščia</target>
+        <note priority="1" from="description">Inventory succeeded and no readable archives are visible</note>
+        <note priority="1" from="meaning">Recovery destination state</note>
+      </trans-unit>
+      <trans-unit id="5037696450350606976" datatype="html">
+        <source>Capacity could not be measured; backups will still be attempted.</source>
+        <target state="translated">Talpos išmatuoti nepavyko; atsarginę kopiją vis tiek bus bandoma sukurti.</target>
+        <note priority="1" from="description">This destination cannot report capacity</note>
+        <note priority="1" from="meaning">Backup capacity state</note>
+      </trans-unit>
+      <trans-unit id="5043291777400257509" datatype="html">
+        <source>Read probe unavailable; recovery dates are unknown.</source>
+        <target state="translated">Skaitymo patikra nepasiekiama; atkūrimo datos nežinomos.</target>
+        <note priority="1" from="description">No endpoint could be qualified</note>
+        <note priority="1" from="meaning">Recovery probe state</note>
+      </trans-unit>
+      <trans-unit id="5061693446517993831" datatype="html">
+        <source><x id="available" equiv-text="this.formatBytes(capacity.available_bytes)"/> available of <x id="total" equiv-text="this.formatBytes(capacity.total_bytes)"/> · <x id="estimate" equiv-text="estimate"/> · <x id="reserve" equiv-text="reserve"/> reserved.</source>
+        <target state="translated"><x id="available" equiv-text="this.formatBytes(capacity.available_bytes)"/> laisva iš <x id="total" equiv-text="this.formatBytes(capacity.total_bytes)"/> · <x id="estimate" equiv-text="estimate"/> · rezervuota <x id="reserve" equiv-text="reserve"/>.</target>
+        <note priority="1" from="description">Caller-visible storage totals and policy headroom</note>
+        <note priority="1" from="meaning">Capacity summary</note>
+      </trans-unit>
+      <trans-unit id="5086345893357154838" datatype="html">
+        <source><x id="estimate" equiv-text="estimate"/> · <x id="reserve" equiv-text="reserve"/> reserved.</source>
+        <target state="translated"><x id="estimate" equiv-text="estimate"/> · rezervuota <x id="reserve" equiv-text="reserve"/>.</target>
+        <note priority="1" from="description">Storage totals are not measurable</note>
+        <note priority="1" from="meaning">Capacity summary</note>
+      </trans-unit>
+      <trans-unit id="5224500628091353098" datatype="html">
+        <source>On this box</source>
+        <target state="translated">Šiame įrenginyje</target>
+        <note priority="1" from="description">Backups stored locally</note>
+        <note priority="1" from="meaning">Destination heading</note>
+      </trans-unit>
+      <trans-unit id="5278443747628270901" datatype="html">
+        <source>Retention horizons must be between 1 and 3650 days.</source>
+        <target state="translated">Saugojimo laikotarpiai turi būti nuo 1 iki 3650 dienų.</target>
+        <note priority="1" from="description">Allowed policy horizon range</note>
+        <note priority="1" from="meaning">Retention validation</note>
+      </trans-unit>
+      <trans-unit id="5442118789845289687" datatype="html">
+        <source>The visible recovery history does not reach the configured target.</source>
+        <target state="translated">Matoma atkūrimo istorija nepasiekia sukonfigūruoto tikslo.</target>
+        <note priority="1" from="description">History is mature but sparse or failing</note>
+        <note priority="1" from="meaning">Recovery coverage detail</note>
+      </trans-unit>
+      <trans-unit id="5452907796844425688" datatype="html">
+        <source>Failed to load backup settings.</source>
+        <target state="translated">Nepavyko įkelti atsarginių kopijų nuostatų.</target>
+      </trans-unit>
+      <trans-unit id="5545763329849207463" datatype="html">
+        <source>Retention policy saved and activated. Pruning runs during independent maintenance.</source>
+        <target state="translated">Saugojimo taisyklė išsaugota ir aktyvinta. Kopijos šalinamos per atskirą priežiūros procesą.</target>
+        <note priority="1" from="description">Retention policy was saved and activated</note>
+        <note priority="1" from="meaning">Status message</note>
+      </trans-unit>
+      <trans-unit id="5577902244561841516" datatype="html">
+        <source>Configured policy</source>
+        <target state="translated">Sukonfigūruota taisyklė</target>
+        <note priority="1" from="description">Configured retention target</note>
+        <note priority="1" from="meaning">Recovery field</note>
+      </trans-unit>
+      <trans-unit id="5994641650747194465" datatype="html">
+        <source>Coverage is still building toward the configured target.</source>
+        <target state="translated">Aprėptis vis dar kuriama iki sukonfigūruoto tikslo.</target>
+        <note priority="1" from="description">The configured horizon has not elapsed yet</note>
+        <note priority="1" from="meaning">Recovery coverage detail</note>
+      </trans-unit>
+      <trans-unit id="601662979065110600" datatype="html">
+        <source>Not known</source>
+        <target state="translated">Nežinoma</target>
+        <note priority="1" from="description">Bounded probes cannot establish an exact readable count</note>
+        <note priority="1" from="meaning">Unknown count</note>
+      </trans-unit>
+      <trans-unit id="6070972094160494777" datatype="html">
+        <source>Every backup for <x id="keepAllDays" equiv-text="draft.keepAllDays"/> days · one daily through <x id="dailyUntilDays" equiv-text="draft.dailyUntilDays"/> days · one weekly through <x id="weeklyUntilDays" equiv-text="draft.weeklyUntilDays"/> days.</source>
+        <target state="translated">Kiekviena kopija <x id="keepAllDays" equiv-text="draft.keepAllDays"/> d. · po vieną per dieną iki <x id="dailyUntilDays" equiv-text="draft.dailyUntilDays"/> d. · po vieną per savaitę iki <x id="weeklyUntilDays" equiv-text="draft.weeklyUntilDays"/> d.</target>
+        <note priority="1" from="description">Cumulative tier horizons</note>
+        <note priority="1" from="meaning">Retention policy summary</note>
+      </trans-unit>
+      <trans-unit id="6164963497084775341" datatype="html">
+        <source>Empty</source>
+        <target state="translated">Tuščia</target>
+        <note priority="1" from="description">No recovery candidates exist</note>
+        <note priority="1" from="meaning">Recovery coverage state</note>
+      </trans-unit>
+      <trans-unit id="6175641096067650468" datatype="html">
+        <source>No off-box destination is configured.</source>
+        <target state="translated">Nesukonfigūruota išorinė paskirties vieta.</target>
+        <note priority="1" from="description">No Synology target exists</note>
+        <note priority="1" from="meaning">Recovery state detail</note>
+      </trans-unit>
+      <trans-unit id="6214562261059263401" datatype="html">
+        <source>Synology</source>
+        <target state="translated">„Synology“</target>
+        <note priority="1" from="description">Backups stored on a Synology NAS</note>
+        <note priority="1" from="meaning">Destination heading</note>
+      </trans-unit>
+      <trans-unit id="6279330327268341091" datatype="html">
+        <source>Not configured</source>
+        <target state="translated">Nesukonfigūruota</target>
+        <note priority="1" from="description">Destination has not been set up</note>
+        <note priority="1" from="meaning">Recovery destination state</note>
+      </trans-unit>
+      <trans-unit id="6341527797971567597" datatype="html">
+        <source>next backup estimate unknown</source>
+        <target state="translated">kitos kopijos dydžio įvertis nežinomas</target>
+        <note priority="1" from="description">No next-backup estimate is available</note>
+        <note priority="1" from="meaning">Capacity summary</note>
+      </trans-unit>
+      <trans-unit id="6723777380655382389" datatype="html">
+        <source>next backup estimate <x id="estimate" equiv-text="this.formatBytes(capacity.estimated_next_backup_bytes)"/></source>
+        <target state="translated">kitos kopijos dydžio įvertis <x id="estimate" equiv-text="this.formatBytes(capacity.estimated_next_backup_bytes)"/></target>
+        <note priority="1" from="description">Estimated size of the next archive</note>
+        <note priority="1" from="meaning">Capacity summary</note>
+      </trans-unit>
+      <trans-unit id="6767909450137562496" datatype="html">
+        <source>Unknown</source>
+        <target state="translated">Nežinoma</target>
+        <note priority="1" from="description">Evidence cannot establish coverage</note>
+        <note priority="1" from="meaning">Recovery coverage state</note>
+      </trans-unit>
+      <trans-unit id="7089831323261622590" datatype="html">
+        <source>Capacity observation is within the configured reserve.</source>
+        <target state="translated">Stebima talpa atitinka sukonfigūruotą rezervą.</target>
+        <note priority="1" from="description">Observed headroom is within policy</note>
+        <note priority="1" from="meaning">Backup capacity state</note>
+      </trans-unit>
+      <trans-unit id="7192482351761549970" datatype="html">
+        <source>Target observed</source>
+        <target state="translated">Tikslas stebimas</target>
+        <note priority="1" from="description">Qualified evidence reaches the target bucket</note>
+        <note priority="1" from="meaning">Recovery coverage state</note>
+      </trans-unit>
+      <trans-unit id="7674029262053502394" datatype="html">
+        <source>Unknown</source>
+        <target state="translated">Nežinoma</target>
+        <note priority="1" from="description">A qualified recovery date is unavailable</note>
+        <note priority="1" from="meaning">Unknown date</note>
+      </trans-unit>
+      <trans-unit id="7893480400641943302" datatype="html">
+        <source>Unavailable</source>
+        <target state="translated">Nepasiekiama</target>
+        <note priority="1" from="description">Destination inventory cannot be reached</note>
+        <note priority="1" from="meaning">Recovery destination state</note>
+      </trans-unit>
+      <trans-unit id="8034768666834267747" datatype="html">
+        <source>A readable recovery candidate was observed in the configured target bucket.</source>
+        <target state="translated">Sukonfigūruotame tiksliniame intervale aptikta nuskaitoma atkūrimo kopija.</target>
+        <note priority="1" from="description">The outer target bucket has a qualified candidate</note>
+        <note priority="1" from="meaning">Recovery coverage detail</note>
+      </trans-unit>
+      <trans-unit id="8125837697364119516" datatype="html">
+        <source>Not applicable</source>
+        <target state="translated">Netaikoma</target>
+        <note priority="1" from="description">Coverage target does not apply</note>
+        <note priority="1" from="meaning">Recovery coverage state</note>
+      </trans-unit>
+      <trans-unit id="8204076333113132374" datatype="html">
+        <source>Readable backups</source>
+        <target state="translated">Nuskaitomos kopijos</target>
+        <note priority="1" from="description">Exact qualified count is nullable</note>
+        <note priority="1" from="meaning">Recovery field</note>
+      </trans-unit>
+      <trans-unit id="8434518049741184466" datatype="html">
+        <source>Recovery evidence is degraded; review the details below.</source>
+        <target state="translated">Atkūrimo duomenų būklė pablogėjusi; peržiūrėkite informaciją toliau.</target>
+        <note priority="1" from="description">Evidence is incomplete or anomalous</note>
+        <note priority="1" from="meaning">Recovery state detail</note>
+      </trans-unit>
+      <trans-unit id="8488074545037606249" datatype="html">
+        <source>No readable backups are currently visible.</source>
+        <target state="translated">Šiuo metu nematyti nuskaitomų atsarginių kopijų.</target>
+        <note priority="1" from="description">No qualified archives are visible</note>
+        <note priority="1" from="meaning">Recovery coverage detail</note>
+      </trans-unit>
+      <trans-unit id="8661066195599011083" datatype="html">
+        <source>Recovery status unavailable.</source>
+        <target state="translated">Atkūrimo būsena nepasiekiama.</target>
+        <note priority="1" from="description">The recovery observation endpoint could not be read</note>
+        <note priority="1" from="meaning">Recovery status error</note>
+      </trans-unit>
+      <trans-unit id="8699146319821367670" datatype="html">
+        <source>Retention mode</source>
+        <target state="translated">Saugojimo režimas</target>
+        <note priority="1" from="description">Time-based retention mode for local backups</note>
+        <note priority="1" from="meaning">Form field label</note>
+      </trans-unit>
+      <trans-unit id="8757059683143506918" datatype="html">
+        <source>Only a system administrator can manage whole-box backups.</source>
+        <target state="translated">Viso įrenginio atsargines kopijas gali tvarkyti tik sistemos administratorius.</target>
+        <note priority="1" from="description">Whole-box backup management requires the box-level administrator right</note>
+        <note priority="1" from="meaning">Permission notice</note>
+      </trans-unit>
+      <trans-unit id="9069234184431844961" datatype="html">
+        <source>Enter whole numbers for all retention horizons.</source>
+        <target state="translated">Visiems saugojimo laikotarpiams įveskite sveikuosius skaičius.</target>
+        <note priority="1" from="description">Tier horizons must be whole numbers</note>
+        <note priority="1" from="meaning">Retention validation</note>
+      </trans-unit>
+      <trans-unit id="9095222225878689896" datatype="html">
+        <source>Coverage</source>
+        <target state="translated">Aprėptis</target>
+        <note priority="1" from="description">Coverage classification</note>
+        <note priority="1" from="meaning">Recovery field</note>
+      </trans-unit>
+      <trans-unit id="9114731481010082520" datatype="html">
+        <source>Read probe complete.</source>
+        <target state="translated">Skaitymo patikra baigta.</target>
+        <note priority="1" from="description">The endpoint qualification pass completed</note>
+        <note priority="1" from="meaning">Recovery probe state</note>
+      </trans-unit>
+      <trans-unit id="9184811573751973734" datatype="html">
+        <source>Capacity is unavailable; an attempted backup may fail.</source>
+        <target state="translated">Talpos duomenys nepasiekiami; bandymas kurti kopiją gali nepavykti.</target>
+        <note priority="1" from="description">Capacity could not be queried because the destination failed</note>
+        <note priority="1" from="meaning">Backup capacity state</note>
+      </trans-unit>
+      <trans-unit id="9210663320412571994" datatype="html">
+        <source><x id="available" equiv-text="this.formatBytes(capacity.available_bytes)"/> available · <x id="estimate" equiv-text="estimate"/> · <x id="reserve" equiv-text="reserve"/> reserved.</source>
+        <target state="translated"><x id="available" equiv-text="this.formatBytes(capacity.available_bytes)"/> laisva · <x id="estimate" equiv-text="estimate"/> · rezervuota <x id="reserve" equiv-text="reserve"/>.</target>
+        <note priority="1" from="description">Caller-visible storage headroom without a total</note>
+        <note priority="1" from="meaning">Capacity summary</note>
+      </trans-unit>
+      <trans-unit id="95582720864959175" datatype="html">
+        <source>Every 15 minutes</source>
+        <target state="translated">Kas 15 minučių</target>
+        <note priority="1" from="description">Back up every fifteen minutes</note>
+        <note priority="1" from="meaning">Backup schedule</note>
+      </trans-unit>
+      <trans-unit id="2731636671943178103" datatype="html">
+        <source>No time-based target</source>
+        <target state="translated">Nėra laiku pagrįsto tikslo</target>
+        <note priority="1" from="description">Keep-all has no time horizon</note>
+        <note priority="1" from="meaning">Recovery policy target</note>
+      </trans-unit>
+      <trans-unit id="2537949200156390071" datatype="html">
+        <source> Checking recovery candidates… </source>
+        <target state="translated">Tikrinamos atkūrimo kopijos…</target>
+        <note priority="1" from="description">While recovery inventory and probes run</note>
+        <note priority="1" from="meaning">Loading placeholder</note>
+      </trans-unit>
+      <trans-unit id="1635117110322703685" datatype="html">
+        <source> Target oldest date </source>
+        <target state="translated">Tikslinė seniausia data</target>
+        <note priority="1" from="description">Oldest target date derived from policy</note>
+        <note priority="1" from="meaning">Recovery field</note>
+      </trans-unit>
+      <trans-unit id="2122705377847749024" datatype="html">
+        <source> Backups read-probed </source>
+        <target state="translated">Skaitymu patikrintos kopijos</target>
+        <note priority="1" from="description">Number of archive endpoints checked</note>
+        <note priority="1" from="meaning">Recovery field</note>
+      </trans-unit>
+      <trans-unit id="4893131902631334997" datatype="html">
+        <source> Current saved-policy preview: <x id="INTERPOLATION" equiv-text="{{
+                config.local_pending_prune_count == null ? &apos;—&apos; : config.local_pending_prune_count
+              }}"/> backups · <x id="INTERPOLATION_1" equiv-text="{{ formatBytes(config.local_pending_prune_bytes) }}"/> pending after activation. Unsaved changes are not included until the server validates them. </source>
+        <target state="translated">Dabartinės išsaugotos taisyklės peržiūra: <x id="INTERPOLATION" equiv-text="{{ config.local_pending_prune_count == null ? &apos;—&apos; : config.local_pending_prune_count }}"/> kop. · <x id="INTERPOLATION_1" equiv-text="{{ formatBytes(config.local_pending_prune_bytes) }}"/> laukia šalinimo po aktyvinimo. Neišsaugoti pakeitimai neįtraukiami, kol jų nepatvirtina serveris.</target>
+        <note priority="1" from="description">Preview from the currently saved local policy, not the unsaved
+                form</note>
+        <note priority="1" from="meaning">Pending prune preview</note>
+      </trans-unit>
+      <trans-unit id="7479916067516962582" datatype="html">
+        <source> Retry my draft </source>
+        <target state="translated">Bandyti mano juodraštį dar kartą</target>
+        <note priority="1" from="description">Deliberately resubmit the preserved draft against the current version</note>
+        <note priority="1" from="meaning">Button</note>
+      </trans-unit>
+      <trans-unit id="8475095744251176742" datatype="html">
+        <source> Evidence warnings </source>
+        <target state="translated">Duomenų įspėjimai</target>
+        <note priority="1" from="description">Protected evidence and metadata uncertainty</note>
+        <note priority="1" from="meaning">Recovery field</note>
+      </trans-unit>
+      <trans-unit id="7904165470099199945" datatype="html">
+        <source> Refresh status </source>
+        <target state="translated">Atnaujinti būseną</target>
+        <note priority="1" from="description">Refresh the read-only recovery observation</note>
+        <note priority="1" from="meaning">Button</note>
+      </trans-unit>
+      <trans-unit id="5942558257470373134" datatype="html">
+        <source> Review both destinations. Retention and capacity changes remain drafts until you explicitly save and activate them. </source>
+        <target state="translated">Peržiūrėkite abi paskirties vietas. Saugojimo ir talpos pakeitimai liks juodraščiais, kol juos aiškiai išsaugosite ir aktyvinsite.</target>
+        <note priority="1" from="description">Retention changes do not take effect until the explicit activation button</note>
+        <note priority="1" from="meaning">Section hint</note>
+      </trans-unit>
+      <trans-unit id="6815610329382084717" datatype="html">
+        <source> Use current settings </source>
+        <target state="translated">Naudoti dabartines nuostatas</target>
+        <note priority="1" from="description">Discard the local draft and load the concurrent settings</note>
+        <note priority="1" from="meaning">Button</note>
+      </trans-unit>
+      <trans-unit id="8888365435844042884" datatype="html">
+        <source> Automatic retention pruning is paused until a system administrator reviews and activates these policies. </source>
+        <target state="translated">Automatinis saugojimo kopijų šalinimas pristabdytas, kol sistemos administratorius peržiūrės ir aktyvins šias taisykles.</target>
+        <note priority="1" from="description">Automatic pruning is paused pending administrator confirmation</note>
+        <note priority="1" from="meaning">Retention review state</note>
+      </trans-unit>
+      <trans-unit id="1902581710716731374" datatype="html">
+        <source> Archive integrity and key correctness are checked during restore. This status is an inventory/read probe, not a guaranteed restore point. </source>
+        <target state="translated">Archyvo vientisumas ir raktų tinkamumas tikrinami atkuriant. Ši būsena yra inventoriaus ir skaitymo patikra, o ne garantuotas atkūrimo taškas.</target>
+        <note priority="1" from="description">Inventory probes do not prove a backup can restore</note>
+        <note priority="1" from="meaning">Recovery verification limit</note>
+      </trans-unit>
+      <trans-unit id="3945495877629271003" datatype="html">
+        <source> This Synology recovery date uses the file&apos;s modified time because no matching backup-job time was available. </source>
+        <target state="translated">Šiai „Synology“ atkūrimo datai naudojamas failo keitimo laikas, nes atitinkamos atsarginės kopijos užduoties laikas nebuvo pasiekiamas.</target>
+        <note priority="1" from="description">The server had no matching job timestamp for this
+                    remote file</note>
+        <note priority="1" from="meaning">Recovery timestamp caveat</note>
+      </trans-unit>
+      <trans-unit id="3373827199718700185" datatype="html">
+        <source> Backup settings changed elsewhere </source>
+        <target state="translated">Atsarginių kopijų nuostatos pakeistos kitur</target>
+        <note priority="1" from="description">A concurrent edit needs a deliberate choice</note>
+        <note priority="1" from="meaning">Configuration conflict heading</note>
+      </trans-unit>
+      <trans-unit id="63206636941308896" datatype="html">
+        <source> Oldest readable backup currently visible </source>
+        <target state="translated">Seniausia šiuo metu matoma nuskaitoma atsarginė kopija</target>
+        <note priority="1" from="description">Oldest endpoint qualified by the bounded read probe</note>
+        <note priority="1" from="meaning">Recovery field</note>
+      </trans-unit>
+      <trans-unit id="7172034635546527819" datatype="html">
+        <source> Retention and capacity </source>
+        <target state="translated">Saugojimas ir talpa</target>
+        <note priority="1" from="description">Independent local and off-box retention policies and storage limits</note>
+        <note priority="1" from="meaning">Section heading</note>
+      </trans-unit>
+      <trans-unit id="7663894574056183207" datatype="html">
+        <source> Off-box backup — Synology (SMB) </source>
+        <target state="needs-review-translation">Kopijos už serverio ribų — Synology (SMB)</target>
+        <note priority="1" from="description">Copying backups off the box to a Synology NAS over SMB</note>
+        <note priority="1" from="meaning">Section heading</note>
+      </trans-unit>
+      <trans-unit id="1277914671981953093" datatype="html">
+        <source> Retention is awaiting administrator review; pending pruning is only a preview. </source>
+        <target state="translated">Saugojimo taisyklė laukia administratoriaus peržiūros; planuojamas šalinimas yra tik peržiūra.</target>
+        <note priority="1" from="description">Policy is preview-only until activated</note>
+        <note priority="1" from="meaning">Recovery review caveat</note>
+      </trans-unit>
+      <trans-unit id="123811070916739425" datatype="html">
+        <source> <x id="INTERPOLATION" equiv-text="{{ destination.protected_anomaly_count }}"/> protected anomalies · <x id="INTERPOLATION_1" equiv-text="{{ destination.metadata_mismatch_count }}"/> metadata mismatches · <x id="INTERPOLATION_2" equiv-text="{{ destination.compatibility_unknown_count }}"/> compatibility unknown · <x id="INTERPOLATION_3" equiv-text="{{ destination.known_incompatible_count }}"/> known incompatible. </source>
+        <target state="translated"><x id="INTERPOLATION" equiv-text="{{ destination.protected_anomaly_count }}"/> apsaugotos anomalijos · <x id="INTERPOLATION_1" equiv-text="{{ destination.metadata_mismatch_count }}"/> metaduomenų neatitikimai · <x id="INTERPOLATION_2" equiv-text="{{ destination.compatibility_unknown_count }}"/> nežinomas suderinamumas · <x id="INTERPOLATION_3" equiv-text="{{ destination.known_incompatible_count }}"/> žinomi nesuderinami.</target>
+        <note priority="1" from="description">Counts of protected anomalies, metadata mismatches
+                      and compatibility uncertainty</note>
+        <note priority="1" from="meaning">Recovery evidence counts</note>
+      </trans-unit>
+      <trans-unit id="1596457293819431175" datatype="html">
+        <source> Observed <x id="INTERPOLATION" equiv-text="{{ formatIsoDate(recovery.as_of) }}"/> · <x id="INTERPOLATION_1" equiv-text="{{ destinationStateLabel(recovery.overall_status) }}"/> overall. </source>
+        <target state="translated">Stebėta <x id="INTERPOLATION" equiv-text="{{ formatIsoDate(recovery.as_of) }}"/> · bendra būsena: <x id="INTERPOLATION_1" equiv-text="{{ destinationStateLabel(recovery.overall_status) }}"/>.</target>
+        <note priority="1" from="description">The status is a point-in-time inventory and read probe</note>
+        <note priority="1" from="meaning">Recovery observation timestamp</note>
+      </trans-unit>
+      <trans-unit id="6915995353355947355" datatype="html">
+        <source> Save and activate retention </source>
+        <target state="translated">Išsaugoti ir aktyvinti saugojimą</target>
+        <note priority="1" from="description">Optimistically saves both policies and explicitly activates pruning</note>
+        <note priority="1" from="meaning">Button</note>
+      </trans-unit>
+      <trans-unit id="2593382565549787121" datatype="html">
+        <source> Your unsaved draft is still here. Load the current settings to discard it, or deliberately retry your draft against the latest version. </source>
+        <target state="translated">Jūsų neišsaugotas juodraštis liko čia. Įkelkite dabartines nuostatas ir jį atmeskite arba sąmoningai bandykite juodraštį dar kartą su naujausia versija.</target>
+        <note priority="1" from="description">The local form was intentionally not overwritten</note>
+        <note priority="1" from="meaning">Configuration conflict detail</note>
+      </trans-unit>
+      <trans-unit id="375183361251044736" datatype="html">
+        <source> Recovery window </source>
+        <target state="translated">Atkūrimo laikotarpis</target>
+        <note priority="1" from="description">Observed qualified recovery candidates for both destinations</note>
+        <note priority="1" from="meaning">Section heading</note>
+      </trans-unit>
+      <trans-unit id="5187540309657335563" datatype="html">
+        <source> On this box </source>
+        <target state="translated">Šiame įrenginyje</target>
+        <note priority="1" from="description">Backups stored locally</note>
+        <note priority="1" from="meaning">Destination heading</note>
+      </trans-unit>
+      <trans-unit id="4875750966096918364" datatype="html">
+        <source> Newest readable backup currently visible </source>
+        <target state="translated">Naujausia šiuo metu matoma nuskaitoma atsarginė kopija</target>
+        <note priority="1" from="description">Newest endpoint qualified by the bounded read probe</note>
+        <note priority="1" from="meaning">Recovery field</note>
+      </trans-unit>
+      <trans-unit id="6338968487890372052" datatype="html">
+        <source> Different legacy backup settings were found during upgrade. Review both destinations before activation. </source>
+        <target state="translated">Atnaujinant aptiktos skirtingos senos atsarginių kopijų nuostatos. Prieš aktyvindami peržiūrėkite abi paskirties vietas.</target>
+        <note priority="1" from="description">Different legacy household settings were found during
+              migration</note>
+        <note priority="1" from="meaning">Migrated settings warning</note>
+      </trans-unit>
+      <trans-unit id="3958499775612498783" datatype="html">
+        <source> Synology </source>
+        <target state="translated">„Synology“</target>
+        <note priority="1" from="description">Backups stored on a Synology NAS</note>
+        <note priority="1" from="meaning">Destination heading</note>
       </trans-unit>
     </body>
   </file>

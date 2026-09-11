@@ -1,81 +1,678 @@
 <h1 i18n="Page title|Backup and restore settings">Backups</h1>
 
-@if (isOwner()) {
+@if (canManageBackups()) {
   @if (actionError()) {
-    <p class="backups-error">{{ actionError() }}</p>
+    <p class="backups-error" role="alert">{{ actionError() }}</p>
   }
   @if (statusMessage()) {
-    <p class="backups-note">{{ statusMessage() }}</p>
+    <p class="backups-note" role="status">{{ statusMessage() }}</p>
+  }
+  @if (configConflict()) {
+    <section class="backups-conflict" role="alert" aria-labelledby="backup-conflict-heading">
+      <h2
+        id="backup-conflict-heading"
+        i18n="Configuration conflict heading|A concurrent edit needs a deliberate choice"
+      >
+        Backup settings changed elsewhere
+      </h2>
+      <p i18n="Configuration conflict detail|The local form was intentionally not overwritten">
+        Your unsaved draft is still here. Load the current settings to discard it, or deliberately
+        retry your draft against the latest version.
+      </p>
+      <div class="backups-actions">
+        <button
+          mat-stroked-button
+          type="button"
+          (click)="useCurrentConflictConfig()"
+          i18n="Button|Discard the local draft and load the concurrent settings"
+        >
+          Use current settings
+        </button>
+        <button
+          mat-flat-button
+          type="button"
+          (click)="retryConflictDraft()"
+          i18n="Button|Deliberately resubmit the preserved draft against the current version"
+        >
+          Retry my draft
+        </button>
+      </div>
+    </section>
   }
 
   <mat-card appearance="outlined" class="backups-card">
     <mat-card-content>
-    <h2 i18n="Section heading|Copying backups off the box to a Synology NAS over SMB">Off-box backup — Synology (SMB)</h2>
-    <p class="backups-note" i18n="Section hint|What to set up on the Synology before the details below will work">
-      Encrypted backups upload straight to your Synology over SMB — no mounting. Enable SMB on the
-      Synology, create a shared folder, give a user read/write, then enter the details below.
-      Settings save as you change them. The password is encrypted on the box and never shown again.
-    </p>
-    <div class="backups-form">
-      <mat-form-field appearance="outline">
-        <mat-label i18n="Form field label|Hostname or IP address of the Synology">Synology address</mat-label>
-        <input matInput type="text" [ngModel]="host()" (ngModelChange)="host.set($event)" (blur)="saveConfig()" placeholder="192.168.1.50" />
-      </mat-form-field>
-      <mat-form-field appearance="outline">
-        <mat-label i18n="Form field label|SMB share the backups are written to">Shared folder</mat-label>
-        <input matInput type="text" [ngModel]="share()" (ngModelChange)="share.set($event)" (blur)="saveConfig()" placeholder="family-cfo-backups" />
-      </mat-form-field>
-      <mat-form-field appearance="outline">
-        <mat-label i18n="Form field label|Optional folder inside the SMB share">Subfolder (optional)</mat-label>
-        <input matInput type="text" [ngModel]="folder()" (ngModelChange)="folder.set($event)" (blur)="saveConfig()" />
-      </mat-form-field>
-      <mat-form-field appearance="outline">
-        <mat-label i18n="Form field label|SMB account name used to upload backups">Username</mat-label>
-        <input matInput type="text" [ngModel]="username()" (ngModelChange)="username.set($event)" (blur)="saveConfig()" placeholder="backup-user" />
-      </mat-form-field>
-      <mat-form-field appearance="outline">
-        <mat-label i18n="Form field label|SMB account password used to upload backups">Password</mat-label>
-        <input matInput type="password" [ngModel]="password()" (ngModelChange)="password.set($event); onPasswordInput()" (blur)="saveConfig()"
-               [placeholder]="passwordPlaceholder()" />
-      </mat-form-field>
-      <mat-form-field appearance="outline">
-        <mat-label i18n="Form field label|Optional Windows/SMB domain">Domain (optional)</mat-label>
-        <input matInput type="text" [ngModel]="domain()" (ngModelChange)="domain.set($event)" (blur)="saveConfig()" placeholder="WORKGROUP" />
-      </mat-form-field>
-      <mat-form-field appearance="outline">
-        <mat-label i18n="Form field label|How often backups run automatically">Schedule</mat-label>
-        <mat-select [ngModel]="frequency()" (ngModelChange)="frequency.set($event); saveConfig()">
-          <mat-option value="daily" i18n="Backup schedule|Back up once a day">Daily</mat-option>
-          <mat-option value="weekly" i18n="Backup schedule|Back up once a week">Weekly</mat-option>
-          <mat-option value="off" i18n="Backup schedule|Never back up automatically">Off</mat-option>
-        </mat-select>
-      </mat-form-field>
-      <mat-form-field appearance="outline">
-        <mat-label i18n="Form field label|Cap on the space every backup may use together; GB is a unit symbol and stays untranslated">Max total size (GB, 0 = no limit)</mat-label>
-        <input matInput type="number" min="0" step="0.5" [ngModel]="maxGB()" (ngModelChange)="maxGB.set($event)" (blur)="saveConfig()" />
-      </mat-form-field>
-    </div>
-    <p class="backups-note" i18n="Section hint|What happens when the size cap is reached">When all backups combined exceed the limit, the oldest are deleted first.</p>
-    <div class="backups-actions">
-      <button
-        mat-stroked-button
-        type="button"
-        [disabled]="!canTest() || checking()"
-        (click)="testConnection()"
-        i18n="Button|Checks the Synology details, showing progress while the check runs"
+      <h2 i18n="Section heading|Copying backups off the box to a Synology NAS over SMB">
+        Off-box backup — Synology (SMB)
+      </h2>
+      <p
+        class="backups-note"
+        i18n="Section hint|What to set up on the Synology before the details below will work"
       >
-        {checking(), select, true {Testing…} other {Test connection}}
-      </button>
-      @if (checkResult(); as result) {
-        <span [class.ok]="result.writable" [class.fail]="!result.writable">
-          @if (result.writable) {
-            <ng-container i18n="Connection check result|The Synology share is reachable and writable">✓ Connected</ng-container>
-          } @else {
-            <ng-container i18n="Connection check result|The Synology share could not be written to; the reason comes from the server">✗ {{ result.reason ?? connectionFailedLabel }}</ng-container>
+        Encrypted backups upload straight to your Synology over SMB — no mounting. Enable SMB on the
+        Synology, create a shared folder, give a user read/write, then enter the details below.
+        Settings save as you change them. The password is encrypted on the box and never shown
+        again.
+      </p>
+      <div class="backups-form">
+        <mat-form-field appearance="outline">
+          <mat-label i18n="Form field label|Hostname or IP address of the Synology"
+            >Synology address</mat-label
+          >
+          <input
+            matInput
+            type="text"
+            [ngModel]="host()"
+            (ngModelChange)="host.set($event)"
+            (blur)="saveConfig()"
+            placeholder="192.168.1.50"
+          />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label i18n="Form field label|SMB share the backups are written to"
+            >Shared folder</mat-label
+          >
+          <input
+            matInput
+            type="text"
+            [ngModel]="share()"
+            (ngModelChange)="share.set($event)"
+            (blur)="saveConfig()"
+            placeholder="family-cfo-backups"
+          />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label i18n="Form field label|Optional folder inside the SMB share"
+            >Subfolder (optional)</mat-label
+          >
+          <input
+            matInput
+            type="text"
+            [ngModel]="folder()"
+            (ngModelChange)="folder.set($event)"
+            (blur)="saveConfig()"
+          />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label i18n="Form field label|SMB account name used to upload backups"
+            >Username</mat-label
+          >
+          <input
+            matInput
+            type="text"
+            [ngModel]="username()"
+            (ngModelChange)="username.set($event)"
+            (blur)="saveConfig()"
+            placeholder="backup-user"
+          />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label i18n="Form field label|SMB account password used to upload backups"
+            >Password</mat-label
+          >
+          <input
+            matInput
+            type="password"
+            [ngModel]="password()"
+            (ngModelChange)="password.set($event); onPasswordInput()"
+            (blur)="saveConfig()"
+            [placeholder]="passwordPlaceholder()"
+          />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label i18n="Form field label|Optional Windows/SMB domain"
+            >Domain (optional)</mat-label
+          >
+          <input
+            matInput
+            type="text"
+            [ngModel]="domain()"
+            (ngModelChange)="domain.set($event)"
+            (blur)="saveConfig()"
+            placeholder="WORKGROUP"
+          />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label i18n="Form field label|How often backups run automatically"
+            >Schedule</mat-label
+          >
+          <mat-select [ngModel]="frequency()" (ngModelChange)="frequency.set($event); saveConfig()">
+            <mat-option value="every_15min" i18n="Backup schedule|Back up every fifteen minutes"
+              >Every 15 minutes</mat-option
+            >
+            <mat-option value="hourly" i18n="Backup schedule|Back up once an hour"
+              >Hourly</mat-option
+            >
+            <mat-option value="every_6h" i18n="Backup schedule|Back up every six hours"
+              >Every 6 hours</mat-option
+            >
+            <mat-option value="daily" i18n="Backup schedule|Back up once a day">Daily</mat-option>
+            <mat-option value="weekly" i18n="Backup schedule|Back up once a week"
+              >Weekly</mat-option
+            >
+            <mat-option value="off" i18n="Backup schedule|Never back up automatically"
+              >Off</mat-option
+            >
+          </mat-select>
+        </mat-form-field>
+      </div>
+      <div class="backups-actions">
+        <button
+          mat-stroked-button
+          type="button"
+          [disabled]="!canTest() || checking()"
+          (click)="testConnection()"
+          i18n="Button|Checks the Synology details, showing progress while the check runs"
+        >
+          {checking(), select, true {Testing…} other {Test connection}}
+        </button>
+        @if (checkResult(); as result) {
+          <span [class.ok]="result.writable" [class.fail]="!result.writable" role="status">
+            @if (result.writable) {
+              <ng-container
+                i18n="Connection check result|The Synology share is reachable and writable"
+                >✓ Connected</ng-container
+              >
+            } @else {
+              <ng-container
+                i18n="
+                  Connection check result|The Synology share could not be written to; the reason
+                  comes from the server
+                "
+                >✗ {{ result.reason ?? connectionFailedLabel }}</ng-container
+              >
+            }
+          </span>
+          @if (result.capacity; as capacity) {
+            <span class="backups-caption"
+              >{{ capacitySummary(capacity) }} {{ capacityDescription(capacity) }}</span
+            >
           }
-        </span>
+        }
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+  <mat-card appearance="outlined" class="backups-card backups-card--wide">
+    <mat-card-content>
+      <h2
+        i18n="Section heading|Independent local and off-box retention policies and storage limits"
+      >
+        Retention and capacity
+      </h2>
+      <p
+        class="backups-note"
+        i18n="
+          Section hint|Retention changes do not take effect until the explicit activation button
+        "
+      >
+        Review both destinations. Retention and capacity changes remain drafts until you explicitly
+        save and activate them.
+      </p>
+
+      @if (serverConfig(); as config) {
+        @if (config.retention_review_required) {
+          <p
+            class="backups-warning"
+            role="status"
+            i18n="
+              Retention review state|Automatic pruning is paused pending administrator confirmation
+            "
+          >
+            Automatic retention pruning is paused until a system administrator reviews and activates
+            these policies.
+          </p>
+        }
+        @if (config.legacy_conflict_detected) {
+          <p
+            class="backups-warning"
+            role="alert"
+            i18n="
+              Migrated settings warning|Different legacy household settings were found during
+              migration
+            "
+          >
+            Different legacy backup settings were found during upgrade. Review both destinations
+            before activation.
+          </p>
+        }
+        <div class="retention-grid">
+          <section class="retention-destination" aria-labelledby="local-retention-heading">
+            <h3 id="local-retention-heading" i18n="Destination heading|Backups stored locally">
+              On this box
+            </h3>
+            <mat-form-field appearance="outline">
+              <mat-label i18n="Form field label|Time-based retention mode for local backups"
+                >Retention mode</mat-label
+              >
+              <mat-select
+                [ngModel]="localDraft().mode"
+                (ngModelChange)="updateDraft('local', { mode: $event })"
+              >
+                <mat-option
+                  value="tiered"
+                  i18n="Retention mode|Keep dense recent backups and thin older ones"
+                  >Tiered</mat-option
+                >
+                <mat-option value="keep_all" i18n="Retention mode|Disable time-based pruning"
+                  >Keep every backup</mat-option
+                >
+              </mat-select>
+            </mat-form-field>
+            @if (localDraft().mode === 'tiered') {
+              <div class="retention-fields">
+                <mat-form-field appearance="outline"
+                  ><mat-label i18n="Form field label|Dense retention horizon"
+                    >Keep every backup for</mat-label
+                  ><input
+                    matInput
+                    type="number"
+                    min="1"
+                    max="3650"
+                    step="1"
+                    [ngModel]="localDraft().keepAllDays"
+                    (ngModelChange)="updateDraft('local', { keepAllDays: $event })"
+                  /><span matTextSuffix i18n="Unit|Days">days</span></mat-form-field
+                >
+                <mat-form-field appearance="outline"
+                  ><mat-label i18n="Form field label|Daily retention horizon"
+                    >Keep one per day through</mat-label
+                  ><input
+                    matInput
+                    type="number"
+                    min="1"
+                    max="3650"
+                    step="1"
+                    [ngModel]="localDraft().dailyUntilDays"
+                    (ngModelChange)="updateDraft('local', { dailyUntilDays: $event })"
+                  /><span matTextSuffix i18n="Unit|Days">days</span></mat-form-field
+                >
+                <mat-form-field appearance="outline"
+                  ><mat-label i18n="Form field label|Weekly retention horizon"
+                    >Keep one per week through</mat-label
+                  ><input
+                    matInput
+                    type="number"
+                    min="1"
+                    max="3650"
+                    step="1"
+                    [ngModel]="localDraft().weeklyUntilDays"
+                    (ngModelChange)="updateDraft('local', { weeklyUntilDays: $event })"
+                  /><span matTextSuffix i18n="Unit|Days">days</span></mat-form-field
+                >
+              </div>
+            }
+            <div class="retention-fields">
+              <mat-form-field appearance="outline"
+                ><mat-label
+                  i18n="Form field label|Destination-specific logical size cap in decimal gigabytes"
+                  >Maximum total size</mat-label
+                ><input
+                  matInput
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  [ngModel]="localDraft().maxGB"
+                  (ngModelChange)="updateDraft('local', { maxGB: $event })"
+                /><span matTextSuffix>GB</span
+                ><mat-hint i18n="Form field hint|Zero disables the logical size cap"
+                  >0 = no limit</mat-hint
+                ></mat-form-field
+              >
+              <mat-form-field appearance="outline"
+                ><mat-label
+                  i18n="
+                    Form field label|Destination-specific caller-available reserve in decimal
+                    gigabytes
+                  "
+                  >Keep at least this much space free</mat-label
+                ><input
+                  matInput
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  [ngModel]="localDraft().reserveGB"
+                  (ngModelChange)="updateDraft('local', { reserveGB: $event })"
+                /><span matTextSuffix>GB</span></mat-form-field
+              >
+            </div>
+            <p class="retention-summary">{{ retentionSummary(localDraft()) }}</p>
+            @if (localDraftError(); as error) {
+              <p class="backups-error" role="alert">{{ error }}</p>
+            }
+            <p
+              class="backups-caption"
+              i18n="
+                Pending prune preview|Preview from the currently saved local policy, not the unsaved
+                form
+              "
+            >
+              Current saved-policy preview:
+              {{
+                config.local_pending_prune_count == null ? '—' : config.local_pending_prune_count
+              }}
+              backups · {{ formatBytes(config.local_pending_prune_bytes) }} pending after
+              activation. Unsaved changes are not included until the server validates them.
+            </p>
+          </section>
+
+          <section class="retention-destination" aria-labelledby="offbox-retention-heading">
+            <h3
+              id="offbox-retention-heading"
+              i18n="Destination heading|Backups stored on a Synology NAS"
+            >
+              Synology
+            </h3>
+            <mat-form-field appearance="outline">
+              <mat-label i18n="Form field label|Time-based retention mode for off-box backups"
+                >Retention mode</mat-label
+              >
+              <mat-select
+                [ngModel]="offboxDraft().mode"
+                (ngModelChange)="updateDraft('offbox', { mode: $event })"
+              >
+                <mat-option
+                  value="tiered"
+                  i18n="Retention mode|Keep dense recent backups and thin older ones"
+                  >Tiered</mat-option
+                >
+                <mat-option value="keep_all" i18n="Retention mode|Disable time-based pruning"
+                  >Keep every backup</mat-option
+                >
+              </mat-select>
+            </mat-form-field>
+            @if (offboxDraft().mode === 'tiered') {
+              <div class="retention-fields">
+                <mat-form-field appearance="outline"
+                  ><mat-label i18n="Form field label|Dense retention horizon"
+                    >Keep every backup for</mat-label
+                  ><input
+                    matInput
+                    type="number"
+                    min="1"
+                    max="3650"
+                    step="1"
+                    [ngModel]="offboxDraft().keepAllDays"
+                    (ngModelChange)="updateDraft('offbox', { keepAllDays: $event })"
+                  /><span matTextSuffix i18n="Unit|Days">days</span></mat-form-field
+                >
+                <mat-form-field appearance="outline"
+                  ><mat-label i18n="Form field label|Daily retention horizon"
+                    >Keep one per day through</mat-label
+                  ><input
+                    matInput
+                    type="number"
+                    min="1"
+                    max="3650"
+                    step="1"
+                    [ngModel]="offboxDraft().dailyUntilDays"
+                    (ngModelChange)="updateDraft('offbox', { dailyUntilDays: $event })"
+                  /><span matTextSuffix i18n="Unit|Days">days</span></mat-form-field
+                >
+                <mat-form-field appearance="outline"
+                  ><mat-label i18n="Form field label|Weekly retention horizon"
+                    >Keep one per week through</mat-label
+                  ><input
+                    matInput
+                    type="number"
+                    min="1"
+                    max="3650"
+                    step="1"
+                    [ngModel]="offboxDraft().weeklyUntilDays"
+                    (ngModelChange)="updateDraft('offbox', { weeklyUntilDays: $event })"
+                  /><span matTextSuffix i18n="Unit|Days">days</span></mat-form-field
+                >
+              </div>
+            }
+            <div class="retention-fields">
+              <mat-form-field appearance="outline"
+                ><mat-label
+                  i18n="Form field label|Destination-specific logical size cap in decimal gigabytes"
+                  >Maximum total size</mat-label
+                ><input
+                  matInput
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  [ngModel]="offboxDraft().maxGB"
+                  (ngModelChange)="updateDraft('offbox', { maxGB: $event })"
+                /><span matTextSuffix>GB</span
+                ><mat-hint i18n="Form field hint|Zero disables the logical size cap"
+                  >0 = no limit</mat-hint
+                ></mat-form-field
+              >
+              <mat-form-field appearance="outline"
+                ><mat-label
+                  i18n="
+                    Form field label|Destination-specific caller-available reserve in decimal
+                    gigabytes
+                  "
+                  >Keep at least this much space free</mat-label
+                ><input
+                  matInput
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  [ngModel]="offboxDraft().reserveGB"
+                  (ngModelChange)="updateDraft('offbox', { reserveGB: $event })"
+                /><span matTextSuffix>GB</span></mat-form-field
+              >
+            </div>
+            <p class="retention-summary">{{ retentionSummary(offboxDraft()) }}</p>
+            @if (offboxDraftError(); as error) {
+              <p class="backups-error" role="alert">{{ error }}</p>
+            }
+            <p
+              class="backups-caption"
+              i18n="
+                Pending prune preview|Preview from the currently saved off-box policy, not the
+                unsaved form
+              "
+            >
+              Current saved-policy preview:
+              {{
+                config.offbox_pending_prune_count == null ? '—' : config.offbox_pending_prune_count
+              }}
+              backups · {{ formatBytes(config.offbox_pending_prune_bytes) }} pending after
+              activation. Unsaved changes are not included until the server validates them.
+            </p>
+          </section>
+        </div>
+        <div class="backups-actions">
+          <button
+            mat-flat-button
+            type="button"
+            [disabled]="
+              !!retentionValidation() || !retentionChanged() || configSaving() || !!configConflict()
+            "
+            (click)="saveAndActivateRetention()"
+            i18n="Button|Optimistically saves both policies and explicitly activates pruning"
+          >
+            Save and activate retention
+          </button>
+          @if (configSaving()) {
+            <span role="status" i18n="Saving state|A backup configuration write is in progress"
+              >Saving…</span
+            >
+          }
+        </div>
       }
-    </div>
+    </mat-card-content>
+  </mat-card>
+
+  <mat-card appearance="outlined" class="backups-card backups-card--wide">
+    <mat-card-content>
+      <div class="recovery-heading">
+        <h2 i18n="Section heading|Observed qualified recovery candidates for both destinations">
+          Recovery window
+        </h2>
+        <button
+          mat-stroked-button
+          type="button"
+          [disabled]="recoveryStatusLoading()"
+          (click)="refreshRecoveryStatus()"
+          i18n="Button|Refresh the read-only recovery observation"
+        >
+          Refresh status
+        </button>
+      </div>
+      @if (recoveryStatusLoading() && !recoveryStatus()) {
+        <p role="status" i18n="Loading placeholder|While recovery inventory and probes run">
+          Checking recovery candidates…
+        </p>
+      }
+      @if (recoveryStatusError(); as error) {
+        <p class="backups-error" role="alert">{{ error }}</p>
+      }
+      @if (recoveryStatus(); as recovery) {
+        <p
+          class="backups-note"
+          i18n="
+            Recovery observation timestamp|The status is a point-in-time inventory and read probe
+          "
+        >
+          Observed {{ formatIsoDate(recovery.as_of) }} ·
+          {{ destinationStateLabel(recovery.overall_status) }} overall.
+        </p>
+        <div class="recovery-grid">
+          @for (destination of [recovery.local, recovery.offbox]; track destination.destination) {
+            <section
+              class="recovery-destination"
+              [attr.role]="recoveryRole(destination)"
+              [attr.aria-labelledby]="destination.destination + '-recovery-heading'"
+            >
+              <h3 [id]="destination.destination + '-recovery-heading'">
+                @if (destination.destination === 'local') {
+                  <ng-container i18n="Destination heading|Backups stored locally"
+                    >On this box</ng-container
+                  >
+                } @else {
+                  <ng-container i18n="Destination heading|Backups stored on a Synology NAS"
+                    >Synology</ng-container
+                  >
+                }
+              </h3>
+              <p class="recovery-state">
+                <strong>{{ destinationStateLabel(destination.status) }}</strong> ·
+                {{ destinationStateDescription(destination) }}
+              </p>
+              <dl class="recovery-details">
+                <div>
+                  <dt i18n="Recovery field|Configured retention target">Configured policy</dt>
+                  <dd>{{ policySummary(destination.policy) }}</dd>
+                </div>
+                <div>
+                  <dt i18n="Recovery field|Oldest target date derived from policy">
+                    Target oldest date
+                  </dt>
+                  <dd>{{ policyTarget(destination.policy) }}</dd>
+                </div>
+                <div>
+                  <dt i18n="Recovery field|Oldest endpoint qualified by the bounded read probe">
+                    Oldest readable backup currently visible
+                  </dt>
+                  <dd>{{ formatIsoDate(destination.oldest_readable_at) }}</dd>
+                </div>
+                <div>
+                  <dt i18n="Recovery field|Newest endpoint qualified by the bounded read probe">
+                    Newest readable backup currently visible
+                  </dt>
+                  <dd>{{ formatIsoDate(destination.newest_readable_at) }}</dd>
+                </div>
+                <div>
+                  <dt i18n="Recovery field|Coverage classification">Coverage</dt>
+                  <dd>
+                    <strong>{{ coverageLabel(destination.coverage_status) }}</strong> ·
+                    {{ coverageDescription(destination.coverage_status) }}
+                  </dd>
+                </div>
+                <div>
+                  <dt i18n="Recovery field|Listed managed archives">Visible managed backups</dt>
+                  <dd>{{ destination.visible_archive_count }}</dd>
+                </div>
+                <div>
+                  <dt i18n="Recovery field|Exact qualified count is nullable">Readable backups</dt>
+                  <dd>
+                    @if (destination.readable_archive_count == null) {
+                      <ng-container
+                        i18n="Unknown count|Bounded probes cannot establish an exact readable count"
+                        >Not known</ng-container
+                      >
+                    } @else {
+                      {{ destination.readable_archive_count }}
+                    }
+                  </dd>
+                </div>
+                <div>
+                  <dt i18n="Recovery field|Number of archive endpoints checked">
+                    Backups read-probed
+                  </dt>
+                  <dd>
+                    {{ destination.probed_archive_count }} · {{ probeDescription(destination) }}
+                  </dd>
+                </div>
+                <div>
+                  <dt i18n="Recovery field|Observed caller-visible storage capacity">Capacity</dt>
+                  <dd>
+                    {{ capacitySummary(destination.capacity) }}
+                    <span>{{ capacityDescription(destination.capacity) }}</span>
+                  </dd>
+                </div>
+                <div>
+                  <dt i18n="Recovery field|Protected evidence and metadata uncertainty">
+                    Evidence warnings
+                  </dt>
+                  <dd
+                    i18n="
+                      Recovery evidence counts|Counts of protected anomalies, metadata mismatches
+                      and compatibility uncertainty
+                    "
+                  >
+                    {{ destination.protected_anomaly_count }} protected anomalies ·
+                    {{ destination.metadata_mismatch_count }} metadata mismatches ·
+                    {{ destination.compatibility_unknown_count }} compatibility unknown ·
+                    {{ destination.known_incompatible_count }} known incompatible.
+                  </dd>
+                </div>
+              </dl>
+              @if (destination.oldest_timestamp_source === 'remote_modified_at') {
+                <p
+                  class="backups-warning"
+                  role="status"
+                  i18n="
+                    Recovery timestamp caveat|The server had no matching job timestamp for this
+                    remote file
+                  "
+                >
+                  This Synology recovery date uses the file's modified time because no matching
+                  backup-job time was available.
+                </p>
+              }
+              @if (destination.reason) {
+                <p class="backups-note">{{ destination.reason }}</p>
+              }
+              @if (destination.retention_review_required) {
+                <p
+                  class="backups-warning"
+                  role="status"
+                  i18n="Recovery review caveat|Policy is preview-only until activated"
+                >
+                  Retention is awaiting administrator review; pending pruning is only a preview.
+                </p>
+              }
+              <p
+                class="backups-caption"
+                i18n="
+                  Recovery verification limit|Inventory probes do not prove a backup can restore
+                "
+              >
+                Archive integrity and key correctness are checked during restore. This status is an
+                inventory/read probe, not a guaranteed restore point.
+              </p>
+            </section>
+          }
+        </div>
+      }
     </mat-card-content>
   </mat-card>
 
@@ -299,10 +896,13 @@
     </mat-card-content>
   </mat-card>
 
-  @if (remoteBackups().length) {
+  @if (remoteBackups().length || remoteListError()) {
     <mat-card appearance="outlined" class="backups-card">
       <mat-card-content>
       <h2 i18n="Section heading|Restoring from a snapshot stored on the Synology">Restore from Synology</h2>
+      @if (remoteListError(); as message) {
+        <p class="backups-error" role="alert">{{ message }}</p>
+      }
       <p class="backups-note" i18n="Section hint|How the off-box snapshot list is arranged and what restoring does">Grouped by day, newest first — open a day for its snapshots. Restoring replaces all current data.</p>
       @for (group of remoteBackupDays(); track group.day; let first = $first) {
         <details class="backups-day" [open]="first">
@@ -404,5 +1004,5 @@
     </mat-card-content>
   </mat-card>
 } @else {
-  <p class="backups-note" i18n="Permission notice|Shown to members who are not the household owner">Only the household owner can manage backups.</p>
+  <p class="backups-note" i18n="Permission notice|Whole-box backup management requires the box-level administrator right">Only a system administrator can manage whole-box backups.</p>
 }

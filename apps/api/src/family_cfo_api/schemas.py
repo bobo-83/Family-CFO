@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -750,9 +750,7 @@ class BillListResponse(BaseModel):
 
 
 TimelineItemKind = Literal["bill", "credit_card", "mortgage", "loan", "lease"]
-TimelineItemStatus = Literal[
-    "overdue", "due_soon", "upcoming", "paid", "no_date", "unknown"
-]
+TimelineItemStatus = Literal["overdue", "due_soon", "upcoming", "paid", "no_date", "unknown"]
 
 
 class TimelinePaidWith(BaseModel):
@@ -1430,8 +1428,6 @@ class Recommendation(BaseModel):
     photo_described_by: str | None = None
 
 
-
-
 class ChatRequest(BaseModel):
     conversation_id: str | None = None
     message: str = Field(min_length=1, max_length=4000)
@@ -1776,7 +1772,7 @@ class ReportListResponse(BaseModel):
 class BackupJob(BaseModel):
     id: str
     status: BackupJobStatus
-    size_bytes: int | None = None
+    size_bytes: int | None = Field(default=None, json_schema_extra={"format": "int64"})
     error_message: str | None = None
     started_at: datetime
     completed_at: datetime | None = None
@@ -1794,20 +1790,123 @@ class BackupJobListResponse(BaseModel):
     backups: list[BackupJob]
 
 
+class BackupRetentionPolicyUpdate(BaseModel):
+    mode: Literal["tiered", "keep_all"]
+    keep_all_days: int | None
+    daily_until_days: int | None
+    weekly_until_days: int | None
+
+    @model_validator(mode="after")
+    def _valid_policy(self) -> "BackupRetentionPolicyUpdate":
+        from family_cfo_api.backup_retention import RetentionPolicy
+
+        try:
+            RetentionPolicy(
+                self.mode,
+                self.keep_all_days,
+                self.daily_until_days,
+                self.weekly_until_days,
+            )
+        except ValueError as exc:
+            raise ValueError(str(exc)) from exc
+        return self
+
+
+class BackupRetentionPolicy(BaseModel):
+    mode: Literal["tiered", "keep_all"]
+    keep_all_days: int | None
+    daily_until_days: int | None
+    weekly_until_days: int | None
+    target_oldest_at: datetime | None
+
+
+class BackupCapacityObservation(BaseModel):
+    status: Literal["ok", "warning", "insufficient", "unknown", "unavailable"]
+    total_bytes: int | None = Field(ge=0, json_schema_extra={"format": "int64"})
+    available_bytes: int | None = Field(ge=0, json_schema_extra={"format": "int64"})
+    reserve_bytes: int = Field(ge=0, json_schema_extra={"format": "int64"})
+    estimated_next_backup_bytes: int | None = Field(
+        ge=0, json_schema_extra={"format": "int64"}
+    )
+    can_accept_estimated_backup: bool | None
+    as_of: datetime
+    reason_code: str
+    reason: str | None
+
+
+class BackupDestinationRecoveryStatus(BaseModel):
+    destination: Literal["local", "offbox"]
+    configured: bool
+    status: Literal["not_configured", "empty", "healthy", "constrained", "degraded", "unavailable"]
+    coverage_status: Literal[
+        "not_applicable", "empty", "building", "met", "incomplete", "shortened", "unknown"
+    ]
+    policy: BackupRetentionPolicy
+    retention_review_required: bool
+    retention_activated_at: datetime | None
+    pending_prune_count: int | None = Field(ge=0)
+    pending_prune_bytes: int | None = Field(ge=0, json_schema_extra={"format": "int64"})
+    visible_archive_count: int = Field(ge=0)
+    readable_archive_count: int | None = Field(ge=0)
+    probe_status: Literal["complete", "partial", "unavailable"]
+    probed_archive_count: int = Field(ge=0)
+    oldest_readable_at: datetime | None
+    newest_readable_at: datetime | None
+    oldest_timestamp_source: Literal["job_started_at", "remote_modified_at"] | None
+    metadata_mismatch_count: int = Field(ge=0)
+    protected_anomaly_count: int = Field(ge=0)
+    compatibility_unknown_count: int = Field(ge=0)
+    known_incompatible_count: int = Field(ge=0)
+    capacity: BackupCapacityObservation
+    reason_codes: list[str]
+    reason: str | None
+    as_of: datetime
+    verification_scope: Literal["inventory_read_probe"]
+
+
+class BackupRecoveryStatus(BaseModel):
+    as_of: datetime
+    overall_status: Literal["empty", "healthy", "constrained", "degraded", "unavailable"]
+    overall_oldest_readable_at: datetime | None
+    overall_newest_readable_at: datetime | None
+    local: BackupDestinationRecoveryStatus
+    offbox: BackupDestinationRecoveryStatus
+    verification_scope: Literal["inventory_read_probe"]
+
+
 class BackupConfig(BaseModel):
-    """M98: the Synology SMB target off-box backups upload to, and the cadence.
-    The password is never returned — `has_password` says whether one is stored.
-    `latest` is the most recent job so the UI can show status + failure reason."""
-    frequency: Literal["every_15min", "hourly", "every_6h", "daily", "weekly", "off"] = "daily"
-    smb_host: str | None = None
-    smb_share: str | None = None
-    smb_folder: str | None = None
-    smb_username: str | None = None
-    smb_domain: str | None = None
-    has_password: bool = False
-    # M98: cap on the combined size of all backups (bytes); null = no cap.
-    max_bytes: int | None = None
-    latest: BackupJob | None = None
+    """Box-global backup destination, cadence, retention, and review state."""
+
+    frequency: Literal["every_15min", "hourly", "every_6h", "daily", "weekly", "off"]
+    smb_host: str | None
+    smb_share: str | None
+    smb_folder: str | None
+    smb_username: str | None
+    smb_domain: str | None
+    has_password: bool
+    max_bytes: int | None = Field(
+        json_schema_extra={"deprecated": True, "format": "int64"},
+        description="Deprecated shared-cap alias; null when destination caps differ.",
+    )
+    local_retention: BackupRetentionPolicy
+    offbox_retention: BackupRetentionPolicy
+    local_max_bytes: int | None = Field(ge=0, json_schema_extra={"format": "int64"})
+    offbox_max_bytes: int | None = Field(ge=0, json_schema_extra={"format": "int64"})
+    local_min_free_bytes: int = Field(ge=0, json_schema_extra={"format": "int64"})
+    offbox_min_free_bytes: int = Field(ge=0, json_schema_extra={"format": "int64"})
+    legacy_conflict_detected: bool
+    retention_review_required: bool
+    retention_activated_at: datetime | None
+    updated_at: datetime
+    local_pending_prune_count: int | None = Field(ge=0)
+    local_pending_prune_bytes: int | None = Field(
+        ge=0, json_schema_extra={"format": "int64"}
+    )
+    offbox_pending_prune_count: int | None = Field(ge=0)
+    offbox_pending_prune_bytes: int | None = Field(
+        ge=0, json_schema_extra={"format": "int64"}
+    )
+    latest: BackupJob | None
 
 
 class BackupConfigUpdateRequest(BaseModel):
@@ -1816,15 +1915,64 @@ class BackupConfigUpdateRequest(BaseModel):
     smb_share: str | None = None
     smb_folder: str | None = None
     smb_username: str | None = None
-    # Write-only. Omit/null to keep the stored password unchanged.
+    # Write-only. Omitted/null preserves; explicit empty string clears.
     smb_password: str | None = None
     smb_domain: str | None = None
-    max_bytes: int | None = None
+    max_bytes: int | None = Field(
+        default=None,
+        ge=0,
+        json_schema_extra={"deprecated": True, "format": "int64"},
+        description="Deprecated shared-cap alias used only when neither new cap is supplied.",
+    )
+    # Non-null when supplied; the None default represents omission in this patch model.
+    local_retention: BackupRetentionPolicyUpdate = None  # type: ignore[assignment]
+    offbox_retention: BackupRetentionPolicyUpdate = None  # type: ignore[assignment]
+    local_max_bytes: int | None = Field(
+        default=None, ge=0, json_schema_extra={"format": "int64"}
+    )
+    offbox_max_bytes: int | None = Field(
+        default=None, ge=0, json_schema_extra={"format": "int64"}
+    )
+    local_min_free_bytes: int = Field(
+        default=0, ge=0, json_schema_extra={"format": "int64"}
+    )
+    offbox_min_free_bytes: int = Field(
+        default=0, ge=0, json_schema_extra={"format": "int64"}
+    )
+    expected_updated_at: datetime | None = None
+    confirm_retention_policy: bool = False
+
+    @model_validator(mode="after")
+    def _validate_patch_contract(self) -> "BackupConfigUpdateRequest":
+        policy_fields = {
+            "local_retention",
+            "offbox_retention",
+            "local_max_bytes",
+            "offbox_max_bytes",
+            "local_min_free_bytes",
+            "offbox_min_free_bytes",
+        }
+        if self.model_fields_set & policy_fields:
+            if not self.confirm_retention_policy:
+                raise ValueError("retention and capacity changes require confirmation")
+            if self.expected_updated_at is None:
+                raise ValueError("retention and capacity changes require expected_updated_at")
+        if self.expected_updated_at is not None:
+            if (
+                self.expected_updated_at.tzinfo is None
+                or self.expected_updated_at.utcoffset() is None
+            ):
+                raise ValueError("expected_updated_at must be timezone-aware")
+            self.expected_updated_at = self.expected_updated_at.astimezone(UTC)
+        if self.confirm_retention_policy and self.expected_updated_at is None:
+            raise ValueError("confirmation requires expected_updated_at")
+        return self
 
 
 class BackupDestinationCheckRequest(BaseModel):
     """Test the entered connection before saving. Password omitted → use the
     stored one (so re-testing a saved target doesn't require retyping it)."""
+
     smb_host: str = Field(min_length=1, max_length=255)
     smb_share: str = Field(min_length=1, max_length=255)
     smb_folder: str | None = None
@@ -1835,13 +1983,14 @@ class BackupDestinationCheckRequest(BaseModel):
 
 class BackupDestinationCheckResponse(BaseModel):
     writable: bool
-    reason: str | None = None
+    reason: str | None
+    capacity: BackupCapacityObservation
 
 
 class RemoteBackup(BaseModel):
     filename: str
-    size_bytes: int
-    modified_at: int  # epoch seconds
+    size_bytes: int = Field(json_schema_extra={"format": "int64"})
+    modified_at: int = Field(json_schema_extra={"format": "int64"})  # epoch seconds
     # Parsed from the `{id}.v{version}.enc` filename; null for archives uploaded
     # before backups carried a version.
     app_version: str | None = None
@@ -1849,6 +1998,9 @@ class RemoteBackup(BaseModel):
 
 class RemoteBackupListResponse(BaseModel):
     backups: list[RemoteBackup]
+    status: Literal["available", "not_configured", "unavailable"]
+    as_of: datetime
+    reason: str | None
 
 
 class RemoteRestoreRequest(BaseModel):
@@ -1907,6 +2059,7 @@ class RecoveryKey(BaseModel):
 class BackupEncryptionKey(BaseModel):
     """M98: the key that decrypts every backup. Returned only to the owner so they
     can store it safely — without it, backups can't be restored on a rebuilt box."""
+
     configured: bool
     key: str | None = None
 
@@ -1937,7 +2090,13 @@ class HostedHouseholdList(BaseModel):
     households: list[HostedHousehold]
     # #192: off-box backup age limit (days; 0 = kept forever) so the delete
     # confirmation can name the real erasure horizon.
-    offbox_backup_retention_days: int
+    offbox_backup_retention_days: int = Field(
+        json_schema_extra={"deprecated": True},
+        description=(
+            "Deprecated approximate off-box outer horizon: 0 for keep-all, "
+            "otherwise weekly_until_days."
+        ),
+    )
 
 
 class HostedHouseholdCreateResponse(BaseModel):
@@ -2108,6 +2267,7 @@ class AccountCreateRequest(BaseModel):
         # #152 review: see Money — an account's code must compare equal to the
         # household's base currency when it IS the base currency.
         return value.upper()
+
     annual_interest_rate: float | None = Field(default=None, ge=0)
     minimum_payment: Money | None = None
     maturity_date: date | None = None

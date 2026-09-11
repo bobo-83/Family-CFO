@@ -6,8 +6,10 @@ import UIKit
 /// the connection, pick a schedule, see status, and restore from the share.
 struct BackupSettingsView: View {
     @State var viewModel: BackupViewModel
+    let sessionIdentity: String?
     @State private var expandedDays: Set<String> = []
     @State private var showingExportShare = false
+    @State private var exportShareURL: URL?
     @State private var pendingRestore: Components.Schemas.RemoteBackup?
     @State private var pendingLocalRestore: Components.Schemas.BackupJob?
     @State private var confirmReplaceRecoveryKey = false
@@ -20,14 +22,31 @@ struct BackupSettingsView: View {
     @State private var recoveryUnlockKey = ""
 
     var body: some View {
+        settingsContent
+            .task(id: sessionIdentity) {
+                viewModel.beginViewLifetime(with: sessionIdentity)
+                guard sessionIdentity != nil else { return }
+                await viewModel.load()
+            }
+            .onChange(of: sessionIdentity) { _, identity in
+                handleSessionReplacement(identity)
+            }
+            .onDisappear {
+                handleViewDisappearance()
+            }
+    }
+
+    private var settingsContent: some View {
         Form {
             connectionSection
             scheduleSection
+            retentionSection
             statusSection
-            if !viewModel.remoteBackups.isEmpty {
+            recoverySection
+            if !viewModel.remoteBackups.isEmpty || viewModel.remoteListError != nil {
                 restoreSection
             }
-            if !viewModel.localBackups.isEmpty {
+            if !viewModel.localBackups.isEmpty || viewModel.localListError != nil {
                 onBoxSection
             }
             restoreKeysSection
@@ -37,14 +56,10 @@ struct BackupSettingsView: View {
         .navigationTitle("Backups")
         .navigationBarTitleDisplayMode(.inline)
         .keyboardDoneButton()
-        .task { await viewModel.load() }
         .overlay {
             if viewModel.isLoading && viewModel.latest == nil { ProgressView() }
         }
         .onChange(of: viewModel.frequency) { Task { await viewModel.save() } }
-        // The max-size field has no Return key (decimal pad), so onSubmit never
-        // fires — save when its committed value changes instead.
-        .onChange(of: viewModel.maxGB) { Task { await viewModel.save() } }
         .alert(
             "Backup", isPresented: .init(
                 get: { viewModel.statusMessage != nil },
@@ -97,7 +112,7 @@ struct BackupSettingsView: View {
             Button("Cancel", role: .cancel) { pendingRestore = nil }
         } message: { backup in
             Text(
-                "This overwrites the current database and documents with the backup from \(Self.dayTimeLabel(backup.modifiedAt)). It can't be undone."
+                "This overwrites the current database and documents with the selected Synology file timestamped \(Self.dayTimeLabel(backup.modifiedAt)). The share's file time can reflect upload time rather than the exact snapshot time. It can't be undone."
             )
         }
         .alert(
@@ -118,6 +133,33 @@ struct BackupSettingsView: View {
                 "This overwrites the current database and documents with the backup from \((backup.completedAt ?? backup.createdAt).formatted(date: .abbreviated, time: .shortened)). It can't be undone."
             )
         }
+    }
+
+    private func handleSessionReplacement(_ identity: String?) {
+        discardPresentedExport()
+        viewModel.replaceSessionIfNeeded(with: identity)
+        clearHouseholdPresentationState()
+    }
+
+    private func handleViewDisappearance() {
+        discardPresentedExport()
+        viewModel.endViewLifetime()
+        clearHouseholdPresentationState()
+    }
+
+    private func discardPresentedExport() {
+        showingExportShare = false
+        if let url = exportShareURL {
+            viewModel.discardExportedFile(url)
+            exportShareURL = nil
+        }
+    }
+
+    private func clearHouseholdPresentationState() {
+        confirmReplaceRecoveryKey = false
+        pendingSealTarget = nil
+        showRecoveryUnlock = false
+        recoveryUnlockKey = ""
     }
 
     private var connectionSection: some View {
@@ -165,7 +207,7 @@ struct BackupSettingsView: View {
         } header: {
             Text("Synology (SMB)")
         } footer: {
-            Text("Backups upload here automatically. Changes save as you go. The password is encrypted on the box and never shown again.")
+            Text("Destination and schedule changes save as you go. Retention changes use the separate activation button below. The password is encrypted on the box and never shown again.")
         }
     }
 
@@ -179,20 +221,285 @@ struct BackupSettingsView: View {
                 Text("Weekly").tag(Components.Schemas.BackupConfigUpdateRequest.FrequencyPayload.weekly)
                 Text("Off").tag(Components.Schemas.BackupConfigUpdateRequest.FrequencyPayload.off)
             }
-            HStack {
-                Text("Max total size")
-                Spacer()
-                TextField("No limit", value: $viewModel.maxGB, format: .number.precision(.fractionLength(0...1)))
-                    .keyboardType(.decimalPad)
-                    .multilineTextAlignment(.trailing)
-                    .frame(maxWidth: 90)
-                    .onSubmit { Task { await viewModel.save() } }
-                Text(verbatim: "GB").foregroundStyle(.secondary)
-            }
         } header: {
             Text("Schedule")
         } footer: {
-            Text("When all backups combined exceed the limit, the oldest are deleted first. Leave 0 for no limit.")
+            Text("The schedule is box-global. Turning it off stops scheduled creation, but maintenance and manual backups remain available.")
+        }
+    }
+
+    private var retentionSection: some View {
+        Section {
+            retentionEditor(
+                title: String(localized: "On this box"),
+                systemImage: "internaldrive",
+                draft: $viewModel.localRetention)
+            Divider()
+            retentionEditor(
+                title: String(localized: "Synology"),
+                systemImage: "externaldrive",
+                draft: $viewModel.offboxRetention)
+
+            if viewModel.retentionReviewRequired {
+                Label(
+                    "Automatic pruning is paused until a system administrator reviews and activates this policy.",
+                    systemImage: "pause.circle.fill"
+                )
+                .font(.caption)
+                .foregroundStyle(.orange)
+                .accessibilityAddTraits(.isStaticText)
+            }
+            if viewModel.legacyConflictDetected {
+                Label(
+                    "Older household settings differed. Review the box-global policy before activation.",
+                    systemImage: "exclamationmark.triangle.fill"
+                )
+                .font(.caption)
+                .foregroundStyle(.orange)
+            }
+            pendingPrunePreview(
+                title: String(localized: "On this box"),
+                count: viewModel.localPendingPruneCount,
+                bytes: viewModel.localPendingPruneBytes)
+            pendingPrunePreview(
+                title: String(localized: "Synology"),
+                count: viewModel.offboxPendingPruneCount,
+                bytes: viewModel.offboxPendingPruneBytes)
+
+            if let validation = viewModel.retentionValidationMessage {
+                Label(validation, systemImage: "exclamationmark.circle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .accessibilityLabel(String(localized: "Retention validation error: \(validation)"))
+            }
+            if let error = viewModel.configError {
+                Label(error, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+            if let current = viewModel.conflictingConfig {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("The box has newer settings. Your unsaved draft is preserved.")
+                        .font(.caption)
+                    Text("Current box revision: \(current.updatedAt.formatted(date: .abbreviated, time: .shortened))")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Button("Use current box settings") {
+                        Task { await viewModel.useCurrentBoxSettings() }
+                    }
+                }
+            }
+
+            Button {
+                Task { await viewModel.saveAndActivateRetention() }
+            } label: {
+                if viewModel.isActivatingRetention {
+                    HStack { ProgressView(); Text("Saving and activating…") }
+                } else {
+                    Label("Save and activate retention", systemImage: "checkmark.shield")
+                }
+            }
+            .disabled(!viewModel.canActivateRetention)
+            .accessibilityHint("Confirms that automatic policy and capacity pruning may run during the next maintenance pass.")
+        } header: {
+            Text("Retention and capacity")
+        } footer: {
+            Text("Policy, maximum size, and reserved free space stay as a draft until you activate them. Activation does not delete during this request; the next locked maintenance pass applies the policy.")
+        }
+    }
+
+    private func retentionEditor(
+        title: String, systemImage: String, draft: Binding<BackupRetentionDraft>
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label(title, systemImage: systemImage)
+                .font(.headline)
+                .accessibilityAddTraits(.isHeader)
+            Picker("Retention mode", selection: draft.mode) {
+                Text("Tiered").tag(Components.Schemas.BackupRetentionPolicyUpdate.ModePayload.tiered)
+                Text("Keep every backup").tag(Components.Schemas.BackupRetentionPolicyUpdate.ModePayload.keepAll)
+            }
+            if draft.wrappedValue.mode == .tiered {
+                retentionDaysField("Keep every backup for", value: draft.keepAllDays)
+                retentionDaysField("Keep one per day through", value: draft.dailyUntilDays)
+                retentionDaysField("Keep one per week through", value: draft.weeklyUntilDays)
+            }
+            retentionGBField("Maximum total size", value: draft.maxGB, zeroMeansUnlimited: true)
+            retentionGBField("Keep at least this much space free", value: draft.reserveGB)
+            Text(verbatim: BackupViewModel.retentionSummary(draft.wrappedValue))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .accessibilityLabel("\(title) policy: \(BackupViewModel.retentionSummary(draft.wrappedValue))")
+        }
+    }
+
+    private func retentionDaysField(_ title: LocalizedStringKey, value: Binding<Int>) -> some View {
+        LabeledContent(title) {
+            HStack(spacing: 4) {
+                TextField("Days", value: value, format: .number)
+                    .keyboardType(.numberPad)
+                    .multilineTextAlignment(.trailing)
+                    .frame(maxWidth: 90)
+                Text("days").foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func retentionGBField(
+        _ title: LocalizedStringKey, value: Binding<Double>, zeroMeansUnlimited: Bool = false
+    ) -> some View {
+        LabeledContent(title) {
+            HStack(spacing: 4) {
+                TextField(
+                    zeroMeansUnlimited ? "No limit" : "GB",
+                    value: value,
+                    format: .number.precision(.fractionLength(0...2)))
+                    .keyboardType(.decimalPad)
+                    .multilineTextAlignment(.trailing)
+                    .frame(maxWidth: 90)
+                Text(verbatim: "GB").foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    @ViewBuilder private func pendingPrunePreview(title: String, count: Int?, bytes: Int64?) -> some View {
+        if let count, count > 0 {
+            let size = bytes.map {
+                ByteCountFormatter.string(fromByteCount: $0, countStyle: .file)
+            } ?? String(localized: "size unknown")
+            Label(
+                "\(title) pending after activation: \(count) backups · \(size)",
+                systemImage: "clock.badge.exclamationmark"
+            )
+            .font(.caption)
+            .foregroundStyle(.orange)
+        }
+    }
+
+    private var recoverySection: some View {
+        Section {
+            if let status = viewModel.recoveryStatus {
+                recoveryDestination(status.local, title: String(localized: "On this box"))
+                Divider()
+                recoveryDestination(status.offbox, title: String(localized: "Synology"))
+                Text("Observed \(status.asOf.formatted(date: .abbreviated, time: .shortened))")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            } else if let error = viewModel.recoveryStatusError {
+                Label("Recovery status unavailable", systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                    .accessibilityAddTraits(.isStaticText)
+                Text(verbatim: error)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                HStack { ProgressView(); Text("Loading recovery status…") }
+            }
+        } header: {
+            Text("Recovery window")
+        } footer: {
+            Text("These are visible, read-probed recovery candidates—not guaranteed restore points. Archive integrity, the backup key, household recovery key, decryption, migrations, and a complete database restore are checked only during restore.")
+        }
+    }
+
+    private func recoveryDestination(
+        _ status: Components.Schemas.BackupDestinationRecoveryStatus, title: String
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            let stateTitle = BackupViewModel.destinationStateTitle(status.status)
+            Label("\(title): \(stateTitle)", systemImage: recoverySymbol(status.status))
+                .font(.headline)
+                .foregroundStyle(recoveryColor(status.status))
+                .accessibilityLabel("\(title) recovery state: \(stateTitle)")
+
+            LabeledContent("Configured policy", value: BackupViewModel.policySummary(status.policy))
+            if let target = status.policy.targetOldestAt {
+                LabeledContent("Configured target oldest date") {
+                    Text(target.formatted(date: .abbreviated, time: .shortened))
+                        .accessibilityLabel("\(title) configured target oldest date, \(target.formatted(date: .complete, time: .shortened))")
+                }
+            } else if status.policy.mode == .keepAll {
+                LabeledContent("Configured target", value: String(localized: "Keep every backup"))
+            }
+
+            if let oldest = status.oldestReadableAt {
+                LabeledContent("Oldest readable backup currently visible") {
+                    Text(oldest.formatted(date: .abbreviated, time: .shortened))
+                        .accessibilityLabel("\(title) oldest readable backup currently visible, \(oldest.formatted(date: .complete, time: .shortened))")
+                }
+            }
+            if let newest = status.newestReadableAt {
+                LabeledContent("Newest readable backup currently visible") {
+                    Text(newest.formatted(date: .abbreviated, time: .shortened))
+                        .accessibilityLabel("\(title) newest readable backup currently visible, \(newest.formatted(date: .complete, time: .shortened))")
+                }
+            }
+
+            LabeledContent("Visible managed backups", value: "\(status.visibleArchiveCount)")
+            LabeledContent(
+                "Readable backups",
+                value: status.readableArchiveCount.map(String.init) ?? String(localized: "Not fully known"))
+            LabeledContent(
+                "Read probe",
+                value: "\(BackupViewModel.probeTitle(status.probeStatus)) · \(status.probedArchiveCount) probed")
+            LabeledContent("Coverage", value: BackupViewModel.coverageTitle(status.coverageStatus))
+            LabeledContent("Capacity", value: BackupViewModel.capacityTitle(status.capacity.status))
+            Text(verbatim: BackupViewModel.capacityMessage(status.capacity))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            if status.oldestTimestampSource == .remoteModifiedAt {
+                Label(
+                    "The oldest Synology candidate uses the remote file's modified time because matching job metadata is unavailable.",
+                    systemImage: "clock.arrow.circlepath"
+                )
+                .font(.caption)
+                .foregroundStyle(.orange)
+            }
+            if status.metadataMismatchCount > 0 || status.protectedAnomalyCount > 0
+                || status.compatibilityUnknownCount > 0 || status.knownIncompatibleCount > 0
+            {
+                Label(
+                    "Metadata mismatches: \(status.metadataMismatchCount) · protected anomalies: \(status.protectedAnomalyCount) · compatibility unknown: \(status.compatibilityUnknownCount) · incompatible: \(status.knownIncompatibleCount)",
+                    systemImage: "exclamationmark.triangle.fill"
+                )
+                .font(.caption)
+                .foregroundStyle(.orange)
+            }
+            if let message = BackupViewModel.destinationStateMessage(status) {
+                Label(message, systemImage: status.status == .healthy ? "checkmark.circle" : "info.circle")
+                    .font(.caption)
+                    .foregroundStyle(status.status == .unavailable || status.status == .constrained ? .orange : .secondary)
+            }
+            if let reason = status.reason {
+                Text(verbatim: reason).font(.caption).foregroundStyle(.secondary)
+            }
+            Text("Candidate observation: \(status.asOf.formatted(date: .abbreviated, time: .shortened))")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+        }
+        .accessibilityElement(children: .contain)
+    }
+
+    private func recoverySymbol(
+        _ status: Components.Schemas.BackupDestinationRecoveryStatus.StatusPayload
+    ) -> String {
+        switch status {
+        case .healthy: return "checkmark.circle.fill"
+        case .empty, .notConfigured: return "minus.circle"
+        case .constrained: return "externaldrive.badge.exclamationmark"
+        case .degraded: return "exclamationmark.triangle.fill"
+        case .unavailable: return "wifi.exclamationmark"
+        }
+    }
+
+    private func recoveryColor(
+        _ status: Components.Schemas.BackupDestinationRecoveryStatus.StatusPayload
+    ) -> Color {
+        switch status {
+        case .healthy: return .green
+        case .empty, .notConfigured: return .secondary
+        case .constrained, .degraded, .unavailable: return .orange
         }
     }
 
@@ -268,6 +575,7 @@ struct BackupSettingsView: View {
                         Button("Replace recovery key…") {
                             confirmReplaceRecoveryKey = true
                         }
+                        .disabled(viewModel.isGeneratingRecoveryKey)
                     } else {
                         Label(
                             "No recovery key yet. Without one, losing every password and paired phone loses the data. Create it and store it beside your backup key.",
@@ -278,6 +586,7 @@ struct BackupSettingsView: View {
                         Button("Create recovery key") {
                             Task { await viewModel.createRecoveryKey() }
                         }
+                        .disabled(viewModel.isGeneratingRecoveryKey)
                     }
                     if let mode = status.mode {
                         privacyModeRows(mode: mode, unlocked: status.unlocked ?? true)
@@ -325,6 +634,7 @@ struct BackupSettingsView: View {
         Button(mode == .sealed ? "Switch back to convenient…" : "Seal this household…") {
             pendingSealTarget = (mode != .sealed)
         }
+        .disabled(viewModel.isChangingSealMode)
     }
 
     /// "Unlock with recovery key…" beneath the locked line: tapping reveals an
@@ -339,17 +649,19 @@ struct BackupSettingsView: View {
             Button("Unlock") {
                 Task { await submitRecoveryUnlock() }
             }
-            .disabled(recoveryUnlockKey.trimmingCharacters(in: .whitespaces).isEmpty)
+            .disabled(
+                recoveryUnlockKey.trimmingCharacters(in: .whitespaces).isEmpty
+                    || viewModel.isUnlocking)
         } else {
             Button("Unlock with recovery key…") { showRecoveryUnlock = true }
+                .disabled(viewModel.isUnlocking)
         }
     }
 
     private func submitRecoveryUnlock() async {
-        await viewModel.unlockWithRecoveryKey(recoveryUnlockKey)
-        // Only a real unlock clears the field — a wrong key keeps it open for
-        // another try (the alert already showed the server's message).
-        if viewModel.keyStatus?.unlocked == true {
+        // Only the still-current request may clear replacement-session input.
+        // A wrong key or stale A→B completion keeps the field open.
+        if await viewModel.unlockWithRecoveryKey(recoveryUnlockKey) {
             recoveryUnlockKey = ""
             showRecoveryUnlock = false
         }
@@ -372,8 +684,12 @@ struct BackupSettingsView: View {
         Section {
             Button {
                 Task {
-                    await viewModel.exportData()
-                    if viewModel.exportedFileURL != nil {
+                    // A stale A→B completion returns nil even if a newer request
+                    // has already published its own URL, so it cannot present a sheet.
+                    if let url = await viewModel.exportData(),
+                        viewModel.claimExportForPresentation(url)
+                    {
+                        exportShareURL = url
                         showingExportShare = true
                     }
                 }
@@ -385,8 +701,13 @@ struct BackupSettingsView: View {
                 }
             }
             .disabled(viewModel.isExporting)
-            .sheet(isPresented: $showingExportShare) {
-                if let url = viewModel.exportedFileURL {
+            .sheet(
+                isPresented: $showingExportShare,
+                onDismiss: {
+                    discardPresentedExport()
+                }
+            ) {
+                if let url = exportShareURL {
                     ShareSheet(items: [url])
                 }
             }
@@ -430,6 +751,13 @@ struct BackupSettingsView: View {
     /// made the flat list an endless scroll (user report 2026-07-26).
     private var restoreSection: some View {
         Section {
+            if let error = viewModel.remoteListError {
+                Label("Synology backup list unavailable", systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                Text(verbatim: error)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             ForEach(groupedRemoteBackups, id: \.day) { group in
                 DisclosureGroup(
                     isExpanded: Binding(
@@ -457,7 +785,7 @@ struct BackupSettingsView: View {
         } header: {
             Text("Restore from Synology")
         } footer: {
-            Text("Grouped by day, newest first — tap a day for its snapshots. Restoring replaces everything currently in the app.")
+            Text("Grouped by the Synology file time, newest first — tap a day for its files. That time can reflect upload time rather than the exact snapshot time. Restoring replaces everything currently in the app.")
         }
         .onAppear {
             if expandedDays.isEmpty, let newest = groupedRemoteBackups.first {
@@ -502,7 +830,8 @@ struct BackupSettingsView: View {
                     Image(systemName: "arrow.counterclockwise.circle").foregroundStyle(.orange)
                 }
                 .buttonStyle(.borderless)
-                .accessibilityLabel("Restore")
+                .accessibilityLabel(
+                    String(localized: "Restore Synology backup file timestamped \(Self.dayTimeLabel(backup.modifiedAt))"))
             }
         }
         .swipeActions(edge: .trailing) {
@@ -547,6 +876,13 @@ struct BackupSettingsView: View {
 
     private var onBoxSection: some View {
         Section {
+            if let error = viewModel.localListError {
+                Label("On-box backup list unavailable", systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                Text(verbatim: error)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             ForEach(viewModel.localBackups, id: \.id) { backup in
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
@@ -578,7 +914,9 @@ struct BackupSettingsView: View {
                             Image(systemName: "arrow.counterclockwise.circle").foregroundStyle(.orange)
                         }
                         .buttonStyle(.borderless)
-                        .accessibilityLabel("Restore")
+                        .accessibilityLabel(
+                            String(
+                                localized: "Restore on-box backup from \((backup.completedAt ?? backup.createdAt).formatted(date: .complete, time: .shortened))"))
                     }
                 }
                 .swipeActions(edge: .trailing) {
@@ -590,7 +928,7 @@ struct BackupSettingsView: View {
         } header: {
             Text("On this box")
         } footer: {
-            Text("Encrypted backups kept on the box (the last 7). Restoring replaces everything currently in the app.")
+            Text("Encrypted backups kept on the box. See Retention and capacity for the configured policy and Recovery window for currently observed candidates. Restoring replaces everything currently in the app.")
         }
     }
 

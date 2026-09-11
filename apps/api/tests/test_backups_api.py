@@ -1,4 +1,5 @@
 import time
+from datetime import datetime
 from pathlib import Path
 
 import httpx
@@ -6,7 +7,12 @@ import pytest
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import fixtures, repository, security, smb_backup
+from family_cfo_api import backup_processing, banksync, fixtures, repository, security, smb_backup
+from family_cfo_api.api import backups as backups_api
+from family_cfo_api.backup_operation_lock import (
+    acquire_backup_operation_lock,
+    try_acquire_backup_operation_lock,
+)
 
 NEWCOMER_EMAIL = "newcomer@example.com"
 NEWCOMER_PASSWORD = "newcomer-password-123"
@@ -62,6 +68,105 @@ async def test_create_backup_requires_authentication(demo_file_client) -> None:
 
 
 @pytest.mark.anyio
+async def test_create_audit_and_response_job_reads_finish_inside_lease(
+    demo_file_client,
+    demo_file_token,
+    demo_file_engine: Engine,
+    monkeypatch,
+) -> None:
+    headers = {"Authorization": f"Bearer {demo_file_token}"}
+    original_audit = backups_api.audit.write_audit
+    original_get = repository.get_backup_job
+    audited = False
+    job_reads = 0
+
+    def assert_locked_audit(*args, **kwargs):
+        nonlocal audited
+        if len(args) > 3 and args[3] == "backup.created":
+            audited = True
+            assert try_acquire_backup_operation_lock(demo_file_engine) is None
+        return original_audit(*args, **kwargs)
+
+    def assert_locked_job_read(engine: Engine, backup_job_id: str):
+        nonlocal job_reads
+        job_reads += 1
+        assert try_acquire_backup_operation_lock(demo_file_engine) is None
+        return original_get(engine, backup_job_id)
+
+    monkeypatch.setattr(backups_api.audit, "write_audit", assert_locked_audit)
+    monkeypatch.setattr(repository, "get_backup_job", assert_locked_job_read)
+
+    response = await demo_file_client.post("/api/v1/backups", headers=headers)
+
+    assert response.status_code == 201, response.text
+    assert audited is True
+    assert job_reads >= 2
+
+
+@pytest.mark.anyio
+async def test_manual_backup_returns_conflict_while_global_operation_is_owned(
+    demo_file_client, demo_file_token, demo_file_engine: Engine
+) -> None:
+    headers = {"Authorization": f"Bearer {demo_file_token}"}
+    lease = acquire_backup_operation_lock(demo_file_engine)
+    try:
+        response = await demo_file_client.post("/api/v1/backups", headers=headers)
+    finally:
+        lease.release()
+    assert response.status_code == 409
+
+    # A lock conflict must release its anti-hammer reservation.
+    retry = await demo_file_client.post("/api/v1/backups", headers=headers)
+    assert retry.status_code == 201
+
+
+@pytest.mark.anyio
+async def test_manual_backup_pre_job_failure_releases_cooldown(
+    demo_file_client, demo_file_token, monkeypatch
+) -> None:
+    headers = {"Authorization": f"Bearer {demo_file_token}"}
+    monkeypatch.setattr(
+        backup_processing,
+        "build_backup_execution_config",
+        lambda engine, settings, *, lease: (_ for _ in ()).throw(
+            backup_processing.BackupConfigurationError("stored SMB credential could not be opened")
+        ),
+    )
+
+    first = await demo_file_client.post("/api/v1/backups", headers=headers)
+    second = await demo_file_client.post("/api/v1/backups", headers=headers)
+
+    assert first.status_code == 400
+    assert second.status_code == 400
+    assert second.status_code != 429
+
+
+@pytest.mark.anyio
+async def test_manual_backup_lifecycle_failure_keeps_cooldown(
+    demo_file_client, demo_file_token, monkeypatch
+) -> None:
+    headers = {"Authorization": f"Bearer {demo_file_token}"}
+    monkeypatch.setattr(
+        backup_processing,
+        "run_backup_once",
+        lambda engine, settings, **kwargs: (_ for _ in ()).throw(
+            backup_processing.BackupOperationLockLostError("operation lock lost")
+        ),
+    )
+
+    with pytest.raises(backup_processing.BackupOperationLockLostError):
+        await demo_file_client.post("/api/v1/backups", headers=headers)
+    retry = await demo_file_client.post("/api/v1/backups", headers=headers)
+
+    assert retry.status_code == 429
+    assert "Retry-After" in retry.headers
+    message = retry.json()["error"]["message"].lower()
+    assert "attempt" in message
+    assert "saved" not in message
+    assert "complete" not in message
+
+
+@pytest.mark.anyio
 async def test_create_list_and_restore_backup(demo_file_client, demo_file_token) -> None:
     create_response = await demo_file_client.post(
         "/api/v1/backups", headers={"Authorization": f"Bearer {demo_file_token}"}
@@ -88,6 +193,34 @@ async def test_create_list_and_restore_backup(demo_file_client, demo_file_token)
     # data-level round trip is covered by test_backup_processing.py; here we only
     # assert the restore endpoint completed without error.
     assert restore_response.json()["id"] == backup["id"]
+
+
+@pytest.mark.anyio
+async def test_restore_migration_failure_is_non_2xx_and_redacted(
+    demo_file_client,
+    demo_file_token,
+    monkeypatch,
+) -> None:
+    headers = {"Authorization": f"Bearer {demo_file_token}"}
+
+    def fail_restore(*args, **kwargs):
+        try:
+            raise RuntimeError("synthetic command output /private/secret/database")
+        except RuntimeError as cause:
+            raise backup_processing.BackupMigrationError("nonzero_exit") from cause
+
+    monkeypatch.setattr(backup_processing, "restore_backup", fail_restore)
+
+    response = await demo_file_client.post(
+        "/api/v1/backups/00000000-0000-0000-0000-000000000000/restore",
+        headers=headers,
+    )
+
+    assert response.status_code == 500
+    message = response.json()["error"]["message"]
+    assert message == "Backup database migration failed; current data was preserved."
+    assert "synthetic" not in response.text
+    assert "private" not in response.text
 
 
 @pytest.mark.anyio
@@ -179,6 +312,19 @@ async def test_restore_of_a_snapshot_older_than_the_actor_succeeds_with_no_actor
     assert "snapshot" in restored[0].summary and "audit event(s)" in restored[0].summary
 
 
+def test_post_restore_audit_uses_a_surviving_household_when_active_one_is_absent(
+    demo_file_engine: Engine,
+) -> None:
+    household_id, summary = backups_api._household_after_restore(
+        demo_file_engine,
+        "00000000-0000-0000-0000-000000000000",
+        "Restore completed",
+    )
+
+    assert household_id == fixtures.DEMO_HOUSEHOLD_ID
+    assert "active household is not present" in summary
+
+
 @pytest.mark.anyio
 async def test_restore_by_a_member_in_the_snapshot_still_records_the_real_actor(
     demo_file_client, demo_file_token, demo_file_engine: Engine
@@ -223,6 +369,14 @@ async def test_remote_restore_of_a_snapshot_older_than_the_actor_records_no_acto
     # The archive the share would hand back is the one the box just wrote. The
     # destination is configured after the backup so nothing tries a real upload.
     archive = (Path(demo_file_settings.backup_dir) / f"{backup['id']}.enc").read_bytes()
+    monkeypatch.setattr(
+        smb_backup, "list_inventory", lambda target: smb_backup.SmbInventory((), ())
+    )
+    monkeypatch.setattr(
+        smb_backup,
+        "query_capacity",
+        lambda target: smb_backup.SmbCapacity(10_000_000, 9_000_000, 9_000_000),
+    )
     config_response = await demo_file_client.put(
         "/api/v1/backups/config",
         headers=owner_headers,
@@ -313,3 +467,274 @@ async def test_viewer_cannot_create_or_list_backups(demo_client, demo_viewer_tok
         "/api/v1/backups", headers={"Authorization": f"Bearer {demo_viewer_token}"}
     )
     assert list_response.status_code == 403
+
+
+@pytest.mark.anyio
+async def test_backup_config_exposes_global_policy_and_password_write_semantics(
+    demo_file_client,
+    demo_file_token,
+    demo_file_engine: Engine,
+) -> None:
+    headers = {"Authorization": f"Bearer {demo_file_token}"}
+
+    initial = await demo_file_client.get("/api/v1/backups/config", headers=headers)
+    assert initial.status_code == 200
+    body = initial.json()
+    assert body["local_retention"]["mode"] == "tiered"
+    assert body["offbox_retention"]["mode"] == "keep_all"
+    assert body["offbox_retention"]["weekly_until_days"] is None
+    assert body["max_bytes"] is None
+    assert body["updated_at"]
+    assert "smb_password" not in body
+
+    supplied = await demo_file_client.put(
+        "/api/v1/backups/config", headers=headers, json={"smb_password": "top-secret"}
+    )
+    assert supplied.status_code == 200
+    assert supplied.json()["has_password"] is True
+
+    preserved = await demo_file_client.put(
+        "/api/v1/backups/config", headers=headers, json={"smb_password": None}
+    )
+    assert preserved.status_code == 200
+    assert preserved.json()["has_password"] is True
+
+    cleared = await demo_file_client.put(
+        "/api/v1/backups/config", headers=headers, json={"smb_password": ""}
+    )
+    assert cleared.status_code == 200
+    assert cleared.json()["has_password"] is False
+
+    events = repository.list_audit_events(demo_file_engine, fixtures.DEMO_HOUSEHOLD_ID)
+    summaries = " ".join(event.summary for event in events)
+    assert "top-secret" not in summaries
+
+
+@pytest.mark.anyio
+async def test_backup_config_activation_is_cas_guarded_and_alias_compatible(
+    demo_file_client, demo_file_token
+) -> None:
+    headers = {"Authorization": f"Bearer {demo_file_token}"}
+    legacy = await demo_file_client.put(
+        "/api/v1/backups/config", headers=headers, json={"max_bytes": 123456}
+    )
+    assert legacy.status_code == 200
+    assert legacy.json()["local_max_bytes"] == 123456
+    assert legacy.json()["offbox_max_bytes"] == 123456
+    assert legacy.json()["max_bytes"] == 123456
+
+    token = legacy.json()["updated_at"]
+    activated = await demo_file_client.put(
+        "/api/v1/backups/config",
+        headers=headers,
+        json={
+            "local_retention": {
+                "mode": "tiered",
+                "keep_all_days": 2,
+                "daily_until_days": 10,
+                "weekly_until_days": 60,
+            },
+            "local_max_bytes": 222222,
+            "expected_updated_at": token,
+            "confirm_retention_policy": True,
+        },
+    )
+    assert activated.status_code == 200
+    assert activated.json()["retention_review_required"] is False
+    assert activated.json()["retention_activated_at"] is not None
+    assert activated.json()["max_bytes"] is None
+
+    stale = await demo_file_client.put(
+        "/api/v1/backups/config",
+        headers=headers,
+        json={
+            "frequency": "weekly",
+            "expected_updated_at": token,
+        },
+    )
+    assert stale.status_code == 409
+    current = await demo_file_client.get("/api/v1/backups/config", headers=headers)
+    assert current.json()["frequency"] != "weekly"
+
+
+@pytest.mark.anyio
+async def test_backup_config_write_conflicts_while_restore_owns_global_operation(
+    demo_file_client, demo_file_token, demo_file_engine: Engine
+) -> None:
+    headers = {"Authorization": f"Bearer {demo_file_token}"}
+    before = await demo_file_client.get("/api/v1/backups/config", headers=headers)
+    assert before.status_code == 200
+
+    lease = acquire_backup_operation_lock(demo_file_engine)
+    try:
+        response = await demo_file_client.put(
+            "/api/v1/backups/config",
+            headers=headers,
+            json={"frequency": "weekly"},
+        )
+    finally:
+        lease.release()
+
+    assert response.status_code == 409
+    after = await demo_file_client.get("/api/v1/backups/config", headers=headers)
+    assert after.json()["frequency"] == before.json()["frequency"]
+
+
+@pytest.mark.anyio
+async def test_backup_status_is_one_qualified_snapshot_and_requires_box_right(
+    demo_file_client, demo_file_token
+) -> None:
+    unauthorized = await demo_file_client.get("/api/v1/backups/status")
+    assert unauthorized.status_code == 401
+    viewer_login = await demo_file_client.post(
+        "/api/v1/auth/sessions",
+        json={
+            "email": fixtures.DEMO_VIEWER_EMAIL,
+            "password": fixtures.DEMO_VIEWER_PASSWORD,
+        },
+    )
+    assert viewer_login.status_code == 201
+    viewer_token = viewer_login.json()["access_token"]
+    forbidden = await demo_file_client.get(
+        "/api/v1/backups/status",
+        headers={"Authorization": f"Bearer {viewer_token}"},
+    )
+    assert forbidden.status_code == 403
+
+    response = await demo_file_client.get(
+        "/api/v1/backups/status",
+        headers={"Authorization": f"Bearer {demo_file_token}"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["verification_scope"] == "inventory_read_probe"
+    assert body["local"]["as_of"] == body["as_of"]
+    assert body["offbox"]["as_of"] == body["as_of"]
+    assert body["offbox"]["status"] == "not_configured"
+    assert body["offbox"]["probe_status"] == "unavailable"
+    assert body["offbox"]["readable_archive_count"] is None
+
+
+@pytest.mark.anyio
+async def test_remote_list_distinguishes_unavailable_from_empty(
+    demo_file_client,
+    demo_file_token,
+    demo_file_engine: Engine,
+    demo_file_settings,
+    monkeypatch,
+) -> None:
+    headers = {"Authorization": f"Bearer {demo_file_token}"}
+    encrypted = banksync.encrypt_credential(demo_file_settings, "not-a-real-password")
+    repository.update_backup_settings(
+        demo_file_engine,
+        {
+            "smb_host": "nas.invalid",
+            "smb_share": "backups",
+            "smb_username": "backup-user",
+            "smb_password_encrypted": encrypted,
+        },
+        expected_updated_at=None,
+    )
+    monkeypatch.setattr(
+        smb_backup,
+        "list_inventory",
+        lambda target: (_ for _ in ()).throw(
+            smb_backup.SmbInventoryError(
+                "destination_unreachable", "The Synology inventory is unavailable."
+            )
+        ),
+    )
+
+    response = await demo_file_client.get("/api/v1/backups/remote", headers=headers)
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "unavailable"
+    assert response.json()["backups"] == []
+    assert response.json()["reason"] == "The Synology inventory is unavailable."
+    datetime.fromisoformat(response.json()["as_of"])
+
+
+@pytest.mark.anyio
+async def test_remote_delete_rejects_unrecognized_archive_name(
+    demo_file_client,
+    demo_file_token,
+    demo_file_engine: Engine,
+    demo_file_settings,
+) -> None:
+    encrypted = banksync.encrypt_credential(demo_file_settings, "not-a-real-password")
+    repository.update_backup_settings(
+        demo_file_engine,
+        {
+            "smb_host": "nas.invalid",
+            "smb_share": "backups",
+            "smb_username": "backup-user",
+            "smb_password_encrypted": encrypted,
+        },
+        expected_updated_at=None,
+    )
+
+    response = await demo_file_client.post(
+        "/api/v1/backups/remote/delete",
+        headers={"Authorization": f"Bearer {demo_file_token}"},
+        json={"filename": "not-a-family-cfo-backup.enc"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["message"] == "Invalid backup filename"
+
+
+@pytest.mark.anyio
+async def test_local_delete_returns_redacted_400_for_unsafe_stored_path(
+    demo_file_client,
+    demo_file_token,
+    demo_file_engine: Engine,
+) -> None:
+    record = repository.create_backup_job(demo_file_engine)
+    repository.update_backup_job(demo_file_engine, record.id, status="running")
+    repository.complete_backup_job_local(
+        demo_file_engine,
+        record.id,
+        storage_path="../private/synthetic-household.enc",
+        size_bytes=1,
+        remote_status="skipped",
+        app_version=None,
+        schema_revision=None,
+    )
+
+    response = await demo_file_client.delete(
+        f"/api/v1/backups/{record.id}",
+        headers={"Authorization": f"Bearer {demo_file_token}"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["message"] == "backup storage path must be a basename"
+    assert "private" not in response.text
+    assert "synthetic-household" not in response.text
+    assert repository.get_backup_job(demo_file_engine, record.id) is not None
+
+
+@pytest.mark.anyio
+async def test_destination_check_reports_capacity(
+    demo_file_client, demo_file_token, monkeypatch
+) -> None:
+    monkeypatch.setattr(smb_backup, "verify", lambda target: (True, None))
+    monkeypatch.setattr(
+        smb_backup,
+        "query_capacity",
+        lambda target: smb_backup.SmbCapacity(20_000_000_000, 10_000_000_000, 10_000_000_000),
+    )
+    response = await demo_file_client.post(
+        "/api/v1/backups/destination-check",
+        headers={"Authorization": f"Bearer {demo_file_token}"},
+        json={
+            "smb_host": "nas.invalid",
+            "smb_share": "backups",
+            "smb_username": "backup-user",
+            "smb_password": "not-a-real-password",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["writable"] is True
+    assert response.json()["capacity"]["status"] in ("ok", "warning")
+    assert response.json()["capacity"]["available_bytes"] == 10_000_000_000

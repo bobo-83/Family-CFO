@@ -1,4 +1,6 @@
 import os
+import threading
+from dataclasses import replace
 
 from sqlalchemy import delete
 from sqlalchemy.engine import Engine
@@ -8,17 +10,7 @@ from family_cfo_api.config import Settings
 
 
 def _run_backup(engine: Engine, settings: Settings) -> repository.BackupJobRecord:
-    backup_job_id = backup_processing.run_backup_once(
-        engine,
-        database_url=settings.database_url,
-        staging_dir=settings.import_staging_dir,
-        backup_dir=settings.backup_dir,
-        encryption_key=settings.backup_encryption_key,
-        retention_count=settings.backup_retention_count,
-    )
-    record = repository.get_backup_job(engine, backup_job_id)
-    assert record is not None
-    return record
+    return backup_processing.run_backup_once(engine, settings)
 
 
 def test_run_due_backups_runs_the_scheduled_wiring_and_respects_cadence(
@@ -36,24 +28,65 @@ def test_run_due_backups_runs_the_scheduled_wiring_and_respects_cadence(
     assert skipped == 0  # a backup just completed → within the daily window
 
 
-def test_scheduled_backup_writes_a_backup_job_audit_event(
+def test_scheduler_contender_cannot_make_a_duplicate_due_decision(
+    demo_file_engine: Engine, demo_file_settings: Settings, monkeypatch
+) -> None:
+    original_builder = backup_processing.build_backup_execution_config
+    entered = threading.Event()
+    release = threading.Event()
+    results: list[int] = []
+    failures: list[BaseException] = []
+    build_calls = 0
+
+    def blocking_builder(engine, settings, *, lease):
+        nonlocal build_calls
+        lease.assert_owned()
+        build_calls += 1
+        if build_calls == 1:
+            entered.set()
+            assert release.wait(timeout=5)
+        return original_builder(engine, settings, lease=lease)
+
+    def first_scheduler() -> None:
+        try:
+            results.append(backup_processing.run_due_backups(demo_file_engine, demo_file_settings))
+        except Exception as exc:  # noqa: BLE001 - forwarded to the test thread
+            failures.append(exc)
+
+    monkeypatch.setattr(
+        backup_processing,
+        "build_backup_execution_config",
+        blocking_builder,
+    )
+    thread = threading.Thread(target=first_scheduler)
+    thread.start()
+    assert entered.wait(timeout=5)
+
+    assert backup_processing.run_due_backups(demo_file_engine, demo_file_settings) == 0
+    assert build_calls == 1
+
+    release.set()
+    thread.join(timeout=10)
+    assert not thread.is_alive()
+    assert failures == []
+    assert results == [1]
+    assert len(repository.list_backup_jobs(demo_file_engine)) == 1
+
+    assert backup_processing.run_due_backups(demo_file_engine, demo_file_settings) == 0
+
+
+def test_scheduled_backup_is_box_global_not_household_attributed(
     demo_file_engine: Engine, demo_file_settings: Settings
 ) -> None:
-    """#62: a manual backup wrote `backup.created` and a scheduled one wrote nothing,
-    so the box's own snapshots left no trace at all. `backup_job` was already
-    classified IRREVERSIBLE in UNDO_POLICY and simply never emitted."""
+    """Whole-box scheduled work must not pretend one household owns the archive."""
     assert backup_processing.run_due_backups(demo_file_engine, demo_file_settings) == 1
 
     events = repository.list_audit_events(demo_file_engine, fixtures.DEMO_HOUSEHOLD_ID)
     scheduled = [event for event in events if event.action == "backup_job"]
-    assert len(scheduled) == 1
-    # Automated: nobody pressed anything, so there is no actor.
-    assert scheduled[0].actor_user_id is None
-    assert scheduled[0].entity_type == "backup_job"
-    assert repository.get_backup_job(demo_file_engine, scheduled[0].entity_id) is not None
-    assert "daily" in scheduled[0].summary  # the cause
-    assert fixtures.DEMO_HOUSEHOLD_ID in scheduled[0].summary  # the household
-    assert "completed" in scheduled[0].summary
+    assert scheduled == []
+    jobs = repository.list_backup_jobs(demo_file_engine)
+    assert len(jobs) == 1
+    assert jobs[0].status == "completed"
 
 
 def test_run_backup_once_creates_completed_encrypted_archive(
@@ -123,14 +156,7 @@ def test_restore_backup_recovers_deleted_household(
 
     assert repository.get_household(demo_file_engine, fixtures.DEMO_HOUSEHOLD_ID) is None
 
-    backup_processing.restore_backup(
-        demo_file_engine,
-        record.id,
-        database_url=demo_file_settings.database_url,
-        staging_dir=demo_file_settings.import_staging_dir,
-        backup_dir=demo_file_settings.backup_dir,
-        encryption_key=demo_file_settings.backup_encryption_key,
-    )
+    backup_processing.restore_backup(demo_file_engine, record.id, demo_file_settings)
 
     restored = repository.get_household(demo_file_engine, fixtures.DEMO_HOUSEHOLD_ID)
     assert restored is not None
@@ -151,14 +177,7 @@ def test_restore_backup_recovers_staged_documents(
     os.remove(staged_file)
     assert not os.path.exists(staged_file)
 
-    backup_processing.restore_backup(
-        demo_file_engine,
-        record.id,
-        database_url=demo_file_settings.database_url,
-        staging_dir=demo_file_settings.import_staging_dir,
-        backup_dir=demo_file_settings.backup_dir,
-        encryption_key=demo_file_settings.backup_encryption_key,
-    )
+    backup_processing.restore_backup(demo_file_engine, record.id, demo_file_settings)
 
     assert os.path.exists(staged_file)
     with open(staged_file) as handle:
@@ -185,14 +204,7 @@ def test_restore_backup_recovers_transaction_attachments(
     os.remove(image_path)
     assert not os.path.exists(image_path)
 
-    backup_processing.restore_backup(
-        demo_file_engine,
-        record.id,
-        database_url=demo_file_settings.database_url,
-        staging_dir=demo_file_settings.import_staging_dir,
-        backup_dir=demo_file_settings.backup_dir,
-        encryption_key=demo_file_settings.backup_encryption_key,
-    )
+    backup_processing.restore_backup(demo_file_engine, record.id, demo_file_settings)
 
     assert os.path.exists(image_path)
     with open(image_path, "rb") as handle:
@@ -208,35 +220,33 @@ def test_restore_backup_wrong_key_raises(
         backup_processing.restore_backup(
             demo_file_engine,
             record.id,
-            database_url=demo_file_settings.database_url,
-            staging_dir=demo_file_settings.import_staging_dir,
-            backup_dir=demo_file_settings.backup_dir,
-            encryption_key="wrongkeywrongkeywrongkeywrongkeywrongkeyAAA=",
+            replace(
+                demo_file_settings,
+                backup_encryption_key="wrongkeywrongkeywrongkeywrongkeywrongkeyAAA=",
+            ),
         )
         raise AssertionError("expected BackupEncryptionError")
     except Exception as exc:  # noqa: BLE001 - asserting the specific failure mode below
         assert type(exc).__name__ == "BackupEncryptionError"
 
 
-def test_retention_prunes_oldest_backups_beyond_count(
+def test_activated_logical_cap_prunes_oldest_and_preserves_rows(
     demo_file_engine: Engine, demo_file_settings: Settings
 ) -> None:
-    limited_settings = Settings(
-        database_url=demo_file_settings.database_url,
-        import_staging_dir=demo_file_settings.import_staging_dir,
-        backup_dir=demo_file_settings.backup_dir,
-        backup_encryption_key=demo_file_settings.backup_encryption_key,
-        backup_retention_count=2,
+    records = [_run_backup(demo_file_engine, demo_file_settings) for _ in range(4)]
+    cap = sum(record.size_bytes or 0 for record in records[-2:])
+    stored = repository.get_backup_settings(demo_file_engine)
+    updated = repository.update_backup_settings(
+        demo_file_engine,
+        {"local_max_bytes": cap},
+        expected_updated_at=stored.updated_at,
     )
+    repository.activate_backup_retention(demo_file_engine, expected_updated_at=updated.updated_at)
 
-    records = [_run_backup(demo_file_engine, limited_settings) for _ in range(4)]
-
+    result = backup_processing.run_backup_maintenance(demo_file_engine, demo_file_settings)
+    assert result.local_pruned == 2
     all_jobs = repository.list_backup_jobs(demo_file_engine)
     pruned = [job for job in all_jobs if job.pruned_at is not None]
-    not_pruned = [job for job in all_jobs if job.pruned_at is None]
-
-    assert len(pruned) == 2
-    assert len(not_pruned) == 2
     assert {job.id for job in pruned} == {records[0].id, records[1].id}
-    for job in pruned:
-        assert job.storage_path is None
+    assert all(job.prune_reason == "max_bytes" for job in pruned)
+    assert all(job.storage_path is None for job in pruned)

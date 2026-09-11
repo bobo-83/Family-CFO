@@ -165,3 +165,102 @@ placeholder amounts.
 - Report
 - Conversation
 - AI Runtime Configuration
+
+## Box-Global Backup Retention Domain (issue #116, ADR 0077)
+
+Backup state is operational box state, not household financial state. Archives,
+configuration, jobs, retention events, and the mutation lock have no household
+owner even when an authenticated system administrator supplies household-scoped
+audit context.
+
+### BackupSettings
+
+`BackupSettings` is the single persisted configuration identified by `global`.
+It owns cadence and SMB destination fields; independent local/off-box
+`RetentionPolicy` values, logical maximum bytes, and minimum caller-available
+reserves; an optimistic `updated_at`; review/activation state; and opaque local
+and off-box destination generations. The generations change when destination
+identity changes and after restore, so observations and journal facts never flow
+between different physical destinations. SMB password ciphertext and the local
+path fingerprint are internal and never returned.
+
+Fresh settings are daily with two tiered `3 / 14 / 90` policies, unlimited
+logical caps, 1 GiB reserves, and activated retention. Every upgraded or restored
+setting requires explicit system-administrator review before automatic pruning.
+
+### RetentionPolicy
+
+A `RetentionPolicy` has mode `tiered | keep_all`. `tiered` requires cumulative
+`keep_all_days`, `daily_until_days`, and `weekly_until_days` satisfying
+`1 <= keep_all <= daily <= weekly <= 3650`; `keep_all` requires null horizons.
+Its UTC bands are recent (all archives), daily (newest per UTC date), weekly
+(newest per ISO Monday week), and expired. Equal adjacent horizons disable an
+intermediate band. A policy is destination-independent and contains no cadence.
+
+### BackupInventoryItem
+
+A `BackupInventoryItem` is one observed archive candidate with destination,
+stable archive key, timezone-aware `taken_at`, timestamp source
+`job_started_at | remote_modified_at`, size, optional job ID, and
+managed/present/readable/compatible state plus non-sensitive anomaly codes.
+Local job time and joined remote job time use `backup_jobs.started_at`; remote
+mtime is a disclosed fallback.
+
+Only completed, present, nonzero, readable, compatible managed items occupy
+buckets or contribute to logical-cap bytes. A recognized remote item can remain
+eligible without a local row/file. Missing, unreadable, size-mismatched,
+future-dated, future-version, orphaned, unrecognized, partial, and other
+anomalous artifacts are excluded from recovery claims and protected from
+automatic deletion.
+
+### RetentionDecision
+
+A `RetentionDecision` is immutable: archive key, `keep | delete`, reason, and
+optional UTC bucket key. Reasons are `newest`, `recent`, `daily_bucket`,
+`weekly_bucket`, `expired`, `bucket_superseded`, `capacity_limit`, and
+`protected_anomaly`. Stable selection order is `taken_at DESC, archive_key ASC`.
+The newest eligible archive is always kept. A `RetentionPlan` adds the explicit
+UTC `as_of` and exact policy/cap snapshot; identical inputs produce identical
+output.
+
+### CapacityObservation
+
+`CapacityObservation` describes caller-usable destination capacity at one UTC
+instant. It contains `status: ok | warning | insufficient | unknown |
+unavailable`, nullable total and available bytes, required reserve bytes,
+nullable estimated-next-backup bytes and acceptability, a stable reason code,
+and optional redacted reason. It never calls `total - available` “used space”
+and never guarantees a later write. Protected physical bytes can make capacity
+constrained even though they are excluded from the managed logical cap.
+
+### RecoveryWindow
+
+`RecoveryWindow` separates configured target from observed candidates. Per
+destination it records configuration, destination state
+`not_configured | empty | healthy | constrained | degraded | unavailable`,
+coverage state `not_applicable | empty | building | met | incomplete |
+shortened | unknown`, policy/review state, pending prune totals, visible and
+nullable readable counts, endpoint-probe completeness/count, qualified oldest
+and newest readable times, timestamp source, anomaly counts, capacity, redacted
+reasons, and `verification_scope=inventory_read_probe`.
+
+A recovery candidate is visible, nonzero, endpoint-read-probed, and not known
+incompatible. It is not a verified restore point: key availability,
+authenticated decryption, content completeness, migration, and destructive
+restore remain untested. Overall state uses all configured destinations and
+never lets healthy local storage hide unavailable off-box storage.
+
+### BackupRetentionEvent
+
+`BackupRetentionEvent` is a durable, box-global operational journal fact. It
+carries destination/generation, operation and deterministic unique event key,
+optional archive/job identity and time/source/size, action, stable reason,
+policy revision/snapshot, redacted detail, and occurrence time. Actions include
+prune/delete/reconcile outcomes, inventory and capacity health, lock skips,
+anomalies, and restore resets. It has no household foreign key and stores no
+credential, raw SMB exception/path/user, archive content, or financial data.
+
+Events are idempotent across retries and scoped to the active destination
+generation. They distinguish coverage still building from coverage shortened by
+a known policy, capacity, or explicit-delete action; they do not certify an
+archive.

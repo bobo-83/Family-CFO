@@ -1,8 +1,12 @@
 # Backup and Restore Guide
 
-Family CFO takes encrypted backups of the database and the uploaded
+Family CFO takes encrypted backups of the whole database and the shared
 import/document tree, and can restore from them. This is separate from
 volume-level snapshots of your host (do both).
+
+Backup configuration and history are **box-global**, not household-owned. Every
+archive contains all hosted households, and only a system administrator with the
+`backups.manage` right may configure, create, list, delete, or restore backups.
 
 ## The key
 
@@ -20,88 +24,186 @@ Without the key set, backup jobs fail (by design — they never write plaintext)
 
 ## What's in a backup
 
-A single encrypted archive bundling:
+A single encrypted archive bundles:
 
 - a PostgreSQL dump (`pg_dump --format=custom`), and
 - a tar of the import/document staging tree.
 
-Backups are stored in the `backups` volume; `backup_jobs` rows track status.
-Retention keeps the newest `FAMILY_CFO_BACKUP_RETENTION_COUNT` (default 7)
-completed backups and prunes older ones — a failed backup never counts toward or
-deletes anything.
+Archives are stored in the local `backups` volume and can also be copied to an
+SMB share. `backup_jobs` rows and the box-global retention journal track their
+state.
+
+## Retention and capacity
+
+Local and off-box destinations have independent policies, logical byte caps, and
+minimum free-space reserves. A tiered policy keeps every archive in the recent
+window, one archive per UTC day through the daily horizon, and one per ISO week
+(Monday bucket) through the weekly horizon. Fresh installations default to
+`3 / 14 / 90` days. `keep_all` disables time-based deletion, but an enabled
+logical cap can still remove eligible older archives.
+
+The newest eligible archive and uncertain evidence (for example unreadable,
+mismatched, orphaned, or newer-version files) are protected from automatic
+pruning. Protected physical bytes do not count toward the logical cap but still
+consume real storage, so a destination can remain constrained even after every
+safe deletion.
+
+Capacity is an observation, not a reservation or guarantee. Local status uses
+caller-available `statvfs` bytes; SMB status uses caller-available
+`smbclient.stat_volume()` bytes and therefore reflects the configured account's
+quota and permissions. An unsupported query is `unknown`, not zero. Another
+process or NAS client can consume space after a successful check, and the local
+preflight cannot measure a separate system temporary volume used during dump or
+restore. Actual `ENOSPC`, upload, and rename results remain authoritative.
+
+`GET /api/v1/backups/status` reports configured targets separately from visible,
+read-probed recovery candidates. Its oldest/newest dates do **not** prove that
+the encryption key is available, the archive is complete, migrations succeed,
+or a destructive restore works. Only a restore test verifies those properties.
 
 ## Taking a backup
 
-- **On demand** (owner only), from the dashboard **Backups** page, or:
+- **On demand** (system administrator), from the dashboard **Backups** page, or:
   ```bash
   curl -sk -X POST https://localhost:8443/api/v1/backups \
-    -H "authorization: Bearer <owner-token>"
+    -H "authorization: Bearer <system-admin-token>"
   ```
-- **Automatically** — the worker runs a backup once a day.
+- **Automatically** — the worker follows the persisted box-global cadence.
+  Cadence `off` stops scheduled creation, but hourly maintenance and status
+  reconciliation still run.
+
+A failed off-box copy never changes a completed local backup to failed. The
+box-global 60-second on-demand cooldown follows every attempt that entered the
+backup lifecycle, including a failed job. A cooldown response is not evidence
+that data was saved; check the latest job status before retrying.
 
 ## Off-box backup to a Synology (SMB)
 
-A backup that only lives in the `backups` volume dies with the box. Family CFO
-can also push each encrypted archive straight to a **Synology (or any SMB share)**
-— no host mounting required; the box uploads over SMB itself. Owner only, on the
-dashboard **Backups** page (and the iOS app — same capability on both, M98/M99).
+A backup that only lives in the local volume dies with the box. Family CFO can
+push each encrypted archive to a Synology or compatible SMB share without a host
+mount.
 
-On the Synology: enable SMB, create a shared folder, and give a user read/write.
-Then fill in the **Off-box backup — Synology (SMB)** card (settings save as you
-edit):
+Configure the box-global destination through the Backups client or
+`GET/PUT /api/v1/backups/config`:
 
-- **Synology address** (e.g. `192.168.1.50`) and **Shared folder** (e.g.
-  `family-cfo-backups`); optional **Subfolder**.
-- **Username** / **Password** — the password is encrypted on the box and never
-  shown again (leave blank later to keep the saved one); optional **Domain**
-  (default `WORKGROUP`).
-- **Schedule** — Daily, Weekly, or Off (this governs the off-box copy).
-- **Max total size (GB)** — prune the share to this budget; `0` = no limit.
-- **Test connection** verifies the address, share, and credentials before you
-  rely on it (`POST /api/v1/backups/destination-check`).
+- SMB address, share, optional subfolder, username, password, and optional domain;
+- creation cadence;
+- independent local/off-box tier policies;
+- independent logical maximum bytes and caller-available free-space reserves.
 
-Each backup then shows its off-box result: **“copied to Synology”** on success,
-or the SMB error on failure — and a failed off-box copy raises a notification so
-it doesn't fail silently. The credentials and schedule live on
-`GET/PUT /api/v1/backups/config`.
+The saved password is encrypted on the box and is never returned. Leaving the
+password field absent retains it; an explicit empty value clears it. Destination
+check verifies write access and reports a capacity observation, but is not a
+restore test.
+
+### Supported-NAS manual check
+
+Before relying on a NAS model/firmware/account combination, perform this check
+with synthetic data. Enter credentials yourself in the dashboard or a
+user-controlled credential tool; never paste them into an issue, transcript,
+command line, or log.
+
+1. Set a test account quota and confirm destination-check reports
+   caller-available `stat_volume` capacity consistent with that quota.
+2. Create a backup and confirm the `.partial` upload is renamed to one final
+   `.enc` archive with no leftover partial.
+3. List remote backups and confirm the new archive is present and readable.
+4. Delete that disposable test archive through Family CFO and confirm list no
+   longer returns it.
+5. Repeat once with capacity below reserve plus the next-backup estimate; verify
+   upload is blocked or fails truthfully while the completed local archive stays
+   available.
+
+This records the required stat-volume/quota/upload/rename/list/delete behavior;
+it does not certify every NAS firmware or concurrent-storage failure mode.
+
+## Upgrade and activation
+
+Migrations `0093_box_global_backup_settings` and
+`0094_backup_delete_intents` create the singleton configuration, retention
+journal, prune metadata, and durable delete-intent action.
+
+On the first repository read after upgrade, legacy household destination/cadence
+and legacy retention environment values bootstrap the singleton once. The
+database is authoritative afterward; changing
+`FAMILY_CFO_BACKUP_RETENTION_COUNT` or
+`FAMILY_CFO_OFFBOX_BACKUP_RETENTION_DAYS` no longer edits active retention.
+Those inputs and old household columns remain for one compatibility release only.
+
+Every upgraded installation starts with retention review required and automatic
+time/cap pruning paused. Status still previews pending deletions. A system
+administrator must review the independent policies/caps/reserves and explicitly
+confirm them before a later locked maintenance pass may prune. Confirmation does
+not delete files inside the configuration request.
+
+For rollout, migrate and deploy the API and worker first. Verify the live
+configuration/status endpoints and real local/SMB paths, then deploy the web
+client and TestFlight/OTA separately. Do not expose a `0.160` client before the
+API/worker contract and maintenance behavior are live.
 
 ## Restoring
 
 Restore is **destructive**: it replaces the entire current database and staging
-tree with the backup's contents. Owner only.
+tree with the backup's contents. It requires a system administrator.
 
 - From the dashboard **Backups** page (with a confirmation dialog), or:
   ```bash
   curl -sk -X POST https://localhost:8443/api/v1/backups/<backup-id>/restore \
-    -H "authorization: Bearer <owner-token>"
+    -H "authorization: Bearer <system-admin-token>"
   ```
-- **From the Synology**, when the local volume is gone (a fresh box, disk loss):
-  the **Restore from Synology** list shows the archives found on the share,
-  newest first — pick one to restore. Backed by `GET /api/v1/backups/remote` and
-  `POST /api/v1/backups/remote/restore` (and `POST /api/v1/backups/remote/delete`
-  to remove one from the share). You still need the same **encryption key** — the
-  archive on the Synology is encrypted with it.
+- After loss of the local volume, use the remote list and remote-restore flow.
+  You still need the encryption key that encrypted the chosen archive.
 
-A restore also rolls back the `backup_jobs` bookkeeping to its state at the
-moment the backup was taken — so the restored-from row shows `running`, not
-`completed`. That's inherent to backing up the whole database, not a bug.
+Restore first extracts the archive's documents into a same-filesystem staging
+directory. SQLite archives are migrated there before promotion; PostgreSQL uses a
+captured live-database rollback image because its custom dump cannot be migrated
+in place. Immediately before that rollback image is taken, the server rotates the
+current destination generations and pauses retention. Those archive-external
+values certify that rollback restored this request's preimage rather than merely
+landing on a database with the same migration head. Only a current-schema
+restored database with the captured operational configuration, rotated
+destination generations, retention review pause, and reconciled bookkeeping may
+receive the staged document tree.
 
-## Version note
+If migration, database restore, reconciliation, or document promotion fails, the
+request returns a redacted non-success response. The database rollback image and
+old document tree remain available through the restore-audit write and the final
+response reads. A caught failure in that window restores and verifies the
+pre-request database/document pair, then reapplies the captured settings with
+retention paused for administrator review. After lease loss the server must first
+reacquire exclusive ownership; if another operation owns the lease, it does not
+overwrite that owner's work and reports that operator intervention is required.
+Restore never treats a failed migration as successful. Inspect operator logs
+before another attempt. This compensating rollback covers caught failures while
+ownership is retained or reacquired, not a process/host/power loss between database
+and filesystem steps or a failed lease reacquisition; the two stores have no
+shared crash-atomic transaction, so the deployed-box restore check and independent
+verified backups remain required. A successful
+restore can roll `backup_jobs` bookkeeping back to dump time; reconciliation
+repairs interrupted/current evidence without deleting protected newer orphans.
+
+## Downgrade and rollback
+
+Before starting an older release, downgrade the database with that release's
+supported procedure and explicitly set the legacy retention environment values.
+Migration `0093` copies representable cadence/SMB fields to every household and
+copies a shared cap only when local and off-box caps are equal. Tier policies,
+independent unequal caps/reserves, activation state, and recovery-status semantics
+cannot be represented by old code. Downgrade does not recreate already-pruned
+archives or discarded journal/history fields; take and verify a backup first.
+
+## Version and test notes
 
 `pg_dump`/`pg_restore` in the API image and the PostgreSQL server must share a
-major version. The shipped compose pins them together (postgres:17 + client 17);
-if you change the DB image, keep the client in step or restores will fail on
-version-specific settings.
+major version. The shipped Compose stack pins PostgreSQL and client 17 together;
+keep them in step if you change the database image.
 
-## Verifying restore from a clean environment
-
-The restore round trip is covered by the test suite (`test_backup_processing.py`
-against a real database file) and was verified against real PostgreSQL in Docker
-during M12. To check your own deployment:
-
-```bash
-# 1. take a backup and note its id
-# 2. change some data (e.g. delete an account)
-# 3. restore that backup id
-# 4. confirm the data returned
-```
+The automated matrix covers pure tier boundaries, migration/bootstrap and
+downgrade behavior on SQLite, migration `0093`/`0094` plus singleton bootstrap
+on PostgreSQL 17, storage failure seams, status/API contracts, OpenAPI
+compatibility, and the production advisory-lock conflict/connection-loss path.
+CI sets
+`FAMILY_CFO_REQUIRE_POSTGRESQL=1`; a missing URL, driver, or server fails instead
+of skipping. The NAS checklist above and a guarded restore of a newly created
+archive remain operator checks because they require the deployed storage and
+user-controlled credentials.

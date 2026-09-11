@@ -45,6 +45,29 @@ EXPECTED_NULLABLE_FIELD_COUNTS = {
     "YearMonthSummary": 2,
     "YearlyOverview": 3,
 }
+LEGACY_ADDITIONAL_NULLABLE_FIELD_COUNTS = {
+    "BackupConfig": 6,
+    "BackupJob": 3,
+    "BackupConfigUpdateRequest": 7,
+    "BackupDestinationCheckRequest": 3,
+    "BackupDestinationCheckResponse": 1,
+    "RemoteBackup": 1,
+}
+WI5_NULLABLE_FIELD_COUNTS = {
+    "BackupCapacityObservation": 5,
+    "BackupConfig": 14,
+    "BackupJob": 7,
+    "BackupConfigUpdateRequest": 10,
+    "BackupDestinationCheckRequest": 3,
+    "BackupDestinationCheckResponse": 1,
+    "BackupDestinationRecoveryStatus": 8,
+    "BackupRecoveryStatus": 2,
+    "BackupRetentionPolicy": 4,
+    "BackupRetentionPolicyUpdate": 3,
+    "RemoteBackup": 1,
+    "RemoteBackupListResponse": 1,
+}
+
 EXPECTED_REQUIRED_NULLABLE_FIELDS = {
     ("Budget", "percent_used"),
     ("Budget", "remaining"),
@@ -73,6 +96,46 @@ EXPECTED_REQUIRED_NULLABLE_FIELDS = {
     ("YearlyOverview", "top_categories"),
     ("YearlyOverview", "total_net"),
 }
+WI5_REQUIRED_NULLABLE_FIELDS = {
+    ("BackupCapacityObservation", "total_bytes"),
+    ("BackupCapacityObservation", "available_bytes"),
+    ("BackupCapacityObservation", "estimated_next_backup_bytes"),
+    ("BackupCapacityObservation", "can_accept_estimated_backup"),
+    ("BackupCapacityObservation", "reason"),
+    ("BackupConfig", "smb_host"),
+    ("BackupConfig", "smb_share"),
+    ("BackupConfig", "smb_folder"),
+    ("BackupConfig", "smb_username"),
+    ("BackupConfig", "smb_domain"),
+    ("BackupConfig", "max_bytes"),
+    ("BackupConfig", "local_max_bytes"),
+    ("BackupConfig", "offbox_max_bytes"),
+    ("BackupConfig", "retention_activated_at"),
+    ("BackupConfig", "local_pending_prune_count"),
+    ("BackupConfig", "local_pending_prune_bytes"),
+    ("BackupConfig", "offbox_pending_prune_count"),
+    ("BackupConfig", "offbox_pending_prune_bytes"),
+    ("BackupConfig", "latest"),
+    ("BackupDestinationCheckResponse", "reason"),
+    ("BackupDestinationRecoveryStatus", "retention_activated_at"),
+    ("BackupDestinationRecoveryStatus", "pending_prune_count"),
+    ("BackupDestinationRecoveryStatus", "pending_prune_bytes"),
+    ("BackupDestinationRecoveryStatus", "readable_archive_count"),
+    ("BackupDestinationRecoveryStatus", "oldest_readable_at"),
+    ("BackupDestinationRecoveryStatus", "newest_readable_at"),
+    ("BackupDestinationRecoveryStatus", "oldest_timestamp_source"),
+    ("BackupDestinationRecoveryStatus", "reason"),
+    ("BackupRecoveryStatus", "overall_oldest_readable_at"),
+    ("BackupRecoveryStatus", "overall_newest_readable_at"),
+    ("BackupRetentionPolicy", "keep_all_days"),
+    ("BackupRetentionPolicy", "daily_until_days"),
+    ("BackupRetentionPolicy", "weekly_until_days"),
+    ("BackupRetentionPolicy", "target_oldest_at"),
+    ("BackupRetentionPolicyUpdate", "keep_all_days"),
+    ("BackupRetentionPolicyUpdate", "daily_until_days"),
+    ("BackupRetentionPolicyUpdate", "weekly_until_days"),
+    ("RemoteBackupListResponse", "reason"),
+}
 
 
 def _schema_allows_null(schema: dict, components: dict) -> bool:
@@ -90,7 +153,9 @@ def _item_2_nullable_fields(spec: dict) -> tuple[dict[str, int], set[tuple[str, 
     field_counts: dict[str, int] = {}
     required_nullable: set[tuple[str, str]] = set()
     for component_name in SWIFT_GENERATOR_NULLABLE_COMPONENTS:
-        component = components[component_name]
+        component = components.get(component_name)
+        if component is None:
+            continue
         required = set(component.get("required", []))
         nullable_fields = []
         for field_name, schema in component.get("properties", {}).items():
@@ -123,6 +188,11 @@ def _assert_nullable_aliases_are_exact_copies(spec: dict) -> None:
     components = spec["components"]["schemas"]
     for target_name, alias_name in SWIFT_GENERATOR_NULLABLE_ALIASES.items():
         target = components[target_name]
+        if alias_name not in components:
+            # Frozen pre-0.160 fixtures predate the nullable BackupJob alias.
+            assert target_name == "BackupJob"
+            assert "BackupRecoveryStatus" not in components
+            continue
         alias = deepcopy(components[alias_name])
         alias_type = alias["type"]
         assert alias_type == [target["type"], "null"]
@@ -147,14 +217,25 @@ def _assert_nullable_aliases_are_exact_copies(spec: dict) -> None:
             load_shared_openapi(SHARED_OPENAPI.parent / "compatibility" / "0.159.yaml"),
             id="compatibility-0.159",
         ),
+        pytest.param(
+            load_shared_openapi(SHARED_OPENAPI.parent / "compatibility" / "0.160.yaml"),
+            id="compatibility-0.160",
+        ),
     ],
 )
 def test_item_2_nullable_fields_use_swift_compatible_type_unions(spec: dict) -> None:
     field_counts, required_nullable = _item_2_nullable_fields(spec)
 
-    assert field_counts == EXPECTED_NULLABLE_FIELD_COUNTS
-    assert sum(field_counts.values()) == 72
-    assert required_nullable == EXPECTED_REQUIRED_NULLABLE_FIELDS
+    has_wi5 = "BackupRecoveryStatus" in spec["components"]["schemas"]
+    expected_counts = EXPECTED_NULLABLE_FIELD_COUNTS | (
+        WI5_NULLABLE_FIELD_COUNTS if has_wi5 else LEGACY_ADDITIONAL_NULLABLE_FIELD_COUNTS
+    )
+    expected_required = EXPECTED_REQUIRED_NULLABLE_FIELDS | (
+        WI5_REQUIRED_NULLABLE_FIELDS if has_wi5 else set()
+    )
+    assert field_counts == expected_counts
+    assert sum(field_counts.values()) == (131 if has_wi5 else 93)
+    assert required_nullable == expected_required
     _assert_nullable_aliases_are_exact_copies(spec)
 
 
@@ -196,10 +277,7 @@ def test_strict_aggregate_operations_document_concrete_409_responses() -> None:
             "/api/v1/accounts/card-statements",
             "/accounts/card-statements",
             "post",
-            (
-                "The existing statement cycle has an unreadable amount "
-                "(sealed_amount_unreadable)"
-            ),
+            ("The existing statement cycle has an unreadable amount (sealed_amount_unreadable)"),
         ),
         (
             "/api/v1/bills/suggestions",
@@ -285,3 +363,70 @@ def _errors_after_shared_mutation(mutate) -> list[str]:
 def test_recursive_response_parity_rejects_nested_drift(mutate, expected: str) -> None:
     errors = _errors_after_shared_mutation(mutate)
     assert any(expected in error for error in errors), errors
+
+
+def test_0160_fixture_is_the_immutable_authoritative_contract() -> None:
+    fixture = SHARED_OPENAPI.parent / "compatibility" / "0.160.yaml"
+    assert fixture.read_bytes() == SHARED_OPENAPI.read_bytes()
+    assert load_shared_openapi()["info"]["version"] == "0.160"
+
+
+def test_wi5_backup_contract_is_strict_and_explicit() -> None:
+    for spec, prefix in (
+        (build_openapi(), "/api/v1"),
+        (load_shared_openapi(), ""),
+    ):
+        schemas = spec["components"]["schemas"]
+        assert spec["paths"][f"{prefix}/backups/status"]["get"]["operationId"] == (
+            "getBackupRecoveryStatus"
+        )
+        config_required = set(schemas["BackupConfig"]["required"])
+        assert {
+            "local_retention",
+            "offbox_retention",
+            "local_max_bytes",
+            "offbox_max_bytes",
+            "local_min_free_bytes",
+            "offbox_min_free_bytes",
+            "retention_review_required",
+            "retention_activated_at",
+            "updated_at",
+        } <= config_required
+        assert schemas["BackupConfig"]["properties"]["max_bytes"]["deprecated"] is True
+        assert (
+            schemas["HostedHouseholdList"]["properties"]["offbox_backup_retention_days"][
+                "deprecated"
+            ]
+            is True
+        )
+        assert schemas["RemoteBackup"]["properties"]["modified_at"]["type"] == ("integer")
+        if prefix == "":
+            assert schemas["RemoteBackup"]["properties"]["modified_at"]["format"] == ("int64")
+        assert set(schemas["BackupRetentionPolicyUpdate"]["required"]) == {
+            "mode",
+            "keep_all_days",
+            "daily_until_days",
+            "weekly_until_days",
+        }
+        for path, method in (
+            ("/backups", "post"),
+            ("/backups/config", "put"),
+            ("/backups/{backup_id}", "delete"),
+            ("/backups/remote/delete", "post"),
+        ):
+            assert "409" in spec["paths"][f"{prefix}{path}"][method]["responses"]
+
+
+def test_wi5_request_body_parity_rejects_policy_requiredness_drift() -> None:
+    generated = build_openapi()
+    shared = deepcopy(load_shared_openapi())
+    shared["components"]["schemas"]["BackupRetentionPolicyUpdate"]["required"].remove(
+        "weekly_until_days"
+    )
+
+    errors = check_implemented_routes(generated_spec=generated, shared_spec=shared)
+
+    assert any(
+        "BackupRetentionPolicyUpdate" in error and "adds required ['weekly_until_days']" in error
+        for error in errors
+    ), errors
