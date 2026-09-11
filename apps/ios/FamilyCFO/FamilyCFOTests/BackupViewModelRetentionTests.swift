@@ -7,10 +7,32 @@ import Testing
 
 private actor ImmediateEndpoint<Value: Sendable> {
     private var result: Result<Value, Error>
+    private var suspendedCalls = 0
+    private var pending: [Int: CheckedContinuation<Value, Error>] = [:]
+    private var nextPendingID = 0
+    private var calls = 0
 
     init(_ result: Result<Value, Error>) { self.result = result }
     func set(_ result: Result<Value, Error>) { self.result = result }
-    func call() throws -> Value { try result.get() }
+    func suspendNextCall() { suspendedCalls += 1 }
+
+    func call() async throws -> Value {
+        calls += 1
+        guard suspendedCalls > 0 else { return try result.get() }
+        suspendedCalls -= 1
+        let id = nextPendingID
+        nextPendingID += 1
+        return try await withCheckedThrowingContinuation { pending[id] = $0 }
+    }
+
+    func waitForCalls(_ count: Int) async {
+        while calls < count { await Task.yield() }
+    }
+
+    func resolve(_ id: Int, _ result: Result<Value, Error>) {
+        guard let continuation = pending.removeValue(forKey: id) else { return }
+        continuation.resume(with: result)
+    }
 }
 
 private actor ControlledEndpoint<Value: Sendable> {
@@ -107,6 +129,11 @@ private final class MockRetentionBackupAPI: BackupAPI, @unchecked Sendable {
     nonisolated let localDeletes = ControlledEndpoint<Void>()
     nonisolated let remoteDeletes = ControlledEndpoint<Void>()
     nonisolated let encryptionKeys = ControlledEndpoint<String?>()
+    nonisolated let recoveryKeys = ControlledEndpoint<Components.Schemas.RecoveryKey>()
+    nonisolated let sealModes = ControlledEndpoint<Components.Schemas.HouseholdKeyStatus>()
+    nonisolated let recoveryUnlocks = ControlledEndpoint<Components.Schemas.HouseholdKeyStatus>()
+    nonisolated let keyStatuses = ImmediateEndpoint<Components.Schemas.HouseholdKeyStatus>(
+        .success(BackupFixtures.keyStatus()))
     nonisolated let locals = ImmediateEndpoint<[Components.Schemas.BackupJob]>(.success([]))
     nonisolated let remotes = ImmediateEndpoint<Components.Schemas.RemoteBackupListResponse>(
         .success(.init(backups: [], status: .available, asOf: BackupFixtures.baseDate)))
@@ -140,23 +167,34 @@ private final class MockRetentionBackupAPI: BackupAPI, @unchecked Sendable {
     nonisolated func deleteRemote(filename: String) async throws { try await remoteDeletes.call() }
     nonisolated func encryptionKey() async throws -> String? { try await encryptionKeys.call() }
     nonisolated func householdKeyStatus() async throws -> Components.Schemas.HouseholdKeyStatus {
-        throw APIError.server(501)
+        try await keyStatuses.call()
     }
     nonisolated func generateRecoveryKey() async throws -> Components.Schemas.RecoveryKey {
-        throw APIError.server(501)
+        try await recoveryKeys.call()
     }
     nonisolated func setSealMode(_ mode: Components.Schemas.SealModeRequest.ModePayload)
         async throws -> Components.Schemas.HouseholdKeyStatus
-    { throw APIError.server(501) }
+    { try await sealModes.call() }
     nonisolated func unlockWithRecoveryKey(_ key: String) async throws
         -> Components.Schemas.HouseholdKeyStatus
-    { throw APIError.server(501) }
+    { try await recoveryUnlocks.call() }
     nonisolated func serverVersion() async -> String? { "0.160" }
     nonisolated func exportData() async throws -> Data { Data() }
 }
 
 private enum BackupFixtures {
     static let baseDate = Date(timeIntervalSince1970: 1_788_873_600)
+
+    static func keyStatus(
+        deviceWraps: Int = 3,
+        mode: Components.Schemas.HouseholdKeyStatus.ModePayload = .convenient,
+        unlocked: Bool = true
+    ) -> Components.Schemas.HouseholdKeyStatus {
+        .init(
+            encryptionEnabled: true, memberWraps: 2, deviceWraps: deviceWraps,
+            hasRecoveryKey: true, recoveryKeyCreatedAt: baseDate,
+            mode: mode, unlocked: unlocked)
+    }
 
     static func policy(
         _ mode: Components.Schemas.BackupRetentionPolicy.ModePayload = .tiered,
@@ -537,6 +575,178 @@ struct BackupViewModelRetentionTests {
         #expect(viewModel.revealedKey == nil)
     }
 
+    @Test func recoveryKeyGenerationIsOwnedByItsRequestStartSession() async {
+        let api = MockRetentionBackupAPI()
+        var session = "household-a:session-a"
+        let viewModel = BackupViewModel(api: api, sessionIdentity: { session })
+
+        let stale = Task { await viewModel.createRecoveryKey() }
+        await api.recoveryKeys.waitForCalls(1)
+        session = "household-b:session-b"
+        let current = Task { await viewModel.createRecoveryKey() }
+        await api.recoveryKeys.waitForCalls(2)
+
+        await api.recoveryKeys.resolve(
+            0, .success(.init(recoveryKey: "old-session-secret")))
+        await stale.value
+        #expect(viewModel.generatedRecoveryKey == nil)
+        #expect(viewModel.isGeneratingRecoveryKey)
+        #expect(viewModel.errorMessage == nil)
+
+        await api.keyStatuses.set(.success(BackupFixtures.keyStatus(deviceWraps: 9)))
+        await api.recoveryKeys.resolve(
+            1, .success(.init(recoveryKey: "current-session-secret")))
+        await current.value
+        #expect(viewModel.generatedRecoveryKey == "current-session-secret")
+        #expect(viewModel.keyStatus?.deviceWraps == 9)
+        #expect(!viewModel.isGeneratingRecoveryKey)
+    }
+
+    @Test func recoveryKeyPublishesBeforeDeferredStatusAndClearsOnSessionReplacement() async {
+        let api = MockRetentionBackupAPI()
+        var session = "household-a:session-a"
+        let viewModel = BackupViewModel(api: api, sessionIdentity: { session })
+        await api.recoveryKeys.enqueue(
+            .success(.init(recoveryKey: "owned-one-time-secret")))
+        await api.keyStatuses.suspendNextCall()
+
+        let creation = Task { await viewModel.createRecoveryKey() }
+        await api.keyStatuses.waitForCalls(1)
+
+        #expect(viewModel.generatedRecoveryKey == "owned-one-time-secret")
+        #expect(viewModel.isGeneratingRecoveryKey)
+
+        session = "household-b:session-b"
+        #expect(viewModel.replaceSessionIfNeeded(with: session))
+        #expect(viewModel.generatedRecoveryKey == nil)
+
+        await api.keyStatuses.resolve(
+            0, .success(BackupFixtures.keyStatus(deviceWraps: 1)))
+        await creation.value
+        #expect(viewModel.generatedRecoveryKey == nil)
+        #expect(viewModel.keyStatus == nil)
+        #expect(!viewModel.isGeneratingRecoveryKey)
+    }
+
+    @Test func newestCrossActionKeyPosturePublicationWins() async {
+        let api = MockRetentionBackupAPI()
+        let viewModel = BackupViewModel(api: api, sessionIdentity: { "session-a" })
+        await api.keyStatuses.suspendNextCall()
+
+        let staleLoad = Task { await viewModel.loadBackups(refreshStatus: false) }
+        await api.keyStatuses.waitForCalls(1)
+        let currentSeal = Task { await viewModel.setSealMode(sealed: true) }
+        await api.sealModes.waitForCalls(1)
+
+        await api.sealModes.resolve(
+            0, .success(BackupFixtures.keyStatus(deviceWraps: 9, mode: .sealed)))
+        await currentSeal.value
+        #expect(viewModel.keyStatus?.deviceWraps == 9)
+        #expect(viewModel.keyStatus?.mode == .sealed)
+
+        await api.keyStatuses.resolve(
+            0, .success(BackupFixtures.keyStatus(deviceWraps: 1, mode: .convenient)))
+        await staleLoad.value
+        #expect(viewModel.keyStatus?.deviceWraps == 9)
+        #expect(viewModel.keyStatus?.mode == .sealed)
+    }
+
+    @Test func olderRecoveryRefreshCannotOverwriteNewerUnlockPosture() async {
+        let api = MockRetentionBackupAPI()
+        let viewModel = BackupViewModel(api: api, sessionIdentity: { "session-a" })
+        await api.recoveryKeys.enqueue(.success(.init(recoveryKey: "owned-secret")))
+        await api.keyStatuses.suspendNextCall()
+
+        let recovery = Task { await viewModel.createRecoveryKey() }
+        await api.keyStatuses.waitForCalls(1)
+        #expect(viewModel.generatedRecoveryKey == "owned-secret")
+
+        let unlock = Task { await viewModel.unlockWithRecoveryKey("current-key") }
+        await api.recoveryUnlocks.waitForCalls(1)
+        await api.recoveryUnlocks.resolve(
+            0, .success(BackupFixtures.keyStatus(deviceWraps: 8, mode: .sealed)))
+        #expect(await unlock.value)
+        #expect(viewModel.keyStatus?.deviceWraps == 8)
+
+        await api.keyStatuses.resolve(
+            0, .success(BackupFixtures.keyStatus(deviceWraps: 2, mode: .convenient)))
+        await recovery.value
+        #expect(viewModel.keyStatus?.deviceWraps == 8)
+        #expect(viewModel.keyStatus?.mode == .sealed)
+    }
+
+    @Test func sessionReplacementClearsAnAlreadyPublishedRecoveryKey() async {
+        let api = MockRetentionBackupAPI()
+        var session = "household-a:session-a"
+        let viewModel = BackupViewModel(api: api, sessionIdentity: { session })
+        await api.recoveryKeys.enqueue(
+            .success(.init(recoveryKey: "settled-session-a-secret")))
+        await api.keyStatuses.set(.success(BackupFixtures.keyStatus(deviceWraps: 7)))
+
+        await viewModel.createRecoveryKey()
+        #expect(viewModel.generatedRecoveryKey == "settled-session-a-secret")
+        #expect(viewModel.keyStatus?.deviceWraps == 7)
+
+        session = "household-b:session-b"
+        #expect(viewModel.replaceSessionIfNeeded(with: session))
+        #expect(viewModel.generatedRecoveryKey == nil)
+        #expect(viewModel.revealedKey == nil)
+        #expect(viewModel.keyStatus == nil)
+        #expect(!viewModel.isGeneratingRecoveryKey)
+        #expect(!viewModel.replaceSessionIfNeeded(with: session))
+    }
+
+    @Test func sealModeIsOwnedByItsRequestStartSession() async {
+        let api = MockRetentionBackupAPI()
+        var session = "household-a:session-a"
+        let viewModel = BackupViewModel(api: api, sessionIdentity: { session })
+
+        let stale = Task { await viewModel.setSealMode(sealed: true) }
+        await api.sealModes.waitForCalls(1)
+        session = "household-b:session-b"
+        let current = Task { await viewModel.setSealMode(sealed: true) }
+        await api.sealModes.waitForCalls(2)
+
+        await api.sealModes.resolve(
+            0, .success(BackupFixtures.keyStatus(deviceWraps: 1, mode: .sealed)))
+        await stale.value
+        #expect(viewModel.keyStatus == nil)
+        #expect(viewModel.isChangingSealMode)
+
+        await api.sealModes.resolve(
+            1, .success(BackupFixtures.keyStatus(deviceWraps: 9, mode: .sealed)))
+        await current.value
+        #expect(viewModel.keyStatus?.deviceWraps == 9)
+        #expect(viewModel.keyStatus?.mode == .sealed)
+        #expect(!viewModel.isChangingSealMode)
+    }
+
+    @Test func recoveryUnlockCannotPublishOrClearAReplacementSession() async {
+        let api = MockRetentionBackupAPI()
+        var session = "household-a:session-a"
+        let viewModel = BackupViewModel(api: api, sessionIdentity: { session })
+
+        let stale = Task { await viewModel.unlockWithRecoveryKey(" old-key ") }
+        await api.recoveryUnlocks.waitForCalls(1)
+        session = "household-b:session-b"
+        let current = Task { await viewModel.unlockWithRecoveryKey(" current-key ") }
+        await api.recoveryUnlocks.waitForCalls(2)
+
+        await api.recoveryUnlocks.resolve(
+            0, .success(BackupFixtures.keyStatus(deviceWraps: 1, mode: .sealed)))
+        #expect(await stale.value == false)
+        #expect(viewModel.keyStatus == nil)
+        #expect(viewModel.statusMessage == nil)
+        #expect(viewModel.isUnlocking)
+
+        await api.recoveryUnlocks.resolve(
+            1, .success(BackupFixtures.keyStatus(deviceWraps: 9, mode: .sealed)))
+        #expect(await current.value == true)
+        #expect(viewModel.keyStatus?.deviceWraps == 9)
+        #expect(viewModel.statusMessage == "Household unlocked.")
+        #expect(!viewModel.isUnlocking)
+    }
+
     @Test func restoreRefreshesRotatedConfigAndRecoveryState() async {
         let (viewModel, api) = await loaded()
         let refreshedConfig = BackupFixtures.config(revision: 60, review: true)
@@ -666,6 +876,28 @@ struct BackupViewModelRetentionTests {
         await viewModel.deleteRemote(BackupFixtures.remote())
         #expect(await api.statuses.callCount() == before + 4)
         #expect(viewModel.recoveryStatus?.overallStatus == .constrained)
+    }
+
+    @Test func pendingBackupSummaryDoesNotClaimCompletion() async {
+        let (viewModel, api) = await loaded()
+        await api.backupJobs.enqueue(.success(BackupFixtures.job(status: .pending)))
+        await api.statuses.enqueue(.success(BackupFixtures.recovery()))
+
+        await viewModel.backupNow()
+
+        #expect(viewModel.latestSummary == "Pending")
+        #expect(viewModel.statusMessage == nil)
+    }
+
+    @Test func runningBackupSummaryDoesNotClaimCompletion() async {
+        let (viewModel, api) = await loaded()
+        await api.backupJobs.enqueue(.success(BackupFixtures.job(status: .running)))
+        await api.statuses.enqueue(.success(BackupFixtures.recovery()))
+
+        await viewModel.backupNow()
+
+        #expect(viewModel.latestSummary == "Running")
+        #expect(viewModel.statusMessage == nil)
     }
 
     @Test func failedBackupJobNeverAnnouncesCompletionAndStillRefreshesStatus() async {

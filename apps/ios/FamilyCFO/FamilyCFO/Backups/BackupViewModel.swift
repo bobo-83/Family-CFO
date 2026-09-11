@@ -6,6 +6,8 @@ import Foundation
 @MainActor
 @Observable
 final class BackupViewModel {
+    /// Composite authenticated-session and active-household identity. The value
+    /// must change when either the credential/session or household changes.
     typealias SessionIdentity = @MainActor () -> String?
 
     private let api: BackupAPI
@@ -52,6 +54,9 @@ final class BackupViewModel {
     private(set) var isBackingUp = false
     private(set) var isRestoring = false
     private(set) var isChecking = false
+    private(set) var isGeneratingRecoveryKey = false
+    private(set) var isChangingSealMode = false
+    private(set) var isUnlocking = false
     private(set) var checkResult: Components.Schemas.BackupDestinationCheckResponse?
     var statusMessage: String?
     var errorMessage: String?
@@ -66,6 +71,21 @@ final class BackupViewModel {
     private var remoteDeleteGeneration: UInt64 = 0
     private var conflictGeneration: UInt64 = 0
     private var keyRevealGeneration: UInt64 = 0
+    /// A single publication lane for every writer of household key posture.
+    /// The newest request start wins even when different actions finish out of order.
+    private var keyStatusPublicationGeneration: UInt64 = 0
+    private var recoveryKeyGeneration: UInt64 = 0
+    private var sealModeGeneration: UInt64 = 0
+    private var recoveryUnlockGeneration: UInt64 = 0
+    private var exportGeneration: UInt64 = 0
+    private var recoveryKeyOwnerSession: String?
+    private var sealModeOwnerSession: String?
+    private var recoveryUnlockOwnerSession: String?
+    private var exportOwnerSession: String?
+    private var observedSessionIdentity: String?
+    /// A newly-created view model owns its initial presentation. The SwiftUI
+    /// owner explicitly ends and restarts that lifetime as navigation changes.
+    private var isViewLifetimeActive = true
 
     private struct OperationalDraft: Equatable, Sendable {
         var frequency: Components.Schemas.BackupConfigUpdateRequest.FrequencyPayload
@@ -104,10 +124,90 @@ final class BackupViewModel {
     private var serverLocalRetention: BackupRetentionDraft?
     private var serverOffboxRetention: BackupRetentionDraft?
     private var pendingSave: SaveKind?
+    private var saveQueueGeneration: UInt64 = 0
 
     init(api: BackupAPI, sessionIdentity: @escaping SessionIdentity = { "standalone" }) {
         self.api = api
         self.sessionIdentity = sessionIdentity
+        observedSessionIdentity = sessionIdentity()
+    }
+
+    /// Starts a new presentation lifetime. A reappearing view may reuse this
+    /// instance, but work from its previous presentation stays invalidated.
+    func beginViewLifetime(with identity: String?) {
+        isViewLifetimeActive = true
+        replaceSessionIfNeeded(with: identity)
+    }
+
+    /// View disappearance is an ownership boundary for every in-flight request.
+    /// Server work already accepted may finish, but it cannot publish into a gone
+    /// screen or leave a household export behind in the temporary directory.
+    func endViewLifetime() {
+        guard isViewLifetimeActive else { return }
+        isViewLifetimeActive = false
+
+        configGeneration &+= 1
+        statusGeneration &+= 1
+        listGeneration &+= 1
+        checkGeneration &+= 1
+        backupGeneration &+= 1
+        restoreGeneration &+= 1
+        localDeleteGeneration &+= 1
+        remoteDeleteGeneration &+= 1
+        conflictGeneration &+= 1
+        saveQueueGeneration &+= 1
+        invalidateHouseholdSensitiveOwnership()
+
+        pendingSave = nil
+        password = ""
+        passwordEdited = false
+        isLoading = false
+        isSaving = false
+        isActivatingRetention = false
+        isBackingUp = false
+        isRestoring = false
+        isChecking = false
+        checkResult = nil
+    }
+
+    /// Invalidates household-sensitive state as soon as the owning screen observes
+    /// an authenticated household/session replacement. Box-global configuration is
+    /// intentionally retained and refreshed independently.
+    @discardableResult
+    func replaceSessionIfNeeded(with identity: String?) -> Bool {
+        guard observedSessionIdentity != identity else { return false }
+        observedSessionIdentity = identity
+        invalidateHouseholdSensitiveOwnership()
+        return true
+    }
+
+    private func invalidateHouseholdSensitiveOwnership() {
+        keyRevealGeneration &+= 1
+        keyStatusPublicationGeneration &+= 1
+        recoveryKeyGeneration &+= 1
+        sealModeGeneration &+= 1
+        recoveryUnlockGeneration &+= 1
+        exportGeneration &+= 1
+
+        revealedKey = nil
+        generatedRecoveryKey = nil
+        keyStatus = nil
+        statusMessage = nil
+        errorMessage = nil
+
+        isGeneratingRecoveryKey = false
+        isChangingSealMode = false
+        isUnlocking = false
+        isExporting = false
+        recoveryKeyOwnerSession = nil
+        sealModeOwnerSession = nil
+        recoveryUnlockOwnerSession = nil
+        exportOwnerSession = nil
+
+        if let url = exportedFileURL {
+            try? FileManager.default.removeItem(at: url)
+            exportedFileURL = nil
+        }
     }
 
     private var operationalDraft: OperationalDraft {
@@ -137,18 +237,25 @@ final class BackupViewModel {
 
     var latestSummary: String? {
         guard let latest else { return nil }
-        if latest.status == .failed {
+        switch latest.status {
+        case .pending:
+            return String(localized: "Pending")
+        case .running:
+            return String(localized: "Running")
+        case .failed:
             return latest.errorMessage.map { String(localized: "Last backup failed: \($0)") }
                 ?? String(localized: "Last backup failed.")
+        case .completed:
+            var parts: [String] = []
+            if let when = latest.completedAt {
+                parts.append(when.formatted(date: .abbreviated, time: .shortened))
+            }
+            if let size = latest.sizeBytes {
+                parts.append(ByteCountFormatter.string(fromByteCount: size, countStyle: .file))
+            }
+            return parts.isEmpty
+                ? String(localized: "Completed") : parts.joined(separator: " · ")
         }
-        var parts: [String] = []
-        if let when = latest.completedAt {
-            parts.append(when.formatted(date: .abbreviated, time: .shortened))
-        }
-        if let size = latest.sizeBytes {
-            parts.append(ByteCountFormatter.string(fromByteCount: size, countStyle: .file))
-        }
-        return parts.isEmpty ? String(localized: "Completed") : parts.joined(separator: " · ")
     }
 
     var remoteWarning: String? {
@@ -170,7 +277,7 @@ final class BackupViewModel {
     }
 
     func load() async {
-        guard let session = sessionIdentity() else { return }
+        guard let session = activeSessionIdentity() else { return }
         invalidateConflictFetch()
         configGeneration &+= 1
         let owner = RequestOwner(session: session, generation: configGeneration, configToken: configUpdatedAt)
@@ -199,9 +306,11 @@ final class BackupViewModel {
 
     /// Lists and key posture are useful even when recovery status is unavailable.
     func loadBackups(refreshStatus: Bool = true) async {
-        guard let session = sessionIdentity() else { return }
+        guard let session = activeSessionIdentity() else { return }
         listGeneration &+= 1
         let generation = listGeneration
+        keyStatusPublicationGeneration &+= 1
+        let keyStatusGeneration = keyStatusPublicationGeneration
         let configuredRemote = !host.trimmingCharacters(in: .whitespaces).isEmpty
 
         async let version = api.serverVersion()
@@ -215,7 +324,7 @@ final class BackupViewModel {
         let loadedLocal = await local
         let loadedKeys = await keys
 
-        guard sessionIdentity() == session, listGeneration == generation, !Task.isCancelled else { return }
+        guard isViewLifetimeActive, sessionIdentity() == session, listGeneration == generation, !Task.isCancelled else { return }
         runningVersion = loadedVersion
         switch loadedLocal {
         case .success(let backups):
@@ -226,7 +335,11 @@ final class BackupViewModel {
             localBackups = []
             localListError = ChatViewModel.describe(error)
         }
-        if case .success(let status) = loadedKeys { keyStatus = status }
+        if case .success(let status) = loadedKeys,
+            ownsKeyStatusPublication(session, generation: keyStatusGeneration)
+        {
+            keyStatus = status
+        }
         switch remote {
         case .success(let response):
             remoteBackups = response.backups
@@ -256,7 +369,7 @@ final class BackupViewModel {
     }
 
     func refreshRecoveryStatus() async {
-        guard let session = sessionIdentity() else { return }
+        guard let session = activeSessionIdentity() else { return }
         statusGeneration &+= 1
         let owner = RequestOwner(
             session: session, generation: statusGeneration, configToken: configUpdatedAt)
@@ -297,21 +410,34 @@ final class BackupViewModel {
     }
 
     private func drainSaveQueue() async {
+        guard isViewLifetimeActive else {
+            pendingSave = nil
+            return
+        }
         guard !isSaving else { return }
+        saveQueueGeneration &+= 1
+        let generation = saveQueueGeneration
         isSaving = true
         defer {
-            isSaving = false
-            isActivatingRetention = false
+            if saveQueueGeneration == generation {
+                isSaving = false
+                isActivatingRetention = false
+            }
         }
-        while let next = pendingSave {
+        while saveQueueGeneration == generation, let next = pendingSave {
             pendingSave = nil
             let shouldContinue = await performSave(next)
-            if !shouldContinue { pendingSave = nil; return }
+            guard saveQueueGeneration == generation else { return }
+            if !shouldContinue {
+                pendingSave = nil
+                return
+            }
         }
     }
 
     private func performSave(_ kind: SaveKind) async -> Bool {
-        guard let session = sessionIdentity(), let token = configUpdatedAt else {
+        guard isViewLifetimeActive else { return false }
+        guard let session = activeSessionIdentity(), let token = configUpdatedAt else {
             configError = String(localized: "Backup settings are still loading.")
             return false
         }
@@ -408,7 +534,7 @@ final class BackupViewModel {
     }
 
     func useCurrentBoxSettings() async {
-        guard let config = conflictingConfig else { return }
+        guard isViewLifetimeActive, let config = conflictingConfig else { return }
         applyFullConfig(config)
         conflictingConfig = nil
         configError = nil
@@ -418,7 +544,7 @@ final class BackupViewModel {
     func passwordChanged() { passwordEdited = true }
 
     func testConnection() async {
-        guard !isChecking, let session = sessionIdentity() else { return }
+        guard !isChecking, let session = activeSessionIdentity() else { return }
         checkGeneration &+= 1
         let generation = checkGeneration
         isChecking = true
@@ -450,7 +576,7 @@ final class BackupViewModel {
     }
 
     func backupNow() async {
-        guard !isBackingUp, let session = sessionIdentity() else { return }
+        guard !isBackingUp, let session = activeSessionIdentity() else { return }
         backupGeneration &+= 1
         let generation = backupGeneration
         isBackingUp = true
@@ -492,7 +618,7 @@ final class BackupViewModel {
     }
 
     func restoreLocal(_ backup: Components.Schemas.BackupJob) async {
-        guard !isRestoring, let session = sessionIdentity() else { return }
+        guard !isRestoring, let session = activeSessionIdentity() else { return }
         restoreGeneration &+= 1
         let generation = restoreGeneration
         // Any in-flight pre-restore observations must not publish after this
@@ -520,7 +646,7 @@ final class BackupViewModel {
     }
 
     func revealKey() async {
-        guard let session = sessionIdentity() else {
+        guard let session = activeSessionIdentity() else {
             revealedKey = nil
             return
         }
@@ -540,51 +666,175 @@ final class BackupViewModel {
     }
 
     func createRecoveryKey() async {
+        guard let session = activeSessionIdentity() else { return }
+        if isGeneratingRecoveryKey, recoveryKeyOwnerSession == session { return }
+        recoveryKeyGeneration &+= 1
+        let generation = recoveryKeyGeneration
+        keyStatusPublicationGeneration &+= 1
+        let keyStatusGeneration = keyStatusPublicationGeneration
+        recoveryKeyOwnerSession = session
+        generatedRecoveryKey = nil
+        isGeneratingRecoveryKey = true
+        defer {
+            if ownsOperationSlot(generation, current: recoveryKeyGeneration) {
+                isGeneratingRecoveryKey = false
+                recoveryKeyOwnerSession = nil
+            }
+        }
         do {
-            generatedRecoveryKey = try await api.generateRecoveryKey().recoveryKey
-            keyStatus = try? await api.householdKeyStatus()
+            let recoveryKey = try await api.generateRecoveryKey().recoveryKey
+            guard ownsOperation(session, generation, current: recoveryKeyGeneration) else { return }
+            // This response is the user's only opportunity to save the secret.
+            // Publish it before the best-effort posture refresh can suspend.
+            generatedRecoveryKey = recoveryKey
             errorMessage = nil
-        } catch { errorMessage = ChatViewModel.describe(error) }
+
+            let status = try? await api.householdKeyStatus()
+            if let status,
+                ownsOperation(session, generation, current: recoveryKeyGeneration),
+                ownsKeyStatusPublication(session, generation: keyStatusGeneration)
+            {
+                keyStatus = status
+            }
+        } catch {
+            guard ownsOperation(session, generation, current: recoveryKeyGeneration),
+                ownsKeyStatusPublication(session, generation: keyStatusGeneration)
+            else { return }
+            errorMessage = ChatViewModel.describe(error)
+        }
     }
 
     func setSealMode(sealed: Bool) async {
+        guard let session = activeSessionIdentity() else { return }
+        if isChangingSealMode, sealModeOwnerSession == session { return }
+        sealModeGeneration &+= 1
+        let generation = sealModeGeneration
+        keyStatusPublicationGeneration &+= 1
+        let keyStatusGeneration = keyStatusPublicationGeneration
+        sealModeOwnerSession = session
+        isChangingSealMode = true
+        defer {
+            if ownsOperationSlot(generation, current: sealModeGeneration) {
+                isChangingSealMode = false
+                sealModeOwnerSession = nil
+            }
+        }
         do {
-            keyStatus = try await api.setSealMode(sealed ? .sealed : .convenient)
+            let status = try await api.setSealMode(sealed ? .sealed : .convenient)
+            guard ownsOperation(session, generation, current: sealModeGeneration),
+                ownsKeyStatusPublication(session, generation: keyStatusGeneration)
+            else { return }
+            keyStatus = status
             errorMessage = nil
-        } catch { errorMessage = ChatViewModel.describe(error) }
+        } catch {
+            guard ownsOperation(session, generation, current: sealModeGeneration),
+                ownsKeyStatusPublication(session, generation: keyStatusGeneration)
+            else { return }
+            errorMessage = ChatViewModel.describe(error)
+        }
     }
 
-    func unlockWithRecoveryKey(_ key: String) async {
+    /// Returns true only when this request still owns the screen and unlocked it.
+    func unlockWithRecoveryKey(_ key: String) async -> Bool {
         let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
+        guard !trimmed.isEmpty, let session = activeSessionIdentity() else { return false }
+        if isUnlocking, recoveryUnlockOwnerSession == session { return false }
+        recoveryUnlockGeneration &+= 1
+        let generation = recoveryUnlockGeneration
+        keyStatusPublicationGeneration &+= 1
+        let keyStatusGeneration = keyStatusPublicationGeneration
+        recoveryUnlockOwnerSession = session
+        isUnlocking = true
+        defer {
+            if ownsOperationSlot(generation, current: recoveryUnlockGeneration) {
+                isUnlocking = false
+                recoveryUnlockOwnerSession = nil
+            }
+        }
         do {
-            keyStatus = try await api.unlockWithRecoveryKey(trimmed)
+            let status = try await api.unlockWithRecoveryKey(trimmed)
+            guard ownsOperation(session, generation, current: recoveryUnlockGeneration),
+                ownsKeyStatusPublication(session, generation: keyStatusGeneration)
+            else {
+                return false
+            }
+            keyStatus = status
             statusMessage = String(localized: "Household unlocked.")
             errorMessage = nil
-        } catch { errorMessage = ChatViewModel.describe(error) }
+            return true
+        } catch {
+            guard ownsOperation(session, generation, current: recoveryUnlockGeneration),
+                ownsKeyStatusPublication(session, generation: keyStatusGeneration)
+            else {
+                return false
+            }
+            errorMessage = ChatViewModel.describe(error)
+            return false
+        }
     }
 
     private(set) var isExporting = false
     var exportedFileURL: URL?
 
-    func exportData() async {
-        guard !isExporting else { return }
+    /// Returns a shareable URL only for the request that still owns the current
+    /// authenticated household. A stale completion writes no temporary file.
+    func exportData() async -> URL? {
+        guard let session = activeSessionIdentity() else { return nil }
+        if isExporting, exportOwnerSession == session { return nil }
+        exportGeneration &+= 1
+        let generation = exportGeneration
+        exportOwnerSession = session
         isExporting = true
         exportedFileURL = nil
-        defer { isExporting = false }
+        defer {
+            if ownsOperationSlot(generation, current: exportGeneration) {
+                isExporting = false
+                exportOwnerSession = nil
+            }
+        }
         do {
             let data = try await api.exportData()
+            guard ownsOperation(session, generation, current: exportGeneration) else { return nil }
             let day = Date().formatted(.iso8601.year().month().day().dateSeparator(.dash))
             let url = FileManager.default.temporaryDirectory
-                .appendingPathComponent("family-cfo-export-\(day).zip")
+                .appendingPathComponent("family-cfo-export-\(day)-\(UUID().uuidString).zip")
             try data.write(to: url, options: .atomic)
+            guard ownsOperation(session, generation, current: exportGeneration) else {
+                try? FileManager.default.removeItem(at: url)
+                return nil
+            }
             exportedFileURL = url
             errorMessage = nil
-        } catch { errorMessage = ChatViewModel.describe(error) }
+            return url
+        } catch {
+            guard ownsOperation(session, generation, current: exportGeneration) else { return nil }
+            errorMessage = ChatViewModel.describe(error)
+            return nil
+        }
+    }
+
+    /// Revalidates presentation ownership after the caller's `await`. If the
+    /// view disappeared in the return-to-caller scheduling gap, remove the exact
+    /// file instead of publishing a share sheet into a dead presentation.
+    func claimExportForPresentation(_ url: URL) -> Bool {
+        guard isViewLifetimeActive, exportedFileURL == url else {
+            discardExportedFile(url)
+            return false
+        }
+        return true
+    }
+
+    /// Removes the exact request-unique export after its share sheet closes.
+    /// A newer export remains published if an older sheet dismisses later.
+    func discardExportedFile(_ url: URL) {
+        try? FileManager.default.removeItem(at: url)
+        if exportedFileURL == url {
+            exportedFileURL = nil
+        }
     }
 
     func deleteLocal(_ backup: Components.Schemas.BackupJob) async {
-        guard let session = sessionIdentity() else { return }
+        guard let session = activeSessionIdentity() else { return }
         localDeleteGeneration &+= 1
         let generation = localDeleteGeneration
         do {
@@ -600,7 +850,7 @@ final class BackupViewModel {
     }
 
     func deleteRemote(_ backup: Components.Schemas.RemoteBackup) async {
-        guard let session = sessionIdentity() else { return }
+        guard let session = activeSessionIdentity() else { return }
         remoteDeleteGeneration &+= 1
         let generation = remoteDeleteGeneration
         do {
@@ -616,7 +866,7 @@ final class BackupViewModel {
     }
 
     func restore(_ backup: Components.Schemas.RemoteBackup) async {
-        guard !isRestoring, let session = sessionIdentity() else { return }
+        guard !isRestoring, let session = activeSessionIdentity() else { return }
         restoreGeneration &+= 1
         let generation = restoreGeneration
         // Any in-flight pre-restore observations must not publish after this
@@ -670,14 +920,25 @@ final class BackupViewModel {
         catch { return .failure(error) }
     }
 
+    private func activeSessionIdentity() -> String? {
+        isViewLifetimeActive ? sessionIdentity() : nil
+    }
+
     private func ownsConfig(_ owner: RequestOwner, requireToken: Bool) -> Bool {
-        sessionIdentity() == owner.session && configGeneration == owner.generation
-            && !Task.isCancelled && (!requireToken || configUpdatedAt == owner.configToken)
+        isViewLifetimeActive && sessionIdentity() == owner.session
+            && configGeneration == owner.generation && !Task.isCancelled
+            && (!requireToken || configUpdatedAt == owner.configToken)
     }
 
     private func ownsStatus(_ owner: RequestOwner) -> Bool {
-        sessionIdentity() == owner.session && statusGeneration == owner.generation
+        isViewLifetimeActive && sessionIdentity() == owner.session
+            && statusGeneration == owner.generation
             && configUpdatedAt == owner.configToken && !Task.isCancelled
+    }
+
+    private func ownsKeyStatusPublication(_ session: String, generation: UInt64) -> Bool {
+        isViewLifetimeActive && sessionIdentity() == session
+            && keyStatusPublicationGeneration == generation && !Task.isCancelled
     }
 
     private func ownsConflictFetch(
@@ -694,8 +955,8 @@ final class BackupViewModel {
     private func ownsOperation(
         _ session: String, _ generation: UInt64, current: UInt64
     ) -> Bool {
-        sessionIdentity() == session && ownsOperationSlot(generation, current: current)
-            && !Task.isCancelled
+        isViewLifetimeActive && sessionIdentity() == session
+            && ownsOperationSlot(generation, current: current) && !Task.isCancelled
     }
 
     /// Cleanup may run after cancellation or session replacement because it

@@ -73,6 +73,7 @@ export class Backups implements OnInit {
   private readonly api = inject(ApiService);
   private readonly auth = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
+  private destroyed = false;
 
   protected readonly canManageBackups = computed(() => this.auth.hasRight('backups.manage'));
   private readonly sessionKey = signal(householdSessionKey());
@@ -83,6 +84,10 @@ export class Backups implements OnInit {
   private remoteRequestGeneration = 0;
   private keyRequestGeneration = 0;
   private keyRevealRequestGeneration = 0;
+  private recoveryKeyRequestGeneration = 0;
+  private sealModeRequestGeneration = 0;
+  private recoveryUnlockRequestGeneration = 0;
+  private exportRequestGeneration = 0;
   private checkRequestGeneration = 0;
   private mutationRequestGeneration = 0;
   private pendingMutationConfigRefresh = false;
@@ -200,7 +205,15 @@ export class Backups implements OnInit {
         void this.loadPageState();
       }
     });
-    this.destroyRef.onDestroy(unsubscribe);
+    this.destroyRef.onDestroy(() => {
+      // Component lifetime is an ownership boundary. Invalidate every pending
+      // publication before unsubscribing so no late completion can seed UI or
+      // trigger a browser-global side effect such as an export download.
+      this.destroyed = true;
+      ++this.sessionGeneration;
+      this.clearSessionState();
+      unsubscribe();
+    });
   }
 
   async ngOnInit(): Promise<void> {
@@ -229,6 +242,10 @@ export class Backups implements OnInit {
     ++this.remoteRequestGeneration;
     ++this.keyRequestGeneration;
     ++this.keyRevealRequestGeneration;
+    ++this.recoveryKeyRequestGeneration;
+    ++this.sealModeRequestGeneration;
+    ++this.recoveryUnlockRequestGeneration;
+    ++this.exportRequestGeneration;
     ++this.checkRequestGeneration;
     ++this.mutationRequestGeneration;
     this.pendingMutationConfigRefresh = false;
@@ -249,6 +266,8 @@ export class Backups implements OnInit {
     this.checkResult.set(null);
     this.checking.set(false);
     this.busy.set(false);
+    this.exporting.set(false);
+    this.exportError.set(null);
     this.revealedKey.set(null);
     this.generatedRecoveryKey.set(null);
     this.showRecoveryUnlock.set(false);
@@ -290,6 +309,7 @@ export class Backups implements OnInit {
 
   private ownsMutation(owner: MutationOwner): boolean {
     return (
+      !this.destroyed &&
       owner.sessionKey === this.sessionKey() &&
       owner.sessionGeneration === this.sessionGeneration &&
       owner.requestGeneration === this.mutationRequestGeneration
@@ -297,7 +317,7 @@ export class Backups implements OnInit {
   }
 
   private ownsActionFeedback(mutationGeneration: number): boolean {
-    return mutationGeneration === this.mutationRequestGeneration;
+    return !this.destroyed && mutationGeneration === this.mutationRequestGeneration;
   }
 
   private owns(
@@ -306,6 +326,7 @@ export class Backups implements OnInit {
     requireConfigToken = true,
   ): boolean {
     return (
+      !this.destroyed &&
       owner.sessionKey === this.sessionKey() &&
       owner.sessionGeneration === this.sessionGeneration &&
       owner.requestGeneration === currentRequestGeneration &&
@@ -320,8 +341,12 @@ export class Backups implements OnInit {
   private loadRunningVersion(): void {
     void fetch('/api/v1/health')
       .then((response) => response.json())
-      .then((health: { version?: string }) => this.runningVersion.set(health.version ?? null))
-      .catch(() => this.runningVersion.set(null));
+      .then((health: { version?: string }) => {
+        if (!this.destroyed) this.runningVersion.set(health.version ?? null);
+      })
+      .catch(() => {
+        if (!this.destroyed) this.runningVersion.set(null);
+      });
   }
 
   /** Numeric dotted-tuple compare (never string compare): true when the backup
@@ -654,9 +679,7 @@ export class Backups implements OnInit {
       );
     } else {
       this.remoteBackups.set([]);
-      this.remoteListError.set(
-        apiErrorMessage(error, $localize`Failed to load backups.`),
-      );
+      this.remoteListError.set(apiErrorMessage(error, $localize`Failed to load backups.`));
     }
     if (refreshStatus) {
       await this.loadRecoveryStatus(mutationOwner);
@@ -705,11 +728,26 @@ export class Backups implements OnInit {
     this.busy.set(false);
     if (error) {
       this.actionError.set(apiErrorMessage(error, $localize`Failed to create backup.`));
-    } else {
-      if (data) this.latest.set(data);
-      this.statusMessage.set(
-        $localize`:Status message|A backup finished successfully:Backup complete.`,
-      );
+    } else if (data) {
+      this.latest.set(data);
+      if (data.status === 'completed') {
+        this.actionError.set(null);
+        this.statusMessage.set(
+          $localize`:Status message|A backup finished successfully:Backup complete.`,
+        );
+      } else if (data.status === 'failed') {
+        this.statusMessage.set(null);
+        this.actionError.set(
+          data.error_message
+            ? $localize`:Backup failure|The server returned a failed backup job:Last backup failed: ${data.error_message}:errorMessage:.`
+            : $localize`:Backup failure|The server returned a failed backup job without a reason:Last backup failed.`,
+        );
+      } else {
+        // A future asynchronous endpoint may return a nonterminal job. Do not
+        // turn transport success into a false completion claim.
+        this.actionError.set(null);
+        this.statusMessage.set(null);
+      }
     }
     // A lost response can hide a committed backup, so both inventories and the
     // recovery observation refresh after success or failure.
@@ -810,17 +848,29 @@ export class Backups implements OnInit {
     ) {
       return;
     }
+    const generation = ++this.recoveryKeyRequestGeneration;
+    const owner = this.captureOwner(generation);
     this.busy.set(true);
     this.actionError.set(null);
     const { data, error } = await this.api.generateRecoveryKey();
-    this.busy.set(false);
+    if (!this.owns(owner, this.recoveryKeyRequestGeneration, false)) {
+      return;
+    }
     if (error) {
+      this.busy.set(false);
       // 409 (encryption off) carries a human message — show it verbatim.
       this.actionError.set(apiErrorMessage(error, $localize`Failed to create recovery key.`));
       return;
     }
+    // This is the only response carrying the one-time secret. Publish it as
+    // soon as this request proves ownership; the best-effort posture refresh
+    // must never delay or lose the user's sole chance to save it.
     this.generatedRecoveryKey.set(data?.recovery_key ?? null);
     await this.loadKeyStatus();
+    if (!this.owns(owner, this.recoveryKeyRequestGeneration, false)) {
+      return;
+    }
+    this.busy.set(false);
   }
 
   protected async copyRecoveryKey(): Promise<void> {
@@ -843,9 +893,14 @@ export class Backups implements OnInit {
         ? $localize`:Confirmation|Browser confirm before the household is sealed@@sealHouseholdConfirmation:Seal this household? After a restart, nothing is readable until someone signs in. Unattended sync, snapshots and study then run while the in-memory key session is open. It expires 30 minutes after its last member-driven use; signing out does not close it immediately.`
         : $localize`:Confirmation|Browser confirm before the household leaves sealed mode:Switch back to convenient? The box keeps a spare of your data key again, so overnight work runs without anyone signed in.`;
     if (!confirm(consequence)) return;
+    const generation = ++this.sealModeRequestGeneration;
+    const owner = this.captureOwner(generation);
     this.busy.set(true);
     this.actionError.set(null);
     const { data, error } = await this.api.setSealMode(mode);
+    if (!this.owns(owner, this.sealModeRequestGeneration, false)) {
+      return;
+    }
     this.busy.set(false);
     if (error) {
       this.actionError.set(apiErrorMessage(error, $localize`Failed to switch privacy mode.`));
@@ -863,9 +918,14 @@ export class Backups implements OnInit {
     if (this.busy()) return;
     const key = this.recoveryUnlockInput().trim();
     if (!key) return;
+    const generation = ++this.recoveryUnlockRequestGeneration;
+    const owner = this.captureOwner(generation);
     this.busy.set(true);
     this.actionError.set(null);
     const { data, error } = await this.api.unlockWithRecoveryKey(key);
+    if (!this.owns(owner, this.recoveryUnlockRequestGeneration, false)) {
+      return;
+    }
     this.busy.set(false);
     if (error) {
       this.actionError.set(apiErrorMessage(error, $localize`Failed to unlock.`));
@@ -888,10 +948,15 @@ export class Backups implements OnInit {
    * server's human message — shown inline, verbatim. */
   protected async exportData(): Promise<void> {
     if (this.exporting()) return;
+    const generation = ++this.exportRequestGeneration;
+    const owner = this.captureOwner(generation);
     this.exporting.set(true);
     this.exportError.set(null);
     try {
       const { blob, filename } = await this.api.downloadHouseholdExport();
+      if (!this.owns(owner, this.exportRequestGeneration, false)) {
+        return;
+      }
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = url;
@@ -899,13 +964,18 @@ export class Backups implements OnInit {
       anchor.click();
       URL.revokeObjectURL(url);
     } catch (error) {
+      if (!this.owns(owner, this.exportRequestGeneration, false)) {
+        return;
+      }
       this.exportError.set(
         error instanceof Error
           ? error.message
           : $localize`:Error message|The household export could not be produced:Export failed.`,
       );
     } finally {
-      this.exporting.set(false);
+      if (this.owns(owner, this.exportRequestGeneration, false)) {
+        this.exporting.set(false);
+      }
     }
   }
 

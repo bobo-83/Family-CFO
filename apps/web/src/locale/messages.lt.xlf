@@ -1567,6 +1567,18 @@
         <note priority="1" from="description">A backup finished successfully</note>
         <note priority="1" from="meaning">Status message</note>
       </trans-unit>
+      <trans-unit id="7361065305382543185" datatype="html">
+        <source>Last backup failed: <x id="errorMessage" equiv-text="data.error_message"/>.</source>
+        <target state="needs-review-translation">Paskutinė atsarginė kopija nepavyko: <x id="errorMessage" equiv-text="data.error_message"/>.</target>
+        <note priority="1" from="description">The server returned a failed backup job</note>
+        <note priority="1" from="meaning">Backup failure</note>
+      </trans-unit>
+      <trans-unit id="8597578187121629928" datatype="html">
+        <source>Last backup failed.</source>
+        <target state="needs-review-translation">Paskutinė atsarginė kopija nepavyko.</target>
+        <note priority="1" from="description">The server returned a failed backup job without a reason</note>
+        <note priority="1" from="meaning">Backup failure</note>
+      </trans-unit>
       <trans-unit id="6850477135295181028" datatype="html">
         <source>Restore this backup? This REPLACES all current data with the backup contents. This cannot be undone.</source>
         <target state="needs-review-translation">Atkurti šią kopiją? Tai PAKEIS visus dabartinius duomenis kopijos turiniu. Atšaukti nebus galima.</target>

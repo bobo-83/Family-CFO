@@ -382,7 +382,8 @@ struct SettingsView: View {
                             BackupSettingsView(
                                 viewModel: BackupViewModel(
                                     api: backups,
-                                    sessionIdentity: { model.householdSessionIdentity }))
+                                    sessionIdentity: { model.householdSessionIdentity }),
+                                sessionIdentity: model.householdSessionIdentity)
                         } label: {
                             Label("Backups", systemImage: "externaldrive")
                         }
@@ -561,7 +562,8 @@ struct SettingsView: View {
                 BackupSettingsView(
                     viewModel: BackupViewModel(
                         api: backups,
-                        sessionIdentity: { model.householdSessionIdentity }))
+                        sessionIdentity: { model.householdSessionIdentity }),
+                    sessionIdentity: model.householdSessionIdentity)
             } label: {
                 Label("Privacy mode", systemImage: "lock.rotation")
             }

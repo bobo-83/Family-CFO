@@ -170,6 +170,16 @@ async function flushUntil(predicate: () => boolean): Promise<void> {
   expect(predicate()).toBe(true);
 }
 
+function setOwnerSession(suffix: string) {
+  setAuthState({
+    accessToken: `token-${suffix}`,
+    householdId: `household-${suffix}`,
+    userId: `user-${suffix}`,
+    role: 'owner',
+    rights: ['backups.manage'],
+  });
+}
+
 function configure(apiMock: Record<string, unknown>, role: string) {
   TestBed.configureTestingModule({
     imports: [Backups],
@@ -221,6 +231,38 @@ describe('Backups', () => {
 
     await fixture.componentInstance['createBackup']();
     expect(apiMock.createBackup).toHaveBeenCalled();
+    expect(apiMock.getBackupRecoveryStatus).toHaveBeenCalledTimes(2);
+  });
+
+  it('shows a returned failed backup job as failure and still refreshes state', async () => {
+    const apiMock = {
+      listBackups: vi.fn().mockResolvedValue(response({ backups: [] })),
+      getBackupConfig: vi
+        .fn()
+        .mockResolvedValue(response(backupConfig({ smb_host: null, has_password: false }))),
+      getBackupRecoveryStatus: vi.fn().mockResolvedValue(response(recoveryStatus())),
+      getHouseholdKeyStatus: vi.fn().mockResolvedValue(response(keyStatus())),
+      createBackup: vi
+        .fn()
+        .mockResolvedValue(
+          response({ id: 'failed-1', status: 'failed', error_message: 'Disk is full' }),
+        ),
+      listRemoteBackups: vi.fn().mockResolvedValue(response({ backups: [] })),
+    };
+    configure(apiMock, 'owner');
+
+    const fixture = TestBed.createComponent(Backups);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const reloadSpy = vi.spyOn(fixture.componentInstance['backups'], 'reload');
+    await fixture.componentInstance['createBackup']();
+
+    expect(fixture.componentInstance['latest']()?.status).toBe('failed');
+    expect(fixture.componentInstance['statusMessage']()).toBeNull();
+    expect(fixture.componentInstance['actionError']()).toContain('Disk is full');
+    expect(reloadSpy).toHaveBeenCalledTimes(1);
+    expect(apiMock.listRemoteBackups).toHaveBeenCalledTimes(1);
     expect(apiMock.getBackupRecoveryStatus).toHaveBeenCalledTimes(2);
   });
 
@@ -329,6 +371,102 @@ describe('Backups', () => {
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('FCFO-test-recovery-key-0000');
     expect(text).toContain('This is the only time it will be shown.');
+  });
+
+  it('publishes the owned recovery key before status refresh and clears it on A→B', async () => {
+    setOwnerSession('recovery-status-a');
+    const oldStatus = deferred<ReturnType<typeof response>>();
+    const getHouseholdKeyStatus = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response(keyStatus({ has_recovery_key: false, recovery_key_created_at: null })),
+      )
+      .mockImplementationOnce(() => oldStatus.promise)
+      .mockResolvedValue(response(keyStatus({ device_wraps: 9 })));
+    const apiMock = {
+      listBackups: vi.fn().mockResolvedValue(response({ backups: [] })),
+      getBackupConfig: vi
+        .fn()
+        .mockResolvedValue(response(backupConfig({ smb_host: null, has_password: false }))),
+      getBackupRecoveryStatus: vi.fn().mockResolvedValue(response(recoveryStatus())),
+      getHouseholdKeyStatus,
+      generateRecoveryKey: vi
+        .fn()
+        .mockResolvedValue(response({ recovery_key: 'owned-one-time-secret' })),
+    };
+    configure(apiMock, 'owner');
+    const fixture = TestBed.createComponent(Backups);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const component = fixture.componentInstance;
+
+    const generation = component['generateRecoveryKey']();
+    await flushUntil(() => getHouseholdKeyStatus.mock.calls.length === 2);
+
+    // The only response carrying the secret is not held hostage by the
+    // best-effort posture refresh.
+    expect(component['generatedRecoveryKey']()).toBe('owned-one-time-secret');
+    expect(component['busy']()).toBe(true);
+
+    setOwnerSession('recovery-status-b');
+    await flushUntil(() => getHouseholdKeyStatus.mock.calls.length === 3);
+    expect(component['generatedRecoveryKey']()).toBeNull();
+
+    oldStatus.resolve(response(keyStatus({ device_wraps: 1 })));
+    await generation;
+    expect(component['generatedRecoveryKey']()).toBeNull();
+    expect(component['keyStatus']()?.device_wraps).toBe(9);
+    expect(component['busy']()).toBe(false);
+    fixture.destroy();
+    clearAuthState();
+  });
+
+  it('rejects old-session recovery-key completion without clearing the current request', async () => {
+    setOwnerSession('recovery-a');
+    const oldRequest = deferred<ReturnType<typeof response>>();
+    const currentRequest = deferred<ReturnType<typeof response>>();
+    const generateRecoveryKey = vi
+      .fn()
+      .mockImplementationOnce(() => oldRequest.promise)
+      .mockImplementationOnce(() => currentRequest.promise);
+    const apiMock = {
+      listBackups: vi.fn().mockResolvedValue(response({ backups: [] })),
+      getBackupConfig: vi
+        .fn()
+        .mockResolvedValue(response(backupConfig({ smb_host: null, has_password: false }))),
+      getBackupRecoveryStatus: vi.fn().mockResolvedValue(response(recoveryStatus())),
+      getHouseholdKeyStatus: vi
+        .fn()
+        .mockResolvedValue(
+          response(keyStatus({ has_recovery_key: false, recovery_key_created_at: null })),
+        ),
+      generateRecoveryKey,
+    };
+    configure(apiMock, 'owner');
+    const fixture = TestBed.createComponent(Backups);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const component = fixture.componentInstance;
+
+    const stale = component['generateRecoveryKey']();
+    await flushUntil(() => generateRecoveryKey.mock.calls.length === 1);
+    setOwnerSession('recovery-b');
+    await flushUntil(() => apiMock.getBackupConfig.mock.calls.length >= 2);
+    const current = component['generateRecoveryKey']();
+    await flushUntil(() => generateRecoveryKey.mock.calls.length === 2);
+
+    oldRequest.resolve(response({ recovery_key: 'old-session-secret' }));
+    await stale;
+    expect(component['generatedRecoveryKey']()).toBeNull();
+    expect(component['busy']()).toBe(true);
+    expect(component['actionError']()).toBeNull();
+
+    currentRequest.resolve(response({ recovery_key: 'current-session-secret' }));
+    await current;
+    expect(component['generatedRecoveryKey']()).toBe('current-session-secret');
+    expect(component['busy']()).toBe(false);
+    fixture.destroy();
+    clearAuthState();
   });
 
   // --- ADR 0072 Phase 3: privacy mode (convenient ↔ sealed) ---
@@ -457,6 +595,65 @@ describe('Backups', () => {
     expect(host.querySelector('input[placeholder="FCFO-…"]')).toBeTruthy();
   });
 
+  it('rejects old-session unlock completion without clearing replacement-session input', async () => {
+    setOwnerSession('unlock-a');
+    const oldRequest = deferred<ReturnType<typeof response>>();
+    const currentRequest = deferred<ReturnType<typeof response>>();
+    const unlockWithRecoveryKey = vi
+      .fn()
+      .mockImplementationOnce(() => oldRequest.promise)
+      .mockImplementationOnce(() => currentRequest.promise);
+    const apiMock = {
+      listBackups: vi.fn().mockResolvedValue(response({ backups: [] })),
+      getBackupConfig: vi
+        .fn()
+        .mockResolvedValue(response(backupConfig({ smb_host: null, has_password: false }))),
+      getBackupRecoveryStatus: vi.fn().mockResolvedValue(response(recoveryStatus())),
+      getHouseholdKeyStatus: vi
+        .fn()
+        .mockResolvedValue(
+          response(keyStatus({ mode: 'sealed', unlocked: false, device_wraps: 7 })),
+        ),
+      unlockWithRecoveryKey,
+    };
+    configure(apiMock, 'owner');
+    const fixture = TestBed.createComponent(Backups);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const component = fixture.componentInstance;
+    component['showRecoveryUnlock'].set(true);
+    component['recoveryUnlockInput'].set('old-session-key');
+
+    const stale = component['unlockWithRecoveryKey']();
+    await flushUntil(() => unlockWithRecoveryKey.mock.calls.length === 1);
+    setOwnerSession('unlock-b');
+    await flushUntil(() => apiMock.getBackupConfig.mock.calls.length >= 2);
+    component['showRecoveryUnlock'].set(true);
+    component['recoveryUnlockInput'].set('current-session-key');
+    const current = component['unlockWithRecoveryKey']();
+    await flushUntil(() => unlockWithRecoveryKey.mock.calls.length === 2);
+
+    oldRequest.resolve(response(keyStatus({ mode: 'sealed', unlocked: true, device_wraps: 1 })));
+    await stale;
+    expect(component['recoveryUnlockInput']()).toBe('current-session-key');
+    expect(component['showRecoveryUnlock']()).toBe(true);
+    expect(component['statusMessage']()).toBeNull();
+    expect(component['busy']()).toBe(true);
+
+    currentRequest.resolve(
+      response(keyStatus({ mode: 'sealed', unlocked: true, device_wraps: 9 })),
+    );
+    await current;
+    expect(component['recoveryUnlockInput']()).toBe('');
+    expect(component['showRecoveryUnlock']()).toBe(false);
+    expect(component['statusMessage']()).toBe('Household unlocked.');
+    expect(component['keyStatus']()?.device_wraps).toBe(9);
+    expect(unlockWithRecoveryKey).toHaveBeenNthCalledWith(1, 'old-session-key');
+    expect(unlockWithRecoveryKey).toHaveBeenNthCalledWith(2, 'current-session-key');
+    fixture.destroy();
+    clearAuthState();
+  });
+
   it('offers the recovery unlock for a locked convenient household too', async () => {
     // A convenient household restored without its master key is locked as
     // well (stale box wrap) — the same rescue applies.
@@ -507,6 +704,55 @@ describe('Backups', () => {
     fixture.detectChanges();
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('Switch back to convenient…');
+  });
+
+  it('rejects old-session seal completion without clearing the current request', async () => {
+    setOwnerSession('seal-a');
+    const oldRequest = deferred<ReturnType<typeof response>>();
+    const currentRequest = deferred<ReturnType<typeof response>>();
+    const setSealMode = vi
+      .fn()
+      .mockImplementationOnce(() => oldRequest.promise)
+      .mockImplementationOnce(() => currentRequest.promise);
+    const apiMock = {
+      listBackups: vi.fn().mockResolvedValue(response({ backups: [] })),
+      getBackupConfig: vi
+        .fn()
+        .mockResolvedValue(response(backupConfig({ smb_host: null, has_password: false }))),
+      getBackupRecoveryStatus: vi.fn().mockResolvedValue(response(recoveryStatus())),
+      getHouseholdKeyStatus: vi
+        .fn()
+        .mockResolvedValue(response(keyStatus({ mode: 'convenient', device_wraps: 7 }))),
+      setSealMode,
+    };
+    configure(apiMock, 'owner');
+    const fixture = TestBed.createComponent(Backups);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const component = fixture.componentInstance;
+
+    const stale = component['setSealMode']('sealed');
+    await flushUntil(() => setSealMode.mock.calls.length === 1);
+    setOwnerSession('seal-b');
+    await flushUntil(() => apiMock.getBackupConfig.mock.calls.length >= 2);
+    const current = component['setSealMode']('sealed');
+    await flushUntil(() => setSealMode.mock.calls.length === 2);
+
+    oldRequest.resolve(response(keyStatus({ mode: 'sealed', device_wraps: 1 })));
+    await stale;
+    expect(component['keyStatus']()?.mode).toBe('convenient');
+    expect(component['keyStatus']()?.device_wraps).toBe(7);
+    expect(component['busy']()).toBe(true);
+
+    currentRequest.resolve(response(keyStatus({ mode: 'sealed', device_wraps: 9 })));
+    await current;
+    expect(component['keyStatus']()?.mode).toBe('sealed');
+    expect(component['keyStatus']()?.device_wraps).toBe(9);
+    expect(component['busy']()).toBe(false);
+    confirmSpy.mockRestore();
+    fixture.destroy();
+    clearAuthState();
   });
 
   it('surfaces the 409 precondition message verbatim', async () => {
@@ -578,6 +824,104 @@ describe('Backups', () => {
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:mock');
     expect(fixture.componentInstance['exportError']()).toBeNull();
     clickSpy.mockRestore();
+  });
+
+  it('does not trigger a download after the component is destroyed', async () => {
+    setOwnerSession('export-destroy');
+    const request = deferred<{ blob: Blob; filename: string }>();
+    const downloadHouseholdExport = vi.fn().mockImplementation(() => request.promise);
+    const apiMock = {
+      listBackups: vi.fn().mockResolvedValue(response({ backups: [] })),
+      getBackupConfig: vi
+        .fn()
+        .mockResolvedValue(response(backupConfig({ smb_host: null, has_password: false }))),
+      getBackupRecoveryStatus: vi.fn().mockResolvedValue(response(recoveryStatus())),
+      getHouseholdKeyStatus: vi.fn().mockResolvedValue(response(keyStatus())),
+      downloadHouseholdExport,
+    };
+    configure(apiMock, 'owner');
+    const fixture = TestBed.createComponent(Backups);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const component = fixture.componentInstance;
+    URL.createObjectURL = vi.fn(() => 'blob:destroyed');
+    URL.revokeObjectURL = vi.fn();
+    const clickSpy = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(() => undefined);
+
+    const exportAction = component['exportData']();
+    await flushUntil(() => downloadHouseholdExport.mock.calls.length === 1);
+    fixture.destroy();
+    request.resolve({
+      blob: new Blob(['destroyed-component-bytes'], { type: 'application/zip' }),
+      filename: 'destroyed.zip',
+    });
+    await exportAction;
+
+    expect(URL.createObjectURL).not.toHaveBeenCalled();
+    expect(clickSpy).not.toHaveBeenCalled();
+    expect(component['exporting']()).toBe(false);
+    clickSpy.mockRestore();
+    clearAuthState();
+  });
+
+  it('does not download an old-session export or clear the current export slot', async () => {
+    setOwnerSession('export-a');
+    const oldRequest = deferred<{ blob: Blob; filename: string }>();
+    const currentRequest = deferred<{ blob: Blob; filename: string }>();
+    const downloadHouseholdExport = vi
+      .fn()
+      .mockImplementationOnce(() => oldRequest.promise)
+      .mockImplementationOnce(() => currentRequest.promise);
+    const apiMock = {
+      listBackups: vi.fn().mockResolvedValue(response({ backups: [] })),
+      getBackupConfig: vi
+        .fn()
+        .mockResolvedValue(response(backupConfig({ smb_host: null, has_password: false }))),
+      getBackupRecoveryStatus: vi.fn().mockResolvedValue(response(recoveryStatus())),
+      getHouseholdKeyStatus: vi.fn().mockResolvedValue(response(keyStatus())),
+      downloadHouseholdExport,
+    };
+    configure(apiMock, 'owner');
+    const fixture = TestBed.createComponent(Backups);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const component = fixture.componentInstance;
+    URL.createObjectURL = vi.fn(() => 'blob:current');
+    URL.revokeObjectURL = vi.fn();
+    const clickSpy = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(() => undefined);
+
+    const stale = component['exportData']();
+    await flushUntil(() => downloadHouseholdExport.mock.calls.length === 1);
+    setOwnerSession('export-b');
+    await flushUntil(() => apiMock.getBackupConfig.mock.calls.length >= 2);
+    const current = component['exportData']();
+    await flushUntil(() => downloadHouseholdExport.mock.calls.length === 2);
+
+    oldRequest.resolve({
+      blob: new Blob(['old-session-bytes'], { type: 'application/zip' }),
+      filename: 'old-session.zip',
+    });
+    await stale;
+    expect(URL.createObjectURL).not.toHaveBeenCalled();
+    expect(clickSpy).not.toHaveBeenCalled();
+    expect(component['exporting']()).toBe(true);
+    expect(component['exportError']()).toBeNull();
+
+    currentRequest.resolve({
+      blob: new Blob(['current-session-bytes'], { type: 'application/zip' }),
+      filename: 'current-session.zip',
+    });
+    await current;
+    expect(URL.createObjectURL).toHaveBeenCalledTimes(1);
+    expect(clickSpy).toHaveBeenCalledTimes(1);
+    expect(component['exporting']()).toBe(false);
+    clickSpy.mockRestore();
+    fixture.destroy();
+    clearAuthState();
   });
 
   it('surfaces the 423 locked message inline when the export fails', async () => {

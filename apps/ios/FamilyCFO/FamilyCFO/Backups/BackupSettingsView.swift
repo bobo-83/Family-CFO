@@ -6,8 +6,10 @@ import UIKit
 /// the connection, pick a schedule, see status, and restore from the share.
 struct BackupSettingsView: View {
     @State var viewModel: BackupViewModel
+    let sessionIdentity: String?
     @State private var expandedDays: Set<String> = []
     @State private var showingExportShare = false
+    @State private var exportShareURL: URL?
     @State private var pendingRestore: Components.Schemas.RemoteBackup?
     @State private var pendingLocalRestore: Components.Schemas.BackupJob?
     @State private var confirmReplaceRecoveryKey = false
@@ -20,6 +22,21 @@ struct BackupSettingsView: View {
     @State private var recoveryUnlockKey = ""
 
     var body: some View {
+        settingsContent
+            .task(id: sessionIdentity) {
+                viewModel.beginViewLifetime(with: sessionIdentity)
+                guard sessionIdentity != nil else { return }
+                await viewModel.load()
+            }
+            .onChange(of: sessionIdentity) { _, identity in
+                handleSessionReplacement(identity)
+            }
+            .onDisappear {
+                handleViewDisappearance()
+            }
+    }
+
+    private var settingsContent: some View {
         Form {
             connectionSection
             scheduleSection
@@ -39,7 +56,6 @@ struct BackupSettingsView: View {
         .navigationTitle("Backups")
         .navigationBarTitleDisplayMode(.inline)
         .keyboardDoneButton()
-        .task { await viewModel.load() }
         .overlay {
             if viewModel.isLoading && viewModel.latest == nil { ProgressView() }
         }
@@ -117,6 +133,33 @@ struct BackupSettingsView: View {
                 "This overwrites the current database and documents with the backup from \((backup.completedAt ?? backup.createdAt).formatted(date: .abbreviated, time: .shortened)). It can't be undone."
             )
         }
+    }
+
+    private func handleSessionReplacement(_ identity: String?) {
+        discardPresentedExport()
+        viewModel.replaceSessionIfNeeded(with: identity)
+        clearHouseholdPresentationState()
+    }
+
+    private func handleViewDisappearance() {
+        discardPresentedExport()
+        viewModel.endViewLifetime()
+        clearHouseholdPresentationState()
+    }
+
+    private func discardPresentedExport() {
+        showingExportShare = false
+        if let url = exportShareURL {
+            viewModel.discardExportedFile(url)
+            exportShareURL = nil
+        }
+    }
+
+    private func clearHouseholdPresentationState() {
+        confirmReplaceRecoveryKey = false
+        pendingSealTarget = nil
+        showRecoveryUnlock = false
+        recoveryUnlockKey = ""
     }
 
     private var connectionSection: some View {
@@ -532,6 +575,7 @@ struct BackupSettingsView: View {
                         Button("Replace recovery key…") {
                             confirmReplaceRecoveryKey = true
                         }
+                        .disabled(viewModel.isGeneratingRecoveryKey)
                     } else {
                         Label(
                             "No recovery key yet. Without one, losing every password and paired phone loses the data. Create it and store it beside your backup key.",
@@ -542,6 +586,7 @@ struct BackupSettingsView: View {
                         Button("Create recovery key") {
                             Task { await viewModel.createRecoveryKey() }
                         }
+                        .disabled(viewModel.isGeneratingRecoveryKey)
                     }
                     if let mode = status.mode {
                         privacyModeRows(mode: mode, unlocked: status.unlocked ?? true)
@@ -589,6 +634,7 @@ struct BackupSettingsView: View {
         Button(mode == .sealed ? "Switch back to convenient…" : "Seal this household…") {
             pendingSealTarget = (mode != .sealed)
         }
+        .disabled(viewModel.isChangingSealMode)
     }
 
     /// "Unlock with recovery key…" beneath the locked line: tapping reveals an
@@ -603,17 +649,19 @@ struct BackupSettingsView: View {
             Button("Unlock") {
                 Task { await submitRecoveryUnlock() }
             }
-            .disabled(recoveryUnlockKey.trimmingCharacters(in: .whitespaces).isEmpty)
+            .disabled(
+                recoveryUnlockKey.trimmingCharacters(in: .whitespaces).isEmpty
+                    || viewModel.isUnlocking)
         } else {
             Button("Unlock with recovery key…") { showRecoveryUnlock = true }
+                .disabled(viewModel.isUnlocking)
         }
     }
 
     private func submitRecoveryUnlock() async {
-        await viewModel.unlockWithRecoveryKey(recoveryUnlockKey)
-        // Only a real unlock clears the field — a wrong key keeps it open for
-        // another try (the alert already showed the server's message).
-        if viewModel.keyStatus?.unlocked == true {
+        // Only the still-current request may clear replacement-session input.
+        // A wrong key or stale A→B completion keeps the field open.
+        if await viewModel.unlockWithRecoveryKey(recoveryUnlockKey) {
             recoveryUnlockKey = ""
             showRecoveryUnlock = false
         }
@@ -636,8 +684,12 @@ struct BackupSettingsView: View {
         Section {
             Button {
                 Task {
-                    await viewModel.exportData()
-                    if viewModel.exportedFileURL != nil {
+                    // A stale A→B completion returns nil even if a newer request
+                    // has already published its own URL, so it cannot present a sheet.
+                    if let url = await viewModel.exportData(),
+                        viewModel.claimExportForPresentation(url)
+                    {
+                        exportShareURL = url
                         showingExportShare = true
                     }
                 }
@@ -649,8 +701,13 @@ struct BackupSettingsView: View {
                 }
             }
             .disabled(viewModel.isExporting)
-            .sheet(isPresented: $showingExportShare) {
-                if let url = viewModel.exportedFileURL {
+            .sheet(
+                isPresented: $showingExportShare,
+                onDismiss: {
+                    discardPresentedExport()
+                }
+            ) {
+                if let url = exportShareURL {
                     ShareSheet(items: [url])
                 }
             }

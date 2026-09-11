@@ -11722,6 +11722,22 @@
         }
       }
     },
+    "Pending": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Laukiama"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang chờ"
+          }
+        }
+      }
+    },
     "Per-household encryption is off on this box.": {
       "localizations": {
         "lt": {
