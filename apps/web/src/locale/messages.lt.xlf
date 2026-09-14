@@ -8108,6 +8108,118 @@
         <note priority="1" from="description">Backups stored on a Synology NAS</note>
         <note priority="1" from="meaning">Destination heading</note>
       </trans-unit>
+      <trans-unit id="6011299498954659900" datatype="html">
+        <source> Backup settings need reconciliation </source>
+        <target state="translated"> Reikia suderinti atsarginių kopijų nustatymus </target>
+      </trans-unit>
+      <trans-unit id="5747593419615433999" datatype="html">
+        <source> Reloading current box settings… </source>
+        <target state="translated"> Įkeliami dabartiniai įrenginio nustatymai… </target>
+      </trans-unit>
+      <trans-unit id="8436083463307303407" datatype="html">
+        <source> Your draft is preserved, but Retry and Use current stay unavailable until the latest box settings load successfully. </source>
+        <target state="translated"> Jūsų juodraštis išsaugotas, tačiau Kartoti ir Naudoti dabartinius nustatymus bus nepasiekiami, kol nebus sėkmingai įkelti naujausi įrenginio nustatymai. </target>
+      </trans-unit>
+      <trans-unit id="5075042872246985344" datatype="html">
+        <source> Reload current settings </source>
+        <target state="translated"> Įkelti dabartinius nustatymus </target>
+      </trans-unit>
+      <trans-unit id="5898346554635092510" datatype="html">
+        <source> The retention draft changed after the failed activation. Confirm the current settings with the activation button instead of retrying the older policy. </source>
+        <target state="translated"> Po nepavykusio aktyvinimo saugojimo juodraštis pasikeitė. Patvirtinkite dabartinius nustatymus aktyvinimo mygtuku, užuot kartoję senesnę taisyklę. </target>
+      </trans-unit>
+      <trans-unit id="3420577457276280565" datatype="html">
+        <source> Retry will submit the preserved confirmed retention policy with your latest schedule and destination values. </source>
+        <target state="translated"> Kartojant bus pateikta išsaugota patvirtinta saugojimo taisyklė su naujausiomis tvarkaraščio ir paskirties reikšmėmis. </target>
+      </trans-unit>
+      <trans-unit id="2593324903694368989" datatype="html">
+        <source> Use current box settings </source>
+        <target state="translated"> Naudoti dabartinius įrenginio nustatymus </target>
+      </trans-unit>
+      <trans-unit id="5721894058175351277" datatype="html">
+        <source> Retry preserved settings </source>
+        <target state="translated"> Kartoti išsaugotus nustatymus </target>
+      </trans-unit>
+      <trans-unit id="7016459229358203752" datatype="html">
+        <source>Activation pending…</source>
+        <target state="translated">Aktyvinimas laukia…</target>
+      </trans-unit>
+      <trans-unit id="3836001397119036047" datatype="html">
+        <source>Save and activate current settings</source>
+        <target state="translated">Išsaugoti ir aktyvinti dabartinius nustatymus</target>
+      </trans-unit>
+      <trans-unit id="8131961711896931021" datatype="html">
+        <source>Save and activate retention</source>
+        <target state="translated">Išsaugoti ir aktyvinti saugojimą</target>
+      </trans-unit>
+      <trans-unit id="5168421117686767811" datatype="html">
+        <source> Retention still requires administrator review. Automatic pruning remains paused; use Save and activate retention above after reviewing both policies. </source>
+        <target state="translated"> Saugojimą vis dar turi peržiūrėti administratorius. Automatinis šalinimas tebėra pristabdytas; peržiūrėję abi taisykles, aukščiau pasirinkite „Išsaugoti ir aktyvinti saugojimą“. </target>
+      </trans-unit>
+      <trans-unit id="3542634937273028238" datatype="html">
+        <source>Activation queued. It will use the saved revision from the current request.</source>
+        <target state="translated">Aktyvinimas įtrauktas į eilę. Jis naudos dabartinės užklausos išsaugotą versijos žymą.</target>
+      </trans-unit>
+      <trans-unit id="1367196762668394785" datatype="html">
+        <source>Saving and activating retention…</source>
+        <target state="translated">Saugojimo taisyklė išsaugoma ir aktyvinama…</target>
+      </trans-unit>
+      <trans-unit id="1937781153146231817" datatype="html">
+        <source>Backup settings changed or are busy. Your draft is preserved and was not replayed.</source>
+        <target state="translated">Atsarginių kopijų nustatymai pasikeitė arba yra užimti. Jūsų juodraštis išsaugotas ir nebuvo pakartotinai pateiktas.</target>
+      </trans-unit>
+      <trans-unit id="143410431445414417" datatype="html">
+        <source>Backup settings were not saved. Sign in again or restore backup-management permission before continuing.</source>
+        <target state="translated">Atsarginių kopijų nustatymai neišsaugoti. Prisijunkite iš naujo arba atkurkite atsarginių kopijų tvarkymo teisę.</target>
+      </trans-unit>
+      <trans-unit id="2277295845089036870" datatype="html">
+        <source>Backup settings were rejected. Correct the highlighted values and confirm again.</source>
+        <target state="translated">Atsarginių kopijų nustatymai atmesti. Pataisykite pažymėtas reikšmes ir patvirtinkite iš naujo.</target>
+      </trans-unit>
+      <trans-unit id="2340653227916509873" datatype="html">
+        <source>The server did not accept the required revision. Reload current settings; this client will not fall back to timestamp or tokenless writes.</source>
+        <target state="translated">Serveris nepriėmė reikalaujamos versijos žymos. Įkelkite dabartinius nustatymus; ši programa negrįš prie laiko žymų ar įrašų be žymos.</target>
+      </trans-unit>
+      <trans-unit id="1323062552557231070" datatype="html">
+        <source>Backup settings may have been accepted, but the response was not confirmed. Reload before deciding whether to retry.</source>
+        <target state="translated">Atsarginių kopijų nustatymai galėjo būti priimti, bet atsakymas nebuvo patvirtintas. Prieš spręsdami, ar kartoti, įkelkite nustatymus iš naujo.</target>
+      </trans-unit>
+      <trans-unit id="1863465124104532632" datatype="html">
+        <source>Current backup settings could not be reloaded. Your draft is still preserved.</source>
+        <target state="translated">Nepavyko iš naujo įkelti dabartinių atsarginių kopijų nustatymų. Jūsų juodraštis vis dar išsaugotas.</target>
+      </trans-unit>
+      <trans-unit id="3759486539739106893" datatype="html">
+        <source>The box now matches these settings, but this request’s response was not confirmed.</source>
+        <target state="translated">Dabar įrenginio nustatymai atitinka šiuos nustatymus, bet šios užklausos atsakymas nebuvo patvirtintas.</target>
+      </trans-unit>
+      <trans-unit id="1352783997575369471" datatype="html">
+        <source>Schedule saved.</source>
+        <target state="translated">Tvarkaraštis išsaugotas.</target>
+      </trans-unit>
+      <trans-unit id="2761253584556708802" datatype="html">
+        <source>Destination saved.</source>
+        <target state="translated">Paskirties vieta išsaugota.</target>
+      </trans-unit>
+      <trans-unit id="8606802403512764125" datatype="html">
+        <source>Retention saved and activated. Pruning runs during independent maintenance.</source>
+        <target state="translated">Saugojimo taisyklė išsaugota ir aktyvinta. Kopijos šalinamos per atskirą priežiūros procesą.</target>
+      </trans-unit>
+      <trans-unit id="6461247721430567569" datatype="html">
+        <source>Review required</source>
+        <target state="translated">Reikia peržiūrėti</target>
+      </trans-unit>
+      <trans-unit id="1844932095609705714" datatype="html">
+        <source>Review required. API recovery status is degraded because retention policy review is pending.</source>
+        <target state="translated">Reikia peržiūrėti. API atkūrimo būsena yra suprastėjusi, nes laukiama saugojimo taisyklės peržiūros.</target>
+      </trans-unit>
+      <trans-unit id="5963545798844784534" datatype="html">
+        <source>API recovery status is <x id="status" equiv-text="this.destinationStateLabel(status.status)"/>.</source>
+        <target state="translated">API atkūrimo būsena: <x id="status" equiv-text="this.destinationStateLabel(status.status)"/>.</target>
+      </trans-unit>
+      <trans-unit id="3225932137483997572" datatype="html">
+        <source>Automatic pruning is paused until an administrator activates retention. The server reports no additional inventory, read-probe, capacity, or anomaly reason.</source>
+        <target state="translated">Automatinis šalinimas pristabdytas, kol administratorius aktyvins saugojimo taisyklę. Serveris nepraneša apie jokias papildomas inventoriaus, nuskaitymo patikros, talpos ar anomalijų priežastis.</target>
+      </trans-unit>
     </body>
   </file>
 </xliff>

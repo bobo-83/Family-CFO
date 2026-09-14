@@ -1952,7 +1952,15 @@ export type BackupConfig = {
      */
     retention_activated_at: string | null;
     /**
+     * Revision
+     *
+     * Opaque preferred concurrency token; clients must not parse, sort, increment, or display it.
+     */
+    revision: string;
+    /**
      * Updated At
+     *
+     * Modification chronology for display and diagnostics; not a concurrency token.
      */
     updated_at: string;
     /**
@@ -2033,7 +2041,17 @@ export type BackupConfigUpdateRequest = {
      */
     offbox_min_free_bytes?: number;
     /**
+     * Expected Revision
+     *
+     * Preferred opaque optimistic precondition. When both token forms are supplied, both must match.
+     */
+    expected_revision?: string | null;
+    /**
      * Expected Updated At
+     *
+     * Deprecated exact timestamp precondition accepted only for the contract 0.161 compatibility window.
+     *
+     * @deprecated
      */
     expected_updated_at?: string | null;
     /**
@@ -8003,6 +8021,10 @@ export type UpdateBackupConfigErrors = {
      * Error response
      */
     422: ErrorResponse;
+    /**
+     * Error response
+     */
+    428: ErrorResponse;
 };
 
 export type UpdateBackupConfigError = UpdateBackupConfigErrors[keyof UpdateBackupConfigErrors];

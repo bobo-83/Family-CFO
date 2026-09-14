@@ -12655,6 +12655,270 @@
         <note priority="1" from="description">Link to the hosted households page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
       </trans-unit>
+      <trans-unit id="6011299498954659900" datatype="html">
+        <source> Backup settings need reconciliation </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
+          <context context-type="linenumber">478,481</context>
+        </context-group>
+        <note priority="1" from="description">A settings draft requires an explicit choice</note>
+        <note priority="1" from="meaning">Configuration reconciliation heading</note>
+      </trans-unit>
+      <trans-unit id="5747593419615433999" datatype="html">
+        <source> Reloading current box settings… </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
+          <context context-type="linenumber">482,484</context>
+        </context-group>
+        <note priority="1" from="description">The latest box settings are loading</note>
+        <note priority="1" from="meaning">Configuration reload progress</note>
+      </trans-unit>
+      <trans-unit id="8436083463307303407" datatype="html">
+        <source> Your draft is preserved, but Retry and Use current stay unavailable until the latest box settings load successfully. </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
+          <context context-type="linenumber">486,489</context>
+        </context-group>
+        <note priority="1" from="description">The draft remains local until reload succeeds</note>
+        <note priority="1" from="meaning">Configuration reload failure detail</note>
+      </trans-unit>
+      <trans-unit id="5075042872246985344" datatype="html">
+        <source> Reload current settings </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
+          <context context-type="linenumber">491,494</context>
+        </context-group>
+        <note priority="1" from="description">Reload the authoritative backup settings after reconciliation failed</note>
+        <note priority="1" from="meaning">Button</note>
+      </trans-unit>
+      <trans-unit id="5898346554635092510" datatype="html">
+        <source> The retention draft changed after the failed activation. Confirm the current settings with the activation button instead of retrying the older policy. </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
+          <context context-type="linenumber">496,499</context>
+        </context-group>
+        <note priority="1" from="description">Retention changed after a failed activation</note>
+        <note priority="1" from="meaning">Configuration reconciliation detail</note>
+      </trans-unit>
+      <trans-unit id="3420577457276280565" datatype="html">
+        <source> Retry will submit the preserved confirmed retention policy with your latest schedule and destination values. </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
+          <context context-type="linenumber">501,505</context>
+        </context-group>
+        <note priority="1" from="description">Retry retains confirmed policy and merges latest operations</note>
+        <note priority="1" from="meaning">Configuration reconciliation detail</note>
+      </trans-unit>
+      <trans-unit id="2593324903694368989" datatype="html">
+        <source> Use current box settings </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
+          <context context-type="linenumber">508,510</context>
+        </context-group>
+        <note priority="1" from="description">Discard local drafts and use the authoritative box settings</note>
+        <note priority="1" from="meaning">Button</note>
+      </trans-unit>
+      <trans-unit id="5721894058175351277" datatype="html">
+        <source> Retry preserved settings </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
+          <context context-type="linenumber">513,517</context>
+        </context-group>
+        <note priority="1" from="description">Explicitly retry the preserved settings against the owned current revision</note>
+        <note priority="1" from="meaning">Button</note>
+      </trans-unit>
+      <trans-unit id="7016459229358203752" datatype="html">
+        <source>Activation pending…</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
+          <context context-type="linenumber">523,524</context>
+        </context-group>
+        <note priority="1" from="description">A confirmed retention activation is queued or in progress</note>
+        <note priority="1" from="meaning">Button</note>
+      </trans-unit>
+      <trans-unit id="3836001397119036047" datatype="html">
+        <source>Save and activate current settings</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
+          <context context-type="linenumber">525,527</context>
+        </context-group>
+        <note priority="1" from="description">Supersede an older failed activation with current policies</note>
+        <note priority="1" from="meaning">Button</note>
+      </trans-unit>
+      <trans-unit id="8131961711896931021" datatype="html">
+        <source>Save and activate retention</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
+          <context context-type="linenumber">527,531</context>
+        </context-group>
+        <note priority="1" from="description">Save both policies and explicitly activate pruning</note>
+        <note priority="1" from="meaning">Button</note>
+      </trans-unit>
+      <trans-unit id="5168421117686767811" datatype="html">
+        <source> Retention still requires administrator review. Automatic pruning remains paused; use Save and activate retention above after reviewing both policies. </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
+          <context context-type="linenumber">693,697</context>
+        </context-group>
+        <note priority="1" from="description">Policy is preview-only until activated</note>
+        <note priority="1" from="meaning">Recovery review caveat</note>
+      </trans-unit>
+      <trans-unit id="3542634937273028238" datatype="html">
+        <source>Activation queued. It will use the saved revision from the current request.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
+          <context context-type="linenumber">619</context>
+        </context-group>
+        <note priority="1" from="description">Activation waits for the current settings save</note>
+        <note priority="1" from="meaning">Retention activation queue state</note>
+      </trans-unit>
+      <trans-unit id="1367196762668394785" datatype="html">
+        <source>Saving and activating retention…</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
+          <context context-type="linenumber">620</context>
+        </context-group>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
+          <context context-type="linenumber">715</context>
+        </context-group>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
+          <context context-type="linenumber">942</context>
+        </context-group>
+        <note priority="1" from="description">The confirmed policies are being saved</note>
+        <note priority="1" from="meaning">Retention activation progress</note>
+      </trans-unit>
+      <trans-unit id="1937781153146231817" datatype="html">
+        <source>Backup settings changed or are busy. Your draft is preserved and was not replayed.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
+          <context context-type="linenumber">818</context>
+        </context-group>
+        <note priority="1" from="description">Another administrator or backup operation changed the settings</note>
+        <note priority="1" from="meaning">Configuration conflict</note>
+      </trans-unit>
+      <trans-unit id="143410431445414417" datatype="html">
+        <source>Backup settings were not saved. Sign in again or restore backup-management permission before continuing.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
+          <context context-type="linenumber">820</context>
+        </context-group>
+        <note priority="1" from="description">Authentication or backup-management permission must be restored</note>
+        <note priority="1" from="meaning">Configuration authorization error</note>
+      </trans-unit>
+      <trans-unit id="2277295845089036870" datatype="html">
+        <source>Backup settings were rejected. Correct the highlighted values and confirm again.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
+          <context context-type="linenumber">822</context>
+        </context-group>
+        <note priority="1" from="description">The server rejected the settings draft</note>
+        <note priority="1" from="meaning">Configuration validation error</note>
+      </trans-unit>
+      <trans-unit id="2340653227916509873" datatype="html">
+        <source>The server did not accept the required revision. Reload current settings; this client will not fall back to timestamp or tokenless writes.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
+          <context context-type="linenumber">824</context>
+        </context-group>
+        <note priority="1" from="description">A revision-aware client unexpectedly received HTTP 428</note>
+        <note priority="1" from="meaning">Configuration contract error</note>
+      </trans-unit>
+      <trans-unit id="1323062552557231070" datatype="html">
+        <source>Backup settings may have been accepted, but the response was not confirmed. Reload before deciding whether to retry.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
+          <context context-type="linenumber">825</context>
+        </context-group>
+        <note priority="1" from="description">The settings response was not confirmed</note>
+        <note priority="1" from="meaning">Configuration transport error</note>
+      </trans-unit>
+      <trans-unit id="1863465124104532632" datatype="html">
+        <source>Current backup settings could not be reloaded. Your draft is still preserved.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
+          <context context-type="linenumber">871</context>
+        </context-group>
+        <note priority="1" from="description">The current server settings could not be loaded</note>
+        <note priority="1" from="meaning">Configuration reload error</note>
+      </trans-unit>
+      <trans-unit id="3759486539739106893" datatype="html">
+        <source>The box now matches these settings, but this request’s response was not confirmed.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
+          <context context-type="linenumber">970</context>
+        </context-group>
+        <note priority="1" from="description">The box matches the draft but the request outcome is unknown</note>
+        <note priority="1" from="meaning">Configuration ambiguous acknowledgement</note>
+      </trans-unit>
+      <trans-unit id="1352783997575369471" datatype="html">
+        <source>Schedule saved.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
+          <context context-type="linenumber">1033</context>
+        </context-group>
+        <note priority="1" from="description">The automatic backup schedule was saved</note>
+        <note priority="1" from="meaning">Schedule save success</note>
+      </trans-unit>
+      <trans-unit id="2761253584556708802" datatype="html">
+        <source>Destination saved.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
+          <context context-type="linenumber">1041</context>
+        </context-group>
+        <note priority="1" from="description">The Synology destination settings were saved</note>
+        <note priority="1" from="meaning">Destination save success</note>
+      </trans-unit>
+      <trans-unit id="8606802403512764125" datatype="html">
+        <source>Retention saved and activated. Pruning runs during independent maintenance.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
+          <context context-type="linenumber">1049</context>
+        </context-group>
+        <note priority="1" from="description">The policies were saved and activation completed</note>
+        <note priority="1" from="meaning">Retention activation success</note>
+      </trans-unit>
+      <trans-unit id="6461247721430567569" datatype="html">
+        <source>Review required</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
+          <context context-type="linenumber">1689</context>
+        </context-group>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
+          <context context-type="linenumber">1695</context>
+        </context-group>
+        <note priority="1" from="description">Only administrator retention review degrades this destination</note>
+        <note priority="1" from="meaning">Recovery review state</note>
+      </trans-unit>
+      <trans-unit id="1844932095609705714" datatype="html">
+        <source>Review required. API recovery status is degraded because retention policy review is pending.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
+          <context context-type="linenumber">1701</context>
+        </context-group>
+        <note priority="1" from="description">Names the presentation and underlying API state</note>
+        <note priority="1" from="meaning">Recovery review accessibility</note>
+      </trans-unit>
+      <trans-unit id="5963545798844784534" datatype="html">
+        <source>API recovery status is <x id="status" equiv-text="this.destinationStateLabel(status.status)"/>.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
+          <context context-type="linenumber">1702</context>
+        </context-group>
+        <note priority="1" from="description">Names the API-derived destination state</note>
+        <note priority="1" from="meaning">Recovery status accessibility</note>
+      </trans-unit>
+      <trans-unit id="3225932137483997572" datatype="html">
+        <source>Automatic pruning is paused until an administrator activates retention. The server reports no additional inventory, read-probe, capacity, or anomaly reason.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/backups/backups.ts</context>
+          <context context-type="linenumber">1707</context>
+        </context-group>
+        <note priority="1" from="description">Review is the only reported degradation reason</note>
+        <note priority="1" from="meaning">Recovery review detail</note>
+      </trans-unit>
     </body>
   </file>
 </xliff>

@@ -7,39 +7,6 @@
   @if (statusMessage()) {
     <p class="backups-note" role="status">{{ statusMessage() }}</p>
   }
-  @if (configConflict()) {
-    <section class="backups-conflict" role="alert" aria-labelledby="backup-conflict-heading">
-      <h2
-        id="backup-conflict-heading"
-        i18n="Configuration conflict heading|A concurrent edit needs a deliberate choice"
-      >
-        Backup settings changed elsewhere
-      </h2>
-      <p i18n="Configuration conflict detail|The local form was intentionally not overwritten">
-        Your unsaved draft is still here. Load the current settings to discard it, or deliberately
-        retry your draft against the latest version.
-      </p>
-      <div class="backups-actions">
-        <button
-          mat-stroked-button
-          type="button"
-          (click)="useCurrentConflictConfig()"
-          i18n="Button|Discard the local draft and load the concurrent settings"
-        >
-          Use current settings
-        </button>
-        <button
-          mat-flat-button
-          type="button"
-          (click)="retryConflictDraft()"
-          i18n="Button|Deliberately resubmit the preserved draft against the current version"
-        >
-          Retry my draft
-        </button>
-      </div>
-    </section>
-  }
-
   <mat-card appearance="outlined" class="backups-card">
     <mat-card-content>
       <h2 i18n="Section heading|Copying backups off the box to a Synology NAS over SMB">
@@ -63,7 +30,8 @@
             matInput
             type="text"
             [ngModel]="host()"
-            (ngModelChange)="host.set($event)"
+            [disabled]="!serverConfig()"
+            (ngModelChange)="host.set($event); onDestinationEdit()"
             (blur)="saveConfig()"
             placeholder="192.168.1.50"
           />
@@ -76,7 +44,8 @@
             matInput
             type="text"
             [ngModel]="share()"
-            (ngModelChange)="share.set($event)"
+            [disabled]="!serverConfig()"
+            (ngModelChange)="share.set($event); onDestinationEdit()"
             (blur)="saveConfig()"
             placeholder="family-cfo-backups"
           />
@@ -89,7 +58,8 @@
             matInput
             type="text"
             [ngModel]="folder()"
-            (ngModelChange)="folder.set($event)"
+            [disabled]="!serverConfig()"
+            (ngModelChange)="folder.set($event); onDestinationEdit()"
             (blur)="saveConfig()"
           />
         </mat-form-field>
@@ -101,7 +71,8 @@
             matInput
             type="text"
             [ngModel]="username()"
-            (ngModelChange)="username.set($event)"
+            [disabled]="!serverConfig()"
+            (ngModelChange)="username.set($event); onDestinationEdit()"
             (blur)="saveConfig()"
             placeholder="backup-user"
           />
@@ -114,6 +85,7 @@
             matInput
             type="password"
             [ngModel]="password()"
+            [disabled]="!serverConfig()"
             (ngModelChange)="password.set($event); onPasswordInput()"
             (blur)="saveConfig()"
             [placeholder]="passwordPlaceholder()"
@@ -127,35 +99,54 @@
             matInput
             type="text"
             [ngModel]="domain()"
-            (ngModelChange)="domain.set($event)"
+            [disabled]="!serverConfig()"
+            (ngModelChange)="domain.set($event); onDestinationEdit()"
             (blur)="saveConfig()"
             placeholder="WORKGROUP"
           />
         </mat-form-field>
-        <mat-form-field appearance="outline">
-          <mat-label i18n="Form field label|How often backups run automatically"
-            >Schedule</mat-label
-          >
-          <mat-select [ngModel]="frequency()" (ngModelChange)="frequency.set($event); saveConfig()">
-            <mat-option value="every_15min" i18n="Backup schedule|Back up every fifteen minutes"
-              >Every 15 minutes</mat-option
+        <div class="config-control-feedback">
+          <mat-form-field appearance="outline">
+            <mat-label i18n="Form field label|How often backups run automatically"
+              >Schedule</mat-label
             >
-            <mat-option value="hourly" i18n="Backup schedule|Back up once an hour"
-              >Hourly</mat-option
-            >
-            <mat-option value="every_6h" i18n="Backup schedule|Back up every six hours"
-              >Every 6 hours</mat-option
-            >
-            <mat-option value="daily" i18n="Backup schedule|Back up once a day">Daily</mat-option>
-            <mat-option value="weekly" i18n="Backup schedule|Back up once a week"
-              >Weekly</mat-option
-            >
-            <mat-option value="off" i18n="Backup schedule|Never back up automatically"
-              >Off</mat-option
-            >
-          </mat-select>
-        </mat-form-field>
+            <mat-select [ngModel]="frequency()" [disabled]="!serverConfig()" (ngModelChange)="onScheduleChange($event)">
+              <mat-option value="every_15min" i18n="Backup schedule|Back up every fifteen minutes"
+                >Every 15 minutes</mat-option
+              >
+              <mat-option value="hourly" i18n="Backup schedule|Back up once an hour"
+                >Hourly</mat-option
+              >
+              <mat-option value="every_6h" i18n="Backup schedule|Back up every six hours"
+                >Every 6 hours</mat-option
+              >
+              <mat-option value="daily" i18n="Backup schedule|Back up once a day">Daily</mat-option>
+              <mat-option value="weekly" i18n="Backup schedule|Back up once a week"
+                >Weekly</mat-option
+              >
+              <mat-option value="off" i18n="Backup schedule|Never back up automatically"
+                >Off</mat-option
+              >
+            </mat-select>
+          </mat-form-field>
+          @if (scheduleSaveFeedback(); as feedback) {
+            <p class="config-feedback"
+               [class.config-feedback--error]="feedback.level === 'error'"
+               [class.config-feedback--success]="feedback.level === 'success'"
+               [attr.role]="feedback.level === 'error' ? 'alert' : 'status'">
+              {{ feedback.message }}
+            </p>
+          }
+        </div>
       </div>
+      @if (destinationSaveFeedback(); as feedback) {
+        <p class="config-feedback"
+           [class.config-feedback--error]="feedback.level === 'error'"
+           [class.config-feedback--success]="feedback.level === 'success'"
+           [attr.role]="feedback.level === 'error' ? 'alert' : 'status'">
+          {{ feedback.message }}
+        </p>
+      }
       <div class="backups-actions">
         <button
           mat-stroked-button
@@ -478,23 +469,70 @@
             </p>
           </section>
         </div>
+        @if (retentionSaveFeedback(); as feedback) {
+          <p class="config-feedback"
+             [class.config-feedback--error]="feedback.level === 'error'"
+             [class.config-feedback--success]="feedback.level === 'success'"
+             [attr.role]="feedback.level === 'error' ? 'alert' : 'status'">
+            {{ feedback.message }}
+          </p>
+        }
+        @if (blockedSave(); as blocked) {
+          <section class="backups-reconciliation" aria-labelledby="backup-reconciliation-heading">
+            <h3 id="backup-reconciliation-heading"
+                i18n="Configuration reconciliation heading|A settings draft requires an explicit choice">
+              Backup settings need reconciliation
+            </h3>
+            @if (blocked.phase === 'refreshing') {
+              <p role="status" i18n="Configuration reload progress|The latest box settings are loading">
+                Reloading current box settings…
+              </p>
+            } @else if (blocked.phase === 'refreshFailed') {
+              <p i18n="Configuration reload failure detail|The draft remains local until reload succeeds">
+                Your draft is preserved, but Retry and Use current stay unavailable until the latest
+                box settings load successfully.
+              </p>
+              <button mat-stroked-button type="button" (click)="reloadBlockedSave()"
+                      i18n="Button|Reload the authoritative backup settings after reconciliation failed">
+                Reload current settings
+              </button>
+            } @else {
+              @if (requiresNewActivationConfirmation()) {
+                <p i18n="Configuration reconciliation detail|Retention changed after a failed activation">
+                  The retention draft changed after the failed activation. Confirm the current
+                  settings with the activation button instead of retrying the older policy.
+                </p>
+              } @else if (blocked.intent.kind === 'activation' || activationPending()) {
+                <p i18n="Configuration reconciliation detail|Retry retains confirmed policy and merges latest operations">
+                  Retry will submit the preserved confirmed retention policy with your latest
+                  schedule and destination values.
+                </p>
+              }
+              <div class="backups-actions">
+                <button mat-stroked-button type="button" (click)="useCurrentBlockedConfig()"
+                        i18n="Button|Discard local drafts and use the authoritative box settings">
+                  Use current box settings
+                </button>
+                <button mat-flat-button type="button" [disabled]="!canRetryBlockedSave()"
+                        (click)="retryBlockedDraft()"
+                        i18n="Button|Explicitly retry the preserved settings against the owned current revision">
+                  Retry preserved settings
+                </button>
+              </div>
+            }
+          </section>
+        }
         <div class="backups-actions">
-          <button
-            mat-flat-button
-            type="button"
-            [disabled]="
-              !!retentionValidation() || !retentionChanged() || configSaving() || !!configConflict()
-            "
-            (click)="saveAndActivateRetention()"
-            i18n="Button|Optimistically saves both policies and explicitly activates pruning"
-          >
-            Save and activate retention
+          <button mat-flat-button type="button" [disabled]="activationActionDisabled()"
+                  (click)="saveAndActivateRetention()">
+            @if (requiresNewActivationConfirmation()) {
+              <ng-container i18n="Button|Supersede an older failed activation with current policies">Save and activate current settings</ng-container>
+            } @else if (activationPending()) {
+              <ng-container i18n="Button|A confirmed retention activation is queued or in progress">Activation pending…</ng-container>
+            } @else {
+              <ng-container i18n="Button|Save both policies and explicitly activate pruning">Save and activate retention</ng-container>
+            }
           </button>
-          @if (configSaving()) {
-            <span role="status" i18n="Saving state|A backup configuration write is in progress"
-              >Saving…</span
-            >
-          }
         </div>
       }
     </mat-card-content>
@@ -532,7 +570,7 @@
           "
         >
           Observed {{ formatIsoDate(recovery.as_of) }} ·
-          {{ destinationStateLabel(recovery.overall_status) }} overall.
+          {{ overallRecoveryStateLabel(recovery) }} overall.
         </p>
         <div class="recovery-grid">
           @for (destination of [recovery.local, recovery.offbox]; track destination.destination) {
@@ -540,6 +578,7 @@
               class="recovery-destination"
               [attr.role]="recoveryRole(destination)"
               [attr.aria-labelledby]="destination.destination + '-recovery-heading'"
+              [attr.aria-label]="recoveryStateAriaLabel(destination)"
             >
               <h3 [id]="destination.destination + '-recovery-heading'">
                 @if (destination.destination === 'local') {
@@ -553,7 +592,7 @@
                 }
               </h3>
               <p class="recovery-state">
-                <strong>{{ destinationStateLabel(destination.status) }}</strong> ·
+                <strong>{{ recoveryStateLabel(destination) }}</strong> ·
                 {{ destinationStateDescription(destination) }}
               </p>
               <dl class="recovery-details">
@@ -651,13 +690,14 @@
               @if (destination.reason) {
                 <p class="backups-note">{{ destination.reason }}</p>
               }
-              @if (destination.retention_review_required) {
+              @if (destination.retention_review_required && !isReviewOnlyDestination(destination)) {
                 <p
                   class="backups-warning"
                   role="status"
                   i18n="Recovery review caveat|Policy is preview-only until activated"
                 >
-                  Retention is awaiting administrator review; pending pruning is only a preview.
+                  Retention still requires administrator review. Automatic pruning remains paused;
+                  use Save and activate retention above after reviewing both policies.
                 </p>
               }
               <p

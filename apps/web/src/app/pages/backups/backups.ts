@@ -25,7 +25,10 @@ import { apiErrorMessage } from '../../shared/api-error';
 
 type Frequency = 'every_15min' | 'hourly' | 'every_6h' | 'daily' | 'weekly' | 'off';
 type Destination = 'local' | 'offbox';
-type SaveKind = 'automatic' | 'retention';
+type SaveKind = 'automatic' | 'activation';
+type OperationalSaveOrigin = 'schedule' | 'destination';
+type SaveFailureClass = 'conflict' | 'transport' | 'authentication' | 'validation' | 'precondition';
+type ReconciliationPhase = 'refreshing' | 'refreshFailed' | 'ready';
 
 interface RetentionDraft {
   mode: 'tiered' | 'keep_all';
@@ -40,7 +43,7 @@ interface RequestOwner {
   sessionKey: string;
   sessionGeneration: number;
   requestGeneration: number;
-  configUpdatedAt: string | null;
+  configRevision: string | null;
 }
 
 interface MutationOwner {
@@ -49,10 +52,35 @@ interface MutationOwner {
   requestGeneration: number;
 }
 
-interface ConflictState {
+interface SaveOwner {
+  sessionKey: string;
+  sessionGeneration: number;
+  presentationGeneration: number;
+}
+
+interface SaveIntent {
+  id: number;
   kind: SaveKind;
+  owner: SaveOwner;
   payload: BackupConfigUpdateRequest;
-  current: BackupConfig;
+  origins: OperationalSaveOrigin[];
+  passwordGeneration: number | null;
+  confirmedRetention: BackupConfigUpdateRequest | null;
+}
+
+interface BlockedSave {
+  intent: SaveIntent;
+  phase: ReconciliationPhase;
+  failureClass: SaveFailureClass;
+  message: string;
+  current: BackupConfig | null;
+}
+
+interface ConfigSaveFeedback {
+  owner: SaveOwner;
+  intentId: number;
+  level: 'success' | 'error' | 'info';
+  message: string;
 }
 
 @Component({
@@ -109,12 +137,68 @@ export class Backups implements OnInit {
   protected readonly recoveryStatusError = signal<string | null>(null);
   protected readonly recoveryStatusLoading = signal(false);
   protected readonly configSaving = signal(false);
-  protected readonly configConflict = signal<ConflictState | null>(null);
-  private pendingAutomaticSave = false;
-  private pendingRetentionSave = false;
+  protected readonly blockedSave = signal<BlockedSave | null>(null);
+  protected readonly inFlightSave = signal<SaveIntent | null>(null);
+  protected readonly scheduleSaveFeedback = signal<ConfigSaveFeedback | null>(null);
+  protected readonly destinationSaveFeedback = signal<ConfigSaveFeedback | null>(null);
+  protected readonly retentionSaveFeedback = signal<ConfigSaveFeedback | null>(null);
+  private pendingAutomatic: SaveIntent | null = null;
+  private pendingActivation: SaveIntent | null = null;
   private saveLoop: Promise<void> | null = null;
+  private saveRunGeneration = 0;
+  private savePresentationGeneration = 0;
+  private nextSaveIntentId = 0;
   protected readonly revealedKey = signal<string | null>(null);
   private passwordEdited = false;
+  private passwordGeneration = 0;
+
+  protected activationPending(): boolean {
+    return (
+      !!this.pendingActivation ||
+      this.inFlightSave()?.kind === 'activation' ||
+      (this.blockedSave()?.intent.kind === 'automatic' && !!this.pendingActivation)
+    );
+  }
+
+  protected requiresNewActivationConfirmation(): boolean {
+    const pending = this.pendingActivation;
+    if (
+      pending &&
+      this.ownsSaveOwner(pending.owner) &&
+      !this.retentionMatches(pending.confirmedRetention)
+    ) {
+      return true;
+    }
+    const blocked = this.blockedSave();
+    return (
+      !!blocked &&
+      blocked.intent.kind === 'activation' &&
+      !this.retentionMatches(blocked.intent.confirmedRetention)
+    );
+  }
+
+  protected canRetryBlockedSave(): boolean {
+    const blocked = this.blockedSave();
+    if (
+      !blocked ||
+      blocked.phase !== 'ready' ||
+      !blocked.current ||
+      (blocked.failureClass !== 'conflict' &&
+        blocked.failureClass !== 'transport' &&
+        blocked.failureClass !== 'authentication')
+    ) {
+      return false;
+    }
+    if (blocked.intent.kind === 'automatic') {
+      const pending = this.pendingActivation;
+      return (
+        !pending ||
+        (this.sameSaveOwner(pending.owner, blocked.intent.owner) &&
+          this.retentionMatches(pending.confirmedRetention))
+      );
+    }
+    return this.retentionMatches(blocked.intent.confirmedRetention);
+  }
 
   /** Bound, not a static attribute: an interpolated `i18n-placeholder` would be
    * dropped silently, so the translated hint is built here. */
@@ -235,6 +319,24 @@ export class Backups implements OnInit {
     ]);
   }
 
+  private invalidateConfigSaveState(): void {
+    ++this.savePresentationGeneration;
+    ++this.saveRunGeneration;
+    ++this.conflictRequestGeneration;
+    this.saveLoop = null;
+    this.pendingAutomatic = null;
+    this.pendingActivation = null;
+    this.inFlightSave.set(null);
+    this.blockedSave.set(null);
+    this.configSaving.set(false);
+    this.scheduleSaveFeedback.set(null);
+    this.destinationSaveFeedback.set(null);
+    this.retentionSaveFeedback.set(null);
+    this.password.set('');
+    this.passwordEdited = false;
+    ++this.passwordGeneration;
+  }
+
   private clearSessionState(): void {
     ++this.configRequestGeneration;
     ++this.statusRequestGeneration;
@@ -250,10 +352,8 @@ export class Backups implements OnInit {
     ++this.mutationRequestGeneration;
     this.pendingMutationConfigRefresh = false;
     this.pendingMutationRemoteRefresh = false;
-    this.pendingAutomaticSave = false;
-    this.pendingRetentionSave = false;
+    this.invalidateConfigSaveState();
     this.serverConfig.set(null);
-    this.configConflict.set(null);
     this.recoveryStatus.set(null);
     this.recoveryStatusError.set(null);
     this.recoveryStatusLoading.set(false);
@@ -272,8 +372,6 @@ export class Backups implements OnInit {
     this.generatedRecoveryKey.set(null);
     this.showRecoveryUnlock.set(false);
     this.recoveryUnlockInput.set('');
-    this.password.set('');
-    this.passwordEdited = false;
   }
 
   private captureOwner(requestGeneration: number): RequestOwner {
@@ -281,11 +379,15 @@ export class Backups implements OnInit {
       sessionKey: this.sessionKey(),
       sessionGeneration: this.sessionGeneration,
       requestGeneration,
-      configUpdatedAt: this.serverConfig()?.updated_at ?? null,
+      configRevision: this.serverConfig()?.revision ?? null,
     };
   }
 
   private beginMutation(refresh: { config?: boolean; remote?: boolean } = {}): MutationOwner {
+    if (refresh.config) {
+      // Restore is an ownership boundary for destructive configuration consent.
+      this.invalidateConfigSaveState();
+    }
     const owner = {
       sessionKey: this.sessionKey(),
       sessionGeneration: this.sessionGeneration,
@@ -330,7 +432,7 @@ export class Backups implements OnInit {
       owner.sessionKey === this.sessionKey() &&
       owner.sessionGeneration === this.sessionGeneration &&
       owner.requestGeneration === currentRequestGeneration &&
-      (!requireConfigToken || owner.configUpdatedAt === (this.serverConfig()?.updated_at ?? null))
+      (!requireConfigToken || owner.configRevision === (this.serverConfig()?.revision ?? null))
     );
   }
 
@@ -379,6 +481,9 @@ export class Backups implements OnInit {
   }
 
   private async loadConfig(): Promise<boolean> {
+    // Every full load replaces the presentation and invalidates unsent consent.
+    this.invalidateConfigSaveState();
+    this.serverConfig.set(null);
     const generation = ++this.configRequestGeneration;
     const owner = this.captureOwner(generation);
     const { data, error } = await this.api.getBackupConfig();
@@ -414,46 +519,245 @@ export class Backups implements OnInit {
 
   protected onPasswordInput(): void {
     this.passwordEdited = true;
+    ++this.passwordGeneration;
+    this.clearSuccessfulFeedback('destination');
+  }
+
+  protected onDestinationEdit(): void {
+    this.clearSuccessfulFeedback('destination');
+  }
+
+  protected onScheduleChange(frequency: Frequency): void {
+    this.frequency.set(frequency);
+    this.clearSuccessfulFeedback('schedule');
+    void this.saveConfig('schedule');
   }
 
   /** Existing cadence/destination fields may save on blur, but every write uses
-   * one serialized lane. Repeated blur events coalesce to the newest draft. */
-  protected async saveConfig(): Promise<void> {
-    this.pendingAutomaticSave = true;
-    await this.ensureSaveLoop();
+   * one serialized lane. Repeated blur events coalesce to the newest owned draft. */
+  protected async saveConfig(origin: OperationalSaveOrigin = 'destination'): Promise<void> {
+    if (!this.serverConfig()) return;
+    const owner = this.captureSaveOwner();
+    const payload = this.automaticPayload();
+    const passwordGeneration = payload.smb_password === undefined ? null : this.passwordGeneration;
+
+    if (this.pendingActivation && this.sameSaveOwner(this.pendingActivation.owner, owner)) {
+      this.pendingActivation = {
+        ...this.pendingActivation,
+        payload: this.activationPayload(
+          payload,
+          this.pendingActivation.confirmedRetention ?? this.retentionPayload(),
+        ),
+        origins: this.mergeOrigins(this.pendingActivation.origins, [origin]),
+        passwordGeneration,
+      };
+    } else {
+      const previousOrigins =
+        this.pendingAutomatic && this.sameSaveOwner(this.pendingAutomatic.owner, owner)
+          ? this.pendingAutomatic.origins
+          : [];
+      this.pendingAutomatic = this.makeSaveIntent(
+        'automatic',
+        payload,
+        this.mergeOrigins(previousOrigins, [origin]),
+        null,
+        passwordGeneration,
+        owner,
+      );
+    }
+
+    const blocked = this.blockedSave();
+    if (
+      blocked?.failureClass === 'validation' &&
+      blocked.intent.kind === 'automatic' &&
+      blocked.phase === 'ready' &&
+      blocked.current
+    ) {
+      const blockedLoop = this.saveLoop;
+      this.applyConfig(blocked.current, false);
+      this.blockedSave.set(null);
+      if (blockedLoop) await blockedLoop;
+      await this.ensureSaveLoop();
+    } else if (!blocked) {
+      await this.ensureSaveLoop();
+    }
   }
 
   protected async saveAndActivateRetention(): Promise<void> {
-    if (this.retentionValidation()) {
+    if (this.retentionValidation() || this.inFlightSave()?.kind === 'activation') {
       return;
     }
-    this.pendingRetentionSave = true;
+
+    const owner = this.captureSaveOwner();
+    const priorPending =
+      this.pendingActivation && this.sameSaveOwner(this.pendingActivation.owner, owner)
+        ? this.pendingActivation
+        : null;
+    if (priorPending && this.retentionMatches(priorPending.confirmedRetention)) {
+      return;
+    }
+    const blocked = this.blockedSave();
+    const blockedLoop = blocked ? this.saveLoop : null;
+    if (blocked) {
+      if (blocked.phase !== 'ready' || !blocked.current) {
+        return;
+      }
+      if (
+        blocked.intent.kind === 'activation' &&
+        this.retentionMatches(blocked.intent.confirmedRetention)
+      ) {
+        return;
+      }
+      this.applyConfig(blocked.current, false);
+      this.blockedSave.set(null);
+    }
+
+    const confirmedRetention = this.retentionPayload();
+    const automatic = this.automaticPayload();
+    const automaticOrigins =
+      this.pendingAutomatic && this.sameSaveOwner(this.pendingAutomatic.owner, owner)
+        ? this.pendingAutomatic.origins
+        : [];
+    const pendingOrigins = this.mergeOrigins(priorPending?.origins ?? [], automaticOrigins);
+    this.pendingAutomatic = null;
+    this.pendingActivation = this.makeSaveIntent(
+      'activation',
+      this.activationPayload(automatic, confirmedRetention),
+      pendingOrigins,
+      confirmedRetention,
+      automatic.smb_password === undefined ? null : this.passwordGeneration,
+      owner,
+    );
+    this.retentionSaveFeedback.set({
+      owner,
+      intentId: this.pendingActivation.id,
+      level: 'info',
+      message: this.inFlightSave()
+        ? $localize`:Retention activation queue state|Activation waits for the current settings save:Activation queued. It will use the saved revision from the current request.`
+        : $localize`:Retention activation progress|The confirmed policies are being saved:Saving and activating retention…`,
+    });
+    if (blockedLoop) {
+      await blockedLoop;
+    }
     await this.ensureSaveLoop();
   }
 
-  private ensureSaveLoop(): Promise<void> {
-    if (!this.saveLoop) {
-      this.saveLoop = this.runSaveLoop().finally(() => {
-        this.saveLoop = null;
-      });
-    }
-    return this.saveLoop;
+  private captureSaveOwner(): SaveOwner {
+    return {
+      sessionKey: this.sessionKey(),
+      sessionGeneration: this.sessionGeneration,
+      presentationGeneration: this.savePresentationGeneration,
+    };
   }
 
-  private async runSaveLoop(): Promise<void> {
+  private ownsSaveOwner(owner: SaveOwner): boolean {
+    return (
+      !this.destroyed &&
+      owner.sessionKey === this.sessionKey() &&
+      owner.sessionGeneration === this.sessionGeneration &&
+      owner.presentationGeneration === this.savePresentationGeneration
+    );
+  }
+
+  private sameSaveOwner(left: SaveOwner, right: SaveOwner): boolean {
+    return (
+      left.sessionKey === right.sessionKey &&
+      left.sessionGeneration === right.sessionGeneration &&
+      left.presentationGeneration === right.presentationGeneration
+    );
+  }
+
+  private makeSaveIntent(
+    kind: SaveKind,
+    payload: BackupConfigUpdateRequest,
+    origins: OperationalSaveOrigin[],
+    confirmedRetention: BackupConfigUpdateRequest | null,
+    passwordGeneration: number | null,
+    owner = this.captureSaveOwner(),
+  ): SaveIntent {
+    return {
+      id: ++this.nextSaveIntentId,
+      kind,
+      owner,
+      payload: this.clonePayload(payload),
+      origins: [...origins],
+      passwordGeneration,
+      confirmedRetention: confirmedRetention ? this.clonePayload(confirmedRetention) : null,
+    };
+  }
+
+  private clonePayload(payload: BackupConfigUpdateRequest): BackupConfigUpdateRequest {
+    return {
+      ...payload,
+      local_retention: payload.local_retention ? { ...payload.local_retention } : undefined,
+      offbox_retention: payload.offbox_retention ? { ...payload.offbox_retention } : undefined,
+    };
+  }
+
+  private mergeOrigins(
+    left: OperationalSaveOrigin[],
+    right: OperationalSaveOrigin[],
+  ): OperationalSaveOrigin[] {
+    return [...new Set([...left, ...right])];
+  }
+
+  private async ensureSaveLoop(): Promise<void> {
+    if (this.saveLoop) {
+      const running = this.saveLoop;
+      await running;
+      if (
+        !this.saveLoop &&
+        !this.blockedSave() &&
+        (this.pendingAutomatic || this.pendingActivation)
+      ) {
+        await this.ensureSaveLoop();
+      }
+      return;
+    }
+    const runGeneration = ++this.saveRunGeneration;
+    const loop = this.runSaveLoop(runGeneration).finally(() => {
+      if (this.saveLoop === loop) {
+        this.saveLoop = null;
+      }
+    });
+    this.saveLoop = loop;
+    await loop;
+  }
+
+  private async runSaveLoop(runGeneration: number): Promise<void> {
+    if (runGeneration !== this.saveRunGeneration) return;
+    const feedbackGeneration = this.mutationRequestGeneration;
+    let completedAny = false;
     this.configSaving.set(true);
     try {
-      while (!this.configConflict() && (this.pendingAutomaticSave || this.pendingRetentionSave)) {
-        if (this.pendingAutomaticSave) {
-          this.pendingAutomaticSave = false;
-          await this.performSave('automatic', this.automaticPayload());
-          continue;
+      while (runGeneration === this.saveRunGeneration && !this.blockedSave()) {
+        const intent = this.pendingAutomatic ?? this.pendingActivation;
+        if (!intent) break;
+        if (!this.ownsSaveOwner(intent.owner)) return;
+        if (intent.kind === 'automatic') {
+          this.pendingAutomatic = null;
+        } else {
+          this.pendingActivation = null;
+          this.retentionSaveFeedback.set({
+            owner: intent.owner,
+            intentId: intent.id,
+            level: 'info',
+            message: $localize`:Retention activation progress|The confirmed policies are being saved:Saving and activating retention…`,
+          });
         }
-        this.pendingRetentionSave = false;
-        await this.performSave('retention', this.retentionPayload());
+        this.inFlightSave.set(intent);
+        const succeeded = await this.performSave(intent);
+        if (!succeeded) return;
+        completedAny = true;
+      }
+      if (completedAny && !this.blockedSave() && this.ownsActionFeedback(feedbackGeneration)) {
+        void this.loadRecoveryStatus();
       }
     } finally {
-      this.configSaving.set(false);
+      if (runGeneration === this.saveRunGeneration) {
+        this.inFlightSave.set(null);
+        this.configSaving.set(false);
+      }
     }
   }
 
@@ -481,104 +785,340 @@ export class Backups implements OnInit {
     };
   }
 
-  private async performSave(
-    kind: SaveKind,
-    draftPayload: BackupConfigUpdateRequest,
-  ): Promise<void> {
+  private activationPayload(
+    automatic: BackupConfigUpdateRequest,
+    retention: BackupConfigUpdateRequest,
+  ): BackupConfigUpdateRequest {
+    return { ...this.clonePayload(automatic), ...this.clonePayload(retention) };
+  }
+
+  private async performSave(intent: SaveIntent): Promise<boolean> {
     const config = this.serverConfig();
-    if (!config) {
-      return;
+    if (!config || !this.ownsSaveOwner(intent.owner)) {
+      return false;
     }
-    ++this.configRequestGeneration;
-    const owner = this.captureOwner(this.configRequestGeneration);
-    const feedbackGeneration = this.mutationRequestGeneration;
-    const payload = { ...draftPayload, expected_updated_at: config.updated_at };
+    const payload = { ...this.clonePayload(intent.payload), expected_revision: config.revision };
     const { data, error, response } = await this.api.updateBackupConfig(payload);
-    if (!this.owns(owner, this.configRequestGeneration)) {
-      return;
+    if (
+      !this.ownsSaveOwner(intent.owner) ||
+      this.inFlightSave()?.id !== intent.id ||
+      this.inFlightSave()?.owner !== intent.owner
+    ) {
+      return false;
     }
     if (error || !data) {
-      if (response?.status === 409) {
-        await this.loadConflict(kind, draftPayload, owner, feedbackGeneration);
-      } else if (this.ownsActionFeedback(feedbackGeneration)) {
-        this.actionError.set(apiErrorMessage(error, $localize`Failed to save settings.`));
-      }
-      return;
+      await this.blockFailedSave(intent, error, response?.status);
+      return false;
     }
-    this.configConflict.set(null);
-    // The response advances the CAS token, but it must not overwrite edits made
-    // while this request was in flight. The preserved signals become the next
-    // coalesced write (or remain an explicit retention draft).
+
+    // Adopt this response's committed opaque revision before draining another
+    // intent. Later local edits remain in the signals and pending snapshots.
     this.applyConfig(data, false);
+    const destinationStillMatches = this.destinationMatches(intent);
     if (
-      kind === 'automatic' &&
-      draftPayload.smb_password !== undefined &&
-      this.passwordEdited &&
-      this.password() === draftPayload.smb_password
+      intent.passwordGeneration != null &&
+      intent.passwordGeneration === this.passwordGeneration &&
+      intent.payload.smb_password === this.password()
     ) {
       this.password.set('');
       this.passwordEdited = false;
     }
-    if (this.ownsActionFeedback(feedbackGeneration)) {
-      this.actionError.set(null);
-      this.statusMessage.set(
-        kind === 'retention'
-          ? $localize`:Status message|Retention policy was saved and activated:Retention policy saved and activated. Pruning runs during independent maintenance.`
-          : $localize`:Status message|Backup destination or schedule settings were saved:Backup settings saved.`,
-      );
-      await this.loadRecoveryStatus();
+    this.publishSaveSuccess(intent, destinationStillMatches);
+    this.inFlightSave.set(null);
+    return this.ownsSaveOwner(intent.owner);
+  }
+
+  private classifySaveFailure(status: number | undefined): SaveFailureClass {
+    if (status === 401 || status === 403) return 'authentication';
+    if (status === 409) return 'conflict';
+    if (status === 422) return 'validation';
+    if (status === 428) return 'precondition';
+    return 'transport';
+  }
+
+  private async blockFailedSave(
+    intent: SaveIntent,
+    error: unknown,
+    status: number | undefined,
+  ): Promise<void> {
+    const failureClass = this.classifySaveFailure(status);
+    const message = apiErrorMessage(
+      error,
+      failureClass === 'conflict'
+        ? $localize`:Configuration conflict|Another administrator or backup operation changed the settings:Backup settings changed or are busy. Your draft is preserved and was not replayed.`
+        : failureClass === 'authentication'
+          ? $localize`:Configuration authorization error|Authentication or backup-management permission must be restored:Backup settings were not saved. Sign in again or restore backup-management permission before continuing.`
+          : failureClass === 'validation'
+            ? $localize`:Configuration validation error|The server rejected the settings draft:Backup settings were rejected. Correct the highlighted values and confirm again.`
+            : failureClass === 'precondition'
+              ? $localize`:Configuration contract error|A revision-aware client unexpectedly received HTTP 428:The server did not accept the required revision. Reload current settings; this client will not fall back to timestamp or tokenless writes.`
+              : $localize`:Configuration transport error|The settings response was not confirmed:Backup settings may have been accepted, but the response was not confirmed. Reload before deciding whether to retry.`,
+    );
+    const phase: ReconciliationPhase =
+      failureClass === 'authentication'
+        ? 'refreshFailed'
+        : failureClass === 'validation'
+          ? 'ready'
+          : 'refreshing';
+    this.blockedSave.set({
+      intent,
+      phase,
+      failureClass,
+      message,
+      current: failureClass === 'validation' ? this.serverConfig() : null,
+    });
+    this.publishSaveFailure(intent, message);
+    this.inFlightSave.set(null);
+    if (
+      failureClass === 'conflict' ||
+      failureClass === 'transport' ||
+      failureClass === 'precondition'
+    ) {
+      await this.reconcileBlockedSave(intent.id);
     }
   }
 
-  private async loadConflict(
-    kind: SaveKind,
-    payload: BackupConfigUpdateRequest,
-    saveOwner: RequestOwner,
-    feedbackGeneration: number,
-  ): Promise<void> {
+  private async reconcileBlockedSave(intentId: number): Promise<void> {
+    const blocked = this.blockedSave();
+    if (!blocked || blocked.intent.id !== intentId || !this.ownsSaveOwner(blocked.intent.owner)) {
+      return;
+    }
     const generation = ++this.conflictRequestGeneration;
-    const { data } = await this.api.getBackupConfig();
+    this.blockedSave.set({ ...blocked, phase: 'refreshing', current: null });
+    const { data, error } = await this.api.getBackupConfig();
+    const current = this.blockedSave();
     if (
-      saveOwner.sessionKey !== this.sessionKey() ||
-      saveOwner.sessionGeneration !== this.sessionGeneration ||
       generation !== this.conflictRequestGeneration ||
-      !data
+      !current ||
+      current.intent.id !== intentId ||
+      !this.ownsSaveOwner(current.intent.owner)
     ) {
       return;
     }
-    this.configConflict.set({ kind, payload, current: data });
-    if (this.ownsActionFeedback(feedbackGeneration)) {
-      this.actionError.set(
-        $localize`:Configuration conflict|Another administrator changed backup settings while this draft was open:Backup configuration changed elsewhere. Your draft is preserved; choose how to reconcile it.`,
+    if (error || !data) {
+      const reloadMessage = apiErrorMessage(
+        error,
+        $localize`:Configuration reload error|The current server settings could not be loaded:Current backup settings could not be reloaded. Your draft is still preserved.`,
       );
+      this.blockedSave.set({ ...current, phase: 'refreshFailed', current: null });
+      this.publishSaveFailure(current.intent, reloadMessage);
+      return;
     }
-    this.pendingAutomaticSave = false;
-    this.pendingRetentionSave = false;
+    if (
+      current.failureClass === 'transport' &&
+      !(current.intent.kind === 'automatic' && this.pendingActivation) &&
+      this.serverMatchesIntent(data, current.intent)
+    ) {
+      this.applyConfig(data, false);
+      this.blockedSave.set(null);
+      this.publishAmbiguousMatch(current.intent);
+      return;
+    }
+    this.blockedSave.set({ ...current, phase: 'ready', current: data });
   }
 
-  protected useCurrentConflictConfig(): void {
-    const conflict = this.configConflict();
-    if (!conflict) return;
-    this.applyConfig(conflict.current, true);
-    this.configConflict.set(null);
-    this.actionError.set(null);
+  protected async reloadBlockedSave(): Promise<void> {
+    const blocked = this.blockedSave();
+    if (!blocked || blocked.phase === 'refreshing') return;
+    await this.reconcileBlockedSave(blocked.intent.id);
+  }
+
+  protected useCurrentBlockedConfig(): void {
+    const blocked = this.blockedSave();
+    if (!blocked || blocked.phase !== 'ready' || !blocked.current) return;
+    const current = blocked.current;
+    this.invalidateConfigSaveState();
+    this.applyConfig(current, true);
     void this.loadRecoveryStatus();
   }
 
-  protected async retryConflictDraft(): Promise<void> {
-    const conflict = this.configConflict();
-    if (!conflict) return;
-    this.serverConfig.set(conflict.current);
-    this.configConflict.set(null);
-    this.actionError.set(null);
-    const currentDraft =
-      conflict.kind === 'automatic' ? this.automaticPayload() : this.retentionPayload();
-    this.configSaving.set(true);
-    try {
-      await this.performSave(conflict.kind, currentDraft);
-    } finally {
-      this.configSaving.set(false);
+  protected async retryBlockedDraft(): Promise<void> {
+    const blocked = this.blockedSave();
+    if (!this.canRetryBlockedSave() || !blocked?.current) return;
+
+    this.applyConfig(blocked.current, false);
+    const owner = blocked.intent.owner;
+    const queuedActivation =
+      this.pendingActivation && this.sameSaveOwner(this.pendingActivation.owner, owner)
+        ? this.pendingActivation
+        : null;
+    const pendingOrigins =
+      this.pendingAutomatic && this.sameSaveOwner(this.pendingAutomatic.owner, owner)
+        ? this.pendingAutomatic.origins
+        : [];
+    let retry: SaveIntent;
+    if (queuedActivation || blocked.intent.kind === 'activation') {
+      const confirmedRetention =
+        queuedActivation?.confirmedRetention ?? blocked.intent.confirmedRetention;
+      if (!confirmedRetention || !this.retentionMatches(confirmedRetention)) return;
+      const automatic = this.automaticPayload();
+      retry = this.makeSaveIntent(
+        'activation',
+        this.activationPayload(automatic, confirmedRetention),
+        this.mergeOrigins(
+          this.mergeOrigins(blocked.intent.origins, queuedActivation?.origins ?? []),
+          pendingOrigins,
+        ),
+        confirmedRetention,
+        automatic.smb_password === undefined ? null : this.passwordGeneration,
+        owner,
+      );
+      this.pendingActivation = retry;
+      this.pendingAutomatic = null;
+      this.retentionSaveFeedback.set({
+        owner,
+        intentId: retry.id,
+        level: 'info',
+        message: $localize`:Retention activation progress|The confirmed policies are being saved:Saving and activating retention…`,
+      });
+    } else {
+      const automatic = this.automaticPayload();
+      retry = this.makeSaveIntent(
+        'automatic',
+        automatic,
+        this.mergeOrigins(blocked.intent.origins, pendingOrigins),
+        null,
+        automatic.smb_password === undefined ? null : this.passwordGeneration,
+        owner,
+      );
+      this.pendingAutomatic = retry;
     }
+    const blockedLoop = this.saveLoop;
+    this.blockedSave.set(null);
+    if (blockedLoop) {
+      await blockedLoop;
+    }
+    await this.ensureSaveLoop();
+  }
+
+  private publishAmbiguousMatch(intent: SaveIntent): void {
+    if (!this.ownsSaveOwner(intent.owner)) return;
+    const feedback: ConfigSaveFeedback = {
+      owner: intent.owner,
+      intentId: intent.id,
+      level: 'info',
+      message: $localize`:Configuration ambiguous acknowledgement|The box matches the draft but the request outcome is unknown:The box now matches these settings, but this request’s response was not confirmed.`,
+    };
+    if (intent.origins.includes('schedule')) this.scheduleSaveFeedback.set(feedback);
+    if (intent.origins.includes('destination')) this.destinationSaveFeedback.set(feedback);
+    if (intent.kind === 'activation') this.retentionSaveFeedback.set(feedback);
+  }
+
+  private serverMatchesIntent(config: BackupConfig, intent: SaveIntent): boolean {
+    const payload = intent.payload;
+    if (payload.smb_password !== undefined) return false;
+    const scalarFields = [
+      'frequency',
+      'smb_host',
+      'smb_share',
+      'smb_folder',
+      'smb_username',
+      'smb_domain',
+      'local_max_bytes',
+      'offbox_max_bytes',
+      'local_min_free_bytes',
+      'offbox_min_free_bytes',
+    ] as const;
+    for (const field of scalarFields) {
+      if (payload[field] !== undefined && payload[field] !== config[field]) return false;
+    }
+    const policyMatches = (
+      expected: BackupRetentionPolicyUpdate | undefined,
+      actual: BackupRetentionPolicy,
+    ) =>
+      !expected ||
+      (expected.mode === actual.mode &&
+        expected.keep_all_days === actual.keep_all_days &&
+        expected.daily_until_days === actual.daily_until_days &&
+        expected.weekly_until_days === actual.weekly_until_days);
+    return (
+      policyMatches(payload.local_retention, config.local_retention) &&
+      policyMatches(payload.offbox_retention, config.offbox_retention) &&
+      (intent.kind !== 'activation' || !config.retention_review_required)
+    );
+  }
+
+  private publishSaveFailure(intent: SaveIntent, message: string): void {
+    if (!this.ownsSaveOwner(intent.owner)) return;
+    const feedback: ConfigSaveFeedback = {
+      owner: intent.owner,
+      intentId: intent.id,
+      level: 'error',
+      message,
+    };
+    if (intent.origins.includes('schedule')) this.scheduleSaveFeedback.set(feedback);
+    if (intent.origins.includes('destination')) this.destinationSaveFeedback.set(feedback);
+    if (intent.kind === 'activation' || !!this.pendingActivation) {
+      this.retentionSaveFeedback.set(feedback);
+    }
+  }
+
+  private publishSaveSuccess(intent: SaveIntent, destinationStillMatches: boolean): void {
+    if (!this.ownsSaveOwner(intent.owner)) return;
+    if (intent.origins.includes('schedule') && this.frequency() === intent.payload.frequency) {
+      this.scheduleSaveFeedback.set({
+        owner: intent.owner,
+        intentId: intent.id,
+        level: 'success',
+        message: $localize`:Schedule save success|The automatic backup schedule was saved:Schedule saved.`,
+      });
+    }
+    if (intent.origins.includes('destination') && destinationStillMatches) {
+      this.destinationSaveFeedback.set({
+        owner: intent.owner,
+        intentId: intent.id,
+        level: 'success',
+        message: $localize`:Destination save success|The Synology destination settings were saved:Destination saved.`,
+      });
+    }
+    if (intent.kind === 'activation' && this.retentionMatches(intent.confirmedRetention)) {
+      this.retentionSaveFeedback.set({
+        owner: intent.owner,
+        intentId: intent.id,
+        level: 'success',
+        message: $localize`:Retention activation success|The policies were saved and activation completed:Retention saved and activated. Pruning runs during independent maintenance.`,
+      });
+    }
+  }
+
+  private destinationMatches(intent: SaveIntent): boolean {
+    const payload = intent.payload;
+    const passwordMatches =
+      payload.smb_password === undefined ||
+      (intent.passwordGeneration === this.passwordGeneration &&
+        payload.smb_password === this.password());
+    return (
+      (this.host() || null) === payload.smb_host &&
+      (this.share() || null) === payload.smb_share &&
+      (this.folder() || null) === payload.smb_folder &&
+      (this.username() || null) === payload.smb_username &&
+      (this.domain() || null) === payload.smb_domain &&
+      passwordMatches
+    );
+  }
+
+  private clearSuccessfulFeedback(origin: OperationalSaveOrigin): void {
+    const target = origin === 'schedule' ? this.scheduleSaveFeedback : this.destinationSaveFeedback;
+    if (target()?.level !== 'error') target.set(null);
+  }
+
+  protected retentionMatches(retention: BackupConfigUpdateRequest | null): boolean {
+    return (
+      !!retention &&
+      this.retentionFingerprint(retention) === this.retentionFingerprint(this.retentionPayload())
+    );
+  }
+
+  private retentionFingerprint(payload: BackupConfigUpdateRequest): string {
+    return JSON.stringify({
+      local_retention: payload.local_retention,
+      offbox_retention: payload.offbox_retention,
+      local_max_bytes: payload.local_max_bytes,
+      offbox_max_bytes: payload.offbox_max_bytes,
+      local_min_free_bytes: payload.local_min_free_bytes,
+      offbox_min_free_bytes: payload.offbox_min_free_bytes,
+      confirm_retention_policy: payload.confirm_retention_policy,
+    });
   }
 
   private async loadRecoveryStatus(mutationOwner?: MutationOwner): Promise<void> {
@@ -698,9 +1238,9 @@ export class Backups implements OnInit {
       this.ownsMutation(mutationOwner) &&
       data
     ) {
-      // Restore rotates destination generations and re-enables policy review.
-      // Advance metadata/CAS state without discarding an unsaved local draft.
-      this.applyConfig(data, false);
+      // Restore rotates destination generations/revision and re-enables review.
+      // Restore is an ownership boundary, so adopt its authoritative settings.
+      this.applyConfig(data, true);
     }
   }
 
@@ -1020,6 +1560,29 @@ export class Backups implements OnInit {
   protected updateDraft(destination: Destination, patch: Partial<RetentionDraft>): void {
     const target = destination === 'local' ? this.localDraft : this.offboxDraft;
     target.update((draft) => ({ ...draft, ...patch }));
+    if (this.retentionSaveFeedback()?.level !== 'error') {
+      this.retentionSaveFeedback.set(null);
+    }
+  }
+
+  protected activationActionDisabled(): boolean {
+    if (!this.serverConfig() || !!this.retentionValidation() || !this.retentionChanged()) {
+      return true;
+    }
+    if (this.inFlightSave()?.kind === 'activation') {
+      return true;
+    }
+    const pending = this.pendingActivation;
+    if (pending && this.retentionMatches(pending.confirmedRetention)) {
+      return true;
+    }
+    const blocked = this.blockedSave();
+    if (!blocked) return false;
+    if (blocked.phase !== 'ready' || !blocked.current) return true;
+    return (
+      blocked.intent.kind === 'activation' &&
+      this.retentionMatches(blocked.intent.confirmedRetention)
+    );
   }
 
   private validateDestinationDraft(draft: RetentionDraft): string | null {
@@ -1132,7 +1695,51 @@ export class Backups implements OnInit {
     }
   }
 
+  protected isReviewOnlyDestination(status: BackupDestinationRecoveryStatus): boolean {
+    const allowed = new Set(['retention_review_required', 'coverage_unknown']);
+    return (
+      status.status === 'degraded' &&
+      status.reason_codes.includes('retention_review_required') &&
+      status.reason_codes.every((reason) => allowed.has(reason))
+    );
+  }
+
+  protected isOverallReviewOnly(status: BackupRecoveryStatus): boolean {
+    if (status.overall_status !== 'degraded') return false;
+    const configured = [status.local, status.offbox].filter(
+      (destination) => destination.configured,
+    );
+    return (
+      configured.some((destination) => this.isReviewOnlyDestination(destination)) &&
+      configured.every(
+        (destination) =>
+          destination.status === 'healthy' || this.isReviewOnlyDestination(destination),
+      )
+    );
+  }
+
+  protected recoveryStateLabel(status: BackupDestinationRecoveryStatus): string {
+    return this.isReviewOnlyDestination(status)
+      ? $localize`:Recovery review state|Only administrator retention review degrades this destination:Review required`
+      : this.destinationStateLabel(status.status);
+  }
+
+  protected overallRecoveryStateLabel(status: BackupRecoveryStatus): string {
+    return this.isOverallReviewOnly(status)
+      ? $localize`:Recovery review state|Only administrator retention review degrades configured destinations:Review required`
+      : this.destinationStateLabel(status.overall_status);
+  }
+
+  protected recoveryStateAriaLabel(status: BackupDestinationRecoveryStatus): string {
+    return this.isReviewOnlyDestination(status)
+      ? $localize`:Recovery review accessibility|Names the presentation and underlying API state:Review required. API recovery status is degraded because retention policy review is pending.`
+      : $localize`:Recovery status accessibility|Names the API-derived destination state:API recovery status is ${this.destinationStateLabel(status.status)}:status:.`;
+  }
+
   protected destinationStateDescription(status: BackupDestinationRecoveryStatus): string {
+    if (this.isReviewOnlyDestination(status)) {
+      return $localize`:Recovery review detail|Review is the only reported degradation reason:Automatic pruning is paused until an administrator activates retention. The server reports no additional inventory, read-probe, capacity, or anomaly reason.`;
+    }
     switch (status.status) {
       case 'not_configured':
         return status.destination === 'offbox'

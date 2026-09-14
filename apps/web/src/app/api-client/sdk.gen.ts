@@ -1565,6 +1565,8 @@ export const getBackupConfig = <ThrowOnError extends boolean = false>(options?: 
 
 /**
  * Update the box-global backup configuration
+ *
+ * Uses opaque expected_revision as the preferred optimistic precondition. Contract 0.161 also accepts exact expected_updated_at from 0.160 clients; when both are supplied both must match. Stale or contradictory tokens return 409. Retention/capacity changes and confirmation require at least one token or return 428 after body and policy validation.
  */
 export const updateBackupConfig = <ThrowOnError extends boolean = false>(options: Options<UpdateBackupConfigData, ThrowOnError>): RequestResult<UpdateBackupConfigResponses, UpdateBackupConfigErrors, ThrowOnError> => (options.client ?? client).put<UpdateBackupConfigResponses, UpdateBackupConfigErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],

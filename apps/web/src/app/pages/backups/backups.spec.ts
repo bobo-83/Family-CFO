@@ -68,6 +68,7 @@ function backupConfig(overrides: Record<string, unknown> = {}) {
     legacy_conflict_detected: false,
     retention_review_required: true,
     retention_activated_at: null,
+    revision: 'revision-1',
     updated_at: '2026-09-10T12:00:00Z',
     local_pending_prune_count: 2,
     local_pending_prune_bytes: 3_000_000_000,
@@ -973,6 +974,7 @@ describe('Backups', () => {
 
   it('maps and validates independent destination drafts and activates explicitly', async () => {
     const updated = backupConfig({
+      revision: 'revision-2',
       updated_at: '2026-09-10T12:01:00Z',
       retention_review_required: false,
       retention_activated_at: '2026-09-10T12:01:00Z',
@@ -1009,7 +1011,7 @@ describe('Backups', () => {
 
     expect(apiMock.updateBackupConfig).toHaveBeenCalledWith(
       expect.objectContaining({
-        expected_updated_at: '2026-09-10T12:00:00Z',
+        expected_revision: 'revision-1',
         confirm_retention_policy: true,
         local_retention: {
           mode: 'tiered',
@@ -1033,6 +1035,7 @@ describe('Backups', () => {
 
   it('shows the pending preview and preserves a draft across a 409 until reconciliation', async () => {
     const current = backupConfig({
+      revision: 'revision-current',
       updated_at: '2026-09-10T12:02:00Z',
       local_pending_prune_count: 7,
     });
@@ -1059,16 +1062,14 @@ describe('Backups', () => {
     fixture.detectChanges();
 
     expect(fixture.componentInstance['localDraft']().weeklyUntilDays).toBe(365);
-    expect(fixture.componentInstance['configConflict']()?.current.updated_at).toBe(
-      '2026-09-10T12:02:00Z',
-    );
+    expect(fixture.componentInstance['blockedSave']()?.current?.revision).toBe('revision-current');
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('Current saved-policy preview: 2 backups');
-    expect(text).toContain('Your unsaved draft is still here');
-    expect(text).toContain('Use current settings');
-    expect(text).toContain('Retry my draft');
+    expect(text).toContain('Backup settings need reconciliation');
+    expect(text).toContain('Use current box settings');
+    expect(text).toContain('Retry preserved settings');
 
-    fixture.componentInstance['useCurrentConflictConfig']();
+    fixture.componentInstance['useCurrentBlockedConfig']();
     expect(fixture.componentInstance['localDraft']().weeklyUntilDays).toBe(90);
   });
 
@@ -1084,7 +1085,13 @@ describe('Backups', () => {
         .fn()
         .mockImplementationOnce(() => first.promise)
         .mockResolvedValueOnce(
-          response(backupConfig({ updated_at: '2026-09-10T12:02:00Z', smb_host: 'newest.local' })),
+          response(
+            backupConfig({
+              revision: 'revision-3',
+              updated_at: '2026-09-10T12:02:00Z',
+              smb_host: 'newest.local',
+            }),
+          ),
         ),
     };
     configure(apiMock, 'owner');
@@ -1102,13 +1109,747 @@ describe('Backups', () => {
     expect(apiMock.updateBackupConfig).toHaveBeenCalledTimes(1);
 
     first.resolve(
-      response(backupConfig({ updated_at: '2026-09-10T12:01:00Z', smb_host: 'first.local' })),
+      response(
+        backupConfig({
+          revision: 'revision-2',
+          updated_at: '2026-09-10T12:01:00Z',
+          smb_host: 'first.local',
+        }),
+      ),
     );
     await Promise.all([firstSave, secondSave]);
     expect(apiMock.updateBackupConfig).toHaveBeenCalledTimes(2);
     expect(apiMock.updateBackupConfig.mock.calls[1][0].smb_host).toBe('newest.local');
-    expect(apiMock.updateBackupConfig.mock.calls[1][0].expected_updated_at).toBe(
-      '2026-09-10T12:01:00Z',
+    expect(apiMock.updateBackupConfig.mock.calls[1][0].expected_revision).toBe('revision-2');
+    expect(apiMock.updateBackupConfig.mock.calls[1][0]).not.toHaveProperty('expected_updated_at');
+  });
+
+  it('supersedes one unsent 90-day activation with the visible 365-day policy', async () => {
+    const automatic = deferred<ReturnType<typeof response>>();
+    const apiMock = {
+      listBackups: vi.fn().mockResolvedValue(response({ backups: [] })),
+      listRemoteBackups: vi.fn().mockResolvedValue(response({ backups: [] })),
+      getBackupConfig: vi.fn().mockResolvedValue(response(backupConfig())),
+      getBackupRecoveryStatus: vi.fn().mockResolvedValue(response(recoveryStatus())),
+      getHouseholdKeyStatus: vi.fn().mockResolvedValue(response(keyStatus())),
+      updateBackupConfig: vi
+        .fn()
+        .mockImplementationOnce(() => automatic.promise)
+        .mockResolvedValueOnce(
+          response(
+            backupConfig({
+              revision: 'revision-3',
+              retention_review_required: false,
+              local_retention: {
+                ...backupConfig().local_retention,
+                weekly_until_days: 365,
+              },
+            }),
+          ),
+        ),
+    };
+    configure(apiMock, 'owner');
+    const fixture = TestBed.createComponent(Backups);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const component = fixture.componentInstance;
+
+    component['host'].set('queued.local');
+    const automaticSave = component['saveConfig']('destination');
+    await flushUntil(() => apiMock.updateBackupConfig.mock.calls.length === 1);
+    void component['saveAndActivateRetention']();
+    const older = component['pendingActivation'];
+    expect(older?.confirmedRetention?.local_retention?.weekly_until_days).toBe(90);
+
+    component['updateDraft']('local', { weeklyUntilDays: 365 });
+    fixture.detectChanges();
+    let activationButton = [
+      ...(fixture.nativeElement as HTMLElement).querySelectorAll('button'),
+    ].find((button) =>
+      button.textContent?.includes('Save and activate current settings'),
+    ) as HTMLButtonElement;
+    expect(activationButton.disabled).toBe(false);
+    activationButton.click();
+
+    const replacement = component['pendingActivation'];
+    expect(replacement?.id).not.toBe(older?.id);
+    expect(replacement?.owner).toEqual(older?.owner);
+    expect(replacement?.confirmedRetention?.local_retention?.weekly_until_days).toBe(365);
+    await component['saveAndActivateRetention']();
+    expect(component['pendingActivation']?.id).toBe(replacement?.id);
+    fixture.detectChanges();
+    activationButton = [...(fixture.nativeElement as HTMLElement).querySelectorAll('button')].find(
+      (button) => button.textContent?.includes('Activation pending'),
+    ) as HTMLButtonElement;
+    expect(activationButton.disabled).toBe(true);
+
+    automatic.resolve(response(backupConfig({ revision: 'revision-2', smb_host: 'queued.local' })));
+    await automaticSave;
+
+    expect(apiMock.updateBackupConfig).toHaveBeenCalledTimes(2);
+    expect(apiMock.updateBackupConfig.mock.calls[1][0]).toEqual(
+      expect.objectContaining({
+        expected_revision: 'revision-2',
+        confirm_retention_policy: true,
+        smb_host: 'queued.local',
+      }),
+    );
+    expect(apiMock.updateBackupConfig.mock.calls[1][0].local_retention.weekly_until_days).toBe(365);
+  });
+
+  it('disables stale Retry during reconciliation and replaces its queued activation once', async () => {
+    const automatic = deferred<ReturnType<typeof response>>();
+    const reconciliation = deferred<ReturnType<typeof response>>();
+    const replacementResponse = deferred<ReturnType<typeof response>>();
+    const current = backupConfig({ revision: 'revision-current', smb_host: 'current.local' });
+    const apiMock = {
+      listBackups: vi.fn().mockResolvedValue(response({ backups: [] })),
+      listRemoteBackups: vi.fn().mockResolvedValue(response({ backups: [] })),
+      getBackupConfig: vi
+        .fn()
+        .mockResolvedValueOnce(response(backupConfig()))
+        .mockImplementationOnce(() => reconciliation.promise),
+      getBackupRecoveryStatus: vi.fn().mockResolvedValue(response(recoveryStatus())),
+      getHouseholdKeyStatus: vi.fn().mockResolvedValue(response(keyStatus())),
+      updateBackupConfig: vi
+        .fn()
+        .mockImplementationOnce(() => automatic.promise)
+        .mockImplementationOnce(() => replacementResponse.promise),
+    };
+    configure(apiMock, 'owner');
+    const fixture = TestBed.createComponent(Backups);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const component = fixture.componentInstance;
+
+    component['host'].set('draft.local');
+    const automaticSave = component['saveConfig']('destination');
+    await flushUntil(() => apiMock.updateBackupConfig.mock.calls.length === 1);
+    void component['saveAndActivateRetention']();
+    const older = component['pendingActivation'];
+    expect(older?.confirmedRetention?.local_retention?.weekly_until_days).toBe(90);
+    component['updateDraft']('local', { weeklyUntilDays: 365 });
+
+    automatic.resolve(response(undefined, { error: { message: 'busy' } }, 409));
+    await flushUntil(() => component['blockedSave']()?.phase === 'refreshing');
+    fixture.detectChanges();
+    let activationButton = [
+      ...(fixture.nativeElement as HTMLElement).querySelectorAll('button'),
+    ].find((button) =>
+      button.textContent?.includes('Save and activate current settings'),
+    ) as HTMLButtonElement;
+    expect(component['canRetryBlockedSave']()).toBe(false);
+    expect(activationButton.disabled).toBe(true);
+
+    reconciliation.resolve(response(current));
+    await automaticSave;
+    expect(component['blockedSave']()?.phase).toBe('ready');
+    expect(component['canRetryBlockedSave']()).toBe(false);
+    fixture.detectChanges();
+    const retryButton = [...(fixture.nativeElement as HTMLElement).querySelectorAll('button')].find(
+      (button) => button.textContent?.includes('Retry preserved settings'),
+    ) as HTMLButtonElement;
+    activationButton = [...(fixture.nativeElement as HTMLElement).querySelectorAll('button')].find(
+      (button) => button.textContent?.includes('Save and activate current settings'),
+    ) as HTMLButtonElement;
+    expect(retryButton.disabled).toBe(true);
+    expect(activationButton.disabled).toBe(false);
+
+    await component['retryBlockedDraft']();
+    expect(apiMock.updateBackupConfig).toHaveBeenCalledTimes(1);
+    expect(component['pendingActivation']?.id).toBe(older?.id);
+    activationButton.click();
+    await flushUntil(() => apiMock.updateBackupConfig.mock.calls.length === 2);
+
+    const replacement = component['inFlightSave']();
+    expect(component['pendingActivation']).toBeNull();
+    expect(replacement?.kind).toBe('activation');
+    expect(replacement?.id).not.toBe(older?.id);
+    expect(replacement?.owner).toEqual(older?.owner);
+    expect(replacement?.confirmedRetention?.local_retention?.weekly_until_days).toBe(365);
+    expect(apiMock.updateBackupConfig.mock.calls[1][0].expected_revision).toBe('revision-current');
+    expect(apiMock.updateBackupConfig.mock.calls[1][0].local_retention.weekly_until_days).toBe(365);
+    fixture.detectChanges();
+    activationButton = [...(fixture.nativeElement as HTMLElement).querySelectorAll('button')].find(
+      (button) => button.textContent?.includes('Activation pending'),
+    ) as HTMLButtonElement;
+    expect(activationButton.disabled).toBe(true);
+    activationButton.click();
+    expect(apiMock.updateBackupConfig).toHaveBeenCalledTimes(2);
+
+    replacementResponse.resolve(
+      response(
+        backupConfig({
+          revision: 'revision-activated',
+          smb_host: 'draft.local',
+          retention_review_required: false,
+          local_retention: {
+            ...backupConfig().local_retention,
+            weekly_until_days: 365,
+          },
+        }),
+      ),
+    );
+    await fixture.whenStable();
+    expect(component['blockedSave']()).toBeNull();
+    expect(component['serverConfig']()?.revision).toBe('revision-activated');
+  });
+
+  it('keeps one queued activation through autosave and reconciliation failure until explicit retry', async () => {
+    const automatic = deferred<ReturnType<typeof response>>();
+    const current = backupConfig({ revision: 'revision-current', smb_host: 'other.local' });
+    const activated = backupConfig({
+      revision: 'revision-activated',
+      smb_host: 'latest.local',
+      retention_review_required: false,
+      retention_activated_at: '2026-09-10T12:05:00Z',
+    });
+    const apiMock = {
+      listBackups: vi.fn().mockResolvedValue(response({ backups: [] })),
+      listRemoteBackups: vi.fn().mockResolvedValue(response({ backups: [] })),
+      getBackupConfig: vi
+        .fn()
+        .mockResolvedValueOnce(response(backupConfig()))
+        .mockResolvedValueOnce(response(undefined, { error: { message: 'reload offline' } }))
+        .mockResolvedValueOnce(response(current)),
+      getBackupRecoveryStatus: vi.fn().mockResolvedValue(response(recoveryStatus())),
+      getHouseholdKeyStatus: vi.fn().mockResolvedValue(response(keyStatus())),
+      updateBackupConfig: vi
+        .fn()
+        .mockImplementationOnce(() => automatic.promise)
+        .mockResolvedValueOnce(response(activated)),
+    };
+    configure(apiMock, 'owner');
+    const fixture = TestBed.createComponent(Backups);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const component = fixture.componentInstance;
+
+    component['host'].set('first.local');
+    const automaticSave = component['saveConfig']('destination');
+    await flushUntil(() => apiMock.updateBackupConfig.mock.calls.length === 1);
+    fixture.detectChanges();
+    const activationButton = [
+      ...(fixture.nativeElement as HTMLElement).querySelectorAll('button'),
+    ].find((button) =>
+      button.textContent?.includes('Save and activate retention'),
+    ) as HTMLButtonElement;
+    expect(activationButton.disabled).toBe(false);
+    activationButton.click();
+    void component['saveAndActivateRetention']();
+    component['host'].set('latest.local');
+    component['onDestinationEdit']();
+    void component['saveConfig']('destination');
+    fixture.detectChanges();
+
+    expect(apiMock.updateBackupConfig).toHaveBeenCalledTimes(1);
+    expect(component['activationPending']()).toBe(true);
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Activation pending');
+    automatic.resolve(response(undefined, { error: { message: 'busy' } }, 409));
+    await automaticSave;
+
+    expect(component['blockedSave']()?.phase).toBe('refreshFailed');
+    expect(component['canRetryBlockedSave']()).toBe(false);
+    expect(component['pendingActivation']).not.toBeNull();
+    expect(component['destinationSaveFeedback']()?.level).toBe('error');
+    expect(component['retentionSaveFeedback']()?.level).toBe('error');
+    expect(component['serverConfig']()?.retention_review_required).toBe(true);
+    fixture.detectChanges();
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('.config-feedback[role="alert"]')
+        .length,
+    ).toBeGreaterThanOrEqual(2);
+    expect(apiMock.updateBackupConfig).toHaveBeenCalledTimes(1);
+
+    await component['reloadBlockedSave']();
+    expect(component['blockedSave']()?.phase).toBe('ready');
+    const retry = component['retryBlockedDraft']();
+    const duplicateRetry = component['retryBlockedDraft']();
+    await Promise.all([retry, duplicateRetry]);
+
+    expect(apiMock.updateBackupConfig).toHaveBeenCalledTimes(2);
+    const retryPayload = apiMock.updateBackupConfig.mock.calls[1][0];
+    expect(retryPayload.expected_revision).toBe('revision-current');
+    expect(retryPayload.smb_host).toBe('latest.local');
+    expect(retryPayload.confirm_retention_policy).toBe(true);
+    expect(retryPayload).not.toHaveProperty('expected_updated_at');
+    expect(component['blockedSave']()).toBeNull();
+    expect(component['retentionSaveFeedback']()?.level).toBe('success');
+    expect(component['serverConfig']()?.retention_review_required).toBe(false);
+  });
+
+  it('sends queued activation with the successful autosave response revision', async () => {
+    const automatic = deferred<ReturnType<typeof response>>();
+    const postSaveStatus = deferred<ReturnType<typeof response>>();
+    const apiMock = {
+      listBackups: vi.fn().mockResolvedValue(response({ backups: [] })),
+      listRemoteBackups: vi.fn().mockResolvedValue(response({ backups: [] })),
+      getBackupConfig: vi.fn().mockResolvedValue(response(backupConfig())),
+      getBackupRecoveryStatus: vi
+        .fn()
+        .mockResolvedValueOnce(response(recoveryStatus()))
+        .mockImplementationOnce(() => postSaveStatus.promise),
+      getHouseholdKeyStatus: vi.fn().mockResolvedValue(response(keyStatus())),
+      updateBackupConfig: vi
+        .fn()
+        .mockImplementationOnce(() => automatic.promise)
+        .mockResolvedValueOnce(
+          response(
+            backupConfig({
+              revision: 'revision-3',
+              frequency: 'weekly',
+              retention_review_required: false,
+            }),
+          ),
+        ),
+    };
+    configure(apiMock, 'owner');
+    const fixture = TestBed.createComponent(Backups);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const component = fixture.componentInstance;
+
+    component['frequency'].set('weekly');
+    const save = component['saveConfig']('schedule');
+    await flushUntil(() => apiMock.updateBackupConfig.mock.calls.length === 1);
+    void component['saveAndActivateRetention']();
+    automatic.resolve(response(backupConfig({ revision: 'revision-2', frequency: 'weekly' })));
+    await flushUntil(() => apiMock.updateBackupConfig.mock.calls.length === 2);
+    // A best-effort recovery refresh cannot hold queued activation hostage.
+    expect(apiMock.getBackupRecoveryStatus).toHaveBeenCalledTimes(1);
+    await flushUntil(() => apiMock.getBackupRecoveryStatus.mock.calls.length === 2);
+    postSaveStatus.resolve(response(recoveryStatus()));
+    await save;
+
+    expect(apiMock.updateBackupConfig).toHaveBeenCalledTimes(2);
+    expect(apiMock.updateBackupConfig.mock.calls[1][0]).toEqual(
+      expect.objectContaining({
+        expected_revision: 'revision-2',
+        frequency: 'weekly',
+        confirm_retention_policy: true,
+      }),
+    );
+  });
+
+  it('keeps in-flight activation immutable and saves later operational edits separately', async () => {
+    const activationResponse = deferred<ReturnType<typeof response>>();
+    const apiMock = {
+      listBackups: vi.fn().mockResolvedValue(response({ backups: [] })),
+      listRemoteBackups: vi.fn().mockResolvedValue(response({ backups: [] })),
+      getBackupConfig: vi.fn().mockResolvedValue(response(backupConfig())),
+      getBackupRecoveryStatus: vi.fn().mockResolvedValue(response(recoveryStatus())),
+      getHouseholdKeyStatus: vi.fn().mockResolvedValue(response(keyStatus())),
+      updateBackupConfig: vi
+        .fn()
+        .mockImplementationOnce(() => activationResponse.promise)
+        .mockResolvedValueOnce(
+          response(
+            backupConfig({
+              revision: 'revision-3',
+              smb_host: 'newer.local',
+              retention_review_required: false,
+            }),
+          ),
+        ),
+    };
+    configure(apiMock, 'owner');
+    const fixture = TestBed.createComponent(Backups);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const component = fixture.componentInstance;
+
+    component['updateDraft']('local', { weeklyUntilDays: 120 });
+    const activation = component['saveAndActivateRetention']();
+    await flushUntil(() => apiMock.updateBackupConfig.mock.calls.length === 1);
+    const firstPayload = apiMock.updateBackupConfig.mock.calls[0][0];
+    component['updateDraft']('local', { weeklyUntilDays: 365 });
+    component['host'].set('newer.local');
+    component['onDestinationEdit']();
+    const laterSave = component['saveConfig']('destination');
+
+    expect(firstPayload.local_retention.weekly_until_days).toBe(120);
+    expect(firstPayload.smb_host).toBe('nas.local');
+    activationResponse.resolve(
+      response(
+        backupConfig({
+          revision: 'revision-2',
+          retention_review_required: false,
+          local_retention: {
+            ...backupConfig().local_retention,
+            weekly_until_days: 120,
+          },
+        }),
+      ),
+    );
+    await Promise.all([activation, laterSave]);
+
+    expect(apiMock.updateBackupConfig).toHaveBeenCalledTimes(2);
+    expect(apiMock.updateBackupConfig.mock.calls[1][0]).toEqual(
+      expect.objectContaining({
+        expected_revision: 'revision-2',
+        smb_host: 'newer.local',
+      }),
+    );
+    expect(apiMock.updateBackupConfig.mock.calls[1][0].confirm_retention_policy).toBeUndefined();
+    expect(component['localDraft']().weeklyUntilDays).toBe(365);
+    expect(component['retentionSaveFeedback']()?.level).not.toBe('success');
+  });
+
+  it('clears only the acknowledged password generation', async () => {
+    const first = deferred<ReturnType<typeof response>>();
+    const second = deferred<ReturnType<typeof response>>();
+    const apiMock = {
+      listBackups: vi.fn().mockResolvedValue(response({ backups: [] })),
+      listRemoteBackups: vi.fn().mockResolvedValue(response({ backups: [] })),
+      getBackupConfig: vi.fn().mockResolvedValue(response(backupConfig())),
+      getBackupRecoveryStatus: vi.fn().mockResolvedValue(response(recoveryStatus())),
+      getHouseholdKeyStatus: vi.fn().mockResolvedValue(response(keyStatus())),
+      updateBackupConfig: vi
+        .fn()
+        .mockImplementationOnce(() => first.promise)
+        .mockImplementationOnce(() => second.promise),
+    };
+    configure(apiMock, 'owner');
+    const fixture = TestBed.createComponent(Backups);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const component = fixture.componentInstance;
+
+    component['password'].set('first-password');
+    component['onPasswordInput']();
+    const firstSave = component['saveConfig']('destination');
+    await flushUntil(() => apiMock.updateBackupConfig.mock.calls.length === 1);
+    component['password'].set('newer-password');
+    component['onPasswordInput']();
+    const newerSave = component['saveConfig']('destination');
+
+    first.resolve(response(backupConfig({ revision: 'revision-2' })));
+    await flushUntil(() => apiMock.updateBackupConfig.mock.calls.length === 2);
+    expect(component['password']()).toBe('newer-password');
+    expect(apiMock.updateBackupConfig.mock.calls[1][0]).toEqual(
+      expect.objectContaining({
+        expected_revision: 'revision-2',
+        smb_password: 'newer-password',
+      }),
+    );
+    second.resolve(response(backupConfig({ revision: 'revision-3' })));
+    await Promise.all([firstSave, newerSave]);
+    expect(component['password']()).toBe('');
+    expect(component['passwordEdited']).toBe(false);
+  });
+
+  it('submits a corrected new operational intent after a 422 without replaying automatically', async () => {
+    const apiMock = {
+      listBackups: vi.fn().mockResolvedValue(response({ backups: [] })),
+      listRemoteBackups: vi.fn().mockResolvedValue(response({ backups: [] })),
+      getBackupConfig: vi.fn().mockResolvedValue(response(backupConfig())),
+      getBackupRecoveryStatus: vi.fn().mockResolvedValue(response(recoveryStatus())),
+      getHouseholdKeyStatus: vi.fn().mockResolvedValue(response(keyStatus())),
+      updateBackupConfig: vi
+        .fn()
+        .mockResolvedValueOnce(response(undefined, { error: { message: 'invalid host' } }, 422))
+        .mockResolvedValueOnce(
+          response(backupConfig({ revision: 'revision-corrected', smb_host: 'corrected.local' })),
+        ),
+    };
+    configure(apiMock, 'owner');
+    const fixture = TestBed.createComponent(Backups);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const component = fixture.componentInstance;
+
+    component['host'].set('invalid host');
+    await component['saveConfig']('destination');
+    expect(component['blockedSave']()?.failureClass).toBe('validation');
+    expect(apiMock.updateBackupConfig).toHaveBeenCalledTimes(1);
+
+    component['host'].set('corrected.local');
+    component['onDestinationEdit']();
+    await component['saveConfig']('destination');
+    expect(apiMock.updateBackupConfig).toHaveBeenCalledTimes(2);
+    expect(apiMock.updateBackupConfig.mock.calls[1][0].smb_host).toBe('corrected.local');
+    expect(component['blockedSave']()).toBeNull();
+  });
+
+  it('requires corrected reconfirmation after 422 and never falls back from 428', async () => {
+    const apiMock = {
+      listBackups: vi.fn().mockResolvedValue(response({ backups: [] })),
+      listRemoteBackups: vi.fn().mockResolvedValue(response({ backups: [] })),
+      getBackupConfig: vi
+        .fn()
+        .mockResolvedValueOnce(response(backupConfig()))
+        .mockResolvedValueOnce(response(backupConfig({ revision: 'revision-428-current' }))),
+      getBackupRecoveryStatus: vi.fn().mockResolvedValue(response(recoveryStatus())),
+      getHouseholdKeyStatus: vi.fn().mockResolvedValue(response(keyStatus())),
+      updateBackupConfig: vi
+        .fn()
+        .mockResolvedValueOnce(response(undefined, { error: { message: 'invalid policy' } }, 422))
+        .mockResolvedValueOnce(response(backupConfig({ revision: 'revision-2' })))
+        .mockResolvedValueOnce(
+          response(undefined, { error: { message: 'revision required' } }, 428),
+        ),
+    };
+    configure(apiMock, 'owner');
+    const fixture = TestBed.createComponent(Backups);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const component = fixture.componentInstance;
+
+    component['updateDraft']('local', { weeklyUntilDays: 120 });
+    await component['saveAndActivateRetention']();
+    expect(component['blockedSave']()?.failureClass).toBe('validation');
+    expect(component['canRetryBlockedSave']()).toBe(false);
+
+    component['updateDraft']('local', { weeklyUntilDays: 121 });
+    await component['saveAndActivateRetention']();
+    expect(apiMock.updateBackupConfig).toHaveBeenCalledTimes(2);
+    expect(apiMock.updateBackupConfig.mock.calls[1][0].local_retention.weekly_until_days).toBe(121);
+
+    component['host'].set('precondition.local');
+    await component['saveConfig']('destination');
+    expect(component['blockedSave']()?.failureClass).toBe('precondition');
+    expect(component['blockedSave']()?.phase).toBe('ready');
+    expect(component['canRetryBlockedSave']()).toBe(false);
+    for (const [payload] of apiMock.updateBackupConfig.mock.calls) {
+      expect(payload.expected_revision).toBeTruthy();
+      expect(payload).not.toHaveProperty('expected_updated_at');
+    }
+  });
+
+  it('requires authentication recovery and an explicit retry after 401 or 403', async () => {
+    const apiMock = {
+      listBackups: vi.fn().mockResolvedValue(response({ backups: [] })),
+      listRemoteBackups: vi.fn().mockResolvedValue(response({ backups: [] })),
+      getBackupConfig: vi
+        .fn()
+        .mockResolvedValueOnce(response(backupConfig()))
+        .mockResolvedValueOnce(response(backupConfig({ revision: 'revision-auth-current' }))),
+      getBackupRecoveryStatus: vi.fn().mockResolvedValue(response(recoveryStatus())),
+      getHouseholdKeyStatus: vi.fn().mockResolvedValue(response(keyStatus())),
+      updateBackupConfig: vi
+        .fn()
+        .mockResolvedValueOnce(response(undefined, { error: { message: 'sign in' } }, 401))
+        .mockResolvedValueOnce(response(backupConfig({ revision: 'revision-auth-saved' }))),
+    };
+    configure(apiMock, 'owner');
+    const fixture = TestBed.createComponent(Backups);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const component = fixture.componentInstance;
+
+    component['host'].set('auth.local');
+    await component['saveConfig']('destination');
+    expect(component['blockedSave']()?.phase).toBe('refreshFailed');
+    expect(apiMock.updateBackupConfig).toHaveBeenCalledTimes(1);
+    await component['reloadBlockedSave']();
+    expect(component['canRetryBlockedSave']()).toBe(true);
+    await component['retryBlockedDraft']();
+    expect(apiMock.updateBackupConfig).toHaveBeenCalledTimes(2);
+    expect(apiMock.updateBackupConfig.mock.calls[1][0].expected_revision).toBe(
+      'revision-auth-current',
+    );
+    expect(component['classifySaveFailure'](403)).toBe('authentication');
+  });
+
+  it('acknowledges an exact non-secret match after an ambiguous response without retrying', async () => {
+    const matching = backupConfig({ revision: 'revision-matched', smb_host: 'matched.local' });
+    const apiMock = {
+      listBackups: vi.fn().mockResolvedValue(response({ backups: [] })),
+      listRemoteBackups: vi.fn().mockResolvedValue(response({ backups: [] })),
+      getBackupConfig: vi
+        .fn()
+        .mockResolvedValueOnce(response(backupConfig()))
+        .mockResolvedValueOnce(response(matching)),
+      getBackupRecoveryStatus: vi.fn().mockResolvedValue(response(recoveryStatus())),
+      getHouseholdKeyStatus: vi.fn().mockResolvedValue(response(keyStatus())),
+      updateBackupConfig: vi
+        .fn()
+        .mockResolvedValue(response(undefined, { error: { message: 'connection reset' } })),
+    };
+    configure(apiMock, 'owner');
+    const fixture = TestBed.createComponent(Backups);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const component = fixture.componentInstance;
+
+    component['host'].set('matched.local');
+    await component['saveConfig']('destination');
+
+    expect(component['blockedSave']()).toBeNull();
+    expect(component['serverConfig']()?.revision).toBe('revision-matched');
+    expect(component['destinationSaveFeedback']()?.level).toBe('info');
+    expect(component['destinationSaveFeedback']()?.message).toContain('response was not confirmed');
+    expect(apiMock.updateBackupConfig).toHaveBeenCalledTimes(1);
+  });
+
+  it('discards queued activation and late save effects across session A→B→A', async () => {
+    setOwnerSession('save-a');
+    const oldSave = deferred<ReturnType<typeof response>>();
+    const apiMock = {
+      listBackups: vi.fn().mockResolvedValue(response({ backups: [] })),
+      listRemoteBackups: vi.fn().mockResolvedValue(response({ backups: [] })),
+      getBackupConfig: vi
+        .fn()
+        .mockResolvedValueOnce(response(backupConfig({ revision: 'revision-a' })))
+        .mockResolvedValueOnce(
+          response(backupConfig({ revision: 'revision-b', smb_host: null, has_password: false })),
+        )
+        .mockResolvedValueOnce(
+          response(backupConfig({ revision: 'revision-a2', smb_host: null, has_password: false })),
+        ),
+      getBackupRecoveryStatus: vi.fn().mockResolvedValue(response(recoveryStatus())),
+      getHouseholdKeyStatus: vi.fn().mockResolvedValue(response(keyStatus())),
+      updateBackupConfig: vi.fn().mockImplementation(() => oldSave.promise),
+    };
+    configure(apiMock, 'owner');
+    const fixture = TestBed.createComponent(Backups);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const component = fixture.componentInstance;
+
+    component['host'].set('old.local');
+    const automatic = component['saveConfig']('destination');
+    await flushUntil(() => apiMock.updateBackupConfig.mock.calls.length === 1);
+    const activation = component['saveAndActivateRetention']();
+    expect(component['pendingActivation']).not.toBeNull();
+
+    setOwnerSession('save-b');
+    await flushUntil(() => apiMock.getBackupConfig.mock.calls.length === 2);
+    setOwnerSession('save-a');
+    await flushUntil(() => apiMock.getBackupConfig.mock.calls.length === 3);
+    oldSave.resolve(response(backupConfig({ revision: 'revision-old-completion' })));
+    await Promise.all([automatic, activation]);
+
+    expect(apiMock.updateBackupConfig).toHaveBeenCalledTimes(1);
+    expect(component['serverConfig']()?.revision).toBe('revision-a2');
+    expect(component['pendingActivation']).toBeNull();
+    expect(component['blockedSave']()).toBeNull();
+    expect(component['retentionSaveFeedback']()).toBeNull();
+    fixture.destroy();
+    clearAuthState();
+  });
+
+  it('renders review-only recovery as an actionable presentation without masking mixed faults', async () => {
+    const reviewOnly = destination('local', {
+      status: 'degraded',
+      coverage_status: 'unknown',
+      retention_review_required: true,
+      reason_codes: ['retention_review_required', 'coverage_unknown'],
+    });
+    const reviewOnlyKeepAll = destination('offbox', {
+      status: 'degraded',
+      coverage_status: 'not_applicable',
+      retention_review_required: true,
+      reason_codes: ['retention_review_required'],
+      policy: {
+        mode: 'keep_all',
+        keep_all_days: null,
+        daily_until_days: null,
+        weekly_until_days: null,
+        target_oldest_at: null,
+      },
+    });
+    const apiMock = {
+      listBackups: vi.fn().mockResolvedValue(response({ backups: [] })),
+      listRemoteBackups: vi.fn().mockResolvedValue(response({ backups: [] })),
+      getBackupConfig: vi.fn().mockResolvedValue(response(backupConfig())),
+      getBackupRecoveryStatus: vi.fn().mockResolvedValue(
+        response(
+          recoveryStatus({
+            overall_status: 'degraded',
+            local: reviewOnly,
+            offbox: reviewOnlyKeepAll,
+          }),
+        ),
+      ),
+      getHouseholdKeyStatus: vi.fn().mockResolvedValue(response(keyStatus())),
+    };
+    configure(apiMock, 'owner');
+    const fixture = TestBed.createComponent(Backups);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    const text = host.textContent ?? '';
+    expect(text).toContain('Review required overall');
+    expect(text).toContain(
+      'Automatic pruning is paused until an administrator activates retention',
+    );
+    expect(text).toContain('Coverage does not apply to this destination.');
+    expect(host.querySelector('.recovery-destination')?.getAttribute('aria-label')).toContain(
+      'API recovery status is degraded',
+    );
+    expect(fixture.componentInstance['isReviewOnlyDestination'](reviewOnly as never)).toBe(true);
+
+    const mixed = destination('local', {
+      status: 'degraded',
+      retention_review_required: true,
+      reason_codes: ['retention_review_required', 'coverage_unknown', 'read_probe_partial'],
+    });
+    expect(fixture.componentInstance['isReviewOnlyDestination'](mixed as never)).toBe(false);
+    expect(fixture.componentInstance['recoveryStateLabel'](mixed as never)).toBe('Degraded');
+    expect(
+      fixture.componentInstance['isOverallReviewOnly'](
+        recoveryStatus({ overall_status: 'degraded', local: reviewOnly, offbox: mixed }) as never,
+      ),
+    ).toBe(false);
+    expect(fixture.componentInstance['isOverallReviewOnly'](recoveryStatus() as never)).toBe(false);
+
+    fixture.componentInstance['recoveryStatus'].set(
+      recoveryStatus({
+        overall_status: 'degraded',
+        local: mixed,
+        offbox: reviewOnlyKeepAll,
+      }) as never,
+    );
+    fixture.detectChanges();
+    const localCard = host.querySelectorAll('.recovery-destination')[0];
+    expect(localCard.textContent).toContain('Degraded');
+    expect(localCard.textContent).toContain('Retention still requires administrator review');
+  });
+
+  it('renders schedule and destination success beside their initiating controls', async () => {
+    const apiMock = {
+      listBackups: vi.fn().mockResolvedValue(response({ backups: [] })),
+      listRemoteBackups: vi.fn().mockResolvedValue(response({ backups: [] })),
+      getBackupConfig: vi.fn().mockResolvedValue(response(backupConfig())),
+      getBackupRecoveryStatus: vi.fn().mockResolvedValue(response(recoveryStatus())),
+      getHouseholdKeyStatus: vi.fn().mockResolvedValue(response(keyStatus())),
+      updateBackupConfig: vi
+        .fn()
+        .mockResolvedValueOnce(
+          response(backupConfig({ revision: 'revision-2', frequency: 'weekly' })),
+        )
+        .mockResolvedValueOnce(
+          response(
+            backupConfig({ revision: 'revision-3', frequency: 'weekly', smb_host: 'saved.local' }),
+          ),
+        ),
+    };
+    configure(apiMock, 'owner');
+    const fixture = TestBed.createComponent(Backups);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const component = fixture.componentInstance;
+
+    component['onScheduleChange']('weekly');
+    await flushUntil(() => component['scheduleSaveFeedback']()?.level === 'success');
+    component['host'].set('saved.local');
+    component['onDestinationEdit']();
+    await component['saveConfig']('destination');
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.querySelector('.config-control-feedback [role="status"]')?.textContent).toContain(
+      'Schedule saved',
+    );
+    const destinationFeedback = [...host.querySelectorAll('.config-feedback[role="status"]')].find(
+      (element) => element.textContent?.includes('Destination saved'),
+    );
+    expect(destinationFeedback).toBeTruthy();
+    expect(destinationFeedback?.closest('.backups-card')?.textContent).toContain(
+      'Off-box backup — Synology',
     );
   });
 

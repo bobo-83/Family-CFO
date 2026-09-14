@@ -17,7 +17,8 @@
   max-width: 72rem;
 }
 
-.backups-conflict {
+.backups-conflict,
+.backups-reconciliation {
   max-width: 48rem;
   margin-bottom: 1.25rem;
   padding: 1rem;
@@ -111,8 +112,35 @@
   margin-top: 0;
 }
 
-.backups-error {
+.backups-error,
+.config-feedback--error {
   color: var(--mat-sys-error, var(--color-danger));
+}
+
+.config-control-feedback {
+  min-width: 0;
+
+  > .mat-mdc-form-field {
+    width: 100%;
+  }
+}
+
+.config-feedback {
+  margin: -0.25rem 0 0.75rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+
+  &--success {
+    color: var(--mat-sys-primary, var(--color-success));
+  }
+}
+
+.backups-reconciliation {
+  margin-top: 0.75rem;
+
+  h3 {
+    margin-top: 0;
+  }
 }
 
 .backups-form {

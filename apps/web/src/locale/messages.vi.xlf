@@ -8092,6 +8092,118 @@
         <note priority="1" from="description">Backups stored on a Synology NAS</note>
         <note priority="1" from="meaning">Destination heading</note>
       </trans-unit>
+      <trans-unit id="6011299498954659900" datatype="html">
+        <source> Backup settings need reconciliation </source>
+        <target state="translated"> Cần đối chiếu cài đặt sao lưu </target>
+      </trans-unit>
+      <trans-unit id="5747593419615433999" datatype="html">
+        <source> Reloading current box settings… </source>
+        <target state="translated"> Đang tải cài đặt hiện tại của thiết bị… </target>
+      </trans-unit>
+      <trans-unit id="8436083463307303407" datatype="html">
+        <source> Your draft is preserved, but Retry and Use current stay unavailable until the latest box settings load successfully. </source>
+        <target state="translated"> Bản nháp của bạn được giữ lại, nhưng Thử lại và Dùng cài đặt hiện tại sẽ không khả dụng cho đến khi tải thành công cài đặt mới nhất của thiết bị. </target>
+      </trans-unit>
+      <trans-unit id="5075042872246985344" datatype="html">
+        <source> Reload current settings </source>
+        <target state="translated"> Tải lại cài đặt hiện tại </target>
+      </trans-unit>
+      <trans-unit id="5898346554635092510" datatype="html">
+        <source> The retention draft changed after the failed activation. Confirm the current settings with the activation button instead of retrying the older policy. </source>
+        <target state="translated"> Bản nháp lưu giữ đã thay đổi sau lần kích hoạt không thành công. Hãy xác nhận cài đặt hiện tại bằng nút kích hoạt thay vì thử lại chính sách cũ. </target>
+      </trans-unit>
+      <trans-unit id="3420577457276280565" datatype="html">
+        <source> Retry will submit the preserved confirmed retention policy with your latest schedule and destination values. </source>
+        <target state="translated"> Lần thử lại sẽ gửi chính sách lưu giữ đã xác nhận được giữ lại cùng với các giá trị lịch và đích mới nhất. </target>
+      </trans-unit>
+      <trans-unit id="2593324903694368989" datatype="html">
+        <source> Use current box settings </source>
+        <target state="translated"> Dùng cài đặt hiện tại của thiết bị </target>
+      </trans-unit>
+      <trans-unit id="5721894058175351277" datatype="html">
+        <source> Retry preserved settings </source>
+        <target state="translated"> Thử lại cài đặt được giữ lại </target>
+      </trans-unit>
+      <trans-unit id="7016459229358203752" datatype="html">
+        <source>Activation pending…</source>
+        <target state="translated">Đang chờ kích hoạt…</target>
+      </trans-unit>
+      <trans-unit id="3836001397119036047" datatype="html">
+        <source>Save and activate current settings</source>
+        <target state="translated">Lưu và kích hoạt cài đặt hiện tại</target>
+      </trans-unit>
+      <trans-unit id="8131961711896931021" datatype="html">
+        <source>Save and activate retention</source>
+        <target state="translated">Lưu và kích hoạt chính sách lưu giữ</target>
+      </trans-unit>
+      <trans-unit id="5168421117686767811" datatype="html">
+        <source> Retention still requires administrator review. Automatic pruning remains paused; use Save and activate retention above after reviewing both policies. </source>
+        <target state="translated"> Chính sách lưu giữ vẫn cần quản trị viên xem xét. Việc tự động xóa vẫn bị tạm dừng; sau khi xem xét cả hai chính sách, hãy chọn Lưu và kích hoạt chính sách lưu giữ ở trên. </target>
+      </trans-unit>
+      <trans-unit id="3542634937273028238" datatype="html">
+        <source>Activation queued. It will use the saved revision from the current request.</source>
+        <target state="translated">Đã xếp hàng kích hoạt. Tác vụ sẽ dùng phiên bản đã lưu từ yêu cầu hiện tại.</target>
+      </trans-unit>
+      <trans-unit id="1367196762668394785" datatype="html">
+        <source>Saving and activating retention…</source>
+        <target state="translated">Đang lưu và kích hoạt chính sách lưu giữ…</target>
+      </trans-unit>
+      <trans-unit id="1937781153146231817" datatype="html">
+        <source>Backup settings changed or are busy. Your draft is preserved and was not replayed.</source>
+        <target state="translated">Cài đặt sao lưu đã thay đổi hoặc đang bận. Bản nháp của bạn được giữ lại và không được tự động gửi lại.</target>
+      </trans-unit>
+      <trans-unit id="143410431445414417" datatype="html">
+        <source>Backup settings were not saved. Sign in again or restore backup-management permission before continuing.</source>
+        <target state="translated">Chưa lưu cài đặt sao lưu. Hãy đăng nhập lại hoặc khôi phục quyền quản lý sao lưu trước khi tiếp tục.</target>
+      </trans-unit>
+      <trans-unit id="2277295845089036870" datatype="html">
+        <source>Backup settings were rejected. Correct the highlighted values and confirm again.</source>
+        <target state="translated">Cài đặt sao lưu bị từ chối. Hãy sửa các giá trị được đánh dấu và xác nhận lại.</target>
+      </trans-unit>
+      <trans-unit id="2340653227916509873" datatype="html">
+        <source>The server did not accept the required revision. Reload current settings; this client will not fall back to timestamp or tokenless writes.</source>
+        <target state="translated">Máy chủ không chấp nhận phiên bản bắt buộc. Hãy tải lại cài đặt hiện tại; ứng dụng này sẽ không quay lại dùng dấu thời gian hoặc yêu cầu không có mã phiên bản.</target>
+      </trans-unit>
+      <trans-unit id="1323062552557231070" datatype="html">
+        <source>Backup settings may have been accepted, but the response was not confirmed. Reload before deciding whether to retry.</source>
+        <target state="translated">Cài đặt sao lưu có thể đã được chấp nhận, nhưng chưa xác nhận được phản hồi. Hãy tải lại trước khi quyết định có thử lại hay không.</target>
+      </trans-unit>
+      <trans-unit id="1863465124104532632" datatype="html">
+        <source>Current backup settings could not be reloaded. Your draft is still preserved.</source>
+        <target state="translated">Không thể tải lại cài đặt sao lưu hiện tại. Bản nháp của bạn vẫn được giữ lại.</target>
+      </trans-unit>
+      <trans-unit id="3759486539739106893" datatype="html">
+        <source>The box now matches these settings, but this request’s response was not confirmed.</source>
+        <target state="translated">Thiết bị hiện khớp với các cài đặt này, nhưng chưa xác nhận được phản hồi của yêu cầu này.</target>
+      </trans-unit>
+      <trans-unit id="1352783997575369471" datatype="html">
+        <source>Schedule saved.</source>
+        <target state="translated">Đã lưu lịch.</target>
+      </trans-unit>
+      <trans-unit id="2761253584556708802" datatype="html">
+        <source>Destination saved.</source>
+        <target state="translated">Đã lưu đích.</target>
+      </trans-unit>
+      <trans-unit id="8606802403512764125" datatype="html">
+        <source>Retention saved and activated. Pruning runs during independent maintenance.</source>
+        <target state="translated">Đã lưu và kích hoạt chính sách lưu giữ. Việc xóa diễn ra trong tác vụ bảo trì độc lập.</target>
+      </trans-unit>
+      <trans-unit id="6461247721430567569" datatype="html">
+        <source>Review required</source>
+        <target state="translated">Cần xem xét</target>
+      </trans-unit>
+      <trans-unit id="1844932095609705714" datatype="html">
+        <source>Review required. API recovery status is degraded because retention policy review is pending.</source>
+        <target state="translated">Cần xem xét. Trạng thái khôi phục của API là suy giảm vì đang chờ xem xét chính sách lưu giữ.</target>
+      </trans-unit>
+      <trans-unit id="5963545798844784534" datatype="html">
+        <source>API recovery status is <x id="status" equiv-text="this.destinationStateLabel(status.status)"/>.</source>
+        <target state="translated">Trạng thái khôi phục của API là <x id="status" equiv-text="this.destinationStateLabel(status.status)"/>.</target>
+      </trans-unit>
+      <trans-unit id="3225932137483997572" datatype="html">
+        <source>Automatic pruning is paused until an administrator activates retention. The server reports no additional inventory, read-probe, capacity, or anomaly reason.</source>
+        <target state="translated">Việc tự động xóa bị tạm dừng cho đến khi quản trị viên kích hoạt chính sách lưu giữ. Máy chủ không báo cáo thêm lý do nào về danh mục, kiểm tra đọc, dung lượng hoặc bất thường.</target>
+      </trans-unit>
     </body>
   </file>
 </xliff>
