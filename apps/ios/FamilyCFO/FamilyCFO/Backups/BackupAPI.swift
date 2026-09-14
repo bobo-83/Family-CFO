@@ -79,7 +79,7 @@ struct BackupConfigDraft: Sendable {
     var domain: String
     var localRetention: BackupRetentionDraft
     var offboxRetention: BackupRetentionDraft
-    var expectedUpdatedAt: Date?
+    var expectedRevision: String?
     var confirmRetentionPolicy: Bool
 }
 
@@ -111,7 +111,8 @@ struct LiveBackupAPI: BackupAPI {
             offboxMaxBytes: includesRetention ? bytes(d.offboxRetention.maxGB, zeroIsNil: true) : nil,
             localMinFreeBytes: includesRetention ? bytes(d.localRetention.reserveGB) : nil,
             offboxMinFreeBytes: includesRetention ? bytes(d.offboxRetention.reserveGB) : nil,
-            expectedUpdatedAt: d.expectedUpdatedAt,
+            expectedRevision: d.expectedRevision,
+            expectedUpdatedAt: nil,
             confirmRetentionPolicy: d.confirmRetentionPolicy)
         switch try await client.updateBackupConfig(.init(body: .json(body))) {
         case .ok(let r): return try r.body.json
@@ -120,8 +121,13 @@ struct LiveBackupAPI: BackupAPI {
                 ?? String(localized: "Backup settings changed on the box.")
             throw BackupError.configurationConflict(message)
         case .unprocessableContent(let response):
-            if let message = try? response.body.json.error.message { throw APIError.advisor(message) }
-            throw APIError.server(422)
+            let message = (try? response.body.json.error.message)
+                ?? String(localized: "The backup settings are invalid.")
+            throw BackupError.configurationInvalid(message)
+        case .preconditionRequired(let response):
+            let message = (try? response.body.json.error.message)
+                ?? String(localized: "Reload backup settings before saving again.")
+            throw BackupError.configurationPreconditionRequired(message)
         case .unauthorized: throw APIError.unauthorized
         case .forbidden: throw APIError.server(403)
         case .undocumented(let s, _): throw APIError.server(s)
@@ -373,11 +379,15 @@ enum BackupError: Error, LocalizedError {
     case notFoundOnShare
     case restoreFailed
     case configurationConflict(String)
+    case configurationInvalid(String)
+    case configurationPreconditionRequired(String)
 
     var errorDescription: String? {
         switch self {
         case .notFoundOnShare: return String(localized: "That backup is no longer on the share.")
-        case .configurationConflict(let message): return message
+        case .configurationConflict(let message), .configurationInvalid(let message),
+            .configurationPreconditionRequired(let message):
+            return message
         case .restoreFailed:
             return String(
                 localized:

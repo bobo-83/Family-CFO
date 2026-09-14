@@ -3153,27 +3153,11 @@
         }
       }
     },
-    "Back up": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Kurti kopijas"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sao lưu"
-          }
-        }
-      }
-    },
     "Back up now": {
       "localizations": {
         "lt": {
           "stringUnit": {
-            "state": "needs_review",
+            "state": "translated",
             "value": "Kurti kopiją dabar"
           }
         },
@@ -3189,7 +3173,7 @@
       "localizations": {
         "lt": {
           "stringUnit": {
-            "state": "needs_review",
+            "state": "translated",
             "value": "Atsarginė kopija"
           }
         },
@@ -19705,6 +19689,138 @@
             "value": "🧮 Tóm tắt tự động — bật bộ máy AI để có bản diễn giải."
           }
         }
+      }
+    },
+    "Activation queued…": {
+      "localizations": {
+        "lt": { "stringUnit": { "state": "translated", "value": "Aktyvinimas įtrauktas į eilę…" } },
+        "vi": { "stringUnit": { "state": "translated", "value": "Đã xếp hàng kích hoạt…" } }
+      }
+    },
+    "Automatic pruning is paused. Review and activate the retention policy; the server reports no additional recovery fault for this destination.": {
+      "localizations": {
+        "lt": { "stringUnit": { "state": "translated", "value": "Automatinis valymas pristabdytas. Peržiūrėkite ir aktyvinkite saugojimo politiką; serveris nepraneša apie kitą šios paskirties vietos atkūrimo triktį." } },
+        "vi": { "stringUnit": { "state": "translated", "value": "Tự động dọn bản sao đã tạm dừng. Hãy xem xét và kích hoạt chính sách lưu giữ; máy chủ không báo lỗi khôi phục nào khác cho đích này." } }
+      }
+    },
+    "Backup destination": {
+      "localizations": {
+        "lt": { "stringUnit": { "state": "translated", "value": "Atsarginių kopijų paskirties vieta" } },
+        "vi": { "stringUnit": { "state": "translated", "value": "Đích sao lưu" } }
+      }
+    },
+    "Backup destination saved.": {
+      "localizations": {
+        "lt": { "stringUnit": { "state": "translated", "value": "Atsarginių kopijų paskirties vieta išsaugota." } },
+        "vi": { "stringUnit": { "state": "translated", "value": "Đã lưu đích sao lưu." } }
+      }
+    },
+    "Backup schedule saved.": {
+      "localizations": {
+        "lt": { "stringUnit": { "state": "translated", "value": "Atsarginių kopijų tvarkaraštis išsaugotas." } },
+        "vi": { "stringUnit": { "state": "translated", "value": "Đã lưu lịch sao lưu." } }
+      }
+    },
+    "Reload backup settings before saving again.": {
+      "localizations": {
+        "lt": { "stringUnit": { "state": "translated", "value": "Prieš išsaugodami dar kartą įkelkite atsarginių kopijų nustatymus." } },
+        "vi": { "stringUnit": { "state": "translated", "value": "Hãy tải lại cài đặt sao lưu trước khi lưu lần nữa." } }
+      }
+    },
+    "Reload current settings": {
+      "localizations": {
+        "lt": { "stringUnit": { "state": "translated", "value": "Iš naujo įkelti dabartinius nustatymus" } },
+        "vi": { "stringUnit": { "state": "translated", "value": "Tải lại cài đặt hiện tại" } }
+      }
+    },
+    "Reloading current box settings…": {
+      "localizations": {
+        "lt": { "stringUnit": { "state": "translated", "value": "Iš naujo įkeliami dabartiniai dėžutės nustatymai…" } },
+        "vi": { "stringUnit": { "state": "translated", "value": "Đang tải lại cài đặt hiện tại của hộp…" } }
+      }
+    },
+    "Retention": {
+      "localizations": {
+        "lt": { "stringUnit": { "state": "translated", "value": "Saugojimas" } },
+        "vi": { "stringUnit": { "state": "translated", "value": "Lưu giữ" } }
+      }
+    },
+    "Retention policy review is also required. Review and activate it after resolving the recovery issue above.": {
+      "localizations": {
+        "lt": { "stringUnit": { "state": "translated", "value": "Taip pat būtina peržiūrėti saugojimo politiką. Išsprendę aukščiau nurodytą atkūrimo problemą, peržiūrėkite ir aktyvinkite politiką." } },
+        "vi": { "stringUnit": { "state": "translated", "value": "Cũng cần xem xét chính sách lưu giữ. Hãy xem xét và kích hoạt sau khi xử lý vấn đề khôi phục ở trên." } }
+      }
+    },
+    "Retention save error. Reloading current box settings.": {
+      "localizations": {
+        "lt": { "stringUnit": { "state": "translated", "value": "Saugojimo išsaugojimo klaida. Iš naujo įkeliami dabartiniai dėžutės nustatymai." } },
+        "vi": { "stringUnit": { "state": "translated", "value": "Lỗi lưu chính sách lưu giữ. Đang tải lại cài đặt hiện tại của hộp." } }
+      }
+    },
+    "Retention settings saved and activated.": {
+      "localizations": {
+        "lt": { "stringUnit": { "state": "translated", "value": "Saugojimo nustatymai išsaugoti ir aktyvinti." } },
+        "vi": { "stringUnit": { "state": "translated", "value": "Đã lưu và kích hoạt cài đặt lưu giữ." } }
+      }
+    },
+    "Retry loading backup settings": {
+      "localizations": {
+        "lt": { "stringUnit": { "state": "translated", "value": "Bandyti dar kartą įkelti atsarginių kopijų nustatymus" } },
+        "vi": { "stringUnit": { "state": "translated", "value": "Thử tải lại cài đặt sao lưu" } }
+      }
+    },
+    "Retry save": {
+      "localizations": {
+        "lt": { "stringUnit": { "state": "translated", "value": "Bandyti išsaugoti dar kartą" } },
+        "vi": { "stringUnit": { "state": "translated", "value": "Thử lưu lại" } }
+      }
+    },
+    "Review required": {
+      "localizations": {
+        "lt": { "stringUnit": { "state": "translated", "value": "Būtina peržiūra" } },
+        "vi": { "stringUnit": { "state": "translated", "value": "Cần xem xét" } }
+      }
+    },
+    "Save and activate current settings": {
+      "localizations": {
+        "lt": { "stringUnit": { "state": "translated", "value": "Išsaugoti ir aktyvinti dabartinius nustatymus" } },
+        "vi": { "stringUnit": { "state": "translated", "value": "Lưu và kích hoạt cài đặt hiện tại" } }
+      }
+    },
+    "The backup settings are invalid.": {
+      "localizations": {
+        "lt": { "stringUnit": { "state": "translated", "value": "Atsarginių kopijų nustatymai netinkami." } },
+        "vi": { "stringUnit": { "state": "translated", "value": "Cài đặt sao lưu không hợp lệ." } }
+      }
+    },
+    "The box now matches these settings, but the original response was not confirmed.": {
+      "localizations": {
+        "lt": { "stringUnit": { "state": "translated", "value": "Dėžutės nustatymai dabar sutampa, tačiau pradinis atsakymas nebuvo patvirtintas." } },
+        "vi": { "stringUnit": { "state": "translated", "value": "Hộp hiện khớp với các cài đặt này, nhưng phản hồi ban đầu chưa được xác nhận." } }
+      }
+    },
+    "The schedule saves when selected. Destination values save when editing finishes. Retention changes use the separate activation button below. The password is encrypted on the box and never shown again.": {
+      "localizations": {
+        "lt": { "stringUnit": { "state": "translated", "value": "Tvarkaraštis išsaugomas jį pasirinkus. Paskirties vietos reikšmės išsaugomos baigus redaguoti. Saugojimo pakeitimams naudokite atskirą aktyvinimo mygtuką žemiau. Slaptažodis dėžutėje užšifruojamas ir daugiau nerodomas." } },
+        "vi": { "stringUnit": { "state": "translated", "value": "Lịch được lưu khi chọn. Các giá trị đích được lưu khi chỉnh sửa xong. Thay đổi lưu giữ dùng nút kích hoạt riêng bên dưới. Mật khẩu được mã hóa trên hộp và không bao giờ hiển thị lại." } }
+      }
+    },
+    "error": {
+      "localizations": {
+        "lt": { "stringUnit": { "state": "translated", "value": "klaida" } },
+        "vi": { "stringUnit": { "state": "translated", "value": "lỗi" } }
+      }
+    },
+    "status": {
+      "localizations": {
+        "lt": { "stringUnit": { "state": "translated", "value": "būsena" } },
+        "vi": { "stringUnit": { "state": "translated", "value": "trạng thái" } }
+      }
+    },
+    "success": {
+      "localizations": {
+        "lt": { "stringUnit": { "state": "translated", "value": "pavyko" } },
+        "vi": { "stringUnit": { "state": "translated", "value": "thành công" } }
       }
     }
   },

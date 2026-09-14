@@ -5,6 +5,12 @@ import UIKit
 /// credentials — the server uploads encrypted backups directly, no mounting. Test
 /// the connection, pick a schedule, see status, and restore from the share.
 struct BackupSettingsView: View {
+    static var schedulePickerTitle: String { String(localized: "Backup") }
+    static var backupNowTitle: String { String(localized: "Back up now") }
+    static var supersedingActivationTitle: String {
+        String(localized: "Save and activate current settings")
+    }
+
     @State var viewModel: BackupViewModel
     let sessionIdentity: String?
     @State private var expandedDays: Set<String> = []
@@ -21,6 +27,16 @@ struct BackupSettingsView: View {
     @State private var showRecoveryUnlock = false
     @State private var recoveryUnlockKey = ""
 
+    private enum DestinationField: Hashable {
+        case host
+        case share
+        case folder
+        case username
+        case password
+    }
+
+    @FocusState private var focusedDestinationField: DestinationField?
+
     var body: some View {
         settingsContent
             .task(id: sessionIdentity) {
@@ -36,8 +52,9 @@ struct BackupSettingsView: View {
             }
     }
 
-    private var settingsContent: some View {
+    private var formContent: some View {
         Form {
+            if viewModel.configLoadError != nil { configurationLoadErrorSection }
             connectionSection
             scheduleSection
             retentionSection
@@ -59,7 +76,23 @@ struct BackupSettingsView: View {
         .overlay {
             if viewModel.isLoading && viewModel.latest == nil { ProgressView() }
         }
-        .onChange(of: viewModel.frequency) { Task { await viewModel.save() } }
+        .onChange(of: focusedDestinationField) { oldField, newField in
+            guard oldField != nil, oldField != newField else { return }
+            Task { await viewModel.save(origin: .destination) }
+        }
+        .onChange(of: viewModel.scheduleSaveFeedback) { _, feedback in
+            announce(feedback, control: String(localized: "Schedule"))
+        }
+        .onChange(of: viewModel.destinationSaveFeedback) { _, feedback in
+            announce(feedback, control: String(localized: "Backup destination"))
+        }
+        .onChange(of: viewModel.retentionSaveFeedback) { _, feedback in
+            announce(feedback, control: String(localized: "Retention"))
+        }
+    }
+
+    private var settingsContent: some View {
+        formContent
         .alert(
             "Backup", isPresented: .init(
                 get: { viewModel.statusMessage != nil },
@@ -162,23 +195,71 @@ struct BackupSettingsView: View {
         recoveryUnlockKey = ""
     }
 
+    private var configurationLoadErrorSection: some View {
+        Section {
+            if let error = viewModel.configLoadError {
+                Label(error, systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.red)
+                    .accessibilityLabel("Backup settings load error: \(error)")
+                Button("Retry loading backup settings") {
+                    Task { await viewModel.load() }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder private func configurationFeedback(
+        _ feedback: BackupViewModel.ConfigSaveFeedback, control: String
+    ) -> some View {
+        let isError = feedback.level == .error
+        let isSuccess = feedback.level == .success
+        Label(
+            feedback.message,
+            systemImage: isError
+                ? "exclamationmark.triangle.fill"
+                : (isSuccess ? "checkmark.circle.fill" : "info.circle.fill")
+        )
+        .font(.caption)
+        .foregroundStyle(isError ? .red : (isSuccess ? .green : .secondary))
+        .accessibilityLabel(
+            "\(control) save \(isError ? "error" : (isSuccess ? "success" : "status")): \(feedback.message)")
+        .accessibilityAddTraits(.isStaticText)
+    }
+
+    private func announce(
+        _ feedback: BackupViewModel.ConfigSaveFeedback?, control: String
+    ) {
+        guard let feedback else { return }
+        let state = feedback.level == .error
+            ? String(localized: "error")
+            : (feedback.level == .success ? String(localized: "success") : String(localized: "status"))
+        UIAccessibility.post(
+            notification: .announcement,
+            argument: "\(control) \(state): \(feedback.message)")
+    }
+
     private var connectionSection: some View {
         Section {
             field(
                 String(localized: "Synology address"), text: $viewModel.host,
-                placeholder: "192.168.1.50", keyboard: .URL)
+                placeholder: "192.168.1.50", field: .host, keyboard: .URL)
             field(
                 String(localized: "Shared folder"), text: $viewModel.share,
-                placeholder: "family-cfo-backups")
+                placeholder: "family-cfo-backups", field: .share)
             field(
-                String(localized: "Subfolder (optional)"), text: $viewModel.folder, placeholder: "")
+                String(localized: "Subfolder (optional)"), text: $viewModel.folder,
+                placeholder: "", field: .folder)
             field(
                 String(localized: "Username"), text: $viewModel.username,
-                placeholder: "backup-user")
-            SecureField("Password", text: $viewModel.password)
+                placeholder: "backup-user", field: .username)
+            SecureField(
+                "Password",
+                text: .init(
+                    get: { viewModel.password },
+                    set: { viewModel.updatePassword($0) }))
                 .textContentType(.password)
-                .onChange(of: viewModel.password) { viewModel.passwordChanged() }
-                .onSubmit { Task { await viewModel.save() } }
+                .focused($focusedDestinationField, equals: .password)
+                .onSubmit { Task { await viewModel.save(origin: .destination) } }
             if viewModel.hasStoredPassword && !viewModel.passwordEdited {
                 Text("A password is saved. Leave blank to keep it.")
                     .font(.caption).foregroundStyle(.secondary)
@@ -204,22 +285,37 @@ struct BackupSettingsView: View {
                 // The server's own words for why the check failed.
                 Text(verbatim: reason).font(.caption).foregroundStyle(.red)
             }
+            if let feedback = viewModel.destinationSaveFeedback {
+                configurationFeedback(
+                    feedback, control: String(localized: "Backup destination"))
+            }
         } header: {
             Text("Synology (SMB)")
         } footer: {
-            Text("Destination and schedule changes save as you go. Retention changes use the separate activation button below. The password is encrypted on the box and never shown again.")
+            Text("The schedule saves when selected. Destination values save when editing finishes. Retention changes use the separate activation button below. The password is encrypted on the box and never shown again.")
         }
     }
 
     private var scheduleSection: some View {
         Section {
-            Picker("Back up", selection: $viewModel.frequency) {
+            Picker(
+                Self.schedulePickerTitle,
+                selection: .init(
+                    get: { viewModel.frequency },
+                    set: { value in
+                        viewModel.frequency = value
+                        Task { await viewModel.save(origin: .schedule) }
+                    })
+            ) {
                 Text("Every 15 min").tag(Components.Schemas.BackupConfigUpdateRequest.FrequencyPayload.every15min)
                 Text("Hourly").tag(Components.Schemas.BackupConfigUpdateRequest.FrequencyPayload.hourly)
                 Text("Every 6 hours").tag(Components.Schemas.BackupConfigUpdateRequest.FrequencyPayload.every6h)
                 Text("Daily").tag(Components.Schemas.BackupConfigUpdateRequest.FrequencyPayload.daily)
                 Text("Weekly").tag(Components.Schemas.BackupConfigUpdateRequest.FrequencyPayload.weekly)
                 Text("Off").tag(Components.Schemas.BackupConfigUpdateRequest.FrequencyPayload.off)
+            }
+            if let feedback = viewModel.scheduleSaveFeedback {
+                configurationFeedback(feedback, control: String(localized: "Schedule"))
             }
         } header: {
             Text("Schedule")
@@ -272,20 +368,44 @@ struct BackupSettingsView: View {
                     .foregroundStyle(.red)
                     .accessibilityLabel(String(localized: "Retention validation error: \(validation)"))
             }
-            if let error = viewModel.configError {
-                Label(error, systemImage: "exclamationmark.triangle.fill")
-                    .font(.caption)
-                    .foregroundStyle(.red)
+            if let feedback = viewModel.retentionSaveFeedback {
+                configurationFeedback(feedback, control: String(localized: "Retention"))
+            }
+            if viewModel.isReconcilingConfiguration {
+                HStack {
+                    ProgressView()
+                    Text("Reloading current box settings…")
+                }
+                .font(.caption)
+                .accessibilityLabel("Retention save error. Reloading current box settings.")
+            }
+            if let reloadError = viewModel.configurationReloadError {
+                VStack(alignment: .leading, spacing: 6) {
+                    Label(reloadError, systemImage: "arrow.clockwise.circle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .accessibilityLabel("Retention save error: \(reloadError)")
+                    Button("Reload current settings") {
+                        Task { await viewModel.reloadCurrentConfiguration() }
+                    }
+                }
             }
             if let current = viewModel.conflictingConfig {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("The box has newer settings. Your unsaved draft is preserved.")
                         .font(.caption)
-                    Text("Current box revision: \(current.updatedAt.formatted(date: .abbreviated, time: .shortened))")
+                    Text("Current box settings updated \(current.updatedAt.formatted(date: .abbreviated, time: .shortened))")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
-                    Button("Use current box settings") {
-                        Task { await viewModel.useCurrentBoxSettings() }
+                    HStack {
+                        if viewModel.canRetryBlockedSave {
+                            Button("Retry save") {
+                                Task { await viewModel.retryBlockedSave() }
+                            }
+                        }
+                        Button("Use current box settings") {
+                            Task { await viewModel.useCurrentBoxSettings() }
+                        }
                     }
                 }
             }
@@ -295,6 +415,10 @@ struct BackupSettingsView: View {
             } label: {
                 if viewModel.isActivatingRetention {
                     HStack { ProgressView(); Text("Saving and activating…") }
+                } else if viewModel.canSupersedeActivation {
+                    Label(Self.supersedingActivationTitle, systemImage: "checkmark.shield")
+                } else if viewModel.isActivationQueued {
+                    HStack { ProgressView(); Text("Activation queued…") }
                 } else {
                     Label("Save and activate retention", systemImage: "checkmark.shield")
                 }
@@ -406,11 +530,18 @@ struct BackupSettingsView: View {
         _ status: Components.Schemas.BackupDestinationRecoveryStatus, title: String
     ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            let stateTitle = BackupViewModel.destinationStateTitle(status.status)
-            Label("\(title): \(stateTitle)", systemImage: recoverySymbol(status.status))
+            let stateTitle = BackupViewModel.recoveryPresentationTitle(status)
+            let reviewOnly = BackupViewModel.isReviewOnlyRecovery(status)
+            Label(
+                "\(title): \(stateTitle)",
+                systemImage: reviewOnly ? "checklist" : recoverySymbol(status.status)
+            )
                 .font(.headline)
-                .foregroundStyle(recoveryColor(status.status))
-                .accessibilityLabel("\(title) recovery state: \(stateTitle)")
+                .foregroundStyle(reviewOnly ? .orange : recoveryColor(status.status))
+                .accessibilityLabel(
+                    reviewOnly
+                        ? "\(title). Review required. API recovery status is degraded because retention policy review is pending."
+                        : "\(title) recovery state: \(stateTitle)")
 
             LabeledContent("Configured policy", value: BackupViewModel.policySummary(status.policy))
             if let target = status.policy.targetOldestAt {
@@ -466,7 +597,15 @@ struct BackupSettingsView: View {
                 .font(.caption)
                 .foregroundStyle(.orange)
             }
-            if let message = BackupViewModel.destinationStateMessage(status) {
+            if let review = BackupViewModel.reviewRequiredMessage(status) {
+                Label(review, systemImage: "checklist")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .accessibilityAddTraits(.isStaticText)
+            }
+            if !BackupViewModel.isReviewOnlyRecovery(status),
+                let message = BackupViewModel.destinationStateMessage(status)
+            {
                 Label(message, systemImage: status.status == .healthy ? "checkmark.circle" : "info.circle")
                     .font(.caption)
                     .foregroundStyle(status.status == .unavailable || status.status == .constrained ? .orange : .secondary)
@@ -740,7 +879,7 @@ struct BackupSettingsView: View {
                 if viewModel.isBackingUp {
                     ProgressView()
                 } else {
-                    Label("Back up now", systemImage: "arrow.clockwise")
+                    Label(Self.backupNowTitle, systemImage: "arrow.clockwise")
                 }
             }
             .disabled(viewModel.isBackingUp)
@@ -967,7 +1106,7 @@ struct BackupSettingsView: View {
     /// example (an address, a share name) that deliberately stays as typed.
     private func field(
         _ title: String, text: Binding<String>, placeholder: String,
-        keyboard: UIKeyboardType = .default
+        field: DestinationField, keyboard: UIKeyboardType = .default
     ) -> some View {
         HStack {
             Text(title)
@@ -977,7 +1116,8 @@ struct BackupSettingsView: View {
                 .autocorrectionDisabled()
                 .textInputAutocapitalization(.never)
                 .keyboardType(keyboard)
-                .onSubmit { Task { await viewModel.save() } }
+                .focused($focusedDestinationField, equals: field)
+                .onSubmit { Task { await viewModel.save(origin: .destination) } }
         }
     }
 

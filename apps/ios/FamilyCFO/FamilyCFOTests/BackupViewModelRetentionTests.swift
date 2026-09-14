@@ -239,6 +239,7 @@ private enum BackupFixtures {
             legacyConflictDetected: false,
             retentionReviewRequired: review,
             retentionActivatedAt: review ? nil : baseDate,
+            revision: "revision-\(Int(revision))",
             updatedAt: baseDate.addingTimeInterval(revision),
             localPendingPruneCount: localPending,
             localPendingPruneBytes: localPending.map { Int64($0) * 1_000_000_000 },
@@ -388,7 +389,7 @@ struct BackupViewModelRetentionTests {
         let sent = await api.updates.drafts()
         #expect(sent.count == 1)
         #expect(sent[0].confirmRetentionPolicy)
-        #expect(sent[0].expectedUpdatedAt == BackupFixtures.baseDate)
+        #expect(sent[0].expectedRevision == "revision-0")
         #expect(sent[0].localRetention.weeklyUntilDays == 365)
         #expect(sent[0].offboxRetention.maxGB == 120)
         // The returned representation is authoritative and must become both the
@@ -410,7 +411,7 @@ struct BackupViewModelRetentionTests {
 
         #expect(viewModel.localRetention.weeklyUntilDays == 365)
         #expect(viewModel.conflictingConfig?.updatedAt == current.updatedAt)
-        #expect(viewModel.configError == "Changed elsewhere")
+        #expect(viewModel.retentionSaveFeedback?.message == "Changed elsewhere")
 
         await api.statuses.enqueue(.success(BackupFixtures.recovery()))
         await viewModel.useCurrentBoxSettings()
@@ -441,7 +442,7 @@ struct BackupViewModelRetentionTests {
         #expect(viewModel.host == "newest.local")
         #expect(viewModel.configUpdatedAt == newest.updatedAt)
         #expect(viewModel.conflictingConfig == nil)
-        #expect(viewModel.configError == nil)
+        #expect(viewModel.configLoadError == nil)
     }
 
     @Test func newestConfigCompletionOwnsTheScreenAndOldSuccessCannotReplaceIt() async {
@@ -463,21 +464,21 @@ struct BackupViewModelRetentionTests {
 
         #expect(viewModel.host == "newest.local")
         #expect(viewModel.configUpdatedAt == newest.updatedAt)
-        #expect(viewModel.configError == nil)
+        #expect(viewModel.configLoadError == nil)
     }
 
     @Test func currentStatusFailureClearsStaleRecoveryWithoutPoisoningConfig() async {
         let (viewModel, api) = await loaded()
         #expect(viewModel.recoveryStatus != nil)
-        let revision = viewModel.configUpdatedAt
+        let revision = viewModel.configRevision
         await api.statuses.enqueue(.failure(APIError.server(503)))
 
         await viewModel.refreshRecoveryStatus()
 
         #expect(viewModel.recoveryStatus == nil)
         #expect(viewModel.recoveryStatusError != nil)
-        #expect(viewModel.configError == nil)
-        #expect(viewModel.configUpdatedAt == revision)
+        #expect(viewModel.configLoadError == nil)
+        #expect(viewModel.configRevision == revision)
         #expect(viewModel.canActivateRetention)
     }
 
@@ -495,7 +496,7 @@ struct BackupViewModelRetentionTests {
         #expect(viewModel.localListError != nil)
         #expect(viewModel.remoteListError == nil)
         #expect(viewModel.recoveryStatus != nil)
-        #expect(viewModel.configError == nil)
+        #expect(viewModel.configLoadError == nil)
     }
 
     @Test func remoteListFailureIsDistinctFromEmptyAndDoesNotClearRecoveryStatus() async {
@@ -508,7 +509,7 @@ struct BackupViewModelRetentionTests {
         #expect(viewModel.remoteListError != nil)
         #expect(viewModel.recoveryStatus != nil)
         #expect(viewModel.recoveryStatusError == nil)
-        #expect(viewModel.configError == nil)
+        #expect(viewModel.configLoadError == nil)
     }
 
     @Test func successfulUnavailableRemoteListIsNotPresentedAsEmpty() async {
@@ -757,7 +758,7 @@ struct BackupViewModelRetentionTests {
 
         await viewModel.restoreLocal(BackupFixtures.job())
 
-        #expect(viewModel.configUpdatedAt == refreshedConfig.updatedAt)
+        #expect(viewModel.configRevision == refreshedConfig.revision)
         #expect(viewModel.retentionReviewRequired)
         #expect(viewModel.recoveryStatus?.overallStatus == .degraded)
     }
@@ -833,7 +834,7 @@ struct BackupViewModelRetentionTests {
         #expect(drafts[0].host == "nas-one.local")
         #expect(drafts[0].share == "backups")
         #expect(drafts[1].share == "new-share")
-        #expect(drafts[1].expectedUpdatedAt == BackupFixtures.baseDate.addingTimeInterval(1))
+        #expect(drafts[1].expectedRevision == "revision-1")
         #expect(await api.updates.maxConcurrent() == 1)
         #expect(!drafts[0].confirmRetentionPolicy)
     }
@@ -929,6 +930,620 @@ struct BackupViewModelRetentionTests {
             Issue.record("expected an unwritable delete response to throw")
         } catch {
             #expect(error.localizedDescription.contains("Share is unavailable"))
+        }
+    }
+
+    @Test func queuedNinetyDayActivationCanBeSupersededByConfirmed365DayDraft() async {
+        let (viewModel, api) = await loaded()
+        viewModel.frequency = .weekly
+        viewModel.updatePassword("old-value")
+        let autosave = Task { await viewModel.save(origin: .schedule) }
+        await api.updates.waitForCalls(1)
+
+        await viewModel.saveAndActivateRetention()
+        #expect(viewModel.isActivationQueued)
+        #expect(!viewModel.canSupersedeActivation)
+        #expect(!viewModel.canActivateRetention)
+
+        viewModel.localRetention.weeklyUntilDays = 365
+        viewModel.updatePassword("new-value")
+        #expect(viewModel.canSupersedeActivation)
+        #expect(viewModel.canActivateRetention)
+        #expect(BackupSettingsView.supersedingActivationTitle == "Save and activate current settings")
+
+        await viewModel.saveAndActivateRetention()
+        #expect(viewModel.isActivationQueued)
+        #expect(!viewModel.canSupersedeActivation)
+        #expect(!viewModel.canActivateRetention)
+
+        await api.statuses.enqueue(.success(BackupFixtures.recovery()))
+        await api.statuses.enqueue(.success(BackupFixtures.recovery()))
+        await api.updates.resolve(0, .success(BackupFixtures.config(revision: 1)))
+        await api.updates.waitForCalls(2)
+
+        let drafts = await api.updates.drafts()
+        #expect(drafts.count == 2)
+        #expect(drafts[0].localRetention.weeklyUntilDays == 90)
+        #expect(drafts[1].confirmRetentionPolicy)
+        #expect(drafts[1].localRetention.weeklyUntilDays == 365)
+        #expect(drafts[1].password == "new-value")
+        #expect(drafts[1].expectedRevision == "revision-1")
+
+        await api.updates.resolve(
+            1,
+            .success(
+                BackupFixtures.config(
+                    revision: 2, local: BackupFixtures.policy(weekly: 365), review: false)))
+        await autosave.value
+        #expect(viewModel.password.isEmpty)
+        #expect(!viewModel.passwordEdited)
+    }
+
+    @Test func queuedActivationSurvivesFailedAutosaveAndRetriesWithFetchedRevision() async {
+        let (viewModel, api) = await loaded()
+        viewModel.frequency = .weekly
+        let autosave = Task { await viewModel.save(origin: .schedule) }
+        await api.updates.waitForCalls(1)
+
+        viewModel.localRetention.weeklyUntilDays = 365
+        await viewModel.saveAndActivateRetention()
+        #expect(viewModel.isActivationQueued)
+
+        let current = BackupFixtures.config(revision: 5)
+        await api.configs.enqueue(.success(current))
+        await api.updates.resolve(
+            0, .failure(BackupError.configurationConflict("Changed on the box")))
+        await autosave.value
+
+        #expect(viewModel.isActivationQueued)
+        #expect(viewModel.conflictingConfig?.revision == "revision-5")
+        #expect(viewModel.canRetryBlockedSave)
+
+        await api.updates.enqueue(
+            .success(
+                BackupFixtures.config(
+                    revision: 6, local: BackupFixtures.policy(weekly: 365), review: false)))
+        await api.statuses.enqueue(.success(BackupFixtures.recovery()))
+        await viewModel.retryBlockedSave()
+
+        let drafts = await api.updates.drafts()
+        #expect(drafts.count == 2)
+        #expect(drafts[1].confirmRetentionPolicy)
+        #expect(drafts[1].expectedRevision == "revision-5")
+        #expect(drafts[1].localRetention.weeklyUntilDays == 365)
+    }
+
+    @Test func confirmedSupersessionDuringReconciliationSendsOnlyThe365DayPolicy() async {
+        let (viewModel, api) = await loaded()
+        let failed = Task { await viewModel.saveAndActivateRetention() }
+        await api.updates.waitForCalls(1)
+        await api.updates.resolve(
+            0, .failure(BackupError.configurationConflict("Changed on the box")))
+        await api.configs.waitForCalls(2)
+
+        #expect(viewModel.isReconcilingConfiguration)
+        viewModel.localRetention.weeklyUntilDays = 365
+        #expect(viewModel.canSupersedeActivation)
+        #expect(viewModel.canActivateRetention)
+        await viewModel.saveAndActivateRetention()
+        #expect(viewModel.isActivationQueued)
+        #expect(!viewModel.canActivateRetention)
+        #expect(await api.updates.drafts().count == 1)
+
+        await api.statuses.enqueue(.success(BackupFixtures.recovery()))
+        await api.configs.resolve(1, .success(BackupFixtures.config(revision: 5)))
+        await api.updates.waitForCalls(2)
+        let drafts = await api.updates.drafts()
+        #expect(drafts.count == 2)
+        #expect(drafts[0].localRetention.weeklyUntilDays == 90)
+        #expect(drafts[1].localRetention.weeklyUntilDays == 365)
+        #expect(drafts[1].expectedRevision == "revision-5")
+
+        await api.updates.resolve(
+            1,
+            .success(
+                BackupFixtures.config(
+                    revision: 6, local: BackupFixtures.policy(weekly: 365), review: false)))
+        await failed.value
+        #expect(!viewModel.hasBlockedConfiguration)
+        #expect(!viewModel.isActivationQueued)
+    }
+
+    @Test func failedReconciliationDisablesActionsUntilOwnedReloadSucceeds() async {
+        let (viewModel, api) = await loaded()
+        viewModel.localRetention.weeklyUntilDays = 365
+        await api.updates.enqueue(
+            .failure(BackupError.configurationConflict("Changed on the box")))
+        await api.configs.enqueue(.failure(APIError.server(503)))
+
+        await viewModel.saveAndActivateRetention()
+
+        #expect(viewModel.configurationReloadError != nil)
+        #expect(!viewModel.canRetryBlockedSave)
+        #expect(!viewModel.canUseCurrentBoxSettings)
+
+        let current = BackupFixtures.config(revision: 7)
+        await api.configs.enqueue(.success(current))
+        await viewModel.reloadCurrentConfiguration()
+
+        #expect(viewModel.configurationReloadError == nil)
+        #expect(viewModel.conflictingConfig?.revision == "revision-7")
+        #expect(viewModel.canUseCurrentBoxSettings)
+    }
+
+    @Test func confirmedSupersessionWaitsForReloadAfterReconciliationFailure() async {
+        let (viewModel, api) = await loaded()
+        await api.updates.enqueue(
+            .failure(BackupError.configurationConflict("Changed on the box")))
+        await api.configs.enqueue(.failure(APIError.server(503)))
+        await viewModel.saveAndActivateRetention()
+
+        #expect(viewModel.configurationReloadError != nil)
+        viewModel.localRetention.weeklyUntilDays = 365
+        #expect(viewModel.canSupersedeActivation)
+        #expect(viewModel.canActivateRetention)
+        await viewModel.saveAndActivateRetention()
+        #expect(viewModel.isActivationQueued)
+        #expect(!viewModel.canRetryBlockedSave)
+        #expect(!viewModel.canActivateRetention)
+        #expect(await api.updates.drafts().count == 1)
+
+        await api.configs.enqueue(.success(BackupFixtures.config(revision: 7)))
+        await api.updates.enqueue(
+            .success(
+                BackupFixtures.config(
+                    revision: 8, local: BackupFixtures.policy(weekly: 365), review: false)))
+        await api.statuses.enqueue(.success(BackupFixtures.recovery()))
+        await viewModel.reloadCurrentConfiguration()
+
+        let drafts = await api.updates.drafts()
+        #expect(drafts.count == 2)
+        #expect(drafts[1].localRetention.weeklyUntilDays == 365)
+        #expect(drafts[1].expectedRevision == "revision-7")
+        #expect(!viewModel.hasBlockedConfiguration)
+        #expect(!viewModel.isActivationQueued)
+    }
+
+    @Test func invalidActivationPreservesDraftButRequiresNewConfirmation() async {
+        let (viewModel, api) = await loaded()
+        viewModel.localRetention.weeklyUntilDays = 365
+        await api.updates.enqueue(
+            .failure(BackupError.configurationInvalid("Fix the retention values")))
+
+        await viewModel.saveAndActivateRetention()
+
+        #expect(viewModel.localRetention.weeklyUntilDays == 365)
+        #expect(viewModel.retentionSaveFeedback?.message == "Fix the retention values")
+        #expect(!viewModel.hasBlockedConfiguration)
+        #expect(viewModel.canActivateRetention)
+
+        await api.updates.enqueue(
+            .success(
+                BackupFixtures.config(
+                    revision: 1, local: BackupFixtures.policy(weekly: 365), review: false)))
+        await api.statuses.enqueue(.success(BackupFixtures.recovery()))
+        await viewModel.saveAndActivateRetention()
+        #expect(await api.updates.drafts().count == 2)
+    }
+
+    @Test func preconditionRequiredBlocksAndNeverFallsBackToTimestamp() async {
+        let (viewModel, api) = await loaded()
+        viewModel.localRetention.weeklyUntilDays = 365
+        await api.updates.enqueue(
+            .failure(BackupError.configurationPreconditionRequired("Revision required")))
+        await api.configs.enqueue(.success(BackupFixtures.config(revision: 9)))
+
+        await viewModel.saveAndActivateRetention()
+
+        let drafts = await api.updates.drafts()
+        #expect(drafts.count == 1)
+        #expect(drafts[0].expectedRevision == "revision-0")
+        #expect(viewModel.conflictingConfig?.revision == "revision-9")
+        #expect(viewModel.retentionSaveFeedback?.message == "Revision required")
+    }
+
+    @Test func authenticationAndPermissionFailuresNeverReplayAutomatically() async {
+        for error in [APIError.unauthorized, APIError.server(403)] {
+            let (viewModel, api) = await loaded()
+            viewModel.localRetention.weeklyUntilDays = 365
+            await api.updates.enqueue(.failure(error))
+
+            await viewModel.saveAndActivateRetention()
+
+            #expect(viewModel.configurationReloadError != nil)
+            #expect(viewModel.hasBlockedConfiguration)
+            #expect(await api.updates.drafts().count == 1)
+        }
+    }
+
+    @Test func newerPasswordEditSurvivesOlderSuccessThenClearsOnItsOwnAcknowledgement() async {
+        let (viewModel, api) = await loaded()
+        viewModel.updatePassword("first-password")
+        let first = Task { await viewModel.save(origin: .destination) }
+        await api.updates.waitForCalls(1)
+
+        viewModel.updatePassword("newer-password")
+        await viewModel.save(origin: .destination)
+        await api.statuses.enqueue(.success(BackupFixtures.recovery()))
+        await api.updates.resolve(0, .success(BackupFixtures.config(revision: 1)))
+        await api.updates.waitForCalls(2)
+
+        #expect(viewModel.password == "newer-password")
+        #expect(viewModel.passwordEdited)
+
+        await api.statuses.enqueue(.success(BackupFixtures.recovery()))
+        await api.updates.resolve(1, .success(BackupFixtures.config(revision: 2)))
+        await first.value
+        #expect(viewModel.password.isEmpty)
+        #expect(!viewModel.passwordEdited)
+    }
+
+    @Test func sessionReplacementDiscardsQueuedConsentAndPasswordSnapshots() async {
+        let api = MockRetentionBackupAPI()
+        var session = "session-a"
+        await api.configs.enqueue(.success(BackupFixtures.config()))
+        await api.statuses.enqueue(.success(BackupFixtures.recovery()))
+        let viewModel = BackupViewModel(api: api, sessionIdentity: { session })
+        await viewModel.load()
+
+        viewModel.updatePassword("session-a-password")
+        let autosave = Task { await viewModel.save(origin: .destination) }
+        await api.updates.waitForCalls(1)
+        viewModel.localRetention.weeklyUntilDays = 365
+        await viewModel.saveAndActivateRetention()
+        #expect(viewModel.isActivationQueued)
+
+        session = "session-b"
+        viewModel.replaceSessionIfNeeded(with: session)
+        await api.updates.resolve(0, .success(BackupFixtures.config(revision: 1)))
+        await autosave.value
+
+        #expect(await api.updates.drafts().count == 1)
+        #expect(!viewModel.isActivationQueued)
+        #expect(viewModel.password.isEmpty)
+        #expect(!viewModel.passwordEdited)
+        #expect(viewModel.configRevision == nil)
+        #expect(viewModel.retentionSaveFeedback == nil)
+    }
+
+    @Test func useCurrentSettingsDiscardsBlockedAndNewerPendingWork() async {
+        let (viewModel, api) = await loaded()
+        viewModel.localRetention.weeklyUntilDays = 365
+        await api.updates.enqueue(
+            .failure(BackupError.configurationConflict("Changed on the box")))
+        let current = BackupFixtures.config(revision: 5, host: "current.local")
+        await api.configs.enqueue(.success(current))
+        await viewModel.saveAndActivateRetention()
+
+        viewModel.host = "newer-draft.local"
+        await viewModel.save(origin: .destination)
+        #expect(viewModel.hasBlockedConfiguration)
+
+        await api.statuses.enqueue(.success(BackupFixtures.recovery()))
+        await viewModel.useCurrentBoxSettings()
+
+        #expect(viewModel.host == "current.local")
+        #expect(viewModel.configRevision == "revision-5")
+        #expect(!viewModel.hasBlockedConfiguration)
+        #expect(await api.updates.drafts().count == 1)
+    }
+
+    @Test func editDuringInflightActivationBecomesANewerOperationalSave() async {
+        let (viewModel, api) = await loaded()
+        viewModel.localRetention.weeklyUntilDays = 365
+        let activation = Task { await viewModel.saveAndActivateRetention() }
+        await api.updates.waitForCalls(1)
+
+        viewModel.host = "newer.local"
+        await viewModel.save(origin: .destination)
+        await api.statuses.enqueue(.success(BackupFixtures.recovery()))
+        await api.updates.resolve(
+            0,
+            .success(
+                BackupFixtures.config(
+                    revision: 1, local: BackupFixtures.policy(weekly: 365), review: false)))
+        await api.updates.waitForCalls(2)
+
+        let drafts = await api.updates.drafts()
+        #expect(drafts[0].confirmRetentionPolicy)
+        #expect(!drafts[1].confirmRetentionPolicy)
+        #expect(drafts[1].host == "newer.local")
+        #expect(drafts[1].expectedRevision == "revision-1")
+
+        await api.statuses.enqueue(.success(BackupFixtures.recovery()))
+        await api.updates.resolve(
+            1, .success(BackupFixtures.config(revision: 2, review: false, host: "newer.local")))
+        await activation.value
+    }
+
+    @Test func changedRetentionCreatesANewConsentAfterBlockedActivation() async {
+        let (viewModel, api) = await loaded()
+        await api.updates.enqueue(
+            .failure(BackupError.configurationConflict("Changed on the box")))
+        await api.configs.enqueue(.success(BackupFixtures.config(revision: 5)))
+        await viewModel.saveAndActivateRetention()
+
+        viewModel.localRetention.weeklyUntilDays = 365
+        #expect(viewModel.requiresRetentionReconfirmation)
+        #expect(viewModel.canSupersedeActivation)
+        #expect(viewModel.canActivateRetention)
+        await api.updates.enqueue(
+            .success(
+                BackupFixtures.config(
+                    revision: 6, local: BackupFixtures.policy(weekly: 365), review: false)))
+        await api.statuses.enqueue(.success(BackupFixtures.recovery()))
+        await viewModel.saveAndActivateRetention()
+
+        let drafts = await api.updates.drafts()
+        #expect(drafts.count == 2)
+        #expect(drafts[0].localRetention.weeklyUntilDays == 90)
+        #expect(drafts[1].confirmRetentionPolicy)
+        #expect(drafts[1].expectedRevision == "revision-5")
+        #expect(drafts[1].localRetention.weeklyUntilDays == 365)
+    }
+
+    @Test func inFlightActivationCannotBeSupersededUntilItCompletes() async {
+        let (viewModel, api) = await loaded()
+        let activation = Task { await viewModel.saveAndActivateRetention() }
+        await api.updates.waitForCalls(1)
+
+        viewModel.localRetention.weeklyUntilDays = 365
+        #expect(viewModel.isActivatingRetention)
+        #expect(!viewModel.canSupersedeActivation)
+        #expect(!viewModel.canActivateRetention)
+        await viewModel.saveAndActivateRetention()
+        #expect(await api.updates.drafts().count == 1)
+
+        await api.statuses.enqueue(.success(BackupFixtures.recovery()))
+        await api.updates.resolve(
+            0,
+            .success(
+                BackupFixtures.config(
+                    revision: 1, local: BackupFixtures.policy(weekly: 90), review: false)))
+        await activation.value
+
+        #expect(viewModel.localRetention.weeklyUntilDays == 365)
+        #expect(viewModel.canActivateRetention)
+    }
+
+    @Test func fullReloadAndRestoreDiscardOldConsentAndPasswordSnapshots() async {
+        let (viewModel, api) = await loaded()
+        viewModel.frequency = .weekly
+        viewModel.updatePassword("before-reload")
+        let beforeReload = Task { await viewModel.save(origin: .schedule) }
+        await api.updates.waitForCalls(1)
+        viewModel.localRetention.weeklyUntilDays = 365
+        await viewModel.saveAndActivateRetention()
+
+        let reloaded = BackupFixtures.config(revision: 10, host: "reloaded.local")
+        await api.configs.enqueue(.success(reloaded))
+        await api.statuses.enqueue(.success(BackupFixtures.recovery()))
+        await viewModel.load()
+        await api.updates.resolve(
+            0, .success(BackupFixtures.config(revision: 1, host: "old-reload.local")))
+        await beforeReload.value
+
+        #expect(viewModel.host == "reloaded.local")
+        #expect(viewModel.configRevision == "revision-10")
+        #expect(!viewModel.isActivationQueued)
+        #expect(viewModel.password.isEmpty)
+        #expect(!viewModel.passwordEdited)
+
+        viewModel.frequency = .daily
+        viewModel.updatePassword("before-restore")
+        let beforeRestore = Task { await viewModel.save(origin: .schedule) }
+        await api.updates.waitForCalls(2)
+        viewModel.localRetention.weeklyUntilDays = 730
+        await viewModel.saveAndActivateRetention()
+
+        let restored = BackupFixtures.config(revision: 20, host: "restored.local")
+        await api.localRestores.enqueue(.success(()))
+        await api.configs.enqueue(.success(restored))
+        await api.statuses.enqueue(.success(BackupFixtures.recovery()))
+        await viewModel.restoreLocal(BackupFixtures.job())
+        await api.updates.resolve(
+            1, .success(BackupFixtures.config(revision: 11, host: "old-restore.local")))
+        await beforeRestore.value
+
+        #expect(viewModel.host == "restored.local")
+        #expect(viewModel.configRevision == "revision-20")
+        #expect(await api.updates.drafts().count == 2)
+        #expect(!viewModel.isActivationQueued)
+        #expect(viewModel.password.isEmpty)
+        #expect(!viewModel.passwordEdited)
+        #expect(viewModel.retentionSaveFeedback == nil)
+    }
+
+    @Test func viewDisappearanceAndSameSessionReappearanceCannotReplayOldConsent() async {
+        let (viewModel, api) = await loaded()
+        viewModel.frequency = .weekly
+        viewModel.updatePassword("first-secret")
+        let old = Task { await viewModel.save(origin: .schedule) }
+        await api.updates.waitForCalls(1)
+
+        viewModel.localRetention.weeklyUntilDays = 365
+        await viewModel.saveAndActivateRetention()
+        #expect(viewModel.isActivationQueued)
+
+        viewModel.endViewLifetime()
+        await api.updates.resolve(
+            0, .success(BackupFixtures.config(revision: 1, host: "old.local")))
+        await old.value
+
+        viewModel.beginViewLifetime(with: "session-a")
+        let newest = BackupFixtures.config(revision: 9, host: "newest.local")
+        await api.configs.enqueue(.success(newest))
+        await api.statuses.enqueue(.success(BackupFixtures.recovery()))
+        await viewModel.load()
+
+        #expect(viewModel.host == "newest.local")
+        #expect(viewModel.configRevision == "revision-9")
+        #expect(await api.updates.drafts().count == 1)
+        #expect(!viewModel.isActivationQueued)
+        #expect(viewModel.password.isEmpty)
+        #expect(!viewModel.passwordEdited)
+        #expect(viewModel.retentionSaveFeedback == nil)
+    }
+
+    @Test func sessionAtoBtoACannotReplayOrPublishOldConsent() async {
+        let api = MockRetentionBackupAPI()
+        var session = "session-a"
+        await api.configs.enqueue(.success(BackupFixtures.config()))
+        await api.statuses.enqueue(.success(BackupFixtures.recovery()))
+        let viewModel = BackupViewModel(api: api, sessionIdentity: { session })
+        await viewModel.load()
+
+        viewModel.frequency = .weekly
+        let old = Task { await viewModel.save(origin: .schedule) }
+        await api.updates.waitForCalls(1)
+        viewModel.localRetention.weeklyUntilDays = 365
+        await viewModel.saveAndActivateRetention()
+
+        session = "session-b"
+        viewModel.replaceSessionIfNeeded(with: session)
+        session = "session-a"
+        viewModel.beginViewLifetime(with: session)
+        let newest = BackupFixtures.config(revision: 9, host: "newest.local")
+        await api.configs.enqueue(.success(newest))
+        await api.statuses.enqueue(.success(BackupFixtures.recovery()))
+        await viewModel.load()
+
+        await api.updates.resolve(
+            0, .success(BackupFixtures.config(revision: 1, host: "old.local")))
+        await old.value
+
+        #expect(viewModel.host == "newest.local")
+        #expect(viewModel.configRevision == "revision-9")
+        #expect(await api.updates.drafts().count == 1)
+        #expect(!viewModel.isActivationQueued)
+        #expect(viewModel.retentionSaveFeedback == nil)
+    }
+
+    @Test func duplicateRetryTapsCreateOnlyOneNewMutation() async {
+        let (viewModel, api) = await loaded()
+        viewModel.localRetention.weeklyUntilDays = 365
+        await api.updates.enqueue(
+            .failure(BackupError.configurationConflict("Changed on the box")))
+        await api.configs.enqueue(.success(BackupFixtures.config(revision: 5)))
+        await viewModel.saveAndActivateRetention()
+
+        let firstRetry = Task { await viewModel.retryBlockedSave() }
+        await api.updates.waitForCalls(2)
+        let duplicateRetry = Task { await viewModel.retryBlockedSave() }
+        await duplicateRetry.value
+        #expect(await api.updates.drafts().count == 2)
+
+        await api.statuses.enqueue(.success(BackupFixtures.recovery()))
+        await api.updates.resolve(
+            1,
+            .success(
+                BackupFixtures.config(
+                    revision: 6, local: BackupFixtures.policy(weekly: 365), review: false)))
+        await firstRetry.value
+    }
+
+    @Test func ambiguousActivationMatchAcknowledgesWithoutBlindRetry() async {
+        let (viewModel, api) = await loaded()
+        viewModel.localRetention.weeklyUntilDays = 365
+        await api.updates.enqueue(.failure(URLError(.timedOut)))
+        await api.configs.enqueue(
+            .success(
+                BackupFixtures.config(
+                    revision: 4, local: BackupFixtures.policy(weekly: 365), review: false)))
+
+        await viewModel.saveAndActivateRetention()
+
+        #expect(!viewModel.hasBlockedConfiguration)
+        #expect(viewModel.configRevision == "revision-4")
+        #expect(viewModel.retentionSaveFeedback?.level == .information)
+        #expect(viewModel.retentionSaveFeedback?.message.contains("not confirmed") == true)
+        #expect(await api.updates.drafts().count == 1)
+    }
+
+    @Test func feedbackBelongsOnlyToItsInitiatingControl() async {
+        let (viewModel, api) = await loaded()
+        viewModel.frequency = .weekly
+        await api.updates.enqueue(
+            .failure(BackupError.configurationInvalid("Schedule is invalid")))
+        await viewModel.save(origin: .schedule)
+
+        #expect(viewModel.scheduleSaveFeedback?.message == "Schedule is invalid")
+        #expect(viewModel.destinationSaveFeedback == nil)
+        #expect(viewModel.retentionSaveFeedback == nil)
+
+        viewModel.share = "new-share"
+        var savedDestination = BackupFixtures.config(revision: 1)
+        savedDestination.smbShare = "new-share"
+        await api.updates.enqueue(.success(savedDestination))
+        await api.statuses.enqueue(.success(BackupFixtures.recovery()))
+        await viewModel.save(origin: .destination)
+
+        #expect(viewModel.destinationSaveFeedback?.level == .success)
+        #expect(viewModel.scheduleSaveFeedback?.level == .error)
+        #expect(viewModel.retentionSaveFeedback == nil)
+    }
+
+    @Test func reviewOnlyRecoveryPresentationDoesNotMaskMixedFaults() {
+        var local = BackupFixtures.destination(.local, state: .degraded, coverage: .unknown)
+        local.retentionReviewRequired = true
+        local.retentionActivatedAt = nil
+        local.reasonCodes = ["retention_review_required", "coverage_unknown"]
+        var offbox = BackupFixtures.destination(
+            .offbox, state: .degraded, coverage: .notApplicable)
+        offbox.policy = BackupFixtures.policy(.keepAll)
+        offbox.retentionReviewRequired = true
+        offbox.retentionActivatedAt = nil
+        offbox.reasonCodes = ["retention_review_required"]
+        let overall = BackupFixtures.recovery(overall: .degraded, local: local, offbox: offbox)
+
+        #expect(BackupViewModel.isReviewOnlyRecovery(local))
+        #expect(BackupViewModel.isReviewOnlyRecovery(offbox))
+        #expect(BackupViewModel.recoveryPresentationTitle(local) == "Review required")
+        #expect(BackupViewModel.coverageTitle(offbox.coverageStatus) == "Not applicable")
+        #expect(BackupViewModel.isReviewOnlyOverall(overall))
+
+        local.reasonCodes.append("capacity_insufficient")
+        let mixed = BackupFixtures.recovery(overall: .degraded, local: local, offbox: offbox)
+        #expect(!BackupViewModel.isReviewOnlyRecovery(local))
+        #expect(BackupViewModel.recoveryPresentationTitle(local) == "Degraded")
+        #expect(!BackupViewModel.isReviewOnlyOverall(mixed))
+        #expect(!BackupViewModel.isReviewOnlyOverall(BackupFixtures.recovery()))
+    }
+
+    @Test func schedulePickerUsesNounWhileManualActionKeepsVerb() {
+        #expect(BackupSettingsView.schedulePickerTitle == "Backup")
+        #expect(BackupSettingsView.backupNowTitle == "Back up now")
+    }
+
+    @Test func backupSaveAndReviewCopyHasLithuanianAndVietnameseTranslations() throws {
+        let keys = [
+            "Activation queued…",
+            "Automatic pruning is paused. Review and activate the retention policy; the server reports no additional recovery fault for this destination.",
+            "Backup",
+            "Backup destination",
+            "Backup destination saved.",
+            "Backup schedule saved.",
+            "Reload backup settings before saving again.",
+            "Reload current settings",
+            "Reloading current box settings…",
+            "Retention",
+            "Retention policy review is also required. Review and activate it after resolving the recovery issue above.",
+            "Retention save error. Reloading current box settings.",
+            "Retention settings saved and activated.",
+            "Retry loading backup settings",
+            "Retry save",
+            "Review required",
+            "Save and activate current settings",
+            "The backup settings are invalid.",
+            "The box now matches these settings, but the original response was not confirmed.",
+            "The schedule saves when selected. Destination values save when editing finishes. Retention changes use the separate activation button below. The password is encrypted on the box and never shown again.",
+        ]
+        for language in ["lt", "vi"] {
+            let path = try #require(Bundle.main.path(forResource: language, ofType: "lproj"))
+            let bundle = try #require(Bundle(path: path))
+            for key in keys {
+                #expect(bundle.localizedString(forKey: key, value: nil, table: nil) != key)
+            }
         }
     }
 

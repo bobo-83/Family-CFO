@@ -749,6 +749,8 @@ public protocol APIProtocol: Sendable {
     func getBackupConfig(_ input: Operations.GetBackupConfig.Input) async throws -> Operations.GetBackupConfig.Output
     /// Update the box-global backup configuration
     ///
+    /// Uses opaque expected_revision as the preferred optimistic precondition. Contract 0.161 also accepts exact expected_updated_at from 0.160 clients; when both are supplied both must match. Stale or contradictory tokens return 409. Retention/capacity changes and confirmation require at least one token or return 428 after body and policy validation.
+    ///
     /// - Remark: HTTP `PUT /backups/config`.
     /// - Remark: Generated from `#/paths//backups/config/put(updateBackupConfig)`.
     func updateBackupConfig(_ input: Operations.UpdateBackupConfig.Input) async throws -> Operations.UpdateBackupConfig.Output
@@ -2567,6 +2569,8 @@ extension APIProtocol {
         try await getBackupConfig(Operations.GetBackupConfig.Input(headers: headers))
     }
     /// Update the box-global backup configuration
+    ///
+    /// Uses opaque expected_revision as the preferred optimistic precondition. Contract 0.161 also accepts exact expected_updated_at from 0.160 clients; when both are supplied both must match. Stale or contradictory tokens return 409. Retention/capacity changes and confirmation require at least one token or return 428 after body and policy validation.
     ///
     /// - Remark: HTTP `PUT /backups/config`.
     /// - Remark: Generated from `#/paths//backups/config/put(updateBackupConfig)`.
@@ -9257,6 +9261,12 @@ public enum Components {
             public var retentionReviewRequired: Swift.Bool
             /// - Remark: Generated from `#/components/schemas/BackupConfig/retention_activated_at`.
             public var retentionActivatedAt: Foundation.Date?
+            /// Opaque preferred concurrency token; clients must not parse, sort, increment, or display it.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BackupConfig/revision`.
+            public var revision: Swift.String
+            /// Modification chronology for display and diagnostics; not a concurrency token.
+            ///
             /// - Remark: Generated from `#/components/schemas/BackupConfig/updated_at`.
             public var updatedAt: Foundation.Date
             /// - Remark: Generated from `#/components/schemas/BackupConfig/local_pending_prune_count`.
@@ -9289,7 +9299,8 @@ public enum Components {
             ///   - legacyConflictDetected:
             ///   - retentionReviewRequired:
             ///   - retentionActivatedAt:
-            ///   - updatedAt:
+            ///   - revision: Opaque preferred concurrency token; clients must not parse, sort, increment, or display it.
+            ///   - updatedAt: Modification chronology for display and diagnostics; not a concurrency token.
             ///   - localPendingPruneCount:
             ///   - localPendingPruneBytes:
             ///   - offboxPendingPruneCount:
@@ -9313,6 +9324,7 @@ public enum Components {
                 legacyConflictDetected: Swift.Bool,
                 retentionReviewRequired: Swift.Bool,
                 retentionActivatedAt: Foundation.Date? = nil,
+                revision: Swift.String,
                 updatedAt: Foundation.Date,
                 localPendingPruneCount: Swift.Int? = nil,
                 localPendingPruneBytes: Swift.Int64? = nil,
@@ -9337,6 +9349,7 @@ public enum Components {
                 self.legacyConflictDetected = legacyConflictDetected
                 self.retentionReviewRequired = retentionReviewRequired
                 self.retentionActivatedAt = retentionActivatedAt
+                self.revision = revision
                 self.updatedAt = updatedAt
                 self.localPendingPruneCount = localPendingPruneCount
                 self.localPendingPruneBytes = localPendingPruneBytes
@@ -9362,6 +9375,7 @@ public enum Components {
                 case legacyConflictDetected = "legacy_conflict_detected"
                 case retentionReviewRequired = "retention_review_required"
                 case retentionActivatedAt = "retention_activated_at"
+                case revision
                 case updatedAt = "updated_at"
                 case localPendingPruneCount = "local_pending_prune_count"
                 case localPendingPruneBytes = "local_pending_prune_bytes"
@@ -9411,6 +9425,12 @@ public enum Components {
             public var localMinFreeBytes: Swift.Int64?
             /// - Remark: Generated from `#/components/schemas/BackupConfigUpdateRequest/offbox_min_free_bytes`.
             public var offboxMinFreeBytes: Swift.Int64?
+            /// Preferred opaque optimistic precondition. When both token forms are supplied, both must match.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BackupConfigUpdateRequest/expected_revision`.
+            public var expectedRevision: Swift.String?
+            /// Deprecated exact timestamp precondition accepted only for the contract 0.161 compatibility window.
+            ///
             /// - Remark: Generated from `#/components/schemas/BackupConfigUpdateRequest/expected_updated_at`.
             public var expectedUpdatedAt: Foundation.Date?
             /// - Remark: Generated from `#/components/schemas/BackupConfigUpdateRequest/confirm_retention_policy`.
@@ -9432,7 +9452,8 @@ public enum Components {
             ///   - offboxMaxBytes:
             ///   - localMinFreeBytes:
             ///   - offboxMinFreeBytes:
-            ///   - expectedUpdatedAt:
+            ///   - expectedRevision: Preferred opaque optimistic precondition. When both token forms are supplied, both must match.
+            ///   - expectedUpdatedAt: Deprecated exact timestamp precondition accepted only for the contract 0.161 compatibility window.
             ///   - confirmRetentionPolicy:
             public init(
                 frequency: Components.Schemas.BackupConfigUpdateRequest.FrequencyPayload? = nil,
@@ -9449,6 +9470,7 @@ public enum Components {
                 offboxMaxBytes: Swift.Int64? = nil,
                 localMinFreeBytes: Swift.Int64? = nil,
                 offboxMinFreeBytes: Swift.Int64? = nil,
+                expectedRevision: Swift.String? = nil,
                 expectedUpdatedAt: Foundation.Date? = nil,
                 confirmRetentionPolicy: Swift.Bool? = nil
             ) {
@@ -9466,6 +9488,7 @@ public enum Components {
                 self.offboxMaxBytes = offboxMaxBytes
                 self.localMinFreeBytes = localMinFreeBytes
                 self.offboxMinFreeBytes = offboxMinFreeBytes
+                self.expectedRevision = expectedRevision
                 self.expectedUpdatedAt = expectedUpdatedAt
                 self.confirmRetentionPolicy = confirmRetentionPolicy
             }
@@ -9484,6 +9507,7 @@ public enum Components {
                 case offboxMaxBytes = "offbox_max_bytes"
                 case localMinFreeBytes = "local_min_free_bytes"
                 case offboxMinFreeBytes = "offbox_min_free_bytes"
+                case expectedRevision = "expected_revision"
                 case expectedUpdatedAt = "expected_updated_at"
                 case confirmRetentionPolicy = "confirm_retention_policy"
             }
@@ -38650,6 +38674,8 @@ public enum Operations {
     }
     /// Update the box-global backup configuration
     ///
+    /// Uses opaque expected_revision as the preferred optimistic precondition. Contract 0.161 also accepts exact expected_updated_at from 0.160 clients; when both are supplied both must match. Stale or contradictory tokens return 409. Retention/capacity changes and confirmation require at least one token or return 428 after body and policy validation.
+    ///
     /// - Remark: HTTP `PUT /backups/config`.
     /// - Remark: Generated from `#/paths//backups/config/put(updateBackupConfig)`.
     public enum UpdateBackupConfig {
@@ -38825,6 +38851,29 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "unprocessableContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//backups/config/put(updateBackupConfig)/responses/428`.
+            ///
+            /// HTTP response code: `428 preconditionRequired`.
+            case preconditionRequired(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.preconditionRequired`.
+            ///
+            /// - Throws: An error if `self` is not `.preconditionRequired`.
+            /// - SeeAlso: `.preconditionRequired`.
+            public var preconditionRequired: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .preconditionRequired(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "preconditionRequired",
                             response: self
                         )
                     }

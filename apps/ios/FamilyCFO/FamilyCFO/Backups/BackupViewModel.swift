@@ -37,9 +37,12 @@ final class BackupViewModel {
     private(set) var recoveryStatusError: String?
     private(set) var localListError: String?
     private(set) var remoteListError: String?
-    private(set) var configError: String?
-    private(set) var conflictingConfig: Components.Schemas.BackupConfig?
+    private(set) var configLoadError: String?
+    private(set) var configRevision: String?
     private(set) var configUpdatedAt: Date?
+    private(set) var scheduleSaveFeedback: ConfigSaveFeedback?
+    private(set) var destinationSaveFeedback: ConfigSaveFeedback?
+    private(set) var retentionSaveFeedback: ConfigSaveFeedback?
     private(set) var retentionReviewRequired = false
     private(set) var retentionActivatedAt: Date?
     private(set) var localPendingPruneCount: Int?
@@ -49,8 +52,6 @@ final class BackupViewModel {
     private(set) var legacyConflictDetected = false
 
     private(set) var isLoading = false
-    private(set) var isSaving = false
-    private(set) var isActivatingRetention = false
     private(set) var isBackingUp = false
     private(set) var isRestoring = false
     private(set) var isChecking = false
@@ -69,7 +70,6 @@ final class BackupViewModel {
     private var restoreGeneration: UInt64 = 0
     private var localDeleteGeneration: UInt64 = 0
     private var remoteDeleteGeneration: UInt64 = 0
-    private var conflictGeneration: UInt64 = 0
     private var keyRevealGeneration: UInt64 = 0
     /// A single publication lane for every writer of household key posture.
     /// The newest request start wins even when different actions finish out of order.
@@ -87,6 +87,22 @@ final class BackupViewModel {
     /// owner explicitly ends and restarts that lifetime as navigation changes.
     private var isViewLifetimeActive = true
 
+    enum OperationalSaveOrigin: Hashable, Sendable {
+        case schedule
+        case destination
+    }
+
+    enum ConfigSaveFeedbackLevel: Equatable, Sendable {
+        case success
+        case error
+        case information
+    }
+
+    struct ConfigSaveFeedback: Equatable, Sendable {
+        let level: ConfigSaveFeedbackLevel
+        let message: String
+    }
+
     private struct OperationalDraft: Equatable, Sendable {
         var frequency: Components.Schemas.BackupConfigUpdateRequest.FrequencyPayload
         var host: String
@@ -103,28 +119,153 @@ final class BackupViewModel {
         }
     }
 
-    private struct ActivationDraft: Equatable, Sendable {
-        var operational: OperationalDraft
-        var local: BackupRetentionDraft
-        var offbox: BackupRetentionDraft
+    private struct OperationalSnapshot: Equatable, Sendable {
+        var draft: OperationalDraft
+        var passwordGeneration: UInt64?
     }
 
-    private enum SaveKind: Sendable {
-        case operational(OperationalDraft)
-        case activation(ActivationDraft)
+    private struct SaveOwner: Equatable, Sendable {
+        let session: String
+        let epoch: UInt64
+    }
+
+    private struct OperationalSaveIntent: Sendable {
+        let id: UInt64
+        let owner: SaveOwner
+        var snapshot: OperationalSnapshot
+        var origins: Set<OperationalSaveOrigin>
+    }
+
+    private struct ActivationSaveIntent: Sendable {
+        let id: UInt64
+        let owner: SaveOwner
+        var operational: OperationalSnapshot
+        var operationalOrigins: Set<OperationalSaveOrigin>
+        let local: BackupRetentionDraft
+        let offbox: BackupRetentionDraft
+    }
+
+    private enum SaveIntent: Sendable {
+        case operational(OperationalSaveIntent)
+        case activation(ActivationSaveIntent)
+
+        var id: UInt64 {
+            switch self {
+            case .operational(let intent): return intent.id
+            case .activation(let intent): return intent.id
+            }
+        }
+
+        var owner: SaveOwner {
+            switch self {
+            case .operational(let intent): return intent.owner
+            case .activation(let intent): return intent.owner
+            }
+        }
+    }
+
+    private struct InFlightSave: Sendable {
+        let intent: SaveIntent
+        let expectedRevision: String
+    }
+
+    private enum SaveFailureClass: Sendable {
+        case conflict
+        case invalid
+        case preconditionRequired
+        case unauthorized
+        case forbidden
+        case ambiguous
+    }
+
+    private enum BlockedRefreshPhase: Sendable {
+        case refreshing
+        case refreshFailed(String)
+        case ready(Components.Schemas.BackupConfig)
+    }
+
+    private struct BlockedSave: Sendable {
+        let failed: InFlightSave
+        let failure: SaveFailureClass
+        let message: String
+        var phase: BlockedRefreshPhase
+        /// A fresh, explicit confirmation captured after this failure. The old
+        /// failed activation remains immutable evidence; only this newer intent
+        /// may proceed after owned reconciliation supplies a current revision.
+        var supersedingActivationID: UInt64?
     }
 
     private struct RequestOwner: Equatable, Sendable {
         let session: String
         let generation: UInt64
-        let configToken: Date?
+        let configToken: String?
     }
 
     private var serverOperational: OperationalDraft?
     private var serverLocalRetention: BackupRetentionDraft?
     private var serverOffboxRetention: BackupRetentionDraft?
-    private var pendingSave: SaveKind?
-    private var saveQueueGeneration: UInt64 = 0
+    private var pendingOperational: OperationalSaveIntent?
+    private var pendingActivation: ActivationSaveIntent?
+    private var inFlightSave: InFlightSave?
+    private var blockedSave: BlockedSave?
+    private var saveQueueEpoch: UInt64 = 0
+    private var nextSaveIntentID: UInt64 = 0
+    private var nextDrainID: UInt64 = 0
+    private var activeDrainID: UInt64?
+    private var reconciliationGeneration: UInt64 = 0
+    private var reconciliationTask: Task<Void, Never>?
+    private var passwordEditGeneration: UInt64 = 0
+
+    var isSaving: Bool { inFlightSave != nil }
+    var isActivatingRetention: Bool {
+        if case .activation = inFlightSave?.intent { return true }
+        return false
+    }
+    var isActivationQueued: Bool { pendingActivation != nil }
+    var hasBlockedConfiguration: Bool { blockedSave != nil }
+    var isReconcilingConfiguration: Bool {
+        if case .refreshing = blockedSave?.phase { return true }
+        return false
+    }
+    var configurationReloadError: String? {
+        if case .refreshFailed(let message) = blockedSave?.phase { return message }
+        return nil
+    }
+    var conflictingConfig: Components.Schemas.BackupConfig? {
+        if case .ready(let config) = blockedSave?.phase { return config }
+        return nil
+    }
+    var canUseCurrentBoxSettings: Bool { conflictingConfig != nil }
+    var canRetryBlockedSave: Bool {
+        guard conflictingConfig != nil, let blockedSave,
+            blockedSave.supersedingActivationID == nil
+        else { return false }
+        if case .activation(let intent) = blockedSave.failed.intent {
+            return localRetention == intent.local && offboxRetention == intent.offbox
+        }
+        return true
+    }
+
+    /// True only when a fresh tap would replace an activation that has not been
+    /// sent, or an activation retained behind reconciliation. An activation
+    /// already in flight is deliberately immutable and cannot be superseded.
+    var canSupersedeActivation: Bool {
+        guard let owner = currentSaveOwner() else { return false }
+        if let inFlightSave, case .activation = inFlightSave.intent { return false }
+        if let pendingActivation {
+            guard pendingActivation.owner == owner else { return false }
+            return localRetention != pendingActivation.local
+                || offboxRetention != pendingActivation.offbox
+        }
+        guard let blockedSave, ownsSaveOwner(blockedSave.failed.intent.owner),
+            case .activation(let intent) = blockedSave.failed.intent
+        else { return false }
+        return localRetention != intent.local || offboxRetention != intent.offbox
+    }
+
+    var requiresRetentionReconfirmation: Bool {
+        blockedSave != nil && canSupersedeActivation
+    }
 
     init(api: BackupAPI, sessionIdentity: @escaping SessionIdentity = { "standalone" }) {
         self.api = api
@@ -154,16 +295,10 @@ final class BackupViewModel {
         restoreGeneration &+= 1
         localDeleteGeneration &+= 1
         remoteDeleteGeneration &+= 1
-        conflictGeneration &+= 1
-        saveQueueGeneration &+= 1
+        invalidateConfigurationQueue(clearRevision: true)
         invalidateHouseholdSensitiveOwnership()
 
-        pendingSave = nil
-        password = ""
-        passwordEdited = false
         isLoading = false
-        isSaving = false
-        isActivatingRetention = false
         isBackingUp = false
         isRestoring = false
         isChecking = false
@@ -177,6 +312,7 @@ final class BackupViewModel {
     func replaceSessionIfNeeded(with identity: String?) -> Bool {
         guard observedSessionIdentity != identity else { return false }
         observedSessionIdentity = identity
+        invalidateConfigurationQueue(clearRevision: true)
         invalidateHouseholdSensitiveOwnership()
         return true
     }
@@ -231,8 +367,17 @@ final class BackupViewModel {
     }
 
     var canActivateRetention: Bool {
-        configUpdatedAt != nil && retentionValidationMessage == nil && !isSaving
+        guard configRevision != nil, retentionValidationMessage == nil else { return false }
+        if canSupersedeActivation { return true }
+        return !hasOutstandingActivation && blockedSave == nil
             && (hasRetentionChanges || retentionReviewRequired)
+    }
+
+    private var hasOutstandingActivation: Bool {
+        if pendingActivation != nil { return true }
+        if let inFlightSave, case .activation = inFlightSave.intent { return true }
+        if let blockedSave, case .activation = blockedSave.failed.intent { return true }
+        return false
     }
 
     var latestSummary: String? {
@@ -278,9 +423,9 @@ final class BackupViewModel {
 
     func load() async {
         guard let session = activeSessionIdentity() else { return }
-        invalidateConflictFetch()
+        invalidateConfigurationQueue(clearRevision: true)
         configGeneration &+= 1
-        let owner = RequestOwner(session: session, generation: configGeneration, configToken: configUpdatedAt)
+        let owner = RequestOwner(session: session, generation: configGeneration, configToken: nil)
         isLoading = true
         do {
             let config = try await api.config()
@@ -289,8 +434,7 @@ final class BackupViewModel {
                 return
             }
             applyFullConfig(config)
-            configError = nil
-            conflictingConfig = nil
+            configLoadError = nil
             isLoading = false
             await loadBackups(refreshStatus: false)
             await refreshRecoveryStatus()
@@ -300,7 +444,7 @@ final class BackupViewModel {
                 return
             }
             isLoading = false
-            configError = ChatViewModel.describe(error)
+            configLoadError = ChatViewModel.describe(error)
         }
     }
 
@@ -372,7 +516,7 @@ final class BackupViewModel {
         guard let session = activeSessionIdentity() else { return }
         statusGeneration &+= 1
         let owner = RequestOwner(
-            session: session, generation: statusGeneration, configToken: configUpdatedAt)
+            session: session, generation: statusGeneration, configToken: configRevision)
         do {
             let status = try await api.recoveryStatus()
             guard ownsStatus(owner) else { return }
@@ -386,162 +530,417 @@ final class BackupViewModel {
         }
     }
 
+    private var operationalSnapshot: OperationalSnapshot {
+        .init(
+            draft: operationalDraft,
+            passwordGeneration: passwordEdited ? passwordEditGeneration : nil)
+    }
+
     /// Destination/cadence autosave. Concurrent calls collapse to the newest
-    /// pending snapshot and share the same serialized CAS lane as activation.
-    func save() async {
-        let snapshot = operationalDraft
-        if snapshot.withoutPassword() == serverOperational, snapshot.password == nil { return }
-        if case .activation(var activation) = pendingSave {
-            // Preserve the explicit retention snapshot while coalescing newer
-            // destination/cadence edits into that not-yet-started save.
+    /// same-owner snapshot and share the serialized revision lane with activation.
+    func save(origin: OperationalSaveOrigin) async {
+        guard let owner = currentSaveOwner() else { return }
+        guard configRevision != nil else {
+            setFeedback(
+                .init(level: .error, message: String(localized: "Backup settings are still loading.")),
+                for: [origin])
+            return
+        }
+        clearSuccessfulFeedback(for: origin)
+        let snapshot = operationalSnapshot
+        if snapshot.draft.withoutPassword() == serverOperational, snapshot.draft.password == nil {
+            return
+        }
+        if var activation = pendingActivation, activation.owner == owner {
             activation.operational = snapshot
-            pendingSave = .activation(activation)
+            activation.operationalOrigins.insert(origin)
+            pendingActivation = activation
+        } else if var pending = pendingOperational, pending.owner == owner {
+            pending.snapshot = snapshot
+            pending.origins.insert(origin)
+            pendingOperational = pending
         } else {
-            pendingSave = .operational(snapshot)
+            pendingOperational = .init(
+                id: allocateSaveIntentID(), owner: owner, snapshot: snapshot, origins: [origin])
         }
         await drainSaveQueue()
     }
 
+    /// Backward-compatible programmatic entry point. UI callers identify their
+    /// initiating control so feedback can remain adjacent.
+    func save() async { await save(origin: .destination) }
+
     func saveAndActivateRetention() async {
-        guard retentionValidationMessage == nil else { return }
-        pendingSave = .activation(
-            .init(operational: operationalDraft, local: localRetention, offbox: offboxRetention))
+        guard canActivateRetention, let owner = currentSaveOwner() else { return }
+        let replacingBlocked = blockedSave != nil
+        let replacementID = enqueueActivation(owner: owner, replacingBlocked: replacingBlocked)
+
+        if replacingBlocked {
+            switch blockedSave?.phase {
+            case .ready(let current):
+                adoptFetchedRevision(current)
+                blockedSave = nil
+            case .refreshing, .refreshFailed:
+                // Keep reconciliation as the transport gate, but replace the old
+                // consent now. Once an owned GET succeeds, only this intent may run.
+                blockedSave?.supersedingActivationID = replacementID
+                return
+            case nil:
+                break
+            }
+        }
         await drainSaveQueue()
+    }
+
+    /// Compatibility entry point for the reconciliation-specific button used by
+    /// older callers. The primary activation action now owns all supersession.
+    func saveAndActivateCurrentSettings() async {
+        await saveAndActivateRetention()
+    }
+
+    @discardableResult
+    private func enqueueActivation(owner: SaveOwner, replacingBlocked: Bool) -> UInt64 {
+        var origins: Set<OperationalSaveOrigin> = []
+        if let existing = pendingActivation, existing.owner == owner {
+            origins.formUnion(existing.operationalOrigins)
+        }
+        if let pending = pendingOperational, pending.owner == owner {
+            origins.formUnion(pending.origins)
+            pendingOperational = nil
+        }
+        if replacingBlocked {
+            retentionSaveFeedback = nil
+            if let blockedSave, case .activation(let failed) = blockedSave.failed.intent {
+                origins.formUnion(failed.operationalOrigins)
+            }
+        }
+        let id = allocateSaveIntentID()
+        pendingActivation = .init(
+            id: id, owner: owner,
+            operational: operationalSnapshot, operationalOrigins: origins,
+            local: localRetention, offbox: offboxRetention)
+        return id
     }
 
     private func drainSaveQueue() async {
-        guard isViewLifetimeActive else {
-            pendingSave = nil
-            return
-        }
-        guard !isSaving else { return }
-        saveQueueGeneration &+= 1
-        let generation = saveQueueGeneration
-        isSaving = true
+        guard activeDrainID == nil, blockedSave == nil, isViewLifetimeActive else { return }
+        nextDrainID &+= 1
+        let drainID = nextDrainID
+        activeDrainID = drainID
         defer {
-            if saveQueueGeneration == generation {
-                isSaving = false
-                isActivatingRetention = false
-            }
+            if activeDrainID == drainID { activeDrainID = nil }
         }
-        while saveQueueGeneration == generation, let next = pendingSave {
-            pendingSave = nil
-            let shouldContinue = await performSave(next)
-            guard saveQueueGeneration == generation else { return }
-            if !shouldContinue {
-                pendingSave = nil
+
+        while activeDrainID == drainID, blockedSave == nil {
+            guard let intent = takeNextPendingIntent() else { return }
+            guard ownsSaveOwner(intent.owner), let revision = configRevision else {
+                publishFailure(
+                    String(localized: "Backup settings are still loading."), for: intent)
+                continue
+            }
+            let flight = InFlightSave(intent: intent, expectedRevision: revision)
+            inFlightSave = flight
+            let request = request(for: flight)
+            do {
+                let config = try await api.updateConfig(request)
+                guard ownsInFlight(flight) else { return }
+                applySaveSuccess(config, flight: flight)
+                inFlightSave = nil
+                await refreshRecoveryStatus()
+            } catch {
+                guard ownsInFlight(flight) else { return }
+                inFlightSave = nil
+                let classified = classifySaveFailure(error)
+                publishFailure(classified.message, for: intent)
+                if classified.kind == .invalid {
+                    // Invalid combined data voids the old confirmation. Keep the
+                    // editable fields, but require correction and a new tap.
+                    if pendingActivation != nil {
+                        retentionSaveFeedback = .init(
+                            level: .error, message: classified.message)
+                    }
+                    pendingActivation = nil
+                    return
+                }
+                let phase: BlockedRefreshPhase =
+                    classified.kind == .unauthorized || classified.kind == .forbidden
+                    ? .refreshFailed(classified.message) : .refreshing
+                blockedSave = .init(
+                    failed: flight, failure: classified.kind,
+                    message: classified.message, phase: phase,
+                    supersedingActivationID: nil)
+                if case .refreshing = phase {
+                    startReconciliation(for: flight)
+                    await reconciliationTask?.value
+                    if blockedSave == nil { continue }
+                }
                 return
             }
         }
     }
 
-    private func performSave(_ kind: SaveKind) async -> Bool {
-        guard isViewLifetimeActive else { return false }
-        guard let session = activeSessionIdentity(), let token = configUpdatedAt else {
-            configError = String(localized: "Backup settings are still loading.")
-            return false
+    private func takeNextPendingIntent() -> SaveIntent? {
+        if let activation = pendingActivation {
+            pendingActivation = nil
+            return .activation(activation)
         }
-
-        let activation: ActivationDraft?
-        let operational: OperationalDraft
-        switch kind {
-        case .operational(let draft):
-            if draft.withoutPassword() == serverOperational, draft.password == nil { return true }
-            activation = nil
-            operational = draft
-            isActivatingRetention = false
-        case .activation(let draft):
-            activation = draft
-            operational = draft.operational
-            isActivatingRetention = true
+        if let operational = pendingOperational {
+            pendingOperational = nil
+            return .operational(operational)
         }
+        return nil
+    }
 
-        configGeneration &+= 1
-        let owner = RequestOwner(session: session, generation: configGeneration, configToken: token)
-        let request = BackupConfigDraft(
-            frequency: operational.frequency,
-            host: operational.host,
-            share: operational.share,
-            folder: operational.folder,
-            username: operational.username,
-            password: operational.password,
-            domain: operational.domain,
-            localRetention: activation?.local ?? localRetention,
-            offboxRetention: activation?.offbox ?? offboxRetention,
-            expectedUpdatedAt: token,
-            confirmRetentionPolicy: activation != nil)
+    private func request(for flight: InFlightSave) -> BackupConfigDraft {
+        let operational: OperationalSnapshot
+        let local: BackupRetentionDraft
+        let offbox: BackupRetentionDraft
+        let confirming: Bool
+        switch flight.intent {
+        case .operational(let intent):
+            operational = intent.snapshot
+            local = localRetention
+            offbox = offboxRetention
+            confirming = false
+        case .activation(let intent):
+            operational = intent.operational
+            local = intent.local
+            offbox = intent.offbox
+            confirming = true
+        }
+        return .init(
+            frequency: operational.draft.frequency,
+            host: operational.draft.host,
+            share: operational.draft.share,
+            folder: operational.draft.folder,
+            username: operational.draft.username,
+            password: operational.draft.password,
+            domain: operational.draft.domain,
+            localRetention: local,
+            offboxRetention: offbox,
+            expectedRevision: flight.expectedRevision,
+            confirmRetentionPolicy: confirming)
+    }
 
-        do {
-            let config = try await api.updateConfig(request)
-            guard ownsConfig(owner, requireToken: true) else { return false }
-            configUpdatedAt = config.updatedAt
-            latest = config.latest
-            hasStoredPassword = config.hasPassword
-            serverOperational = operational.withoutPassword()
-            if let sentPassword = operational.password, passwordEdited, password == sentPassword {
-                password = ""
-                passwordEdited = false
+    private func applySaveSuccess(
+        _ config: Components.Schemas.BackupConfig, flight: InFlightSave
+    ) {
+        configRevision = config.revision
+        configUpdatedAt = config.updatedAt
+        latest = config.latest
+        hasStoredPassword = config.hasPassword
+        updateConfigMetadata(config)
+
+        let snapshot: OperationalSnapshot
+        let origins: Set<OperationalSaveOrigin>
+        switch flight.intent {
+        case .operational(let intent):
+            snapshot = intent.snapshot
+            origins = intent.origins
+        case .activation(let intent):
+            snapshot = intent.operational
+            origins = intent.operationalOrigins
+            let returnedLocal = Self.retentionDraft(
+                config.localRetention, maxBytes: config.localMaxBytes,
+                reserveBytes: config.localMinFreeBytes)
+            let returnedOffbox = Self.retentionDraft(
+                config.offboxRetention, maxBytes: config.offboxMaxBytes,
+                reserveBytes: config.offboxMinFreeBytes)
+            if localRetention == intent.local { localRetention = returnedLocal }
+            if offboxRetention == intent.offbox { offboxRetention = returnedOffbox }
+            serverLocalRetention = returnedLocal
+            serverOffboxRetention = returnedOffbox
+            if localRetention == returnedLocal, offboxRetention == returnedOffbox {
+                retentionSaveFeedback = .init(
+                    level: .success,
+                    message: String(localized: "Retention settings saved and activated."))
             }
-            updateConfigMetadata(config)
-            if let activation {
-                let returnedLocal = Self.retentionDraft(
-                    config.localRetention, maxBytes: config.localMaxBytes,
-                    reserveBytes: config.localMinFreeBytes)
-                let returnedOffbox = Self.retentionDraft(
-                    config.offboxRetention, maxBytes: config.offboxMaxBytes,
-                    reserveBytes: config.offboxMinFreeBytes)
-                if localRetention == activation.local { localRetention = returnedLocal }
-                if offboxRetention == activation.offbox { offboxRetention = returnedOffbox }
-                serverLocalRetention = returnedLocal
-                serverOffboxRetention = returnedOffbox
-            }
-            configError = nil
-            invalidateConflictFetch()
-            await refreshRecoveryStatus()
-            return true
-        } catch let conflict as BackupError {
-            guard ownsConfig(owner, requireToken: true) else { return false }
-            if case .configurationConflict(let message) = conflict {
-                configError = message
-                await loadConflictingConfig(for: owner)
-                return false
-            }
-            configError = ChatViewModel.describe(conflict)
-            return false
-        } catch {
-            guard ownsConfig(owner, requireToken: true) else { return false }
-            configError = ChatViewModel.describe(error)
-            return false
+        }
+        let returnedOperational = Self.operationalDraft(from: config)
+        if operationalDraft.withoutPassword() == snapshot.draft.withoutPassword() {
+            frequency = returnedOperational.frequency
+            host = returnedOperational.host
+            share = returnedOperational.share
+            folder = returnedOperational.folder
+            username = returnedOperational.username
+            domain = returnedOperational.domain
+        }
+        serverOperational = returnedOperational
+        if let generation = snapshot.passwordGeneration,
+            generation == passwordEditGeneration, passwordEdited
+        {
+            password = ""
+            passwordEdited = false
+        }
+        publishSuccess(for: origins, snapshot: snapshot)
+    }
+
+    private func publishSuccess(
+        for origins: Set<OperationalSaveOrigin>, snapshot: OperationalSnapshot
+    ) {
+        if origins.contains(.schedule), frequency == snapshot.draft.frequency {
+            scheduleSaveFeedback = .init(
+                level: .success, message: String(localized: "Backup schedule saved."))
+        }
+        if origins.contains(.destination), destinationMatches(snapshot.draft) {
+            destinationSaveFeedback = .init(
+                level: .success, message: String(localized: "Backup destination saved."))
         }
     }
 
-    private func loadConflictingConfig(for configOwner: RequestOwner) async {
-        conflictGeneration &+= 1
-        let generation = conflictGeneration
+    private func publishFailure(_ message: String, for intent: SaveIntent) {
+        switch intent {
+        case .operational(let operational):
+            setFeedback(.init(level: .error, message: message), for: operational.origins)
+        case .activation(let activation):
+            setFeedback(.init(level: .error, message: message), for: activation.operationalOrigins)
+            retentionSaveFeedback = .init(level: .error, message: message)
+        }
+    }
+
+    private func setFeedback(
+        _ feedback: ConfigSaveFeedback, for origins: Set<OperationalSaveOrigin>
+    ) {
+        if origins.contains(.schedule) { scheduleSaveFeedback = feedback }
+        if origins.contains(.destination) { destinationSaveFeedback = feedback }
+    }
+
+    private func clearSuccessfulFeedback(for origin: OperationalSaveOrigin) {
+        switch origin {
+        case .schedule:
+            if scheduleSaveFeedback?.level == .success { scheduleSaveFeedback = nil }
+        case .destination:
+            if destinationSaveFeedback?.level == .success { destinationSaveFeedback = nil }
+        }
+    }
+
+    private func classifySaveFailure(
+        _ error: Error
+    ) -> (kind: SaveFailureClass, message: String) {
+        if let backup = error as? BackupError {
+            switch backup {
+            case .configurationConflict(let message): return (.conflict, message)
+            case .configurationInvalid(let message): return (.invalid, message)
+            case .configurationPreconditionRequired(let message):
+                return (.preconditionRequired, message)
+            default: break
+            }
+        }
+        if let apiError = error as? APIError {
+            switch apiError {
+            case .unauthorized: return (.unauthorized, ChatViewModel.describe(apiError))
+            case .server(403): return (.forbidden, ChatViewModel.describe(apiError))
+            default: break
+            }
+        }
+        return (.ambiguous, ChatViewModel.describe(error))
+    }
+
+    private func startReconciliation(for flight: InFlightSave) {
+        reconciliationGeneration &+= 1
+        let generation = reconciliationGeneration
+        reconciliationTask?.cancel()
+        reconciliationTask = Task { [weak self] in
+            await self?.reconcile(flight: flight, generation: generation)
+        }
+    }
+
+    private func reconcile(flight: InFlightSave, generation: UInt64) async {
         do {
             let current = try await api.config()
-            guard ownsConflictFetch(
-                configOwner: configOwner, conflictGeneration: generation)
-            else { return }
-            // Deliberately separate: never replace the administrator's unsaved draft.
-            conflictingConfig = current
+            guard ownsReconciliation(flight: flight, generation: generation) else { return }
+            if ambiguousActivationMatches(current, flight: flight) {
+                adoptMatchedAmbiguousActivation(current)
+                blockedSave = nil
+                reconciliationTask = nil
+            } else if let replacementID = blockedSave?.supersedingActivationID,
+                pendingActivation?.id == replacementID
+            {
+                // This is not an automatic replay of the failed request: the user
+                // explicitly confirmed a newer immutable snapshot after failure.
+                adoptFetchedRevision(current)
+                blockedSave = nil
+                reconciliationTask = nil
+            } else {
+                blockedSave?.phase = .ready(current)
+                reconciliationTask = nil
+            }
         } catch {
-            guard ownsConflictFetch(
-                configOwner: configOwner, conflictGeneration: generation)
-            else { return }
-            // Keep the original conflict message; reconciliation remains explicit.
+            guard ownsReconciliation(flight: flight, generation: generation) else { return }
+            blockedSave?.phase = .refreshFailed(ChatViewModel.describe(error))
+            reconciliationTask = nil
         }
+    }
+
+    func reloadCurrentConfiguration() async {
+        guard let blockedSave, ownsSaveOwner(blockedSave.failed.intent.owner) else { return }
+        self.blockedSave?.phase = .refreshing
+        startReconciliation(for: blockedSave.failed)
+        await reconciliationTask?.value
+        if self.blockedSave == nil { await drainSaveQueue() }
+    }
+
+    func retryBlockedSave() async {
+        guard let blockedSave, let current = conflictingConfig,
+            ownsSaveOwner(blockedSave.failed.intent.owner), canRetryBlockedSave
+        else { return }
+        adoptFetchedRevision(current)
+        self.blockedSave = nil
+        let owner = blockedSave.failed.intent.owner
+        switch blockedSave.failed.intent {
+        case .activation(let failed):
+            var origins = failed.operationalOrigins
+            if let pending = pendingOperational, pending.owner == owner {
+                origins.formUnion(pending.origins)
+                pendingOperational = nil
+            }
+            pendingActivation = .init(
+                id: allocateSaveIntentID(), owner: owner,
+                operational: operationalSnapshot, operationalOrigins: origins,
+                local: failed.local, offbox: failed.offbox)
+        case .operational(let failed):
+            if var activation = pendingActivation, activation.owner == owner {
+                activation.operational = operationalSnapshot
+                activation.operationalOrigins.formUnion(failed.origins)
+                if let pending = pendingOperational, pending.owner == owner {
+                    activation.operationalOrigins.formUnion(pending.origins)
+                    pendingOperational = nil
+                }
+                pendingActivation = activation
+            } else {
+                var origins = failed.origins
+                if let pending = pendingOperational, pending.owner == owner {
+                    origins.formUnion(pending.origins)
+                }
+                pendingOperational = .init(
+                    id: allocateSaveIntentID(), owner: owner,
+                    snapshot: operationalSnapshot, origins: origins)
+            }
+        }
+        await drainSaveQueue()
     }
 
     func useCurrentBoxSettings() async {
-        guard isViewLifetimeActive, let config = conflictingConfig else { return }
+        guard let config = conflictingConfig else { return }
+        invalidateConfigurationQueue(clearRevision: true)
         applyFullConfig(config)
-        conflictingConfig = nil
-        configError = nil
+        configLoadError = nil
         await refreshRecoveryStatus()
     }
 
-    func passwordChanged() { passwordEdited = true }
+    func updatePassword(_ value: String) {
+        guard password != value else { return }
+        password = value
+        passwordEdited = true
+        passwordEditGeneration &+= 1
+        clearSuccessfulFeedback(for: .destination)
+    }
+
+    func passwordChanged() {
+        passwordEdited = true
+        passwordEditGeneration &+= 1
+        clearSuccessfulFeedback(for: .destination)
+    }
 
     func testConnection() async {
         guard !isChecking, let session = activeSessionIdentity() else { return }
@@ -558,7 +957,7 @@ final class BackupViewModel {
             frequency: snapshot.frequency, host: snapshot.host, share: snapshot.share,
             folder: snapshot.folder, username: snapshot.username, password: snapshot.password,
             domain: snapshot.domain, localRetention: localRetention,
-            offboxRetention: offboxRetention, expectedUpdatedAt: configUpdatedAt,
+            offboxRetention: offboxRetention, expectedRevision: configRevision,
             confirmRetentionPolicy: false)
         do {
             let result = try await api.checkConnection(request)
@@ -621,6 +1020,7 @@ final class BackupViewModel {
         guard !isRestoring, let session = activeSessionIdentity() else { return }
         restoreGeneration &+= 1
         let generation = restoreGeneration
+        invalidateConfigurationQueue(clearRevision: true)
         // Any in-flight pre-restore observations must not publish after this
         // destructive replacement starts.
         configGeneration &+= 1
@@ -869,6 +1269,7 @@ final class BackupViewModel {
         guard !isRestoring, let session = activeSessionIdentity() else { return }
         restoreGeneration &+= 1
         let generation = restoreGeneration
+        invalidateConfigurationQueue(clearRevision: true)
         // Any in-flight pre-restore observations must not publish after this
         // destructive replacement starts.
         configGeneration &+= 1
@@ -899,17 +1300,18 @@ final class BackupViewModel {
         // The server rotates generations, changes the CAS token, and pauses
         // retention even when the HTTP response is lost after commit. Stop showing
         // pre-restore observations before fetching the new authoritative state.
+        configRevision = nil
         configUpdatedAt = nil
-        conflictingConfig = nil
+        blockedSave = nil
         recoveryStatus = nil
         recoveryStatusError = nil
         localBackups = []
         remoteBackups = []
         await load()
         guard ownsOperation(session, generation, current: restoreGeneration) else { return }
-        if let configError {
+        if let configLoadError {
             recoveryStatus = nil
-            recoveryStatusError = configError
+            recoveryStatusError = configLoadError
         }
     }
 
@@ -924,32 +1326,137 @@ final class BackupViewModel {
         isViewLifetimeActive ? sessionIdentity() : nil
     }
 
+    private func currentSaveOwner() -> SaveOwner? {
+        guard let session = activeSessionIdentity() else { return nil }
+        return .init(session: session, epoch: saveQueueEpoch)
+    }
+
+    private func allocateSaveIntentID() -> UInt64 {
+        nextSaveIntentID &+= 1
+        return nextSaveIntentID
+    }
+
+    private func ownsSaveOwner(_ owner: SaveOwner) -> Bool {
+        isViewLifetimeActive && sessionIdentity() == owner.session
+            && saveQueueEpoch == owner.epoch
+    }
+
+    private func ownsInFlight(_ flight: InFlightSave) -> Bool {
+        guard ownsSaveOwner(flight.intent.owner), configRevision == flight.expectedRevision,
+            let current = inFlightSave
+        else { return false }
+        return current.intent.id == flight.intent.id
+            && current.intent.owner == flight.intent.owner
+            && current.expectedRevision == flight.expectedRevision
+    }
+
+    private func ownsReconciliation(flight: InFlightSave, generation: UInt64) -> Bool {
+        guard reconciliationGeneration == generation, ownsSaveOwner(flight.intent.owner),
+            let blockedSave
+        else { return false }
+        return blockedSave.failed.intent.id == flight.intent.id
+            && blockedSave.failed.intent.owner == flight.intent.owner
+    }
+
+    private func invalidateConfigurationQueue(clearRevision: Bool) {
+        saveQueueEpoch &+= 1
+        nextDrainID &+= 1
+        activeDrainID = nil
+        pendingOperational = nil
+        pendingActivation = nil
+        inFlightSave = nil
+        blockedSave = nil
+        reconciliationGeneration &+= 1
+        reconciliationTask?.cancel()
+        reconciliationTask = nil
+        scheduleSaveFeedback = nil
+        destinationSaveFeedback = nil
+        retentionSaveFeedback = nil
+        passwordEditGeneration &+= 1
+        password = ""
+        passwordEdited = false
+        if clearRevision { configRevision = nil }
+    }
+
+    private func destinationMatches(_ draft: OperationalDraft) -> Bool {
+        host == draft.host && share == draft.share && folder == draft.folder
+            && username == draft.username && domain == draft.domain
+    }
+
+    private func adoptFetchedRevision(_ config: Components.Schemas.BackupConfig) {
+        configRevision = config.revision
+        configUpdatedAt = config.updatedAt
+    }
+
+    private func ambiguousActivationMatches(
+        _ config: Components.Schemas.BackupConfig, flight: InFlightSave
+    ) -> Bool {
+        guard blockedSave?.failure == .ambiguous,
+            case .activation(let intent) = flight.intent,
+            intent.operational.draft.password == nil,
+            !config.retentionReviewRequired
+        else { return false }
+        let currentOperational = Self.operationalDraft(from: config)
+        let currentLocal = Self.retentionDraft(
+            config.localRetention, maxBytes: config.localMaxBytes,
+            reserveBytes: config.localMinFreeBytes)
+        let currentOffbox = Self.retentionDraft(
+            config.offboxRetention, maxBytes: config.offboxMaxBytes,
+            reserveBytes: config.offboxMinFreeBytes)
+        return currentOperational == intent.operational.draft.withoutPassword()
+            && currentLocal == intent.local && currentOffbox == intent.offbox
+    }
+
+    private func adoptMatchedAmbiguousActivation(
+        _ config: Components.Schemas.BackupConfig
+    ) {
+        configRevision = config.revision
+        configUpdatedAt = config.updatedAt
+        latest = config.latest
+        hasStoredPassword = config.hasPassword
+        serverOperational = Self.operationalDraft(from: config)
+        serverLocalRetention = Self.retentionDraft(
+            config.localRetention, maxBytes: config.localMaxBytes,
+            reserveBytes: config.localMinFreeBytes)
+        serverOffboxRetention = Self.retentionDraft(
+            config.offboxRetention, maxBytes: config.offboxMaxBytes,
+            reserveBytes: config.offboxMinFreeBytes)
+        updateConfigMetadata(config)
+        retentionSaveFeedback = .init(
+            level: .information,
+            message: String(
+                localized:
+                    "The box now matches these settings, but the original response was not confirmed."))
+    }
+
+    private static func operationalDraft(
+        from config: Components.Schemas.BackupConfig
+    ) -> OperationalDraft {
+        .init(
+            frequency: mapFrequency(config.frequency),
+            host: config.smbHost ?? "",
+            share: config.smbShare ?? "",
+            folder: config.smbFolder ?? "",
+            username: config.smbUsername ?? "",
+            password: nil,
+            domain: config.smbDomain ?? "")
+    }
+
     private func ownsConfig(_ owner: RequestOwner, requireToken: Bool) -> Bool {
         isViewLifetimeActive && sessionIdentity() == owner.session
             && configGeneration == owner.generation && !Task.isCancelled
-            && (!requireToken || configUpdatedAt == owner.configToken)
+            && (!requireToken || configRevision == owner.configToken)
     }
 
     private func ownsStatus(_ owner: RequestOwner) -> Bool {
         isViewLifetimeActive && sessionIdentity() == owner.session
             && statusGeneration == owner.generation
-            && configUpdatedAt == owner.configToken && !Task.isCancelled
+            && configRevision == owner.configToken && !Task.isCancelled
     }
 
     private func ownsKeyStatusPublication(_ session: String, generation: UInt64) -> Bool {
         isViewLifetimeActive && sessionIdentity() == session
             && keyStatusPublicationGeneration == generation && !Task.isCancelled
-    }
-
-    private func ownsConflictFetch(
-        configOwner: RequestOwner, conflictGeneration generation: UInt64
-    ) -> Bool {
-        conflictGeneration == generation && ownsConfig(configOwner, requireToken: true)
-    }
-
-    private func invalidateConflictFetch() {
-        conflictGeneration &+= 1
-        conflictingConfig = nil
     }
 
     private func ownsOperation(
@@ -984,6 +1491,7 @@ final class BackupViewModel {
         serverOperational = operationalDraft.withoutPassword()
         serverLocalRetention = localRetention
         serverOffboxRetention = offboxRetention
+        configRevision = config.revision
         configUpdatedAt = config.updatedAt
         latest = config.latest
         updateConfigMetadata(config)
@@ -1062,6 +1570,54 @@ final class BackupViewModel {
         case .constrained: return String(localized: "Constrained")
         case .degraded: return String(localized: "Degraded")
         case .unavailable: return String(localized: "Unavailable")
+        }
+    }
+
+    static func isReviewOnlyRecovery(
+        _ status: Components.Schemas.BackupDestinationRecoveryStatus
+    ) -> Bool {
+        let allowed = Set(["retention_review_required", "coverage_unknown"])
+        let reasons = Set(status.reasonCodes)
+        return status.status == .degraded
+            && reasons.contains("retention_review_required")
+            && reasons.isSubset(of: allowed)
+    }
+
+    static func hasRetentionReviewReason(
+        _ status: Components.Schemas.BackupDestinationRecoveryStatus
+    ) -> Bool {
+        status.reasonCodes.contains("retention_review_required")
+    }
+
+    static func recoveryPresentationTitle(
+        _ status: Components.Schemas.BackupDestinationRecoveryStatus
+    ) -> String {
+        isReviewOnlyRecovery(status)
+            ? String(localized: "Review required")
+            : destinationStateTitle(status.status)
+    }
+
+    static func reviewRequiredMessage(
+        _ status: Components.Schemas.BackupDestinationRecoveryStatus
+    ) -> String? {
+        guard hasRetentionReviewReason(status) else { return nil }
+        return isReviewOnlyRecovery(status)
+            ? String(
+                localized:
+                    "Automatic pruning is paused. Review and activate the retention policy; the server reports no additional recovery fault for this destination.")
+            : String(
+                localized:
+                    "Retention policy review is also required. Review and activate it after resolving the recovery issue above.")
+    }
+
+    static func isReviewOnlyOverall(
+        _ status: Components.Schemas.BackupRecoveryStatus
+    ) -> Bool {
+        guard status.overallStatus == .degraded else { return false }
+        let configured = [status.local, status.offbox].filter { $0.configured }
+        guard configured.contains(where: isReviewOnlyRecovery) else { return false }
+        return configured.allSatisfy { destination in
+            destination.status == .healthy || isReviewOnlyRecovery(destination)
         }
     }
 
