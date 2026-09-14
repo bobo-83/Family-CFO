@@ -2,6 +2,7 @@ from datetime import UTC, date, datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic_core import PydanticCustomError
 
 from family_cfo_api.qualified_amounts import Qualified as InternalQualified
 
@@ -1808,7 +1809,7 @@ class BackupRetentionPolicyUpdate(BaseModel):
                 self.weekly_until_days,
             )
         except ValueError as exc:
-            raise ValueError(str(exc)) from exc
+            raise PydanticCustomError("backup_retention_policy", str(exc)) from None
         return self
 
 
@@ -1897,7 +1898,17 @@ class BackupConfig(BaseModel):
     legacy_conflict_detected: bool
     retention_review_required: bool
     retention_activated_at: datetime | None
-    updated_at: datetime
+    revision: str = Field(
+        min_length=1,
+        max_length=128,
+        description=(
+            "Opaque preferred concurrency token; clients must not parse, sort, "
+            "increment, or display it."
+        ),
+    )
+    updated_at: datetime = Field(
+        description="Modification chronology for display and diagnostics; not a concurrency token."
+    )
     local_pending_prune_count: int | None = Field(ge=0)
     local_pending_prune_bytes: int | None = Field(
         ge=0, json_schema_extra={"format": "int64"}
@@ -1939,7 +1950,23 @@ class BackupConfigUpdateRequest(BaseModel):
     offbox_min_free_bytes: int = Field(
         default=0, ge=0, json_schema_extra={"format": "int64"}
     )
-    expected_updated_at: datetime | None = None
+    expected_revision: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=128,
+        description=(
+            "Preferred opaque optimistic precondition. When both token forms are "
+            "supplied, both must match."
+        ),
+    )
+    expected_updated_at: datetime | None = Field(
+        default=None,
+        description=(
+            "Deprecated exact timestamp precondition accepted only for the contract "
+            "0.161 compatibility window."
+        ),
+        json_schema_extra={"deprecated": True},
+    )
     confirm_retention_policy: bool = False
 
     @model_validator(mode="after")
@@ -1952,20 +1979,21 @@ class BackupConfigUpdateRequest(BaseModel):
             "local_min_free_bytes",
             "offbox_min_free_bytes",
         }
-        if self.model_fields_set & policy_fields:
-            if not self.confirm_retention_policy:
-                raise ValueError("retention and capacity changes require confirmation")
-            if self.expected_updated_at is None:
-                raise ValueError("retention and capacity changes require expected_updated_at")
+        if self.model_fields_set & policy_fields and not self.confirm_retention_policy:
+            raise PydanticCustomError(
+                "backup_retention_confirmation",
+                "retention and capacity changes require confirmation",
+            )
         if self.expected_updated_at is not None:
             if (
                 self.expected_updated_at.tzinfo is None
                 or self.expected_updated_at.utcoffset() is None
             ):
-                raise ValueError("expected_updated_at must be timezone-aware")
+                raise PydanticCustomError(
+                    "backup_expected_updated_at_timezone",
+                    "expected_updated_at must be timezone-aware",
+                )
             self.expected_updated_at = self.expected_updated_at.astimezone(UTC)
-        if self.confirm_retention_policy and self.expected_updated_at is None:
-            raise ValueError("confirmation requires expected_updated_at")
         return self
 
 

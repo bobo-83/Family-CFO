@@ -166,7 +166,7 @@ placeholder amounts.
 - Conversation
 - AI Runtime Configuration
 
-## Box-Global Backup Retention Domain (issue #116, ADR 0077)
+## Box-Global Backup Retention Domain (issue #116, ADRs 0077–0078)
 
 Backup state is operational box state, not household financial state. Archives,
 configuration, jobs, retention events, and the mutation lock have no household
@@ -178,11 +178,15 @@ audit context.
 `BackupSettings` is the single persisted configuration identified by `global`.
 It owns cadence and SMB destination fields; independent local/off-box
 `RetentionPolicy` values, logical maximum bytes, and minimum caller-available
-reserves; an optimistic `updated_at`; review/activation state; and opaque local
-and off-box destination generations. The generations change when destination
-identity changes and after restore, so observations and journal facts never flow
-between different physical destinations. SMB password ciphertext and the local
-path fingerprint are internal and never returned.
+reserves; an opaque UUID-backed configuration `revision`; chronological
+`updated_at`; review/activation state; and opaque local and off-box destination
+generations. The revision changes atomically with every non-empty settings
+mutation, destination-generation rotation, and restore/compensation re-upsert;
+`updated_at` is modification chronology rather than entity identity. The
+generations change when destination identity changes and after restore, so
+observations and journal facts never flow between different physical
+destinations. SMB password ciphertext and the local path fingerprint are internal
+and never returned.
 
 Fresh settings are daily with two tiered `3 / 14 / 90` policies, unlimited
 logical caps, 1 GiB reserves, and activated retention. Every upgraded or restored

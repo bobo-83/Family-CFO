@@ -108,7 +108,7 @@ scope, record only a non-sensitive retryable skip, preserve prior durable output
 do not persist invented zeros. Synthetic corruption fixtures contain no
 personal data and require no secrets.
 
-## Box-Global Backup Security Boundary (issue #116, ADR 0077)
+## Box-Global Backup Security Boundary (issue #116, ADRs 0077–0078)
 
 Backup configuration, inventory, recovery status, destination checks, create,
 restore, maintenance, and local/remote deletion are whole-box operations. Every
@@ -121,6 +121,10 @@ Required controls:
 - The persisted singleton and retention journal carry no household foreign key.
   Existing household-scoped audit records may identify the acting administrator,
   but automatic pruning is recorded only in the box-global operational journal.
+- Configuration revisions are opaque, non-secret validators. They contain no
+  credential, configuration value, path identity, household identifier, or
+  financial data. Returning a revision never permits logging request bodies or
+  SMB material, and it does not change `BACKUPS_MANAGE` authorization.
 - SMB passwords stay encrypted at rest and are never returned, logged, journaled,
   included in audit summaries, or captured for undo. Omitted or JSON-null
   password preserves the ciphertext; explicit empty input retains the existing

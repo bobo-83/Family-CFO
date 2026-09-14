@@ -1944,6 +1944,40 @@ system-administrator-only operational data; the ordinary advisor executor is
 household-scoped. A future administrator advisor needs its own authenticated
 executor and ADR. No absence assertion is permitted.
 
+### Backup-settings revision and recovery UX follow-up (ADR 0078)
+
+The accepted execution plan is
+`docs/plans/backup-settings-revision-and-recovery-ux-2026-09-12.md`. This work
+preserves ADR 0077 policy and review safety while replacing timestamp identity.
+
+- [x] **Foundation — documentation and backend:** accept ADR 0078 and amend the
+      Spec Kit in order; define the authoritative additive `0.161` OpenAPI shape;
+      add migration 0095; persist and atomically advance UUID revisions in every
+      settings/activation/rotation/restore/compensation writer; accept exact
+      `expected_updated_at` only for the `0.161` compatibility window; implement
+      dual-token AND semantics, 409/422/428 precedence, audit boundaries, and
+      committed-record response construction; add focused migration, repository,
+      lifecycle, API-race, audit, and recovery-transition tests.
+- [ ] **Contract publication:** add immutable `compatibility/0.161.yaml`, update
+      `VERSION`, reset component builds, regenerate web and Swift clients, and run
+      version/fixture/client-compatibility gates as one atomic release item. Never
+      edit `compatibility/0.160.yaml`.
+- [ ] **Web adoption:** send only `expected_revision`; implement enqueue-owned
+      immutable save intents, one queueable activation, blocked reconciliation,
+      source-adjacent feedback, localized copy, and review-only presentation.
+- [ ] **iOS adoption on macOS:** regenerate Swift, send only the revision, add
+      typed 422/428 handling, durable owner/intent queue behavior, adjacent
+      feedback, **Backup** picker copy, review-only presentation, localization,
+      transport/ViewModel tests, and Xcode verification.
+- [ ] **Coordinated verification and rollout:** run non-Apple and Apple gates,
+      rehearse 0095 upgrade/downgrade, patch API/worker before clients, bind the
+      exact commit/image/runtime/TestFlight identities, use `SKIP_OTA=1` for the
+      bounded TestFlight candidate, and do not merge or release without the
+      accepted evidence.
+
+Advisor access remains an explicit non-goal: this changes a box-global mutation
+protocol and adds no household-readable domain.
+
 ## Backlog: Annual Report
 
 The PRD (`docs/specs/01-prd.md`) lists "weekly, monthly, and annual reports" as a functional requirement, but the M8 roadmap bullets (`docs/specs/11-milestone-roadmap.md`) name only weekly and monthly, so M8's spec gate scoped annual out rather than silently dropping it. No milestone currently owns it.

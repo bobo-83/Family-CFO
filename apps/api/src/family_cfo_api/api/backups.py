@@ -217,9 +217,12 @@ def _recovery_status_schema(
     )
 
 
-def _load_backup_config(engine: Engine, settings: Settings) -> BackupConfig:
+def _backup_config_from_record(
+    engine: Engine,
+    settings: Settings,
+    stored: repository.BackupSettingsRecord,
+) -> BackupConfig:
     as_of = datetime.now(UTC)
-    stored = repository.get_backup_settings(engine, settings=settings, as_of=as_of)
     local_pending, offbox_pending = backup_recovery.calculate_pending_prunes(
         engine, settings, stored, as_of=as_of
     )
@@ -252,6 +255,7 @@ def _load_backup_config(engine: Engine, settings: Settings) -> BackupConfig:
         legacy_conflict_detected=stored.legacy_conflict_detected,
         retention_review_required=stored.retention_review_required,
         retention_activated_at=stored.retention_activated_at,
+        revision=stored.revision,
         updated_at=stored.updated_at,
         local_pending_prune_count=local_pending.count,
         local_pending_prune_bytes=local_pending.size_bytes,
@@ -259,6 +263,11 @@ def _load_backup_config(engine: Engine, settings: Settings) -> BackupConfig:
         offbox_pending_prune_bytes=offbox_pending.size_bytes,
         latest=_to_schema(latest) if latest else None,
     )
+
+
+def _load_backup_config(engine: Engine, settings: Settings) -> BackupConfig:
+    stored = repository.get_backup_settings(engine, settings=settings)
+    return _backup_config_from_record(engine, settings, stored)
 
 
 def _changed_config_groups(
@@ -653,8 +662,19 @@ async def get_backup_config(
             "model": ErrorResponse,
         },
         422: {"description": "Invalid backup configuration", "model": ErrorResponse},
+        428: {
+            "description": "A required settings precondition is missing",
+            "model": ErrorResponse,
+        },
     },
     summary="Update the box-global backup configuration",
+    description=(
+        "Uses opaque expected_revision as the preferred optimistic precondition. "
+        "Contract 0.161 also accepts exact expected_updated_at from 0.160 clients; "
+        "when both are supplied both must match. Stale or contradictory tokens "
+        "return 409. Retention/capacity changes and confirmation require at least "
+        "one token or return 428 after body and policy validation."
+    ),
 )
 async def update_backup_config(
     payload: BackupConfigUpdateRequest,
@@ -663,6 +683,22 @@ async def update_backup_config(
     settings: Settings = Depends(get_app_settings),
 ) -> BackupConfig:
     supplied = payload.model_fields_set
+    policy_fields = {
+        "local_retention",
+        "offbox_retention",
+        "local_max_bytes",
+        "offbox_max_bytes",
+        "local_min_free_bytes",
+        "offbox_min_free_bytes",
+    }
+    if (payload.confirm_retention_policy or bool(supplied & policy_fields)) and (
+        payload.expected_revision is None and payload.expected_updated_at is None
+    ):
+        raise HTTPException(
+            status_code=428,
+            detail="Backup configuration update requires a current settings revision.",
+        )
+
     patch: dict[str, object] = {}
     for name in (
         "frequency",
@@ -714,16 +750,17 @@ async def update_backup_config(
         with backup_processing.acquire_backup_operation_lock(engine):
             before = repository.get_backup_settings(engine, settings=settings)
             if payload.confirm_retention_policy:
-                assert payload.expected_updated_at is not None
                 after = repository.update_and_activate_backup_settings(
                     engine,
                     patch,
+                    expected_revision=payload.expected_revision,
                     expected_updated_at=payload.expected_updated_at,
                 )
             else:
                 after = repository.update_backup_settings(
                     engine,
                     patch,
+                    expected_revision=payload.expected_revision,
                     expected_updated_at=payload.expected_updated_at,
                 )
             return before, after
@@ -757,7 +794,7 @@ async def update_backup_config(
         "global",
         summary,
     )
-    return await _run_sync(_load_backup_config, engine, settings)
+    return await _run_sync(_backup_config_from_record, engine, settings, after)
 
 
 @router.get(

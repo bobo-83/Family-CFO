@@ -18,7 +18,7 @@ from family_cfo_api.backup_retention import (
 def _activate(engine: Engine) -> repository.BackupSettingsRecord:
     current = repository.get_backup_settings(engine)
     if current.retention_review_required:
-        return repository.activate_backup_retention(engine, expected_updated_at=current.updated_at)
+        return repository.activate_backup_retention(engine, expected_revision=current.revision)
     return current
 
 
@@ -205,6 +205,96 @@ def test_local_status_meets_outer_bucket_with_a_newer_candidate(
     assert snapshot.local.readable_archive_count == 2
     assert snapshot.offbox.status == "not_configured"
     assert snapshot.overall_status == "healthy"
+
+
+def test_review_required_transitions_to_healthy_without_activation_pruning(
+    demo_file_engine: Engine,
+    demo_file_settings,
+    monkeypatch,
+) -> None:
+    as_of = datetime(2026, 9, 10, 12, tzinfo=UTC)
+    initial = repository.get_backup_settings(
+        demo_file_engine, settings=demo_file_settings, as_of=as_of
+    )
+    assert initial.retention_review_required is True
+    encrypted = banksync.encrypt_credential(demo_file_settings, "not-a-real-password")
+    configured = repository.update_backup_settings(
+        demo_file_engine,
+        {
+            "smb_host": "nas.invalid",
+            "smb_share": "backups",
+            "smb_username": "backup-user",
+            "smb_password_encrypted": encrypted,
+        },
+        expected_revision=initial.revision,
+    )
+    local_job = _completed_local(
+        demo_file_engine,
+        demo_file_settings.backup_dir,
+        started_at=as_of - timedelta(days=1),
+    )
+    remote_item = smb_backup.SmbInventoryItem(
+        filename=f"{local_job.id}.v{APP_VERSION}.enc",
+        job_id=local_job.id,
+        app_version=APP_VERSION,
+        size_bytes=local_job.size_bytes or 0,
+        modified_at=int(local_job.started_at.timestamp()),
+    )
+    remote_inventory = smb_backup.SmbInventory((remote_item,), ())
+    monkeypatch.setattr(smb_backup, "list_inventory", lambda target: remote_inventory)
+    monkeypatch.setattr(
+        smb_backup,
+        "probe_inventory",
+        lambda target, inventory: smb_backup.SmbReadProbeResult(
+            "complete",
+            1,
+            1,
+            remote_item,
+            remote_item,
+            (remote_item.filename,),
+        ),
+    )
+    monkeypatch.setattr(
+        smb_backup,
+        "query_capacity",
+        lambda target: smb_backup.SmbCapacity(
+            20_000_000_000, 10_000_000_000, 10_000_000_000
+        ),
+    )
+
+    before = backup_recovery.build_backup_recovery_snapshot(
+        demo_file_engine, demo_file_settings, as_of=as_of
+    )
+    assert before.local.status == "degraded"
+    assert before.local.coverage_status == "unknown"
+    assert set(before.local.reason_codes) >= {
+        "retention_review_required",
+        "coverage_unknown",
+    }
+    assert before.offbox.status == "degraded"
+    assert before.offbox.coverage_status == "not_applicable"
+    assert before.offbox.reason_codes == ("retention_review_required",)
+    assert before.overall_status == "degraded"
+    local_path = Path(demo_file_settings.backup_dir, local_job.storage_path or "")
+    assert local_path.is_file()
+
+    activated = repository.update_and_activate_backup_settings(
+        demo_file_engine,
+        {},
+        expected_revision=configured.revision,
+    )
+    assert activated.revision != configured.revision
+    assert local_path.is_file()
+
+    after = backup_recovery.build_backup_recovery_snapshot(
+        demo_file_engine, demo_file_settings, as_of=as_of
+    )
+    assert after.local.status == "healthy"
+    assert after.local.coverage_status == "building"
+    assert after.offbox.status == "healthy"
+    assert after.offbox.coverage_status == "not_applicable"
+    assert after.overall_status == "healthy"
+    assert local_path.is_file()
 
 
 def test_protected_local_evidence_makes_coverage_unknown_without_mutation(

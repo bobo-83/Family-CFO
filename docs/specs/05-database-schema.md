@@ -78,7 +78,7 @@ self-contained attempt and never accumulates counts across requests. Existing
 schemaless calculation JSON is sufficient, and cached yearly reviews remain
 stored but are suppressed while current dependencies are incomplete.
 
-## Box-Global Backup Schema (issue #116, ADR 0077)
+## Box-Global Backup Schema (issue #116, ADRs 0077–0078)
 
 Issue #116 adds migration `0093_box_global_backup_settings.py`, parented to
 `0092_uppercase_currency_codes` at the accepted baseline. Revalidate the head
@@ -98,7 +98,8 @@ household foreign key. It stores:
 - `legacy_conflict_detected`, `retention_review_required`, nullable
   `retention_activated_at`, opaque local/off-box destination-generation UUIDs,
   and an internal nullable local-path fingerprint;
-- timezone-aware `created_at` and optimistic `updated_at`.
+- UUID-backed `revision VARCHAR(36) NOT NULL`, plus timezone-aware `created_at`
+  and chronological `updated_at`.
 
 Database checks enforce the constant key, allowed cadence/modes, mode/horizon
 null consistency, cumulative tier order/bounds, positive nullable caps, and
@@ -106,6 +107,20 @@ non-negative reserves where portable. Repository validation repeats every rule
 for non-HTTP callers. Fresh defaults are daily, independent tiered `3/14/90`,
 unlimited caps, 1 GiB reserves, no conflict/review, and an active policy epoch.
 SMB password remains encrypted and is never returned.
+
+Migration `0095_backup_settings_revision.py`, parented to
+`0094_backup_delete_intents`, adds `revision` nullable, backfills one independently
+generated UUID per existing row without changing any other value, then makes it
+non-null with a portable 36-character check and no server default. Downgrade
+removes only that check and column. Repository bootstrap supplies a revision for a
+new singleton. Every non-empty settings mutation, direct activation,
+destination-generation rotation, restore re-upsert, and compensating restore
+re-upsert writes a fresh revision and a strictly newer `updated_at` atomically.
+The restore paths never reuse a captured or restored revision.
+
+`backup_retention_events.policy_updated_at` remains historical chronology for the
+policy snapshot; it is not a client concurrency token and gains no revision
+column.
 
 ### `backup_jobs` reconciliation
 
@@ -172,9 +187,10 @@ historical rows. Household columns/legacy helpers remain for one compatibility
 release and are removed only by separately planned cleanup.
 
 Restore re-upserts the captured current operational singleton after database
-rollback, rotates both generations, sets review-required with null activation,
-and writes a restore-reset event. Restored historical settings/journal state must
-not resume pruning automatically.
+rollback, generates a fresh configuration revision, advances `updated_at`, rotates
+both generations, sets review-required with null activation, and writes a
+restore-reset event. Verified compensation follows the same rule. Restored
+historical settings/journal state must not resume pruning automatically.
 
 ## Migration Rules
 

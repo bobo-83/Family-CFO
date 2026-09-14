@@ -121,7 +121,10 @@ it does not certify every NAS firmware or concurrent-storage failure mode.
 
 Migrations `0093_box_global_backup_settings` and
 `0094_backup_delete_intents` create the singleton configuration, retention
-journal, prune metadata, and durable delete-intent action.
+journal, prune metadata, and durable delete-intent action. Migration
+`0095_backup_settings_revision` backfills one opaque UUID revision per existing
+singleton without changing policy, review, generation, activation, or timestamp
+state.
 
 On the first repository read after upgrade, legacy household destination/cadence
 and legacy retention environment values bootstrap the singleton once. The
@@ -136,10 +139,23 @@ administrator must review the independent policies/caps/reserves and explicitly
 confirm them before a later locked maintenance pass may prune. Confirmation does
 not delete files inside the configuration request.
 
+`BackupConfig.revision` is the preferred opaque concurrency token.
+`updated_at` remains modification chronology. Contract `0.161` accepts exact
+`expected_updated_at` only so lossless `0.160` clients can complete one
+compatibility window; rounded or truncated timestamps still fail with 409. New
+clients send only `expected_revision`. Restore and destination identity changes
+advance the revision, so every pre-restore or pre-rotation draft becomes stale.
+
+Review-required recovery remains intentionally machine-reported as degraded while
+pruning is paused. Clients may present **Review required** when no other fault
+reason exists; that is an administrator action state, not proof of archive damage.
+Successful confirmed activation clears the review state but does not prune inside
+the request.
+
 For rollout, migrate and deploy the API and worker first. Verify the live
 configuration/status endpoints and real local/SMB paths, then deploy the web
-client and TestFlight/OTA separately. Do not expose a `0.160` client before the
-API/worker contract and maintenance behavior are live.
+client and TestFlight/OTA separately under contract `0.161`. Do not distribute a
+revision-dependent client before the matching API/worker behavior is live.
 
 ## Restoring
 
@@ -184,8 +200,14 @@ repairs interrupted/current evidence without deleting protected newer orphans.
 
 ## Downgrade and rollback
 
-Before starting an older release, downgrade the database with that release's
-supported procedure and explicitly set the legacy retention environment values.
+Before any revision-dependent `0.161` client is distributed, rollback may
+quiesce writers, downgrade migration `0095` to `0094`, restore the prior API/web
+images as a unit, and explicitly set the legacy retention environment values.
+After a revision-dependent client is installed, a server-only rollback is
+unsupported; keep a compatible `0.161` server or ship a coordinated forward fix.
+Before starting an older release, downgrade the remaining database with that
+release's supported procedure and explicitly set the legacy retention environment
+values.
 Migration `0093` copies representable cadence/SMB fields to every household and
 copies a shared cap only when local and off-box caps are equal. Tier policies,
 independent unequal caps/reserves, activation state, and recovery-status semantics
@@ -199,8 +221,9 @@ major version. The shipped Compose stack pins PostgreSQL and client 17 together;
 keep them in step if you change the database image.
 
 The automated matrix covers pure tier boundaries, migration/bootstrap and
-downgrade behavior on SQLite, migration `0093`/`0094` plus singleton bootstrap
-on PostgreSQL 17, storage failure seams, status/API contracts, OpenAPI
+downgrade behavior on SQLite, migrations `0093`–`0095` plus revision backfill,
+downgrade, and singleton bootstrap on PostgreSQL 17, storage failure seams,
+status/API contracts, OpenAPI
 compatibility, and the production advisory-lock conflict/connection-loss path.
 CI sets
 `FAMILY_CFO_REQUIRE_POSTGRESQL=1`; a missing URL, driver, or server fails instead

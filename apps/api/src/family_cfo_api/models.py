@@ -758,9 +758,13 @@ backup_settings = Table(
     Column("local_destination_generation", String(36), nullable=False),
     Column("offbox_destination_generation", String(36), nullable=False),
     Column("local_path_fingerprint", String(64), nullable=True),
+    Column("revision", String(36), nullable=False),
     Column("created_at", DateTime(timezone=True), nullable=False),
     Column("updated_at", DateTime(timezone=True), nullable=False),
     CheckConstraint("key = 'global'", name="ck_backup_settings_global_key"),
+    CheckConstraint(
+        "length(revision) = 36", name="ck_backup_settings_revision_length"
+    ),
     CheckConstraint(
         f"frequency in {_sql_in(BACKUP_FREQUENCIES)}", name="ck_backup_settings_frequency"
     ),

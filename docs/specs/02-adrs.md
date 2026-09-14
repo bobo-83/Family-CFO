@@ -34,6 +34,7 @@ Architecture Decision Records live in `docs/adr`.
 - [0075: A balance outside the base currency is excluded from every total, and disclosed — never converted](../adr/0075-foreign-currency-balances-excluded-and-disclosed.md)
 - [0076: Qualify readable monetary leaves and make incomplete decisions unavailable](../adr/0076-qualified-incomplete-monetary-aggregates.md)
 - [0077: Box-global tiered backup retention and recovery-window visibility](../adr/0077-box-global-backup-retention.md)
+- [0078: Use an opaque revision for backup-settings concurrency](../adr/0078-backup-settings-opaque-revision.md)
 
 ## ADR Rules
 

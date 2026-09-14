@@ -241,7 +241,7 @@ def test_activated_logical_cap_prunes_oldest_and_preserves_rows(
         {"local_max_bytes": cap},
         expected_updated_at=stored.updated_at,
     )
-    repository.activate_backup_retention(demo_file_engine, expected_updated_at=updated.updated_at)
+    repository.activate_backup_retention(demo_file_engine, expected_revision=updated.revision)
 
     result = backup_processing.run_backup_maintenance(demo_file_engine, demo_file_settings)
     assert result.local_pruned == 2

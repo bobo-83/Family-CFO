@@ -5,7 +5,7 @@ import subprocess
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import create_engine, inspect, text
@@ -86,6 +86,132 @@ def test_migrations_upgrade_and_downgrade_cleanly(tmp_path) -> None:
     assert re_upgraded.returncode == 0, re_upgraded.stderr
 
 
+def test_0095_revision_backfill_and_downgrade_preserve_settings(tmp_path) -> None:
+    database_url = f"sqlite:///{tmp_path / 'backup_settings_0095.db'}"
+    pre_revision = _run_alembic(
+        "upgrade", "0094_backup_delete_intents", database_url=database_url
+    )
+    assert pre_revision.returncode == 0, pre_revision.stderr
+
+    engine = create_engine(database_url)
+    timestamp = "2026-09-10 12:00:00.654321+00:00"
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO backup_settings (
+                        key, frequency, smb_host, smb_share, smb_folder,
+                        smb_username, smb_password_encrypted, smb_domain,
+                        local_retention_mode, local_keep_all_days,
+                        local_daily_until_days, local_weekly_until_days,
+                        offbox_retention_mode, offbox_keep_all_days,
+                        offbox_daily_until_days, offbox_weekly_until_days,
+                        local_max_bytes, offbox_max_bytes,
+                        local_min_free_bytes, offbox_min_free_bytes,
+                        legacy_conflict_detected, retention_review_required,
+                        retention_activated_at, local_destination_generation,
+                        offbox_destination_generation, local_path_fingerprint,
+                        created_at, updated_at
+                    ) VALUES (
+                        'global', 'hourly', 'nas.local', 'backup', 'family-cfo',
+                        'operator', 'ciphertext', 'WORKGROUP',
+                        'tiered', 3, 14, 90, 'keep_all', NULL, NULL, NULL,
+                        1000, 2000, 10, 20, 1, 1, NULL,
+                        '10000000-0000-0000-0000-000000000001',
+                        '20000000-0000-0000-0000-000000000001', :fingerprint,
+                        :timestamp, :timestamp
+                    )
+                    """
+                ),
+                {"fingerprint": "a" * 64, "timestamp": timestamp},
+            )
+    finally:
+        engine.dispose()
+
+    upgraded = _run_alembic("upgrade", "head", database_url=database_url)
+    assert upgraded.returncode == 0, upgraded.stderr
+    engine = create_engine(database_url)
+    try:
+        columns = {column["name"]: column for column in inspect(engine).get_columns("backup_settings")}
+        assert columns["revision"]["nullable"] is False
+        with engine.connect() as connection:
+            row = connection.execute(
+                text(
+                    """
+                    SELECT frequency, smb_host, local_retention_mode,
+                           offbox_retention_mode, local_max_bytes,
+                           offbox_max_bytes, local_min_free_bytes,
+                           offbox_min_free_bytes, legacy_conflict_detected,
+                           retention_review_required, retention_activated_at,
+                           local_destination_generation,
+                           offbox_destination_generation, local_path_fingerprint,
+                           created_at, updated_at, revision
+                    FROM backup_settings WHERE key = 'global'
+                    """
+                )
+            ).mappings().one()
+        revision = row["revision"]
+        assert str(UUID(revision)) == revision
+        assert {key: row[key] for key in (
+            "frequency",
+            "smb_host",
+            "local_retention_mode",
+            "offbox_retention_mode",
+            "local_max_bytes",
+            "offbox_max_bytes",
+            "local_min_free_bytes",
+            "offbox_min_free_bytes",
+            "legacy_conflict_detected",
+            "retention_review_required",
+            "retention_activated_at",
+            "local_destination_generation",
+            "offbox_destination_generation",
+            "local_path_fingerprint",
+            "created_at",
+            "updated_at",
+        )} == {
+            "frequency": "hourly",
+            "smb_host": "nas.local",
+            "local_retention_mode": "tiered",
+            "offbox_retention_mode": "keep_all",
+            "local_max_bytes": 1000,
+            "offbox_max_bytes": 2000,
+            "local_min_free_bytes": 10,
+            "offbox_min_free_bytes": 20,
+            "legacy_conflict_detected": 1,
+            "retention_review_required": 1,
+            "retention_activated_at": None,
+            "local_destination_generation": "10000000-0000-0000-0000-000000000001",
+            "offbox_destination_generation": "20000000-0000-0000-0000-000000000001",
+            "local_path_fingerprint": "a" * 64,
+            "created_at": timestamp,
+            "updated_at": timestamp,
+        }
+    finally:
+        engine.dispose()
+
+    downgraded = _run_alembic(
+        "downgrade", "0094_backup_delete_intents", database_url=database_url
+    )
+    assert downgraded.returncode == 0, downgraded.stderr
+    engine = create_engine(database_url)
+    try:
+        assert "revision" not in {
+            column["name"] for column in inspect(engine).get_columns("backup_settings")
+        }
+        with engine.connect() as connection:
+            row = connection.execute(
+                text(
+                    "SELECT frequency, updated_at FROM backup_settings WHERE key = 'global'"
+                )
+            ).mappings().one()
+        assert row["frequency"] == "hourly"
+        assert row["updated_at"] == timestamp
+    finally:
+        engine.dispose()
+
+
 def test_postgresql_17_backup_migrations_and_singleton_bootstrap() -> None:
     admin_engine = _postgresql_test_engine()
     schema_name = f"family_cfo_migration_{uuid4().hex}"
@@ -143,7 +269,7 @@ def test_postgresql_17_backup_migrations_and_singleton_bootstrap() -> None:
             with schema_engine.connect() as connection:
                 assert connection.execute(
                     text("SELECT version_num FROM alembic_version")
-                ).scalar_one() == ("0094_backup_delete_intents")
+                ).scalar_one() == ("0095_backup_settings_revision")
                 assert (
                     connection.execute(text("SELECT count(*) FROM backup_settings")).scalar_one()
                     == 0
@@ -161,6 +287,7 @@ def test_postgresql_17_backup_migrations_and_singleton_bootstrap() -> None:
                 as_of=datetime(2026, 9, 10, 12, tzinfo=UTC),
             )
             assert stored.key == "global"
+            assert str(UUID(stored.revision)) == stored.revision
             assert stored.frequency == "hourly"
             assert stored.local_max_bytes == 123456
             assert stored.offbox_max_bytes == 123456
@@ -194,6 +321,112 @@ def test_postgresql_17_backup_migrations_and_singleton_bootstrap() -> None:
                 )
         finally:
             schema_engine.dispose()
+    finally:
+        if schema_created:
+            with admin_engine.begin() as connection:
+                connection.execute(text(f'DROP SCHEMA IF EXISTS "{schema_name}" CASCADE'))
+        admin_engine.dispose()
+
+
+def test_postgresql_17_0095_revision_backfill_and_downgrade() -> None:
+    admin_engine = _postgresql_test_engine()
+    schema_name = f"family_cfo_revision_{uuid4().hex}"
+    schema_url = admin_engine.url.update_query_dict({"options": f"-csearch_path={schema_name}"})
+    database_url = schema_url.render_as_string(hide_password=False)
+    schema_created = False
+    try:
+        try:
+            with admin_engine.begin() as connection:
+                connection.execute(text(f'CREATE SCHEMA "{schema_name}"'))
+            schema_created = True
+        except Exception as exc:  # noqa: BLE001 - required mode turns environment failure loud
+            if _postgresql_required():
+                pytest.fail(f"required PostgreSQL test schema is unavailable: {type(exc).__name__}")
+            pytest.skip(f"PostgreSQL test schema is unavailable: {type(exc).__name__}")
+
+        pre_revision = _run_alembic(
+            "upgrade", "0094_backup_delete_intents", database_url=database_url
+        )
+        assert pre_revision.returncode == 0, pre_revision.stderr
+        engine = create_engine(database_url)
+        timestamp = datetime(2026, 9, 10, 12, 0, 0, 654321, tzinfo=UTC)
+        try:
+            with engine.begin() as connection:
+                connection.execute(
+                    text(
+                        """
+                        INSERT INTO backup_settings (
+                            key, frequency, local_retention_mode,
+                            local_keep_all_days, local_daily_until_days,
+                            local_weekly_until_days, offbox_retention_mode,
+                            local_max_bytes, offbox_max_bytes,
+                            local_min_free_bytes, offbox_min_free_bytes,
+                            legacy_conflict_detected, retention_review_required,
+                            retention_activated_at, local_destination_generation,
+                            offbox_destination_generation, local_path_fingerprint,
+                            created_at, updated_at
+                        ) VALUES (
+                            'global', 'weekly', 'tiered', 3, 14, 90,
+                            'keep_all', 1000, 2000, 10, 20, TRUE, TRUE, NULL,
+                            '10000000-0000-0000-0000-000000000001',
+                            '20000000-0000-0000-0000-000000000001', :fingerprint,
+                            :timestamp, :timestamp
+                        )
+                        """
+                    ),
+                    {"fingerprint": "b" * 64, "timestamp": timestamp},
+                )
+        finally:
+            engine.dispose()
+
+        upgraded = _run_alembic("upgrade", "head", database_url=database_url)
+        assert upgraded.returncode == 0, upgraded.stderr
+        engine = create_engine(database_url)
+        try:
+            columns = {
+                column["name"]: column
+                for column in inspect(engine).get_columns("backup_settings")
+            }
+            assert columns["revision"]["nullable"] is False
+            with engine.connect() as connection:
+                row = connection.execute(
+                    text(
+                        """
+                        SELECT frequency, local_max_bytes, offbox_max_bytes,
+                               retention_review_required, updated_at, revision
+                        FROM backup_settings WHERE key = 'global'
+                        """
+                    )
+                ).mappings().one()
+            assert row["frequency"] == "weekly"
+            assert row["local_max_bytes"] == 1000
+            assert row["offbox_max_bytes"] == 2000
+            assert row["retention_review_required"] is True
+            assert row["updated_at"] == timestamp
+            assert str(UUID(row["revision"])) == row["revision"]
+        finally:
+            engine.dispose()
+
+        downgraded = _run_alembic(
+            "downgrade", "0094_backup_delete_intents", database_url=database_url
+        )
+        assert downgraded.returncode == 0, downgraded.stderr
+        engine = create_engine(database_url)
+        try:
+            assert "revision" not in {
+                column["name"]
+                for column in inspect(engine).get_columns("backup_settings")
+            }
+            with engine.connect() as connection:
+                row = connection.execute(
+                    text(
+                        "SELECT frequency, updated_at FROM backup_settings WHERE key = 'global'"
+                    )
+                ).mappings().one()
+            assert row["frequency"] == "weekly"
+            assert row["updated_at"] == timestamp
+        finally:
+            engine.dispose()
     finally:
         if schema_created:
             with admin_engine.begin() as connection:
@@ -256,7 +489,7 @@ def test_0093_schema_and_downgrade_preserve_representable_settings(
                         legacy_conflict_detected, retention_review_required,
                         retention_activated_at, local_destination_generation,
                         offbox_destination_generation, local_path_fingerprint,
-                        created_at, updated_at
+                        revision, created_at, updated_at
                     ) VALUES (
                         'global', 'hourly', 'nas.local', 'backup', 'family-cfo',
                         'operator', 'ciphertext', 'WORKGROUP',
@@ -264,7 +497,7 @@ def test_0093_schema_and_downgrade_preserve_representable_settings(
                         1000, :offbox_max_bytes, 0, 0, 0, 0, :now,
                         '10000000-0000-0000-0000-000000000001',
                         '20000000-0000-0000-0000-000000000001', NULL,
-                        :now, :now
+                        '30000000-0000-0000-0000-000000000001', :now, :now
                     )
                     """
                 ),

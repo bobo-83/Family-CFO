@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta, timezone
+from threading import Barrier
+from uuid import UUID
 
 import pytest
 from sqlalchemy import func, insert, select, update
@@ -78,6 +80,7 @@ def test_fresh_install_materializes_activated_defaults() -> None:
         )
 
         assert record.key == "global"
+        assert str(UUID(record.revision)) == record.revision
         assert record.frequency == "daily"
         assert record.local_retention == RetentionPolicy(RetentionMode.TIERED, 3, 14, 90)
         assert record.offbox_retention == RetentionPolicy(RetentionMode.TIERED, 3, 14, 90)
@@ -111,6 +114,7 @@ def test_concurrent_bootstrap_materializes_one_singleton(tmp_path) -> None:
         assert {record.local_destination_generation for record in records} == {
             records[0].local_destination_generation
         }
+        assert {record.revision for record in records} == {records[0].revision}
         with engine.connect() as conn:
             assert (
                 conn.execute(select(func.count()).select_from(models.backup_settings)).scalar_one()
@@ -269,6 +273,115 @@ def test_materialized_database_values_ignore_later_legacy_inputs() -> None:
         engine.dispose()
 
 
+def test_revision_and_legacy_tokens_use_strict_and_semantics(
+    demo_engine: Engine,
+) -> None:
+    initial = repository.get_backup_settings(demo_engine)
+
+    revision_only = repository.update_backup_settings(
+        demo_engine,
+        {"frequency": "weekly"},
+        expected_revision=initial.revision,
+    )
+    assert revision_only.frequency == "weekly"
+    assert revision_only.revision != initial.revision
+    assert revision_only.updated_at > initial.updated_at
+
+    legacy_only = repository.update_backup_settings(
+        demo_engine,
+        {"frequency": "daily"},
+        expected_updated_at=revision_only.updated_at,
+    )
+    assert legacy_only.revision != revision_only.revision
+
+    dual = repository.update_backup_settings(
+        demo_engine,
+        {"frequency": "hourly"},
+        expected_revision=legacy_only.revision,
+        expected_updated_at=legacy_only.updated_at,
+    )
+    assert dual.frequency == "hourly"
+
+    truncated = dual.updated_at.replace(microsecond=0)
+    if truncated == dual.updated_at:
+        truncated -= timedelta(seconds=1)
+    for expected_revision, expected_updated_at in (
+        (legacy_only.revision, dual.updated_at),
+        (dual.revision, legacy_only.updated_at),
+        (None, truncated),
+    ):
+        with pytest.raises(repository.BackupSettingsConflictError):
+            repository.update_backup_settings(
+                demo_engine,
+                {"frequency": "off"},
+                expected_revision=expected_revision,
+                expected_updated_at=expected_updated_at,
+            )
+        assert repository.get_backup_settings(demo_engine) == dual
+
+    unchanged = repository.update_backup_settings(
+        demo_engine,
+        {},
+        expected_revision=dual.revision,
+        expected_updated_at=dual.updated_at,
+    )
+    assert unchanged == dual
+    with pytest.raises(repository.BackupSettingsConflictError):
+        repository.update_backup_settings(
+            demo_engine,
+            {},
+            expected_revision=legacy_only.revision,
+        )
+
+    equal_value = repository.update_backup_settings(
+        demo_engine,
+        {"frequency": dual.frequency},
+        expected_revision=dual.revision,
+    )
+    assert equal_value.frequency == dual.frequency
+    assert equal_value.revision != dual.revision
+    assert equal_value.updated_at > dual.updated_at
+
+    tokenless = repository.update_backup_settings(
+        demo_engine,
+        {"frequency": "off"},
+    )
+    assert tokenless.revision != equal_value.revision
+    assert tokenless.updated_at > equal_value.updated_at
+
+
+def test_two_writers_using_one_revision_yield_one_commit(tmp_path) -> None:
+    engine = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'revision-cas.db'}")
+    fixtures.create_schema(engine)
+    initial = repository.get_backup_settings(engine)
+    barrier = Barrier(2)
+
+    def write(frequency: str) -> tuple[str, repository.BackupSettingsRecord | None]:
+        barrier.wait()
+        try:
+            return (
+                "committed",
+                repository.update_backup_settings(
+                    engine,
+                    {"frequency": frequency},
+                    expected_revision=initial.revision,
+                ),
+            )
+        except repository.BackupSettingsConflictError:
+            return ("conflict", None)
+
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = list(pool.map(write, ("hourly", "weekly")))
+        assert [status for status, _record in results].count("committed") == 1
+        assert [status for status, _record in results].count("conflict") == 1
+        committed = next(record for status, record in results if status == "committed")
+        assert committed is not None
+        assert repository.get_backup_settings(engine) == committed
+    finally:
+        engine.dispose()
+
+
 def test_update_cas_activation_and_generation_rotation(demo_engine: Engine) -> None:
     initial = repository.get_backup_settings(demo_engine)
     assert initial.retention_review_required is True
@@ -280,6 +393,7 @@ def test_update_cas_activation_and_generation_rotation(demo_engine: Engine) -> N
     )
     assert tokenless.retention_review_required is True
     assert tokenless.retention_activated_at is None
+    assert tokenless.revision != initial.revision
     assert tokenless.offbox_destination_generation == initial.offbox_destination_generation
 
     with pytest.raises(repository.BackupSettingsValidationError):
@@ -345,36 +459,38 @@ def test_update_cas_activation_and_generation_rotation(demo_engine: Engine) -> N
 
     activated = repository.activate_backup_retention(
         demo_engine,
-        expected_updated_at=changed_target.updated_at,
+        expected_revision=changed_target.revision,
     )
     assert activated.retention_review_required is False
     assert activated.legacy_conflict_detected is False
+    assert activated.revision != changed_target.revision
     assert activated.retention_activated_at is not None
 
     with pytest.raises(repository.BackupSettingsConflictError):
         repository.activate_backup_retention(
             demo_engine,
-            expected_updated_at=changed_target.updated_at,
+            expected_revision=changed_target.revision,
         )
 
     rotated = repository.rotate_backup_destination_generation(
         demo_engine,
         "offbox",
-        expected_updated_at=activated.updated_at,
+        expected_revision=activated.revision,
     )
     assert rotated.updated_at > activated.updated_at
+    assert rotated.revision != activated.revision
     assert rotated.offbox_destination_generation != activated.offbox_destination_generation
     with pytest.raises(repository.BackupSettingsConflictError):
         repository.rotate_backup_destination_generation(
             demo_engine,
             "offbox",
-            expected_updated_at=activated.updated_at,
+            expected_revision=activated.revision,
         )
     with pytest.raises(repository.BackupSettingsValidationError):
         repository.rotate_backup_destination_generation(
             demo_engine,
             "local",
-            expected_updated_at=rotated.updated_at,
+            expected_revision=rotated.revision,
             local_path_fingerprint="not-a-sha256",
         )
 
@@ -401,6 +517,7 @@ def test_atomic_settings_update_and_activation_is_all_or_nothing(
     assert updated.local_keep_all_days == 2
     assert updated.retention_review_required is False
     assert updated.retention_activated_at == updated.updated_at
+    assert updated.revision != initial.revision
     assert updated.offbox_destination_generation != initial.offbox_destination_generation
 
     with pytest.raises(repository.BackupSettingsConflictError):
@@ -480,6 +597,7 @@ def test_database_constraint_rejects_tiered_policy_with_null_horizon() -> None:
                     retention_activated_at=now,
                     local_destination_generation="10000000-0000-0000-0000-000000000001",
                     offbox_destination_generation="20000000-0000-0000-0000-000000000001",
+                    revision="30000000-0000-0000-0000-000000000001",
                     created_at=now,
                     updated_at=now,
                 )
@@ -531,6 +649,7 @@ def test_restore_reupsert_preserves_operational_values_and_rotates_generations(
     )
     assert restored.smb_host == "nas.local"
     assert restored.smb_password_encrypted == "ciphertext"
+    assert restored.revision != configured.revision
     assert restored.local_destination_generation != configured.local_destination_generation
     assert restored.offbox_destination_generation != configured.offbox_destination_generation
     assert restored.retention_review_required is True

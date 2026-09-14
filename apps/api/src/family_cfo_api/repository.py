@@ -4436,6 +4436,7 @@ class BackupSettingsRecord:
     local_destination_generation: str
     offbox_destination_generation: str
     local_path_fingerprint: str | None
+    revision: str
     created_at: datetime
     updated_at: datetime
 
@@ -4561,6 +4562,7 @@ def _backup_settings_from_row(row: Mapping[str, Any]) -> BackupSettingsRecord:
         local_destination_generation=row["local_destination_generation"],
         offbox_destination_generation=row["offbox_destination_generation"],
         local_path_fingerprint=row["local_path_fingerprint"],
+        revision=row["revision"],
         created_at=_backup_datetime_from_row(row["created_at"]),
         updated_at=_backup_datetime_from_row(row["updated_at"]),
     )
@@ -4632,6 +4634,7 @@ def validate_backup_settings(values: BackupSettingsRecord | Mapping[str, Any]) -
     for name in ("legacy_conflict_detected", "retention_review_required"):
         if not isinstance(data[name], bool):
             raise BackupSettingsValidationError(f"{name} must be boolean")
+    _validate_backup_uuid(data["revision"], "revision")
     for name in ("local_destination_generation", "offbox_destination_generation"):
         _validate_backup_uuid(data[name], name)
     created_at = _backup_input_utc(data["created_at"], "created_at")
@@ -4778,6 +4781,7 @@ def _bootstrap_backup_settings_values(
         "local_destination_generation": new_id(),
         "offbox_destination_generation": new_id(),
         "local_path_fingerprint": local_path_fingerprint,
+        "revision": new_id(),
         "created_at": now,
         "updated_at": now,
     }
@@ -4898,7 +4902,7 @@ def get_backup_settings(
         return _backup_settings_from_row(row)
 
 
-def _next_backup_settings_revision(previous: datetime) -> datetime:
+def _next_backup_settings_updated_at(previous: datetime) -> datetime:
     now = utcnow().astimezone(UTC)
     previous = _backup_input_utc(previous, "updated_at")
     return now if now > previous else previous + timedelta(microseconds=1)
@@ -4934,11 +4938,43 @@ def _normalized_backup_settings_patch(patch: Mapping[str, Any]) -> dict[str, Any
     return values
 
 
+def _validate_backup_settings_tokens(
+    current: BackupSettingsRecord,
+    *,
+    expected_revision: str | None,
+    expected_updated_at: datetime | None,
+) -> None:
+    if expected_revision is not None and expected_revision != current.revision:
+        raise BackupSettingsConflictError("backup settings changed")
+    if expected_updated_at is not None and expected_updated_at != current.updated_at:
+        raise BackupSettingsConflictError("backup settings changed")
+
+
+def _backup_settings_update_statement(
+    *,
+    expected_revision: str | None,
+    expected_updated_at: datetime | None,
+):
+    statement = update(models.backup_settings).where(
+        models.backup_settings.c.key == BACKUP_SETTINGS_KEY
+    )
+    if expected_revision is not None:
+        statement = statement.where(
+            models.backup_settings.c.revision == expected_revision
+        )
+    if expected_updated_at is not None:
+        statement = statement.where(
+            models.backup_settings.c.updated_at == expected_updated_at
+        )
+    return statement
+
+
 def update_backup_settings(
     engine: Engine,
     patch: Mapping[str, Any],
     *,
-    expected_updated_at: datetime | None,
+    expected_revision: str | None = None,
+    expected_updated_at: datetime | None = None,
 ) -> BackupSettingsRecord:
     """Apply a partial settings update.
 
@@ -4948,12 +4984,12 @@ def update_backup_settings(
     """
     get_backup_settings(engine)
     normalized = _normalized_backup_settings_patch(patch)
-    expected_revision = (
+    normalized_expected_updated_at = (
         _backup_input_utc(expected_updated_at, "expected_updated_at")
         if expected_updated_at is not None
         else None
     )
-    if expected_revision is None:
+    if expected_revision is None and normalized_expected_updated_at is None:
         disallowed = set(normalized) - _BACKUP_SETTINGS_TOKENLESS_FIELDS
         if disallowed:
             raise BackupSettingsValidationError(
@@ -4978,12 +5014,12 @@ def update_backup_settings(
             .one()
         )
         current = _backup_settings_from_row(row)
+        _validate_backup_settings_tokens(
+            current,
+            expected_revision=expected_revision,
+            expected_updated_at=normalized_expected_updated_at,
+        )
         if not normalized:
-            if (
-                expected_revision is not None
-                and expected_revision != current.updated_at
-            ):
-                raise BackupSettingsConflictError("backup settings changed")
             return current
         merged = _backup_settings_values(current) | normalized | {"key": current.key}
         if (
@@ -5000,7 +5036,8 @@ def update_backup_settings(
         ):
             merged["local_destination_generation"] = new_id()
         validate_backup_settings(merged)
-        next_revision = _next_backup_settings_revision(current.updated_at)
+        next_revision = new_id()
+        next_updated_at = _next_backup_settings_updated_at(current.updated_at)
         values = {name: merged[name] for name in normalized}
         if "offbox_destination_generation" in merged and (
             merged["offbox_destination_generation"]
@@ -5015,14 +5052,12 @@ def update_backup_settings(
             values["local_destination_generation"] = merged[
                 "local_destination_generation"
             ]
-        values["updated_at"] = next_revision
-        statement = update(models.backup_settings).where(
-            models.backup_settings.c.key == BACKUP_SETTINGS_KEY
+        values["revision"] = next_revision
+        values["updated_at"] = next_updated_at
+        statement = _backup_settings_update_statement(
+            expected_revision=expected_revision,
+            expected_updated_at=normalized_expected_updated_at,
         )
-        if expected_revision is not None:
-            statement = statement.where(
-                models.backup_settings.c.updated_at == expected_revision
-            )
         result = conn.execute(statement.values(**values))
         if result.rowcount != 1:
             raise BackupSettingsConflictError("backup settings changed")
@@ -5042,7 +5077,8 @@ def update_and_activate_backup_settings(
     engine: Engine,
     patch: Mapping[str, Any],
     *,
-    expected_updated_at: datetime,
+    expected_revision: str | None = None,
+    expected_updated_at: datetime | None = None,
 ) -> BackupSettingsRecord:
     """Atomically apply a reviewed policy patch and activate retention.
 
@@ -5052,7 +5088,13 @@ def update_and_activate_backup_settings(
     """
     get_backup_settings(engine)
     normalized = _normalized_backup_settings_patch(patch)
-    expected_revision = _backup_input_utc(expected_updated_at, "expected_updated_at")
+    normalized_expected_updated_at = (
+        _backup_input_utc(expected_updated_at, "expected_updated_at")
+        if expected_updated_at is not None
+        else None
+    )
+    if expected_revision is None and normalized_expected_updated_at is None:
+        raise BackupSettingsValidationError("activation requires a settings precondition")
     with engine.begin() as conn:
         row = (
             conn.execute(
@@ -5064,8 +5106,11 @@ def update_and_activate_backup_settings(
             .one()
         )
         current = _backup_settings_from_row(row)
-        if expected_revision != current.updated_at:
-            raise BackupSettingsConflictError("backup settings changed")
+        _validate_backup_settings_tokens(
+            current,
+            expected_revision=expected_revision,
+            expected_updated_at=normalized_expected_updated_at,
+        )
 
         merged = _backup_settings_values(current) | normalized | {"key": current.key}
         if {"smb_host", "smb_share", "smb_folder"} & set(normalized) and (
@@ -5080,12 +5125,14 @@ def update_and_activate_backup_settings(
         ):
             merged["local_destination_generation"] = new_id()
 
-        revision = _next_backup_settings_revision(current.updated_at)
+        next_revision = new_id()
+        next_updated_at = _next_backup_settings_updated_at(current.updated_at)
         merged.update(
             legacy_conflict_detected=False,
             retention_review_required=False,
-            retention_activated_at=revision,
-            updated_at=revision,
+            retention_activated_at=next_updated_at,
+            revision=next_revision,
+            updated_at=next_updated_at,
         )
         validate_backup_settings(merged)
         values = {name: merged[name] for name in normalized}
@@ -5095,17 +5142,15 @@ def update_and_activate_backup_settings(
             "legacy_conflict_detected",
             "retention_review_required",
             "retention_activated_at",
+            "revision",
             "updated_at",
         ):
             values[name] = merged[name]
-        result = conn.execute(
-            update(models.backup_settings)
-            .where(
-                models.backup_settings.c.key == BACKUP_SETTINGS_KEY,
-                models.backup_settings.c.updated_at == expected_revision,
-            )
-            .values(**values)
+        statement = _backup_settings_update_statement(
+            expected_revision=expected_revision,
+            expected_updated_at=normalized_expected_updated_at,
         )
+        result = conn.execute(statement.values(**values))
         if result.rowcount != 1:
             raise BackupSettingsConflictError("backup settings changed")
         updated = (
@@ -5123,55 +5168,26 @@ def update_and_activate_backup_settings(
 def activate_backup_retention(
     engine: Engine,
     *,
-    expected_updated_at: datetime,
+    expected_revision: str,
 ) -> BackupSettingsRecord:
     """Optimistically activate a reviewed policy without pruning in this call."""
-    expected_revision = _backup_input_utc(expected_updated_at, "expected_updated_at")
-    current = get_backup_settings(engine)
-    activated_at = _next_backup_settings_revision(current.updated_at)
-    with engine.begin() as conn:
-        result = conn.execute(
-            update(models.backup_settings)
-            .where(
-                models.backup_settings.c.key == BACKUP_SETTINGS_KEY,
-                models.backup_settings.c.updated_at == expected_revision,
-            )
-            .values(
-                legacy_conflict_detected=False,
-                retention_review_required=False,
-                retention_activated_at=activated_at,
-                updated_at=activated_at,
-            )
-        )
-        if result.rowcount != 1:
-            raise BackupSettingsConflictError("backup settings changed")
-        row = (
-            conn.execute(
-                select(models.backup_settings).where(
-                    models.backup_settings.c.key == BACKUP_SETTINGS_KEY
-                )
-            )
-            .mappings()
-            .one()
-        )
-    return _backup_settings_from_row(row)
+    return update_and_activate_backup_settings(
+        engine,
+        {},
+        expected_revision=expected_revision,
+    )
 
 
 def rotate_backup_destination_generation(
     engine: Engine,
     destination: str,
     *,
-    expected_updated_at: datetime | None = None,
+    expected_revision: str,
     local_path_fingerprint: str | None | Any = _UNSET,
 ) -> BackupSettingsRecord:
     """Rotate one opaque journal scope after a physical identity change."""
     if destination not in models.BACKUP_RETENTION_DESTINATIONS:
         raise BackupSettingsValidationError("invalid backup destination")
-    expected_revision = (
-        _backup_input_utc(expected_updated_at, "expected_updated_at")
-        if expected_updated_at is not None
-        else None
-    )
     get_backup_settings(engine)
     with engine.begin() as conn:
         current_row = (
@@ -5184,22 +5200,29 @@ def rotate_backup_destination_generation(
             .one()
         )
         current = _backup_settings_from_row(current_row)
-        if expected_revision is not None and expected_revision != current.updated_at:
-            raise BackupSettingsConflictError("backup settings changed")
+        _validate_backup_settings_tokens(
+            current,
+            expected_revision=expected_revision,
+            expected_updated_at=None,
+        )
         values: dict[str, Any] = {
             f"{destination}_destination_generation": new_id(),
-            "updated_at": _next_backup_settings_revision(current.updated_at),
+            "revision": new_id(),
+            "updated_at": _next_backup_settings_updated_at(current.updated_at),
         }
         if destination == "local" and local_path_fingerprint is not _UNSET:
             values["local_path_fingerprint"] = local_path_fingerprint
         validate_backup_settings(
             _backup_settings_values(current) | values | {"key": current.key}
         )
-        conn.execute(
-            update(models.backup_settings)
-            .where(models.backup_settings.c.key == BACKUP_SETTINGS_KEY)
-            .values(**values)
+        result = conn.execute(
+            _backup_settings_update_statement(
+                expected_revision=expected_revision,
+                expected_updated_at=None,
+            ).values(**values)
         )
+        if result.rowcount != 1:
+            raise BackupSettingsConflictError("backup settings changed")
         row = (
             conn.execute(
                 select(models.backup_settings).where(
@@ -5224,7 +5247,7 @@ def ensure_backup_local_destination_generation(
     return update_backup_settings(
         engine,
         {"local_path_fingerprint": fingerprint},
-        expected_updated_at=current.updated_at,
+        expected_revision=current.revision,
     )
 
 
@@ -5243,6 +5266,7 @@ def reupsert_backup_settings_after_restore(
     values = _backup_settings_values(captured)
     values.update(
         created_at=captured.created_at,
+        revision=new_id(),
         updated_at=when,
         local_destination_generation=new_id(),
         offbox_destination_generation=new_id(),

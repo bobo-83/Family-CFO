@@ -484,6 +484,7 @@ async def test_backup_config_exposes_global_policy_and_password_write_semantics(
     assert body["offbox_retention"]["mode"] == "keep_all"
     assert body["offbox_retention"]["weekly_until_days"] is None
     assert body["max_bytes"] is None
+    assert body["revision"]
     assert body["updated_at"]
     assert "smb_password" not in body
 
@@ -524,6 +525,7 @@ async def test_backup_config_activation_is_cas_guarded_and_alias_compatible(
     assert legacy.json()["max_bytes"] == 123456
 
     token = legacy.json()["updated_at"]
+    revision = legacy.json()["revision"]
     activated = await demo_file_client.put(
         "/api/v1/backups/config",
         headers=headers,
@@ -541,6 +543,7 @@ async def test_backup_config_activation_is_cas_guarded_and_alias_compatible(
     )
     assert activated.status_code == 200
     assert activated.json()["retention_review_required"] is False
+    assert activated.json()["revision"] != revision
     assert activated.json()["retention_activated_at"] is not None
     assert activated.json()["max_bytes"] is None
 
@@ -555,6 +558,206 @@ async def test_backup_config_activation_is_cas_guarded_and_alias_compatible(
     assert stale.status_code == 409
     current = await demo_file_client.get("/api/v1/backups/config", headers=headers)
     assert current.json()["frequency"] != "weekly"
+
+
+@pytest.mark.anyio
+async def test_backup_config_revision_precedence_and_audit_boundaries(
+    demo_file_client,
+    demo_file_token,
+    demo_file_engine: Engine,
+) -> None:
+    headers = {"Authorization": f"Bearer {demo_file_token}"}
+    initial = (await demo_file_client.get("/api/v1/backups/config", headers=headers)).json()
+
+    def config_audit_count() -> int:
+        return sum(
+            event.action == "backup.config_updated"
+            for event in repository.list_audit_events(
+                demo_file_engine, fixtures.DEMO_HOUSEHOLD_ID
+            )
+        )
+
+    before_audits = config_audit_count()
+    invalid_requests = (
+        ({"confirm_retention_policy": True}, 428),
+        (
+            {
+                "confirm_retention_policy": True,
+                "expected_revision": None,
+                "expected_updated_at": None,
+            },
+            428,
+        ),
+        (
+            {
+                "local_retention": {
+                    "mode": "tiered",
+                    "keep_all_days": 2,
+                    "daily_until_days": 10,
+                    "weekly_until_days": 60,
+                },
+                "confirm_retention_policy": True,
+            },
+            428,
+        ),
+        (
+            {
+                "local_retention": {
+                    "mode": "tiered",
+                    "keep_all_days": 2,
+                    "daily_until_days": 10,
+                    "weekly_until_days": 60,
+                }
+            },
+            422,
+        ),
+        ({"frequency": "weekly", "expected_revision": ""}, 422),
+        (
+            {
+                "local_retention": {
+                    "mode": "tiered",
+                    "keep_all_days": 10,
+                    "daily_until_days": 2,
+                    "weekly_until_days": 60,
+                },
+                "confirm_retention_policy": True,
+            },
+            422,
+        ),
+    )
+    for payload, expected_status in invalid_requests:
+        response = await demo_file_client.put(
+            "/api/v1/backups/config", headers=headers, json=payload
+        )
+        assert response.status_code == expected_status, response.text
+    assert config_audit_count() == before_audits
+
+    revision_only = await demo_file_client.put(
+        "/api/v1/backups/config",
+        headers=headers,
+        json={
+            "frequency": "weekly",
+            "expected_revision": initial["revision"],
+        },
+    )
+    assert revision_only.status_code == 200, revision_only.text
+    revision_body = revision_only.json()
+    assert revision_body["frequency"] == "weekly"
+    assert revision_body["revision"] != initial["revision"]
+
+    dual = await demo_file_client.put(
+        "/api/v1/backups/config",
+        headers=headers,
+        json={
+            "frequency": "hourly",
+            "expected_revision": revision_body["revision"],
+            "expected_updated_at": revision_body["updated_at"],
+        },
+    )
+    assert dual.status_code == 200, dual.text
+    dual_body = dual.json()
+
+    activated = await demo_file_client.put(
+        "/api/v1/backups/config",
+        headers=headers,
+        json={
+            "local_retention": {
+                "mode": "tiered",
+                "keep_all_days": 2,
+                "daily_until_days": 10,
+                "weekly_until_days": 60,
+            },
+            "offbox_retention": {
+                "mode": "keep_all",
+                "keep_all_days": None,
+                "daily_until_days": None,
+                "weekly_until_days": None,
+            },
+            "expected_revision": dual_body["revision"],
+            "confirm_retention_policy": True,
+        },
+    )
+    assert activated.status_code == 200, activated.text
+    activated_body = activated.json()
+    assert activated_body["retention_review_required"] is False
+    assert activated_body["local_retention"]["weekly_until_days"] == 60
+    assert activated_body["offbox_retention"]["mode"] == "keep_all"
+
+    successful_audits = before_audits + 3
+    assert config_audit_count() == successful_audits
+    contradictory = await demo_file_client.put(
+        "/api/v1/backups/config",
+        headers=headers,
+        json={
+            "frequency": "off",
+            "expected_revision": activated_body["revision"],
+            "expected_updated_at": dual_body["updated_at"],
+        },
+    )
+    assert contradictory.status_code == 409
+    unknown = await demo_file_client.put(
+        "/api/v1/backups/config",
+        headers=headers,
+        json={"frequency": "off", "expected_revision": "unknown-revision"},
+    )
+    assert unknown.status_code == 409
+    assert config_audit_count() == successful_audits
+
+
+@pytest.mark.anyio
+async def test_backup_config_response_keeps_its_committed_revision_across_later_writer(
+    demo_file_client,
+    demo_file_token,
+    demo_file_engine: Engine,
+    monkeypatch,
+) -> None:
+    headers = {"Authorization": f"Bearer {demo_file_token}"}
+    initial = (await demo_file_client.get("/api/v1/backups/config", headers=headers)).json()
+    original_audit = backups_api.audit.write_audit
+    intervening: repository.BackupSettingsRecord | None = None
+
+    def audit_then_commit_later_writer(*args, **kwargs):
+        nonlocal intervening
+        result = original_audit(*args, **kwargs)
+        if len(args) > 3 and args[3] == "backup.config_updated" and intervening is None:
+            current = repository.get_backup_settings(demo_file_engine)
+            intervening = repository.update_backup_settings(
+                demo_file_engine,
+                {"frequency": "hourly"},
+                expected_revision=current.revision,
+            )
+        return result
+
+    monkeypatch.setattr(
+        backups_api.audit, "write_audit", audit_then_commit_later_writer
+    )
+    first = await demo_file_client.put(
+        "/api/v1/backups/config",
+        headers=headers,
+        json={
+            "frequency": "weekly",
+            "expected_revision": initial["revision"],
+        },
+    )
+
+    assert first.status_code == 200, first.text
+    first_body = first.json()
+    assert first_body["frequency"] == "weekly"
+    assert intervening is not None
+    assert first_body["revision"] != intervening.revision
+    current = (await demo_file_client.get("/api/v1/backups/config", headers=headers)).json()
+    assert current["frequency"] == "hourly"
+    assert current["revision"] == intervening.revision
+
+    follow_up = await demo_file_client.put(
+        "/api/v1/backups/config",
+        headers=headers,
+        json={
+            "frequency": "off",
+            "expected_revision": first_body["revision"],
+        },
+    )
+    assert follow_up.status_code == 409
 
 
 @pytest.mark.anyio

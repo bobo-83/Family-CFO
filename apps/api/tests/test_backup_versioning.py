@@ -156,7 +156,7 @@ def _assert_migration_failure_preserves_live_pair(
     )
     current = repository.activate_backup_retention(
         demo_file_engine,
-        expected_updated_at=updated.updated_at,
+        expected_revision=updated.revision,
     )
     live_document = Path(demo_file_settings.import_staging_dir) / "migration-restore.txt"
     live_document.parent.mkdir(parents=True, exist_ok=True)
@@ -262,7 +262,7 @@ def test_restore_migrates_real_0092_archive_before_live_promotion(
     with demo_file_engine.connect() as connection:
         assert (
             connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-            == "0094_backup_delete_intents"
+            == "0095_backup_settings_revision"
         )
     assert result.job.id == source.id
     assert result.job.status == "completed"
@@ -275,6 +275,7 @@ def test_restore_migrates_real_0092_archive_before_live_promotion(
     assert restored.retention_activated_at is None
     assert restored.local_destination_generation != current.local_destination_generation
     assert restored.offbox_destination_generation != current.offbox_destination_generation
+    assert restored.revision != current.revision
 
 
 def test_app_version_from_filename() -> None:

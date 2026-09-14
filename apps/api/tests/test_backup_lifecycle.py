@@ -646,6 +646,7 @@ def test_restore_preserves_current_settings_rotates_generations_and_pauses_pruni
 ) -> None:
     source = _run(demo_file_engine, demo_file_settings)
     before = repository.get_backup_settings(demo_file_engine)
+    archived_revision = before.revision
     current = repository.update_backup_settings(
         demo_file_engine,
         {"frequency": "weekly", "local_min_free_bytes": 123},
@@ -677,6 +678,7 @@ def test_restore_preserves_current_settings_rotates_generations_and_pauses_pruni
     assert restored.local_min_free_bytes == 123
     assert restored.retention_review_required is True
     assert restored.retention_activated_at is None
+    assert restored.revision not in {archived_revision, current.revision}
     assert restored.local_destination_generation != current.local_destination_generation
     assert restored.offbox_destination_generation != current.offbox_destination_generation
     restored_source = repository.get_backup_job(demo_file_engine, source.id)
@@ -824,6 +826,7 @@ def test_non_sqlite_migration_failure_restores_verified_database_preimage(
     assert restored_settings.frequency == captured_settings.frequency
     assert restored_settings.retention_review_required is True
     assert restored_settings.retention_activated_at is None
+    assert restored_settings.revision != captured_settings.revision
     assert (
         restored_settings.local_destination_generation
         != captured_settings.local_destination_generation

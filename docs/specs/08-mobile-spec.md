@@ -222,7 +222,7 @@ Parity with the dashboard (ADR 0025): the same rule, the same three places.
   sent in the declared currency.
 - Strings live in `Localizable.xcstrings` with `vi` and `lt` values.
 
-## Box-Global Backup Retention on iOS (issue #116, ADR 0077)
+## Box-Global Backup Retention on iOS (issue #116, ADRs 0077–0078)
 
 The existing system-administrator Backups screen is an exception to the older
 operator-features non-responsibility above. It manages the same box-global
@@ -232,9 +232,12 @@ household role.
 
 `BackupAPI` adds `recoveryStatus()` from generated OpenAPI and
 `BackupConfigDraft` gains independent local/off-box policy, maximum, reserve,
-and optimistic `updatedAt` fields. `@MainActor BackupViewModel` owns editable
+and opaque `expectedRevision` fields. The generated `revision` string is the sole
+client concurrency token; `updatedAt` is chronology only and the app never sends
+deprecated `expected_updated_at`. `@MainActor BackupViewModel` owns editable
 policy drafts, validation, pending-prune preview, explicit save/activation,
-recovery status, configuration conflict, and a distinct status error.
+recovery status, typed configuration conflict/invalid/precondition failures, and
+a distinct status error.
 
 The screen adds matching **Retention and capacity** and **Recovery window**
 sections:
@@ -247,10 +250,18 @@ sections:
   activate retention** sends the current optimistic token and explicit
   confirmation. Field blur never activates or prunes. Pending prune count/bytes
   and migrated/restore review warnings are visible before confirmation.
-- A 409 preserves the unsaved draft, loads current server configuration
-  separately, and requires deliberate reconciliation; it never blindly retries
-  stale values. Valid auto-saves are serialized/coalesced and cannot clear a
-  pending review.
+- A 409 or transport-ambiguous completion preserves the unsaved draft, loads
+  current server configuration separately, and requires deliberate
+  reconciliation; it never blindly retries stale values. A 422 requires
+  correction and new confirmation; 401/403 require authentication/permission
+  recovery; 428 is a client/contract fault and never falls back to timestamp or
+  tokenless writes.
+- Operational and activation saves share one owner/intent-stamped serialized
+  lane with immutable in-flight snapshots. One activation may visibly queue
+  behind an operational save. A failed first save preserves that same-owner
+  activation through owned reload and explicit retry; session, presentation,
+  restore, or full-reload replacement discards old consent and password
+  snapshots. Duplicate retry/confirmation cannot create another request.
 - Recovery renders configured target separately from observed candidates,
   qualified oldest/newest dates, visible and nullable exact-readable counts,
   number probed/probe completeness, coverage, capacity, anomalies, and disclosed
@@ -259,15 +270,23 @@ sections:
   text.
 - Every destination says that archive integrity and key correctness are checked
   only during restore. Copy says “oldest readable backup currently visible” or
-  “recovery candidate,” never guaranteed restore point. The old “last 7” wording
-  is removed.
+  “recovery candidate,” never guaranteed restore point. A destination whose API
+  state is degraded solely for `retention_review_required` and optional
+  `coverage_unknown` is presented as **Review required** while accessibility and
+  diagnostics retain the underlying degraded state. Any additional reason shows
+  the actual fault status. The old “last 7” wording is removed.
+- Configuration load errors appear near the top. Schedule, destination, and
+  retention save feedback appears beside the initiating controls with
+  non-color-only success/error treatment and VoiceOver announcements. The
+  schedule picker noun is **Backup**; the action remains **Back up now**.
 - `LabeledContent`, `Picker`, numeric `TextField`, and text-bearing `Label`
   controls provide visible plus VoiceOver-readable destination/state/date
   semantics. Primary strings have Lithuanian and Vietnamese catalog values.
 
-Configuration/status requests carry authenticated-session revision, request
-generation, and the config token observed at start. Only a still-owned
-completion may update state. Status refreshes after backup create, config save,
+Configuration/status requests carry authenticated-session identity,
+presentation/queue epoch, intent identity, request generation, and the revision
+observed at start. Ownership is stamped when work is enqueued, not when transport
+starts. Only a still-owned completion may update state. Status refreshes after backup create, config save,
 destination check, local/remote delete, and remote-list refresh. Only a current
 failure clears stale recovery dates and shows unavailable copy; create, restore,
 and delete remain usable when status is unavailable.

@@ -221,20 +221,28 @@ def _assert_nullable_aliases_are_exact_copies(spec: dict) -> None:
             load_shared_openapi(SHARED_OPENAPI.parent / "compatibility" / "0.160.yaml"),
             id="compatibility-0.160",
         ),
+        pytest.param(
+            load_shared_openapi(SHARED_OPENAPI.parent / "compatibility" / "0.161.yaml"),
+            id="compatibility-0.161",
+        ),
     ],
 )
 def test_item_2_nullable_fields_use_swift_compatible_type_unions(spec: dict) -> None:
     field_counts, required_nullable = _item_2_nullable_fields(spec)
 
     has_wi5 = "BackupRecoveryStatus" in spec["components"]["schemas"]
-    expected_counts = EXPECTED_NULLABLE_FIELD_COUNTS | (
+    has_revision = "revision" in spec["components"]["schemas"]["BackupConfig"]["properties"]
+    backup_counts = (
         WI5_NULLABLE_FIELD_COUNTS if has_wi5 else LEGACY_ADDITIONAL_NULLABLE_FIELD_COUNTS
     )
+    if has_revision:
+        backup_counts = backup_counts | {"BackupConfigUpdateRequest": 11}
+    expected_counts = EXPECTED_NULLABLE_FIELD_COUNTS | backup_counts
     expected_required = EXPECTED_REQUIRED_NULLABLE_FIELDS | (
         WI5_REQUIRED_NULLABLE_FIELDS if has_wi5 else set()
     )
     assert field_counts == expected_counts
-    assert sum(field_counts.values()) == (131 if has_wi5 else 93)
+    assert sum(field_counts.values()) == (132 if has_revision else 131 if has_wi5 else 93)
     assert required_nullable == expected_required
     _assert_nullable_aliases_are_exact_copies(spec)
 
@@ -365,10 +373,14 @@ def test_recursive_response_parity_rejects_nested_drift(mutate, expected: str) -
     assert any(expected in error for error in errors), errors
 
 
-def test_0160_fixture_is_the_immutable_authoritative_contract() -> None:
-    fixture = SHARED_OPENAPI.parent / "compatibility" / "0.160.yaml"
+def test_0161_fixture_is_the_immutable_authoritative_contract() -> None:
+    fixture = SHARED_OPENAPI.parent / "compatibility" / "0.161.yaml"
     assert fixture.read_bytes() == SHARED_OPENAPI.read_bytes()
-    assert load_shared_openapi()["info"]["version"] == "0.160"
+    assert load_shared_openapi()["info"]["version"] == "0.161"
+
+    legacy_fixture = load_shared_openapi(SHARED_OPENAPI.parent / "compatibility" / "0.160.yaml")
+    assert legacy_fixture["info"]["version"] == "0.160"
+    assert "revision" not in legacy_fixture["components"]["schemas"]["BackupConfig"]["properties"]
 
 
 def test_wi5_backup_contract_is_strict_and_explicit() -> None:

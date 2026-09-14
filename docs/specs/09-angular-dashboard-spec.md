@@ -106,7 +106,7 @@ never converted. The dashboard renders that rule; it never re-derives a figure.
 - Every string is a `$localize`/`i18n` message with `vi` and `lt` entries;
   currency codes are never translated.
 
-## Box-Global Backup Retention (issue #116, ADR 0077)
+## Box-Global Backup Retention (issue #116, ADRs 0077–0078)
 
 The Backups page is a system-administrator surface over one box-global stream.
 Rename client-local owner concepts to `canManageBackups` and say “Only a system
@@ -130,12 +130,27 @@ The page adds a **Retention and capacity** card with **On this box** and
   · one weekly through 90 days.”
 
 Retention/cap/reserve edits are drafts and use one explicit **Save and activate
-retention** action with optimistic `updated_at` and confirmation. They are never
-auto-saved on blur. Show migrated/restore review and pending-prune count/bytes
-before confirmation. Existing cadence/destination autosaves may remain only if
-serialized/coalesced and unable to clear pending review. A 409 preserves the
-unsaved draft, reloads current configuration separately, and requires deliberate
-reconciliation rather than replay.
+retention** action with opaque `expected_revision` and confirmation. `updated_at`
+is chronology only; the revision-aware client never sends the deprecated timestamp
+or falls back to tokenless writes. Show migrated/restore review and pending-prune
+count/bytes before confirmation.
+
+Cadence/destination autosaves and activation share one owner/intent-stamped
+serialized lane with immutable in-flight snapshots. Exactly one activation may be
+visibly queued behind an operational save. A 409 or transport ambiguity preserves
+the draft and same-owner activation, reloads current configuration separately, and
+requires deliberate reconciliation rather than replay. Reconciliation has
+refreshing, refresh-failed, and ready phases; duplicate retry/confirmation is
+coalesced or disabled. A 422 requires correction and new confirmation, 401/403
+requires authentication/permission recovery, and 428 is a client/contract fault.
+Session, presentation, restore, or full-reload replacement discards old consent
+and password snapshots.
+
+Schedule, Synology destination, and retention feedback renders immediately beside
+the initiating control using localized `role=status` success/information and
+`role=alert` failures. New edits cannot clear unresolved reconciliation. The
+schedule picker noun is **Backup** while the immediate action remains **Back up
+now**.
 
 A **Recovery window** card renders one destination row/card each with configured
 target, “Oldest readable backup currently visible,” timestamp-basis caveat,
@@ -144,11 +159,17 @@ completeness, coverage, capacity, anomalies, and stable reason text. Required
 states distinguish not configured, empty, building, met, incomplete, shortened,
 unknown, healthy, constrained, degraded, and unavailable. Unknown capacity says
 backups will still be attempted; unavailable inventory never looks empty; every
-state says archive integrity and key correctness are checked during restore.
+state says archive integrity and key correctness are checked during restore. A
+degraded destination whose reasons are only `retention_review_required` and
+optional `coverage_unknown` presents **Review required** while diagnostic and
+accessible copy retains the underlying API status. Any additional reason restores
+the actual fault badge. Overall may use that presentation only when the API is
+actually degraded, at least one configured destination is review-only, and every
+configured non-healthy destination is review-only.
 
-Config/status requests bind authenticated session, monotonic request generation,
-and the config token observed at start. Only a still-current completion may
-apply. A slow pre-save success/failure cannot replace post-save state, and an
+Config/status requests bind authenticated session, presentation/queue epoch,
+intent identity, monotonic request generation, and the revision observed at start.
+Ownership is stamped at enqueue time. Only a still-current completion may apply. A slow pre-save success/failure cannot replace post-save state, and an
 older failure cannot clear newer success. Only a current status failure clears
 prior recovery dates and shows “Recovery status unavailable”; existing
 create/restore/delete actions remain usable.

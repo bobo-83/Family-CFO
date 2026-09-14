@@ -112,7 +112,7 @@ must land atomically under ADR 0074. Mixed old/new artifacts are unsupported;
 rollout and rollback are coordinated. Item 1 changes documentation only; later
 items own all contract, version, and generated-client files.
 
-## Backup Retention and Recovery Contract (issue #116, ADR 0077)
+## Backup Retention, Recovery, and Revision Contract (issue #116, ADRs 0077–0078)
 
 The authoritative OpenAPI change is additive and occurs only in the later
 server/contract work item. WI-1 defines its required shape; it does not edit the
@@ -129,9 +129,10 @@ box-global stream. `BackupConfig` and its update request add:
 - `local_max_bytes`, `offbox_max_bytes`, `local_min_free_bytes`, and
   `offbox_min_free_bytes`;
 - `legacy_conflict_detected`, `retention_review_required`, nullable
-  `retention_activated_at`, and the optimistic `updated_at` token;
-- update-only `expected_updated_at` and
-  `confirm_retention_policy: boolean = false`.
+  `retention_activated_at`, required opaque `revision`, and chronological
+  `updated_at`;
+- update-only preferred `expected_revision`, deprecated compatibility
+  `expected_updated_at`, and `confirm_retention_policy: boolean = false`.
 
 Tiered horizons validate as
 `1 <= keep_all_days <= daily_until_days <= weekly_until_days <= 3650`;
@@ -142,11 +143,20 @@ existing SMB completeness/password-preservation rules remain.
 Deprecated `max_bytes` remains for one contract window. If neither new cap is
 supplied, a supplied alias updates both; either new cap takes precedence. The
 response alias is non-null only when both caps are equal. Explicit-field tracking
-distinguishes omission from JSON null. A tokenless legacy request may update
-legacy fields last-write-wins but cannot activate pending retention. A stale
-`expected_updated_at` returns 409 with no mutation, and only a valid confirmed
-save activates policy. Confirmation returns pending prune count/bytes and never
-prunes synchronously.
+distinguishes omission from JSON null. `revision` and `expected_revision` are
+opaque strings bounded to 1–128 characters in the API; the database currently
+generates UUID strings. A tokenless legacy request may update legacy fields
+last-write-wins but cannot activate pending retention.
+
+Contract `0.161` accepts revision-only, exact timestamp-only, or dual-token
+requests. When both are supplied both must match the same current row; neither is
+ignored. A stale, contradictory, rounded, or truncated token returns 409 with no
+mutation or audit. Retention/capacity changes or explicit confirmation with
+neither token return 428 only after structural and policy validation, so malformed
+fields and policy-without-confirmation remain 422. Only a valid confirmed save
+activates policy. Confirmation returns pending prune count/bytes and never prunes
+synchronously. PUT serializes the exact record committed by that request rather
+than reloading and possibly returning a later writer's revision.
 
 ### Capacity and remote inventory
 
@@ -208,8 +218,15 @@ window, derived as zero for keep-all or the off-box outer horizon for tiered; th
 full global policy is not duplicated onto household responses. Standard 409
 responses document optimistic conflict and `backup_in_progress`.
 
-At the pinned baseline the first dependent client moves contract `0.159` to
-`0.160`, resets component builds, and adds immutable
-`shared/openapi/compatibility/0.160.yaml`; if the repository advances first, use
-the next unused contract. OpenAPI changes precede generation. API/worker deploy
-before web/iOS, and mixed dependent clients with an older API are unsupported.
+The retention contract shipped as immutable `0.160`. The opaque revision is an
+additive `0.161` contract and `0.161` is the only window accepting exact
+`expected_updated_at` requests from lossless `0.160` clients alongside preferred
+`expected_revision`. The earliest removal of timestamp and tokenless compatibility
+is `0.162` in a separately accepted coordinated change. `compatibility/0.160.yaml`
+remains immutable.
+
+Authoritative OpenAPI precedes implementation and generation. Publication of the
+required response field, immutable `0.161` fixture, regenerated clients, `VERSION`,
+and component build resets is atomic under ADR 0074. API/worker deploy before
+web/iOS; a revision-dependent `0.161` client is unsupported against a `0.160`
+server. No ETag or If-Match authority is introduced.

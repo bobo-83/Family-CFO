@@ -538,18 +538,27 @@ A tag is a claim that a particular component's version was good.
 
 ### Ship a test build
 
+1. Record the exact clean candidate commit with `git rev-parse HEAD`, the
+   contract/component versions, and whether each deployed component is built from
+   source or selected by `API_IMAGE_TAG`/`WEB_IMAGE_TAG`. For source builds, leave
+   those overrides unset and record the resulting image IDs/digests; checkout
+   state alone does not identify the running artifact.
+2. Bump the BUILD of whatever you changed in a `chore(release): …` PR and merge
+   it. TestFlight requires a version it has not seen, which is why testing an app
+   change needs a bump at all.
+3. Deploy contract-owning API/worker before dependent clients, then web. For an
+   untagged candidate use `scripts/patch.sh api worker` followed by
+   `scripts/patch.sh web`; do not let stale image-tag overrides select another
+   build. Record `/health`, schema revision, and running image provenance.
+4. For an intentionally TestFlight-only candidate run
+   `SKIP_OTA=1 scripts/release-testflight.sh`. Record the marketing version,
+   build, candidate commit, App Store Connect processing state, and intended
+   internal tester group. Upload, successful processing, and tester distribution
+   are separate gates; do not treat one as proof of the others.
 
-1. Bump the BUILD of whatever you changed, in a `chore(release): …` PR, and
-   merge it. TestFlight requires a version it has not seen, which is why
-   testing an app change needs a bump at all.
-2. Deploy the box: `SSH_HOST=<host> scripts/patch.sh api worker web`. No
-   `API_IMAGE_TAG`/`WEB_IMAGE_TAG` here — an untagged version has no published
-   images, so this builds from the synced tree, which is exactly right for
-   something you are still deciding about.
-3. `scripts/release-testflight.sh` — uploads to TestFlight and refreshes the
-   over-VPN OTA bundle on the box in the same run (`SKIP_OTA=1` to skip).
-
-Then use it. No tag exists yet, so no release exists yet.
+Then use the processed build against the recorded runtime and preserve that
+identity with the acceptance evidence. No tag exists yet, so no release exists
+yet. A later OTA publication is a separate deliberate artifact/audience action.
 
 To rebuild at the **same** version — a fix that does not deserve a bump —
 re-run with `FORCE_SAME_VERSION=1`; the build number is a timestamp, so
