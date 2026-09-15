@@ -182,16 +182,29 @@ def test_sell_by_is_four_business_days_before_first_shortfall() -> None:
 def test_outlook_reports_first_shortfall_and_sell_by(demo_engine: Engine) -> None:
     """A payment bigger than cash produces the first-shortfall date and a
     sell-by four business days earlier; a covered horizon reports neither."""
-    covered = _outlook(demo_engine)
+    today = date(2026, 8, 3)
+    provisional = finance_service.cash_outlook(demo_engine, HH, "USD", today=today)
+    assert provisional.lowest_minor is not None
+
+    buffer = _checking(demo_engine)
+    repository.record_account_balance(
+        demo_engine, buffer, max(0, 100_000 - provisional.lowest_minor)
+    )
+    covered = finance_service.cash_outlook(demo_engine, HH, "USD", today=today)
     assert covered.first_shortfall_date is None
     assert covered.sell_by_date is None
 
-    due = TODAY + timedelta(days=20)
+    due = today + timedelta(days=20)
+    available_by_due = covered.starting_cash_minor + sum(
+        event.amount_minor
+        for event in covered.events
+        if event.occurred_on <= due and event.amount_minor > 0
+    )
     repository.create_bill(
-        demo_engine, HH, name="Huge Insurance", amount_minor=99_999_900,
+        demo_engine, HH, name="Huge Insurance", amount_minor=available_by_due + 1,
         currency="USD", frequency="monthly", next_due_date=due,
     )
-    short = _outlook(demo_engine)
+    short = finance_service.cash_outlook(demo_engine, HH, "USD", today=today)
     assert short.first_shortfall_date == due
     assert short.sell_by_date == finance_service.business_days_before(due, 4)
     assert short.lowest_minor < 0

@@ -8,6 +8,11 @@ on:
       - 'database/**'
       - 'shared/openapi/**'
       - 'shared/schemas/**'
+      - 'AGENTS.md'
+      - '.env.example'
+      - 'docker-compose.yml'
+      - 'docs/guides/backup-and-restore.md'
+      - 'docs/specs/12-implementation-tasks.md'
       - '.github/workflows/backend-api.yml'
   push:
     branches:
@@ -18,11 +23,33 @@ on:
       - 'database/**'
       - 'shared/openapi/**'
       - 'shared/schemas/**'
+      - 'AGENTS.md'
+      - '.env.example'
+      - 'docker-compose.yml'
+      - 'docs/guides/backup-and-restore.md'
+      - 'docs/specs/12-implementation-tasks.md'
       - '.github/workflows/backend-api.yml'
 
 jobs:
   lint-test-contract:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: family_cfo
+          POSTGRES_PASSWORD: family_cfo_test
+          POSTGRES_DB: family_cfo_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U family_cfo -d family_cfo_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      FAMILY_CFO_REQUIRE_POSTGRESQL: "1"
+      FAMILY_CFO_TEST_DATABASE_URL: postgresql+psycopg://family_cfo:family_cfo_test@localhost:5432/family_cfo_test
     defaults:
       run:
         working-directory: apps/api

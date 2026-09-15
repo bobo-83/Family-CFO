@@ -19,16 +19,19 @@ x-api-env: &api-env
   FAMILY_CFO_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-family_cfo}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-family_cfo}
   FAMILY_CFO_IMPORT_STAGING_DIR: /data/import-staging
   FAMILY_CFO_BACKUP_DIR: /data/backups
+  # ADR 0077 compatibility input only: the first singleton read may bootstrap
+  # from this value; persisted box-global settings are authoritative afterward.
   FAMILY_CFO_BACKUP_RETENTION_COUNT: ${FAMILY_CFO_BACKUP_RETENTION_COUNT:-7}
+  # Positive deadline for pg_dump/pg_restore and supported SMB I/O.
+  FAMILY_CFO_BACKUP_IO_TIMEOUT_SECONDS: ${FAMILY_CFO_BACKUP_IO_TIMEOUT_SECONDS:-3600}
   FAMILY_CFO_BACKUP_ENCRYPTION_KEY: ${FAMILY_CFO_BACKUP_ENCRYPTION_KEY:-}
   # ADR 0072: wraps each household's data key; content columns are sealed
   # under it. Empty = per-household encryption off.
   # #41: the zone a household falls back to when it has not chosen one.
   FAMILY_CFO_DEFAULT_TIMEZONE: ${FAMILY_CFO_DEFAULT_TIMEZONE:-UTC}
   FAMILY_CFO_MASTER_KEY: ${FAMILY_CFO_MASTER_KEY:-}
-  # #192: off-box backups older than this many days are pruned on each backup
-  # pass (0 = keep forever). The bounded erasure horizon after a household is
-  # deleted. On-box copies keep their count-based retention.
+  # ADR 0077 compatibility input only: used during first singleton bootstrap
+  # (0 maps to keep-all). Persisted off-box policy is authoritative afterward.
   FAMILY_CFO_OFFBOX_BACKUP_RETENTION_DAYS: ${FAMILY_CFO_OFFBOX_BACKUP_RETENTION_DAYS:-0}
   # #181: per-household advisor fair-use cap (chat turns/hour; 0 = off).
   FAMILY_CFO_CHAT_HOURLY_LIMIT: ${FAMILY_CFO_CHAT_HOURLY_LIMIT:-0}

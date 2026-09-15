@@ -7,6 +7,8 @@ mints their member key). Public signup stays locked the whole time.
 
 import pytest
 
+from family_cfo_api import repository
+
 
 @pytest.mark.anyio
 async def test_hosted_household_end_to_end(demo_client, demo_token, demo_engine) -> None:
@@ -82,6 +84,31 @@ async def test_hosted_creation_requires_system_admin(
         },
     )
     assert refused.status_code == 403
+
+
+@pytest.mark.anyio
+async def test_hosted_list_derives_legacy_horizon_from_global_policy(
+    demo_client, demo_token, demo_engine
+) -> None:
+    current = repository.get_backup_settings(demo_engine)
+    repository.update_backup_settings(
+        demo_engine,
+        {
+            "offbox_retention_mode": "tiered",
+            "offbox_keep_all_days": 3,
+            "offbox_daily_until_days": 14,
+            "offbox_weekly_until_days": 42,
+        },
+        expected_updated_at=current.updated_at,
+    )
+
+    response = await demo_client.get(
+        "/api/v1/households/hosted",
+        headers={"Authorization": f"Bearer {demo_token}"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["offbox_backup_retention_days"] == 42
 
 
 @pytest.mark.anyio

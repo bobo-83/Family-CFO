@@ -337,7 +337,10 @@ Expected response:
 The `version` is read from the monorepo [`VERSION`](../../VERSION) file (an env
 override wins); it is not hand-maintained here ([ADR 0029](../../docs/adr/0029-monorepo-version.md)).
 
-Run the background worker (a separate process from the API server) — polls for pending imports every 30 seconds, weekly/monthly reports hourly, and runs a backup once a day:
+Run the background worker (a separate process from the API server) — it polls
+pending imports every 30 seconds, weekly/monthly reports hourly, and evaluates
+the persisted box-global backup cadence plus reconciliation/retention maintenance
+on each worker interval:
 
 ```bash
 cd apps/api
@@ -395,14 +398,46 @@ FAMILY_CFO_DATABASE_URL=postgresql+psycopg://user:password@localhost:5432/family
 ```
 
 M2 adds the household/account/transaction/bill/income/goal/scenario tables and `financial_calculations` as chained migrations (`0002`–`0014`); M3 adds `recommendations` (`0015`); M4 adds `recommendations.model_version`/`prompt_version` and `ai_runtime_configs` (`0016`–`0017`); M6 backend support adds `pairing_sessions`, `paired_devices`, and `auth_sessions.device_id` (`0018`); M7 adds `imports`, `import_files`, `documents`, `document_extractions`, and `transactions.import_id`/`possible_duplicate` (`0019`–`0023`); M8 adds `reports` and `backup_jobs` (`0024`–`0025`); M9 adds `audit_events` (`0026`); M10 adds `conversations` and `conversation_messages` (`0027`–`0028`); M14 adds `accounts.annual_interest_rate`/`minimum_payment_minor` and two new calculation types (`0029`); M15 adds `annual` to the reports type check (`0030`). Migrations continue through
-the current head — **`0058_goal_contribution`** (goal `monthly_contribution`) —
-covering later work such as net-worth snapshots, budgets, safe-to-spend, the M97
-duplicate-review flag, the M98 off-box backup destination / SMB credentials /
-size cap, transaction notes & attachments, and audit-undo (`0056`/`0057`). `ls
-database/migrations/versions/` is the authoritative list; `make migrate` applies
-all of them.
+the current head — **`0094_backup_delete_intents`**. For issue #116,
+`0093_box_global_backup_settings` adds the box-global backup singleton,
+retention journal, and `backup_jobs.prune_reason`; `0094` adds the durable
+`delete_pending` journal action. `ls database/migrations/versions/` is the
+authoritative list; `make migrate` applies all migrations.
 
-Set `FAMILY_CFO_IMPORT_STAGING_DIR` (default `./data/import-staging`) to control where uploaded import/document files are staged on disk. Set `FAMILY_CFO_BACKUP_DIR` (default `./data/backups`), `FAMILY_CFO_BACKUP_RETENTION_COUNT` (default `7`), and `FAMILY_CFO_BACKUP_ENCRYPTION_KEY` (no default — required for any backup/restore) to control encrypted backup storage.
+Set `FAMILY_CFO_IMPORT_STAGING_DIR` (default `./data/import-staging`) to control
+uploaded import/document staging. `FAMILY_CFO_BACKUP_DIR` (default
+`./data/backups`) selects local encrypted-archive storage,
+`FAMILY_CFO_BACKUP_ENCRYPTION_KEY` is required for backup/restore, and
+`FAMILY_CFO_BACKUP_IO_TIMEOUT_SECONDS` (default `3600`) bounds database CLI and
+supported SMB I/O. `FAMILY_CFO_BACKUP_RETENTION_COUNT` and
+`FAMILY_CFO_OFFBOX_BACKUP_RETENTION_DAYS` are one-release bootstrap/rollback
+compatibility inputs only; after the singleton exists, its database values are
+authoritative.
+
+## Current backup API and operations
+
+The backup stream, configuration, job history, and recovery status are
+box-global because every archive contains every hosted household. Routes require
+`backups.manage`, which is granted to system administrators.
+`GET/PUT /api/v1/backups/config` manages independent local/off-box tier policies, logical
+caps, reserves, activation, and optimistic updates; `GET /api/v1/backups/status`
+reports configured targets separately from visible read-probed recovery
+candidates. Capacity is a point-in-time caller-available observation, not a
+reservation, and status is not a decrypt/integrity/migration/restore test.
+
+An upgrade initially pauses automatic retention for explicit review. Deploy and
+migrate API and worker before contract `0.160` clients, verify live config/status
+and local/SMB backup paths, then roll out web and Apple clients separately.
+Downgrade can copy only legacy-representable destination/cadence fields and an
+equal shared cap; it cannot recreate pruned archives or represent tier policies,
+independent caps/reserves, activation, or recovery status. See
+[`docs/guides/backup-and-restore.md`](../../docs/guides/backup-and-restore.md).
+
+`make coverage` includes the tier, bootstrap/migration, storage lifecycle, and
+contract tests. In CI a synthetic PostgreSQL 17 service exercises migrations
+`0093`/`0094`, singleton bootstrap, advisory-lock conflict, and connection loss.
+`FAMILY_CFO_REQUIRE_POSTGRESQL=1` makes a missing URL, driver, or server fail
+loudly rather than skip.
 
 ## Fixtures
 

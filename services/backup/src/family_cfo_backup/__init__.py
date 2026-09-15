@@ -1,6 +1,7 @@
 from family_cfo_backup.adapter import (
     BackupAdapter,
     BackupCommandError,
+    BackupCommandTimeoutError,
     PgDumpBackupAdapter,
     SqliteFileBackupAdapter,
 )
@@ -10,6 +11,7 @@ from family_cfo_backup.encryption import BackupEncryptionError, decrypt, encrypt
 __all__ = [
     "BackupAdapter",
     "BackupCommandError",
+    "BackupCommandTimeoutError",
     "BackupEncryptionError",
     "PgDumpBackupAdapter",
     "SqliteFileBackupAdapter",

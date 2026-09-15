@@ -11,6 +11,7 @@ import {
   deleteRemoteBackup,
   generateRecoveryKey,
   getBackupConfig,
+  getBackupRecoveryStatus,
   getBackupEncryptionKey,
   getHouseholdKeyStatus,
   listRemoteBackups,
@@ -387,7 +388,8 @@ export class ApiService {
     return scanCardStatement({
       body: {
         image_base64: imageBase64,
-        image_media_type: mediaType as 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf',
+        image_media_type: mediaType as
+          'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf',
       },
     });
   }
@@ -437,7 +439,8 @@ export class ApiService {
     return scanLoanStatement({
       body: {
         image_base64: imageBase64,
-        image_media_type: mediaType as 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf',
+        image_media_type: mediaType as
+          'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf',
       },
     });
   }
@@ -447,7 +450,8 @@ export class ApiService {
     return scanAccountStatement({
       body: {
         image_base64: imageBase64,
-        image_media_type: mediaType as 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf',
+        image_media_type: mediaType as
+          'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf',
       },
     });
   }
@@ -457,7 +461,8 @@ export class ApiService {
     return scanBill({
       body: {
         image_base64: imageBase64,
-        image_media_type: mediaType as 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf',
+        image_media_type: mediaType as
+          'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf',
       },
     });
   }
@@ -758,6 +763,10 @@ export class ApiService {
     return getBackupConfig();
   }
 
+  getBackupRecoveryStatus() {
+    return getBackupRecoveryStatus();
+  }
+
   updateBackupConfig(body: BackupConfigUpdateRequest) {
     return updateBackupConfig({ body });
   }
@@ -957,7 +966,9 @@ export class ApiService {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
-    const handleFrame = (frame: string): { data?: ChatResponse; error?: { detail?: string } } | null => {
+    const handleFrame = (
+      frame: string,
+    ): { data?: ChatResponse; error?: { detail?: string } } | null => {
       for (const line of frame.split('\n')) {
         if (!line.startsWith('data: ')) continue; // ": ping" keepalive
         const event = JSON.parse(line.slice(6)) as ChatStreamEvent;

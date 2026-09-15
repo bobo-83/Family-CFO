@@ -35,9 +35,14 @@ Later migrations add:
   `transactions.duplicate_state` review flag, the M98 off-box backup destination
   + SMB credentials + size cap, `transactions.note`/attachment columns, the
   `audit_events.undo_token`/`reverted_at` undo columns (`0056`/`0057`), and the
-  goal `monthly_contribution` (`0058`)
+  goal `monthly_contribution` (`0058`), and subsequent product work through
+  uppercase currency normalization (`0092`)
+- M125/issue #116: `0093_box_global_backup_settings` adds the box-global
+  `backup_settings` singleton, `backup_retention_events`, and
+  `backup_jobs.prune_reason`; `0094_backup_delete_intents` adds the durable
+  `delete_pending` journal action
 
-The migration head is currently **`0058_goal_contribution`** — run
+The migration head is currently **`0094_backup_delete_intents`** — run
 `ls database/migrations/versions/` for the authoritative, complete list.
 
 ## Money Storage
@@ -50,7 +55,15 @@ Uploaded import/document files are not stored in the database — `import_files.
 
 ## Backups
 
-`backup_jobs` tracks encrypted backup archives, stored on disk (never in the database) under a directory controlled by `FAMILY_CFO_BACKUP_DIR` (default `./data/backups`), matching the "Encrypted backups" volume planned in `docs/specs/10-docker-spec.md`. `backup_jobs.storage_path` is a relative path within that directory, cleared (not deleted as a row) once `FAMILY_CFO_BACKUP_RETENTION_COUNT` (default `7`) prunes the on-disk file, so backup history remains visible via `GET /api/v1/backups` even after the archive itself is gone.
+`backup_jobs` tracks encrypted box-global backup archives stored on disk (never
+in the database) under `FAMILY_CFO_BACKUP_DIR` (default `./data/backups`). Every
+archive contains the whole database and shared staging tree; jobs and operational
+retention events therefore carry no household owner. `backup_settings` is an
+application-owned singleton keyed by `global` and is authoritative for cadence,
+SMB destination, independent local/off-box policies, caps, reserves, review
+state, and destination generations. Automated pruning clears the archive path
+and retains the job row with a reason; the journal records global lifecycle
+causality without credentials or household data.
 
 ### Archive Format
 
@@ -66,17 +79,58 @@ python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().
 
 Set it via an environment file or Docker secret (matching the pattern `docs/specs/10-docker-spec.md` already specifies for other secrets) — never commit it. There is no key recovery mechanism: losing the key makes every backup encrypted with it permanently unrecoverable. Rotating the key only affects backups taken after the rotation; restoring an older backup requires the key that was active when it was taken.
 
-### Off-box destination (M98)
+### Retention, capacity, and recovery status
 
-Beyond the local `backups` volume, a household can push each encrypted archive to
-a **Synology/SMB share**. The destination (host, share, subfolder, schedule, size
-cap) lives on the household row; the SMB **password is encrypted at rest** with
-the backup key. Backups can also be listed and restored directly from the share.
-See `docs/guides/backup-and-restore.md`.
+Local and off-box tier policies are deterministic UTC decisions over qualified
+inventory. Logical caps do not include protected anomalous evidence, but those
+files still consume physical space. Capacity is a caller-available point-in-time
+observation (`statvfs` locally, SMB `stat_volume` remotely), not a reservation;
+an unsupported query is unknown and a later write can still fail. Recovery
+status proves only visible read-probed candidates—not key availability,
+authenticated decryption, archive completeness, migration viability, or restore.
+
+### Upgrade and downgrade
+
+Migration `0093` creates schema only. The first transaction-safe repository read
+bootstraps the singleton from deterministic legacy household evidence and the
+running process's legacy count/off-box-age compatibility inputs. It requires
+administrator review and leaves automatic retention inactive; once the singleton
+exists, database values are authoritative and the old environment values and
+household columns are ignored by normal reads.
+
+Downgrading `0094` converts pending delete intents to failed-prune evidence.
+Downgrading `0093` copies cadence/SMB fields to every household and copies a
+shared cap only when the two new caps are equal, then drops the new schema. Tier
+policies, unequal caps, reserves, activation, and recovery status are not
+representable, and no downgrade recreates deleted archives or journal history.
+Set explicit legacy retention environment values before starting old code.
+
+### Off-box destination
+
+The global singleton can copy each encrypted archive to a Synology/SMB share.
+The SMB password is encrypted at rest with the backup key and is never returned.
+Backups can be listed and restored directly from the share. See
+[`docs/guides/backup-and-restore.md`](../docs/guides/backup-and-restore.md) for
+capacity limitations and the user-credentialed NAS validation checklist.
 
 ### Restore Procedure
 
-`POST /api/v1/backups/{id}/restore` (`owner` only) decrypts the named archive and replaces the *entire* current database and staging directory with its contents — this is destructive by definition, and also reverts `backup_jobs`' own bookkeeping to its state at dump time (the row for the backup being restored from reads `running`, not `completed`, since the dump necessarily precedes that status update — an inherent property of backing up the whole database, not a bug). There is no API-level confirmation step; a dashboard confirmation dialog is future work.
+`POST /api/v1/backups/{id}/restore` (system administrator with `backups.manage`)
+decrypts the named archive and replaces the *entire* current database and staging
+directory. Restore preserves the current operational global configuration and
+encrypted SMB credential across the replacement, reapplies migrations, rotates
+destination generations, and requires retention review again. Reconciliation
+handles dump-time/interrupted job state and protects newer orphaned files.
+
+### Tests and rollout
+
+SQLite tests cover migrations, bootstrap/downgrade, and lifecycle behavior. CI
+also provisions synthetic PostgreSQL 17 for migrations `0093`/`0094`, singleton
+bootstrap, advisory-lock conflict, and connection loss. It sets
+`FAMILY_CFO_REQUIRE_POSTGRESQL=1`, so these tests fail rather than skip if the
+URL, driver, or server is unavailable.
+Deploy/migrate API and worker before contract `0.160` web or Apple clients; verify
+live config/status and local/SMB paths before each client rollout.
 
 ## Audit Events
 

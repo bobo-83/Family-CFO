@@ -22,6 +22,15 @@ class BackupCommandError(RuntimeError):
         self.stderr = stderr
 
 
+class BackupCommandTimeoutError(BackupCommandError):
+    """A bounded command expired; remains catch-compatible with existing callers."""
+
+    def __init__(self, command: str, timeout_seconds: float) -> None:
+        super().__init__(command, -1, "")
+        self.args = (f"{command} exceeded the {timeout_seconds:g}-second timeout",)
+        self.timeout_seconds = timeout_seconds
+
+
 def _to_libpq_url(database_url: str) -> str:
     """Strip a SQLAlchemy `+driver` suffix (e.g. `postgresql+psycopg://`) for libpq CLI tools."""
     scheme, separator, rest = database_url.partition("://")
@@ -46,38 +55,60 @@ class PgDumpBackupAdapter:
         *,
         pg_dump_path: str = "pg_dump",
         pg_restore_path: str = "pg_restore",
+        timeout_seconds: float = 3600,
     ) -> None:
+        if timeout_seconds <= 0:
+            raise ValueError("timeout_seconds must be positive")
         self._connection_url = _to_libpq_url(database_url)
         self._pg_dump_path = pg_dump_path
         self._pg_restore_path = pg_restore_path
+        self._timeout_seconds = timeout_seconds
 
     def dump_database(self, destination: Path) -> None:
-        result = subprocess.run(
-            [self._pg_dump_path, "--format=custom", "--file", str(destination), self._connection_url],
-            capture_output=True,
-            check=False,
-        )
+        try:
+            result = subprocess.run(
+                [
+                    self._pg_dump_path,
+                    "--format=custom",
+                    "--file",
+                    str(destination),
+                    self._connection_url,
+                ],
+                capture_output=True,
+                check=False,
+                timeout=self._timeout_seconds,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise BackupCommandTimeoutError(self._pg_dump_path, self._timeout_seconds) from exc
         if result.returncode != 0:
             raise BackupCommandError(
-                self._pg_dump_path, result.returncode, result.stderr.decode("utf-8", errors="replace")
+                self._pg_dump_path,
+                result.returncode,
+                result.stderr.decode("utf-8", errors="replace"),
             )
 
     def restore_database(self, source: Path) -> None:
-        result = subprocess.run(
-            [
-                self._pg_restore_path,
-                "--clean",
-                "--if-exists",
-                "--dbname",
-                self._connection_url,
-                str(source),
-            ],
-            capture_output=True,
-            check=False,
-        )
+        try:
+            result = subprocess.run(
+                [
+                    self._pg_restore_path,
+                    "--clean",
+                    "--if-exists",
+                    "--dbname",
+                    self._connection_url,
+                    str(source),
+                ],
+                capture_output=True,
+                check=False,
+                timeout=self._timeout_seconds,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise BackupCommandTimeoutError(self._pg_restore_path, self._timeout_seconds) from exc
         if result.returncode != 0:
             raise BackupCommandError(
-                self._pg_restore_path, result.returncode, result.stderr.decode("utf-8", errors="replace")
+                self._pg_restore_path,
+                result.returncode,
+                result.stderr.decode("utf-8", errors="replace"),
             )
 
 

@@ -121,12 +121,19 @@ async def list_hosted_households(
 ) -> HostedHouseholdList:
     counts = repository.household_member_counts(engine)
     pending = repository.households_with_pending_owner_invite(engine)
+    backup_settings = repository.get_backup_settings(engine, settings=settings)
+    legacy_offbox_days = (
+        0
+        if backup_settings.offbox_retention_mode == "keep_all"
+        else backup_settings.offbox_weekly_until_days
+    )
+    assert legacy_offbox_days is not None
     return HostedHouseholdList(
         households=[
             _hosted_summary(engine, summary, counts, pending)
             for summary in repository.list_household_summaries(engine)
         ],
-        offbox_backup_retention_days=settings.offbox_backup_retention_days,
+        offbox_backup_retention_days=legacy_offbox_days,
     )
 
 
