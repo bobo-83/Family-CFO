@@ -3,10 +3,11 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+from sqlalchemy import insert
 from sqlalchemy.engine import Engine
 
 from family_cfo_api import __version__ as APP_VERSION
-from family_cfo_api import backup_recovery, banksync, repository, smb_backup
+from family_cfo_api import backup_recovery, banksync, models, repository, smb_backup
 from family_cfo_api.backup_retention import (
     BackupDestination,
     BackupInventoryItem,
@@ -58,30 +59,58 @@ def _inventory_item(key: str, taken_at: datetime) -> BackupInventoryItem:
     )
 
 
-def _retention_event(
-    *,
-    action: str,
-    occurred_at: datetime,
-    archive_taken_at: datetime | None,
-) -> repository.BackupRetentionEventRecord:
-    return repository.BackupRetentionEventRecord(
-        id=f"event-{action}",
-        destination="local",
-        archive_key="old.enc",
-        backup_job_id=None,
-        operation_id=f"operation-{action}",
-        event_key=f"event-key-{action}",
-        destination_generation="10000000-0000-0000-0000-000000000000",
-        action=action,
-        reason="test",
-        archive_taken_at=archive_taken_at,
-        timestamp_source="job_started_at" if archive_taken_at else None,
-        size_bytes=10 if archive_taken_at else None,
-        policy_updated_at=None,
-        policy_snapshot=None,
-        detail=None,
-        occurred_at=occurred_at,
+def _evidence(**changes: bool) -> repository.BackupRetentionStatusEvidence:
+    values = {
+        "latest_inventory_failed": False,
+        "unresolved_prune_failure": False,
+        "missing_deletion_timestamp": False,
+        "target_opportunity": False,
+        "target_shortened": False,
+    }
+    values.update(changes)
+    return repository.BackupRetentionStatusEvidence(**values)
+
+
+def _bulk_routine_events(
+    engine: Engine, generation: str, as_of: datetime, *, pairs: int = 550
+) -> None:
+    rows = []
+    for index in range(pairs):
+        archive = f"old-{index}.enc"
+        for action in ("delete_pending", "pruned"):
+            sequence = len(rows)
+            rows.append(
+                {
+                    "id": f"bulk-{sequence:08d}",
+                    "destination": "local",
+                    "archive_key": archive,
+                    "operation_id": f"bulk-{index}",
+                    "event_key": f"{sequence:064x}",
+                    "destination_generation": generation,
+                    "action": action,
+                    "reason": "policy_expired",
+                    "archive_taken_at": as_of - timedelta(days=20),
+                    "occurred_at": as_of - timedelta(hours=1) + timedelta(seconds=index),
+                }
+            )
+    first_scan_sequence = len(rows)
+    rows.extend(
+        {
+            "id": f"scan-{index:08d}",
+            "destination": "local",
+            "archive_key": None,
+            "operation_id": f"scan-{index}",
+            "event_key": f"{index + first_scan_sequence:064x}",
+            "destination_generation": generation,
+            "action": "inventory_succeeded",
+            "reason": "inventory_available",
+            "archive_taken_at": None,
+            "occurred_at": as_of - timedelta(minutes=10) + timedelta(milliseconds=index),
+        }
+        for index in range(600)
     )
+    with engine.begin() as conn:
+        conn.execute(insert(models.backup_retention_events), rows)
 
 
 def test_outer_bucket_and_coverage_precedence_are_deterministic() -> None:
@@ -100,54 +129,40 @@ def test_outer_bucket_and_coverage_precedence_are_deterministic() -> None:
         "review_required": False,
         "probe_complete": True,
         "protected_count": 0,
-        "events_incomplete": False,
+        "evidence": _evidence(),
         "plan": plan,
         "as_of": as_of,
     }
     assert backup_recovery._coverage(
         activated_at=as_of - timedelta(days=1),
         qualified=(newer,),
-        events=(),
         **common,
     ) == "building"
     assert backup_recovery._coverage(
         activated_at=as_of - timedelta(days=91),
         qualified=(newer,),
-        events=(),
         **common,
     ) == "incomplete"
     assert backup_recovery._coverage(
         activated_at=as_of - timedelta(days=91),
         qualified=(target,),
-        events=(),
         **common,
     ) == "incomplete"
     assert backup_recovery._coverage(
         activated_at=as_of - timedelta(days=91),
         qualified=(newer, target),
-        events=(),
         **common,
     ) == "met"
 
-    shortened = _retention_event(
-        action="explicit_deleted",
-        occurred_at=as_of,
-        archive_taken_at=cutoff + timedelta(hours=2),
-    )
     assert backup_recovery._coverage(
         activated_at=as_of - timedelta(days=91),
         qualified=(newer,),
-        events=(shortened,),
-        **common,
+        **{**common, "evidence": _evidence(target_opportunity=True, target_shortened=True)},
     ) == "shortened"
-    missing_causality = _retention_event(
-        action="explicit_deleted", occurred_at=as_of, archive_taken_at=None
-    )
     assert backup_recovery._coverage(
         activated_at=as_of - timedelta(days=91),
         qualified=(newer,),
-        events=(missing_causality,),
-        **common,
+        **{**common, "evidence": _evidence(missing_deletion_timestamp=True)},
     ) == "unknown"
 
 
@@ -158,14 +173,15 @@ def test_status_event_lookup_starts_at_outer_bucket_boundary(
     policy = RetentionPolicy("tiered", 7, 30, 90)
     captured: dict[str, datetime | None] = {}
 
-    def list_events(engine, *, destination_generation, since, limit):
+    def status_evidence(engine, *, destination_generation, since, target_start, target_end):
         captured["since"] = since
+        captured["target_start"] = target_start
+        captured["target_end"] = target_end
         assert destination_generation == "10000000-0000-0000-0000-000000000000"
-        assert limit == 501
-        return []
+        return _evidence()
 
-    monkeypatch.setattr(repository, "list_backup_retention_events_for_status", list_events)
-    events, incomplete = backup_recovery._events(
+    monkeypatch.setattr(repository, "backup_retention_status_evidence", status_evidence)
+    evidence = backup_recovery._evidence(
         demo_file_engine,
         generation="10000000-0000-0000-0000-000000000000",
         policy=policy,
@@ -173,9 +189,223 @@ def test_status_event_lookup_starts_at_outer_bucket_boundary(
         as_of=as_of,
     )
 
-    assert events == ()
-    assert incomplete is False
+    assert evidence == _evidence()
     assert captured["since"] == datetime(2026, 6, 8, tzinfo=UTC)
+    assert captured["target_start"] == as_of - timedelta(days=90)
+    assert captured["target_end"] == datetime(2026, 6, 15, tzinfo=UTC)
+
+
+def test_routine_journal_volume_does_not_make_qualified_history_unknown(
+    demo_file_engine: Engine, demo_file_settings
+) -> None:
+    as_of = datetime(2026, 10, 8, 12, tzinfo=UTC)
+    stored = _activate(demo_file_engine)
+    _completed_local(
+        demo_file_engine,
+        demo_file_settings.backup_dir,
+        started_at=as_of - timedelta(days=90) + timedelta(hours=1),
+    )
+    _completed_local(
+        demo_file_engine,
+        demo_file_settings.backup_dir,
+        started_at=as_of - timedelta(days=1),
+    )
+    _bulk_routine_events(demo_file_engine, stored.local_destination_generation, as_of)
+
+    snapshot = backup_recovery.build_backup_recovery_snapshot(
+        demo_file_engine, demo_file_settings, as_of=as_of
+    )
+
+    assert snapshot.local.coverage_status == "met"
+    assert snapshot.local.status == "healthy"
+    assert snapshot.local.reason_codes == ()
+
+
+def test_target_deletion_and_missing_timestamp_survive_routine_journal_volume(
+    demo_file_engine: Engine, demo_file_settings
+) -> None:
+    as_of = datetime(2026, 10, 8, 12, tzinfo=UTC)
+    stored = _activate(demo_file_engine)
+    _completed_local(
+        demo_file_engine,
+        demo_file_settings.backup_dir,
+        started_at=as_of - timedelta(days=1),
+    )
+    target_time = as_of - timedelta(days=90) + timedelta(hours=1)
+    repository.record_backup_retention_event(
+        demo_file_engine,
+        destination="local",
+        destination_generation=stored.local_destination_generation,
+        operation_id="target-delete",
+        action="pruned",
+        reason="policy_expired",
+        archive_key="target.enc",
+        archive_taken_at=target_time,
+        occurred_at=as_of - timedelta(days=1),
+    )
+    _bulk_routine_events(demo_file_engine, stored.local_destination_generation, as_of)
+
+    shortened = backup_recovery.build_backup_recovery_snapshot(
+        demo_file_engine, demo_file_settings, as_of=as_of
+    )
+    assert shortened.local.coverage_status == "shortened"
+    assert shortened.local.status == "constrained"
+    assert "coverage_shortened" in shortened.local.reason_codes
+
+    repository.record_backup_retention_event(
+        demo_file_engine,
+        destination="local",
+        destination_generation=stored.local_destination_generation,
+        operation_id="unknown-delete",
+        action="explicit_deleted",
+        reason="explicit_delete",
+        archive_key="unknown.enc",
+        occurred_at=as_of - timedelta(days=2),
+    )
+    unknown = backup_recovery.build_backup_recovery_snapshot(
+        demo_file_engine, demo_file_settings, as_of=as_of
+    )
+    assert unknown.local.coverage_status == "unknown"
+    assert unknown.local.status == "degraded"
+    assert "coverage_unknown" in unknown.local.reason_codes
+
+
+def test_status_evidence_scopes_generation_and_repairs_failures(
+    demo_file_engine: Engine
+) -> None:
+    as_of = datetime(2026, 10, 8, 12, tzinfo=UTC)
+    current = repository.get_backup_settings(demo_file_engine)
+    generation = current.local_destination_generation
+    old_generation = "00000000-0000-0000-0000-000000000001"
+    repository.record_backup_retention_event(
+        demo_file_engine,
+        destination="local",
+        destination_generation=old_generation,
+        operation_id="old-failure",
+        action="inventory_failed",
+        reason="inventory_unavailable",
+        occurred_at=as_of,
+    )
+    repository.record_backup_retention_event(
+        demo_file_engine,
+        destination="local",
+        destination_generation=generation,
+        operation_id="inventory-failure",
+        action="inventory_failed",
+        reason="inventory_unavailable",
+        occurred_at=as_of - timedelta(minutes=2),
+    )
+    repository.record_backup_retention_event(
+        demo_file_engine,
+        destination="local",
+        destination_generation=generation,
+        operation_id="prune-failure",
+        action="prune_failed",
+        reason="delete_failed",
+        archive_key="one.enc",
+        occurred_at=as_of - timedelta(days=2),
+    )
+    _bulk_routine_events(demo_file_engine, generation, as_of)
+
+    def evidence() -> repository.BackupRetentionStatusEvidence:
+        return repository.backup_retention_status_evidence(
+            demo_file_engine,
+            destination_generation=generation,
+            since=as_of - timedelta(days=90),
+            target_start=as_of - timedelta(days=90),
+            target_end=as_of - timedelta(days=83),
+        )
+
+    assert evidence().latest_inventory_failed is True
+    assert evidence().unresolved_prune_failure is True
+    repository.record_backup_retention_event(
+        demo_file_engine,
+        destination="local",
+        destination_generation=generation,
+        operation_id="inventory-repaired",
+        action="inventory_succeeded",
+        reason="inventory_available",
+        occurred_at=as_of - timedelta(minutes=1),
+    )
+    repository.record_backup_retention_event(
+        demo_file_engine,
+        destination="local",
+        destination_generation=generation,
+        operation_id="prune-repaired",
+        action="reconciled",
+        reason="delete_failed",
+        archive_key="one.enc",
+        occurred_at=as_of - timedelta(minutes=1),
+    )
+    assert evidence().latest_inventory_failed is False
+    assert evidence().unresolved_prune_failure is False
+
+
+def test_status_evidence_uses_deterministic_ties_and_target_archive_time(
+    demo_file_engine: Engine
+) -> None:
+    as_of = datetime(2026, 10, 8, 12, tzinfo=UTC)
+    generation = repository.get_backup_settings(demo_file_engine).local_destination_generation
+    target_start = as_of - timedelta(days=90)
+    target_end = target_start + timedelta(days=7)
+
+    def put(key: str, action: str, *, archive: str | None = None,
+            taken_at: datetime | None = None, occurred_at: datetime = as_of) -> None:
+        with demo_file_engine.begin() as conn:
+            conn.execute(
+                insert(models.backup_retention_events).values(
+                    id=f"tie-{key[0]}",
+                    destination="local",
+                    archive_key=archive,
+                    operation_id=f"tie-{key[0]}",
+                    event_key=key,
+                    destination_generation=generation,
+                    action=action,
+                    reason="test",
+                    archive_taken_at=taken_at,
+                    occurred_at=occurred_at,
+                )
+            )
+
+    def evidence() -> repository.BackupRetentionStatusEvidence:
+        return repository.backup_retention_status_evidence(
+            demo_file_engine,
+            destination_generation=generation,
+            since=target_start,
+            target_start=target_start,
+            target_end=target_end,
+        )
+
+    put("b" * 64, "inventory_failed")
+    put("c" * 64, "inventory_succeeded")
+    put("f" * 64, "prune_failed", archive="tie.enc")
+    put("g" * 64, "reconciled", archive="tie.enc")
+    put("d" * 64, "delete_pending", archive="tie.enc")
+    assert evidence().latest_inventory_failed is True
+    # A newer retry intent is not a successful repair of the failed delete.
+    assert evidence().unresolved_prune_failure is True
+    put("a" * 64, "inventory_succeeded")
+    put("e" * 64, "reconciled", archive="tie.enc")
+    assert evidence().latest_inventory_failed is False
+    assert evidence().unresolved_prune_failure is False
+
+    # A target-time pending action is opportunity, not proof of shortening.
+    put("h" * 64, "delete_pending", archive="target.enc",
+        taken_at=target_start + timedelta(hours=1))
+    assert evidence().target_opportunity is True
+    assert evidence().target_shortened is False
+    # Occurrence in the window does not substitute for an old archive time.
+    put("i" * 64, "pruned", archive="outside.enc",
+        taken_at=target_start - timedelta(hours=1))
+    assert evidence().target_shortened is False
+    # Capacity has no archive time; its occurrence time is the causal fallback.
+    put("j" * 64, "capacity_blocked", occurred_at=target_start + timedelta(hours=2))
+    assert evidence().target_shortened is True
+    put("k" * 64, "prune_failed", archive="before-horizon.enc",
+        occurred_at=target_start - timedelta(microseconds=1))
+    assert evidence().unresolved_prune_failure is False
+    put("l" * 64, "prune_failed", archive="at-horizon.enc", occurred_at=target_start)
+    assert evidence().unresolved_prune_failure is True
 
 
 def test_local_status_meets_outer_bucket_with_a_newer_candidate(
