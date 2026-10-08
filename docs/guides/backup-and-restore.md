@@ -60,6 +60,13 @@ restore. Actual `ENOSPC`, upload, and rename results remain authoritative.
 read-probed recovery candidates. Its oldest/newest dates do **not** prove that
 the encryption key is available, the archive is complete, migrations succeed,
 or a destructive restore works. Only a restore test verifies those properties.
+Coverage uses current-destination-generation journal facts for the target UTC
+bucket; routine hourly maintenance volume alone does not make coverage
+unknown. A deletion with no recorded archive time still leaves coverage
+unknown. Without a target candidate or recorded shortening cause, coverage is
+`building` while the activated policy is young and `incomplete` once the target
+horizon matures, not silently healthy. Status never invents missing history or
+substitutes a read probe for restore proof.
 
 ## Taking a backup
 
