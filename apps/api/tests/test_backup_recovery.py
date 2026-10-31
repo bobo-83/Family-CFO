@@ -655,24 +655,28 @@ def test_unreadable_outer_target_cannot_report_met_or_healthy(
     demo_file_engine: Engine, demo_file_settings, monkeypatch
 ) -> None:
     as_of = datetime(2027, 1, 10, 12, tzinfo=UTC)
-    # This case requires mature history, independent of the contributor's clock.
-    monkeypatch.setattr(repository, "utcnow", lambda: as_of - timedelta(days=91))
-    current = _activate(demo_file_engine)
     encrypted = banksync.encrypt_credential(demo_file_settings, "not-a-real-password")
-    repository.update_and_activate_backup_settings(
-        demo_file_engine,
-        {
-            "smb_host": "nas.invalid",
-            "smb_share": "backups",
-            "smb_username": "backup-user",
-            "smb_password_encrypted": encrypted,
-            "offbox_retention_mode": "tiered",
-            "offbox_keep_all_days": 7,
-            "offbox_daily_until_days": 30,
-            "offbox_weekly_until_days": 90,
-        },
-        expected_updated_at=current.updated_at,
-    )
+    repository_clock = repository.utcnow
+    # Freeze only retention activation; job creation and observation use the
+    # original clock. Mature history must not depend on the contributor's date.
+    with monkeypatch.context() as activation_clock:
+        activation_clock.setattr(repository, "utcnow", lambda: as_of - timedelta(days=91))
+        current = _activate(demo_file_engine)
+        repository.update_and_activate_backup_settings(
+            demo_file_engine,
+            {
+                "smb_host": "nas.invalid",
+                "smb_share": "backups",
+                "smb_username": "backup-user",
+                "smb_password_encrypted": encrypted,
+                "offbox_retention_mode": "tiered",
+                "offbox_keep_all_days": 7,
+                "offbox_daily_until_days": 30,
+                "offbox_weekly_until_days": 90,
+            },
+            expected_updated_at=current.updated_at,
+        )
+    assert repository.utcnow is repository_clock
     target_job = _completed_local(
         demo_file_engine,
         demo_file_settings.backup_dir,
