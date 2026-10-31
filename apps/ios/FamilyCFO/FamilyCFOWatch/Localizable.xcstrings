@@ -1,220 +1,6 @@
 {
   "sourceLanguage": "en",
   "strings": {
-    "Couldn't reach the server — check that this device is on the household network (or tailnet), and that Local Network access is allowed in Settings → Privacy & Security → Local Network.": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Nepavyko pasiekti serverio — patikrinkite, ar šis įrenginys yra namų ūkio tinkle (arba tailnet) ir ar Nustatymai → Privatumas ir sauga → Vietinis tinklas leidžia prieigą prie vietinio tinklo."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Không kết nối được tới máy chủ — hãy kiểm tra thiết bị này có đang ở trong mạng của hộ gia đình (hoặc tailnet) không, và quyền truy cập Mạng cục bộ đã được bật trong Cài đặt → Quyền riêng tư & Bảo mật → Mạng cục bộ."
-          }
-        }
-      }
-    },
-    "Couldn't talk to your CFO: %@": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Nepavyko susisiekti su CFO: %@"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Không liên lạc được với CFO: %@"
-          }
-        }
-      }
-    },
-    "Network error %lld: %@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "new",
-            "value": "Network error %1$lld: %2$@"
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Tinklo klaida %lld: %@"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Lỗi mạng %lld: %@"
-          }
-        }
-      }
-    },
-    "TLS handshake with the server failed (%lld). If the box uses a self-signed certificate, re-pair so the app can pin the current one.": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "TLS ryšio užmegzti su serveriu nepavyko (%lld). Jei serveris naudoja savo paties pasirašytą sertifikatą, susiekite iš naujo, kad programėlė prisegtų dabartinį."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bắt tay TLS với máy chủ thất bại (%lld). Nếu máy dùng chứng chỉ tự ký, hãy ghép nối lại để ứng dụng ghim chứng chỉ hiện tại."
-          }
-        }
-      }
-    },
-    "The connection dropped while the advisor was still working. The answer may still be saved — check this conversation again in a minute.": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Ryšys nutrūko, kol patarėjas dar dirbo. Atsakymas vis tiek gali būti išsaugotas — po minutės dar kartą atidarykite šį pokalbį."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kết nối bị gián đoạn khi cố vấn vẫn đang xử lý. Câu trả lời có thể vẫn được lưu — hãy kiểm tra lại cuộc trò chuyện này sau một phút."
-          }
-        }
-      }
-    },
-    "The request timed out while the advisor was still working. The answer may still be saved — check this conversation again in a minute.": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Užklausos laikas baigėsi, kol patarėjas dar dirbo. Atsakymas vis tiek gali būti išsaugotas — po minutės dar kartą atidarykite šį pokalbį."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Yêu cầu đã hết thời gian chờ khi cố vấn vẫn đang xử lý. Câu trả lời có thể vẫn được lưu — hãy kiểm tra lại cuộc trò chuyện này sau một phút."
-          }
-        }
-      }
-    },
-    "The server didn't answer in time — it may be busy loading the model. Try again in a minute.": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Serveris neatsakė laiku — jis gali būti užimtas įkeliant modelį. Pabandykite po minutės."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Máy chủ không trả lời kịp — có thể đang bận tải mô hình. Hãy thử lại sau một phút."
-          }
-        }
-      }
-    },
-    "The server's certificate doesn't match the pinned fingerprint from pairing. If the box's certificate changed, re-pair from the dashboard's Devices page.": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Serverio sertifikatas nesutampa su susiejant prisegtu kontroliniu kodu. Jei serverio sertifikatas pasikeitė, susiekite iš naujo valdymo skydelio Įrenginių puslapyje."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Chứng chỉ của máy chủ không khớp với dấu vân tay đã ghim khi ghép nối. Nếu chứng chỉ của máy đã thay đổi, hãy ghép nối lại từ trang Thiết bị trên bảng điều khiển."
-          }
-        }
-      }
-    },
-    "Partial total—1 stored amount could not be read and was left out.": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dalinė suma — 1 išsaugotos sumos nepavyko perskaityti, todėl ji neįtraukta."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tổng một phần — không thể đọc 1 khoản tiền đã lưu nên khoản đó không được tính."
-          }
-        }
-      }
-    },
-    "Partial total—%lld stored amounts could not be read and were left out.": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dalinė suma — %lld išsaugotų sumų nepavyko perskaityti, todėl jos neįtrauktos."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tổng một phần — không thể đọc %lld khoản tiền đã lưu nên các khoản đó không được tính."
-          }
-        }
-      }
-    },
-    "Unavailable because 1 stored amount could not be read.": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nepasiekiama, nes nepavyko perskaityti 1 išsaugotos sumos."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Không khả dụng vì không thể đọc 1 khoản tiền đã lưu."
-          }
-        }
-      }
-    },
-    "Unavailable because %lld stored amounts could not be read.": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nepasiekiama, nes nepavyko perskaityti %lld išsaugotų sumų."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Không khả dụng vì không thể đọc %lld khoản tiền đã lưu."
-          }
-        }
-      }
-    },
-    "Unavailable": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nepasiekiama"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Không khả dụng"
-          }
-        }
-      }
-    },
     "%@ of %@": {
       "localizations": {
         "lt": {
@@ -343,6 +129,92 @@
         }
       }
     },
+    "Couldn't reach the server — check that this device is on the household network (or tailnet), and that Local Network access is allowed in Settings → Privacy & Security → Local Network.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Nepavyko pasiekti serverio — patikrinkite, ar šis įrenginys yra namų ūkio tinkle (arba tailnet) ir ar Nustatymai → Privatumas ir sauga → Vietinis tinklas leidžia prieigą prie vietinio tinklo."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không kết nối được tới máy chủ — hãy kiểm tra thiết bị này có đang ở trong mạng của hộ gia đình (hoặc tailnet) không, và quyền truy cập Mạng cục bộ đã được bật trong Cài đặt → Quyền riêng tư & Bảo mật → Mạng cục bộ."
+          }
+        }
+      }
+    },
+    "Couldn't talk to your CFO: %@": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Nepavyko susisiekti su CFO: %@"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không liên lạc được với CFO: %@"
+          }
+        }
+      }
+    },
+    "Left to spend": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Liko išleisti"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Còn để chi tiêu"
+          }
+        }
+      }
+    },
+    "Net worth": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Grynoji vertė"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Giá trị ròng"
+          }
+        }
+      }
+    },
+    "Network error %lld: %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Network error %1$lld: %2$@"
+          }
+        },
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Tinklo klaida %lld: %@"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lỗi mạng %lld: %@"
+          }
+        }
+      }
+    },
     "No budgets yet — set them on the phone or web.": {
       "localizations": {
         "lt": {
@@ -375,18 +247,34 @@
         }
       }
     },
-    "Left to spend": {
+    "Partial total—%lld stored amounts could not be read and were left out.": {
       "localizations": {
         "lt": {
           "stringUnit": {
             "state": "translated",
-            "value": "Liko išleisti"
+            "value": "Dalinė suma — %lld išsaugotų sumų nepavyko perskaityti, todėl jos neįtrauktos."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Còn để chi tiêu"
+            "value": "Tổng một phần — không thể đọc %lld khoản tiền đã lưu nên các khoản đó không được tính."
+          }
+        }
+      }
+    },
+    "Partial total—1 stored amount could not be read and was left out.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dalinė suma — 1 išsaugotos sumos nepavyko perskaityti, todėl ji neįtraukta."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tổng một phần — không thể đọc 1 khoản tiền đã lưu nên khoản đó không được tính."
           }
         }
       }
@@ -407,34 +295,146 @@
         }
       }
     },
-    "Net worth": {
+    "TLS handshake with the server failed (%lld). Verify the certificate with the operator, then use Change server on the sign-in screen to confirm it explicitly.": {
       "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Grynoji vertė"
-          }
-        },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Giá trị ròng"
+            "value": "Bắt tay TLS với máy chủ thất bại (%lld). Xác minh chứng chỉ với người vận hành, rồi chọn Đổi máy chủ trên màn hình đăng nhập để xác nhận rõ ràng."
+          }
+        },
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TLS ryšio užmezgimas su serveriu nepavyko (%lld). Patikrinkite sertifikatą su operatoriumi, tada prisijungimo ekrane pasirinkite Keisti serverį ir aiškiai patvirtinkite."
           }
         }
       }
     },
-    "Unavailable—1 stored amount could not be read.": {
+    "The connection dropped while the advisor was still working. The answer may still be saved — check this conversation again in a minute.": {
       "localizations": {
         "lt": {
           "stringUnit": {
-            "state": "translated",
-            "value": "Nepasiekiama — nepavyko perskaityti 1 išsaugotos sumos."
+            "state": "needs_review",
+            "value": "Ryšys nutrūko, kol patarėjas dar dirbo. Atsakymas vis tiek gali būti išsaugotas — po minutės dar kartą atidarykite šį pokalbį."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Không khả dụng — không thể đọc 1 khoản tiền đã lưu."
+            "value": "Kết nối bị gián đoạn khi cố vấn vẫn đang xử lý. Câu trả lời có thể vẫn được lưu — hãy kiểm tra lại cuộc trò chuyện này sau một phút."
+          }
+        }
+      }
+    },
+    "The request timed out while the advisor was still working. The answer may still be saved — check this conversation again in a minute.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Užklausos laikas baigėsi, kol patarėjas dar dirbo. Atsakymas vis tiek gali būti išsaugotas — po minutės dar kartą atidarykite šį pokalbį."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Yêu cầu đã hết thời gian chờ khi cố vấn vẫn đang xử lý. Câu trả lời có thể vẫn được lưu — hãy kiểm tra lại cuộc trò chuyện này sau một phút."
+          }
+        }
+      }
+    },
+    "The request was cancelled or server trust was rejected. If the certificate changed, verify it with the operator, then use Change server on the sign-in screen to confirm it explicitly.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yêu cầu đã bị hủy hoặc độ tin cậy của máy chủ bị từ chối. Nếu chứng chỉ thay đổi, xác minh với người vận hành, rồi chọn Đổi máy chủ trên màn hình đăng nhập để xác nhận rõ ràng."
+          }
+        },
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Užklausa atšaukta arba pasitikėjimas serveriu atmestas. Jei sertifikatas pasikeitė, patikrinkite jį su operatoriumi, tada prisijungimo ekrane pasirinkite Keisti serverį ir aiškiai patvirtinkite."
+          }
+        }
+      }
+    },
+    "The server didn't answer in time — it may be busy loading the model. Try again in a minute.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Serveris neatsakė laiku — jis gali būti užimtas įkeliant modelį. Pabandykite po minutės."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Máy chủ không trả lời kịp — có thể đang bận tải mô hình. Hãy thử lại sau một phút."
+          }
+        }
+      }
+    },
+    "This device’s session is no longer valid. Sign out in Settings, then sign in again with your account.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Phiên của thiết bị này không còn hợp lệ. Đăng xuất trong Cài đặt, rồi đăng nhập lại bằng tài khoản của bạn."
+          }
+        },
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Šio įrenginio seansas nebegalioja. Atsijunkite Nuostatose, tada vėl prisijunkite savo paskyra."
+          }
+        }
+      }
+    },
+    "Unavailable": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nepasiekiama"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không khả dụng"
+          }
+        }
+      }
+    },
+    "Unavailable because %lld stored amounts could not be read.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nepasiekiama, nes nepavyko perskaityti %lld išsaugotų sumų."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không khả dụng vì không thể đọc %lld khoản tiền đã lưu."
+          }
+        }
+      }
+    },
+    "Unavailable because 1 stored amount could not be read.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nepasiekiama, nes nepavyko perskaityti 1 išsaugotos sumos."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không khả dụng vì không thể đọc 1 khoản tiền đã lưu."
           }
         }
       }
@@ -451,6 +451,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Không khả dụng — không thể đọc %lld khoản tiền đã lưu."
+          }
+        }
+      }
+    },
+    "Unavailable—1 stored amount could not be read.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nepasiekiama — nepavyko perskaityti 1 išsaugotos sumos."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không khả dụng — không thể đọc 1 khoản tiền đã lưu."
           }
         }
       }

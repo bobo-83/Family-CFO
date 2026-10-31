@@ -107,12 +107,12 @@ Not implemented in M4:
 
 Implemented:
 
-- `POST /api/v1/pairing/sessions`: authenticated `owner`/`adult` users can create a 10-minute pairing session. The returned QR payload contains non-secret server and household display metadata plus the pairing session id; it never contains a bearer token.
-- `POST /api/v1/pairing/confirm`: a mobile client can exchange a valid, unexpired, single-use pairing session id plus device name/public key for a device-backed bearer token. Raw tokens are returned once and only token hashes are stored.
+- `POST /api/v1/pairing/login`: account credentials + device name/public key establish a member-owned, revocable device session. Shares web-login throttling; only token hashes are stored.
+- ADR 0079 / issue #162: QR issuance/confirmation are removed with the UI in contract 0.162. Migration `0097_retire_qr_pairing` drops outstanding codes, not established devices/sessions/key wraps. See [account sign-in and recovery](../../docs/guides/account-sign-in.md).
 - `GET /api/v1/pairing/devices`: authenticated household users can list paired devices without public keys or token hashes.
-- `DELETE /api/v1/pairing/devices/{device_id}`: `owner` users can revoke a paired device. Revocation also revokes active auth sessions issued for that device.
+- `DELETE /api/v1/pairing/devices/{device_id}`: users with `devices.manage` can revoke a paired device. Revocation also revokes active auth sessions issued for that device.
 - `POST /api/v1/chat/messages`: authenticated users can request a bounded deterministic household snapshot. M6 chat computes net worth and emergency fund coverage, persists a recommendation row with calculation references, and does not persist raw chat messages.
-- The shared OpenAPI contract and generated Angular client now include paired-device listing/revocation, auth requirements for pairing session creation, and chat `401` errors.
+- The shared OpenAPI contract and generated Angular client now include account device sign-in, paired-device listing/revocation, and chat `401` errors.
 
 Not implemented in this Linux-backed M6 slice:
 

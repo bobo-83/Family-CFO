@@ -20,6 +20,8 @@ design specs and decisions, see the [Spec Kit](../specs/README.md) and
 - [Tax Parameter Updates](./tax-parameter-updates.md) — refreshing the
   brackets, standard deductions, and filing-status constants the tax estimator
   uses when a new tax year lands.
+- [Account Sign-in](./account-sign-in.md) — iPhone setup, server trust,
+  account/key recovery limits, and the coordinated QR-retirement upgrade.
 - [Security Hardening](./security.md) — TLS, sessions, roles, auditing, data at
   rest, secrets, and the operator responsibilities checklist.
 - [Troubleshooting](./troubleshooting.md) — common startup and operating

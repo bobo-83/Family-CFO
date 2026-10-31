@@ -112,15 +112,16 @@ struct LoginRateLimitMessageTests {
 
     /// A refused sign-in returns to the credentials step so the person can
     /// retry once the wait is over — it is not a dead end.
-    @Test func rateLimitedSignInStaysOnTheCredentialsStep() async {
+    @Test(arguments: [Optional("saved-pin"), nil])
+    func rateLimitedSignInStaysOnTheCredentialsStep(pin: String?) async {
         let baseURL = URL(string: "https://box.invalid/api/v1")!
         let viewModel = LoginViewModel(
-            step: .credentials(baseURL: baseURL, fingerprint: nil),
+            step: .credentials(baseURL: baseURL, fingerprint: pin),
             buildClient: { url, _ in
                 Client(serverURL: url, transport: RateLimitedTransport(retryAfter: "900"))
             }
         )
         await viewModel.signIn(into: AppModel())
-        #expect(viewModel.step == .credentials(baseURL: baseURL, fingerprint: nil))
+        #expect(viewModel.step == .credentials(baseURL: baseURL, fingerprint: pin))
     }
 }

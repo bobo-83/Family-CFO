@@ -134,9 +134,6 @@ class Settings:
     # M32: single-tenant by default — POST /households refuses once a household
     # exists. Opt out for deliberate multi-household deployments.
     allow_multiple_households: bool = False
-    # M83a: path to the deployment's TLS certificate (PEM). When set, pairing
-    # QR payloads carry its SHA-256 fingerprint so the iOS app can pin it.
-    tls_cert_path: str = ""
     # M87a (ADR 0018): OpenAI-compatible TTS service (Kokoro) for advisor voice.
     # Empty disables the /voice/tts endpoint (clients fall back to system TTS).
     tts_url: str = ""
@@ -245,7 +242,6 @@ class Settings:
             allow_multiple_households=_env_bool(
                 "FAMILY_CFO_ALLOW_MULTIPLE_HOUSEHOLDS", cls.allow_multiple_households
             ),
-            tls_cert_path=os.getenv("FAMILY_CFO_TLS_CERT_PATH", cls.tls_cert_path),
             tts_url=os.getenv("FAMILY_CFO_TTS_URL", cls.tts_url),
             tts_voice=os.getenv("FAMILY_CFO_TTS_VOICE", cls.tts_voice),
         )

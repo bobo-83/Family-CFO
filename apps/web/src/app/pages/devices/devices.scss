@@ -1,4 +1,4 @@
-.pairing-card {
+.install-card {
   max-width: 28rem;
   margin-bottom: 1.5rem;
 
@@ -7,33 +7,9 @@
   }
 }
 
-.pairing-card__for {
-  width: 100%;
-}
-
-.pairing-card__qr {
-  max-width: 16rem;
-  margin: 0.5rem 0;
-
-  // The SVG the qrcode library emits scales to its container.
-  :first-child {
-    width: 100%;
-    height: auto;
-  }
-}
-
-.pairing-card__meta {
+.install-card__meta {
   font-size: 0.9rem;
   color: var(--mat-sys-on-surface-variant, #5b6472);
-}
-
-.pairing-card__fingerprint {
-  font-size: 0.8rem;
-  color: var(--mat-sys-on-surface-variant, #5b6472);
-
-  code {
-    overflow-wrap: anywhere;
-  }
 }
 
 .device-list {
@@ -78,26 +54,4 @@
 
 .install-card__button {
   margin: 0.25rem 0 0.75rem;
-}
-
-.pairing-card__paste {
-  margin: 0.75rem 0;
-  width: 100%;
-}
-
-.pairing-card__copy {
-  margin-bottom: 0.5rem;
-}
-
-.pairing-card__payload {
-  width: 100%;
-  box-sizing: border-box;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.75rem;
-  color: var(--mat-sys-on-surface-variant, #5b6472);
-  border: 1px solid var(--mat-sys-outline-variant, #d7dbe0);
-  border-radius: var(--radius-sm, 6px);
-  padding: 0.5rem;
-  resize: vertical;
-  background: var(--mat-sys-surface-container-low, #f7f8fa);
 }

@@ -8,7 +8,7 @@ struct RootView: View {
         case .loading:
             ProgressView()
         case .unpaired:
-            PairingView()
+            LoginView()
         case .locked:
             AppLockView()
         case .ready:

@@ -357,17 +357,6 @@ def get_session_context(engine: Engine, token_hash: str) -> SessionContext | Non
 
 
 @dataclass(frozen=True, slots=True)
-class PairingSessionRecord:
-    id: str
-    household_id: str
-    created_by_user_id: str
-    qr_payload: str
-    expires_at: datetime
-    confirmed_at: datetime | None
-    revoked_at: datetime | None
-
-
-@dataclass(frozen=True, slots=True)
 class PairedDeviceRecord:
     id: str
     household_id: str
@@ -387,135 +376,6 @@ class DeviceCredentialRecord:
     expires_at: datetime
     household_id: str = ""
     user_id: str = ""
-
-
-def revoke_pending_pairing_sessions(engine: Engine, household_id: str, user_id: str) -> None:
-    """Invalidate any still-pending (unconfirmed, unrevoked, whether or not
-    expired) pairing session for this user — so minting a new QR leaves exactly
-    one valid code per user, and an old code that leaked can never pair."""
-    with engine.begin() as conn:
-        conn.execute(
-            update(models.pairing_sessions)
-            .where(
-                models.pairing_sessions.c.household_id == household_id,
-                models.pairing_sessions.c.created_by_user_id == user_id,
-                models.pairing_sessions.c.confirmed_at.is_(None),
-                models.pairing_sessions.c.revoked_at.is_(None),
-            )
-            .values(revoked_at=utcnow())
-        )
-
-
-def create_pairing_session(
-    engine: Engine,
-    pairing_session_id: str,
-    household_id: str,
-    created_by_user_id: str,
-    qr_payload: str,
-    expires_at: datetime,
-) -> PairingSessionRecord:
-    now = utcnow()
-    with engine.begin() as conn:
-        conn.execute(
-            insert(models.pairing_sessions).values(
-                id=pairing_session_id,
-                household_id=household_id,
-                created_by_user_id=created_by_user_id,
-                qr_payload=qr_payload,
-                created_at=now,
-                expires_at=expires_at,
-                confirmed_at=None,
-                revoked_at=None,
-            )
-        )
-
-    return PairingSessionRecord(
-        id=pairing_session_id,
-        household_id=household_id,
-        created_by_user_id=created_by_user_id,
-        qr_payload=qr_payload,
-        expires_at=expires_at,
-        confirmed_at=None,
-        revoked_at=None,
-    )
-
-
-def confirm_pairing_session(
-    engine: Engine,
-    pairing_session_id: str,
-    device_name: str,
-    device_public_key: str,
-    access_token: str,
-    token_hash: str,
-    expires_at: datetime,
-) -> DeviceCredentialRecord | None:
-    now = utcnow()
-    device_id = new_id()
-    auth_session_id = new_id()
-
-    with engine.begin() as conn:
-        session = (
-            conn.execute(
-                select(models.pairing_sessions).where(
-                    models.pairing_sessions.c.id == pairing_session_id
-                )
-            )
-            .mappings()
-            .first()
-        )
-
-        if session is None:
-            return None
-        if session["revoked_at"] is not None or session["confirmed_at"] is not None:
-            return None
-        if _as_aware(session["expires_at"]) < now:
-            return None
-
-        claimed = conn.execute(
-            update(models.pairing_sessions)
-            .where(
-                models.pairing_sessions.c.id == pairing_session_id,
-                models.pairing_sessions.c.confirmed_at.is_(None),
-                models.pairing_sessions.c.revoked_at.is_(None),
-                models.pairing_sessions.c.expires_at >= now,
-            )
-            .values(confirmed_at=now)
-        )
-        if claimed.rowcount == 0:
-            return None
-
-        conn.execute(
-            insert(models.paired_devices).values(
-                id=device_id,
-                household_id=session["household_id"],
-                user_id=session["created_by_user_id"],
-                name=device_name,
-                public_key=device_public_key,
-                created_at=now,
-                last_seen_at=None,
-                revoked_at=None,
-            )
-        )
-        conn.execute(
-            insert(models.auth_sessions).values(
-                id=auth_session_id,
-                user_id=session["created_by_user_id"],
-                household_id=session["household_id"],
-                device_id=device_id,
-                token_hash=token_hash,
-                created_at=now,
-                expires_at=expires_at,
-                revoked_at=None,
-            )
-        )
-
-    return DeviceCredentialRecord(
-        device_id=device_id,
-        access_token=access_token,
-        expires_at=expires_at,
-        household_id=session["household_id"],
-        user_id=session["created_by_user_id"],
-    )
 
 
 def list_paired_devices(engine: Engine, household_id: str) -> list[PairedDeviceRecord]:
@@ -1249,9 +1109,7 @@ def create_paired_device_with_session(
     token_hash: str,
     expires_at: datetime,
 ) -> DeviceCredentialRecord:
-    """ADR 0056: credentialed pairing — the iOS login screen. Creates the same
-    paired-device row + device-bound session that QR confirm creates, so a
-    signed-in phone shows on the Devices page and revocation works identically."""
+    """ADR 0079: register a member-owned device and revocable device session."""
     now = utcnow()
     device_id = new_id()
     with engine.begin() as conn:
@@ -1343,7 +1201,7 @@ def create_invite(
     expires_at: datetime,
 ) -> InviteRecord:
     """Revokes any prior pending invite for the same email first — one valid
-    link per invitee, mirroring the pairing one-valid-QR rule."""
+    link per invitee."""
     now = utcnow()
     invite_id = new_id()
     with engine.begin() as conn:

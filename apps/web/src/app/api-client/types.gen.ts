@@ -63,31 +63,12 @@ export type SavingsContributionSet = {
     detection: ComputationAvailability;
 };
 
-/**
- * Owner-only: mint the pairing code for another household member so a regular member never signs into the dashboard to pair their phone. Omit to pair for yourself.
- */
-export type PairingSessionCreateRequest = {
-    user_id?: string | null;
-};
-
-export type PairingSession = {
-    id: string;
-    qr_payload: string;
-    expires_at: string;
-};
-
-export type PairingConfirmRequest = {
-    pairing_session_id: string;
-    device_name: string;
-    device_public_key: string;
-};
-
 export type DeviceCredential = {
     device_id: string;
     access_token: string;
     expires_at: string;
     /**
-     * M83: household role of the user the device acts as (the pairing session's creator), so the mobile app can build its role-aware shell without spending the device token on a session refresh.
+     * Household role of the signed-in member, so the mobile app can build its role-aware shell without spending the device token on a session refresh.
      */
     role?: HouseholdRole;
     /**
@@ -99,14 +80,14 @@ export type DeviceCredential = {
      */
     rights?: Array<string> | null;
     /**
-     * ADR 0056: the household, so the email-login path (no QR payload) can build the device's ServerConfig. Also populated on QR confirm.
+     * The signed-in household, used to build the device's ServerConfig.
      */
     household_id?: string | null;
     household_name?: string | null;
 };
 
 /**
- * ADR 0056: credentialed pairing — the iOS login screen. Same outcome as a QR confirm: a paired device with a device-bound session.
+ * ADR 0079: account-only device sign-in with a device-bound session.
  */
 export type PairingLoginRequest = {
     email: string;
@@ -3475,64 +3456,6 @@ export type GetHealthResponses = {
 };
 
 export type GetHealthResponse = GetHealthResponses[keyof GetHealthResponses];
-
-export type CreatePairingSessionData = {
-    body?: PairingSessionCreateRequest;
-    path?: never;
-    query?: never;
-    url: '/pairing/sessions';
-};
-
-export type CreatePairingSessionErrors = {
-    /**
-     * Error response
-     */
-    401: ErrorResponse;
-    /**
-     * Error response
-     */
-    403: ErrorResponse;
-    /**
-     * Error response
-     */
-    404: ErrorResponse;
-};
-
-export type CreatePairingSessionError = CreatePairingSessionErrors[keyof CreatePairingSessionErrors];
-
-export type CreatePairingSessionResponses = {
-    /**
-     * Pairing session created
-     */
-    201: PairingSession;
-};
-
-export type CreatePairingSessionResponse = CreatePairingSessionResponses[keyof CreatePairingSessionResponses];
-
-export type ConfirmPairingData = {
-    body: PairingConfirmRequest;
-    path?: never;
-    query?: never;
-    url: '/pairing/confirm';
-};
-
-export type ConfirmPairingErrors = {
-    /**
-     * Error response
-     */
-    400: ErrorResponse;
-};
-
-export type ConfirmPairingError = ConfirmPairingErrors[keyof ConfirmPairingErrors];
-
-export type ConfirmPairingResponses = {
-    /**
-     * Device paired
-     */
-    200: DeviceCredential;
-};
-
-export type ConfirmPairingResponse = ConfirmPairingResponses[keyof ConfirmPairingResponses];
 
 export type CreateDeviceSessionWithPasswordData = {
     body: PairingLoginRequest;

@@ -293,6 +293,13 @@ Nav sections, per `docs/specs/09-angular-dashboard-spec.md`: Overview, Accounts,
 
 ## M6: iPhone App
 
+> Historical milestone: QR bootstrap/UI/API clauses below are superseded by
+> ADR 0079 (issue #162, contract 0.162). Current sign-in is account-only; QR UI,
+> issuance/confirmation and outstanding codes are removed in the same change.
+> Shared device sessions, keys and revocation remain. See the current mobile
+> spec and account sign-in guide; this historical plan does not retain QR.
+
+
 - Pairing
 - Chat
 - Camera capture

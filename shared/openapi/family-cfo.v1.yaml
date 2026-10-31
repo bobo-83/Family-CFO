@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Family CFO API
-  version: "0.161"
+  version: "0.162"
   description: >
     Initial specification for the Family CFO self-hosted backend API.
     This contract is the source of truth for generated Swift and Angular clients.
@@ -42,64 +42,15 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthResponse"
-  /pairing/sessions:
-    post:
-      tags:
-        - Pairing
-      operationId: createPairingSession
-      summary: Create a short-lived pairing session for a device
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/PairingSessionCreateRequest"
-      responses:
-        "201":
-          description: Pairing session created
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/PairingSession"
-        "401":
-          $ref: "#/components/responses/Error"
-        "403":
-          $ref: "#/components/responses/Error"
-        "404":
-          $ref: "#/components/responses/Error"
-  /pairing/confirm:
-    post:
-      tags:
-        - Pairing
-      operationId: confirmPairing
-      summary: Confirm mobile device pairing
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/PairingConfirmRequest"
-      responses:
-        "200":
-          description: Device paired
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/DeviceCredential"
-        "400":
-          $ref: "#/components/responses/Error"
   /pairing/login:
     post:
       tags:
         - Pairing
       operationId: createDeviceSessionWithPassword
-      summary: Sign a device in with email + password (credentialed pairing)
+      summary: Sign a device in with email + password
       description: >-
-        ADR 0056: the iOS login screen. Same outcome as a QR confirm — a paired
-        device with a device-bound session — so the Devices page and revocation
-        cover phones however they signed in.
+        ADR 0079: the sole new-device sign-in path. Creates a member-owned
+        device with a revocable device-bound session and encryption wrap.
       requestBody:
         required: true
         content:
@@ -4384,50 +4335,6 @@ components:
       - contributions
       - detection
       title: SavingsContributionSet
-    PairingSessionCreateRequest:
-      type: object
-      description: >-
-        Owner-only: mint the pairing code for another household member so a
-        regular member never signs into the dashboard to pair their phone.
-        Omit to pair for yourself.
-      properties:
-        user_id:
-          type:
-            - string
-            - "null"
-          format: uuid
-    PairingSession:
-      type: object
-      required:
-        - id
-        - qr_payload
-        - expires_at
-      properties:
-        id:
-          type: string
-          format: uuid
-        qr_payload:
-          type: string
-        expires_at:
-          type: string
-          format: date-time
-    PairingConfirmRequest:
-      type: object
-      required:
-        - pairing_session_id
-        - device_name
-        - device_public_key
-      properties:
-        pairing_session_id:
-          type: string
-          format: uuid
-        device_name:
-          type: string
-          minLength: 1
-          maxLength: 120
-        device_public_key:
-          type: string
-          minLength: 1
     DeviceCredential:
       type: object
       required:
@@ -4445,8 +4352,7 @@ components:
           format: date-time
         role:
           description: >-
-            M83: household role of the user the device acts as (the pairing
-            session's creator), so the mobile app can build its role-aware
+            Household role of the signed-in member, so the mobile app can build its role-aware
             shell without spending the device token on a session refresh.
           $ref: "#/components/schemas/HouseholdRole"
         role_name:
@@ -4462,8 +4368,7 @@ components:
           items: { type: string }
         household_id:
           description: >-
-            ADR 0056: the household, so the email-login path (no QR payload)
-            can build the device's ServerConfig. Also populated on QR confirm.
+            The signed-in household, used to build the device's ServerConfig.
           type:
             - string
             - "null"
@@ -4474,8 +4379,7 @@ components:
     PairingLoginRequest:
       type: object
       description: >-
-        ADR 0056: credentialed pairing — the iOS login screen. Same outcome as
-        a QR confirm: a paired device with a device-bound session.
+        ADR 0079: account-only device sign-in with a device-bound session.
       required:
         - email
         - password

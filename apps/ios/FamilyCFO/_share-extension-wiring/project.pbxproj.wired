@@ -420,7 +420,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Family CFO";
-				INFOPLIST_KEY_NSCameraUsageDescription = "The camera scans the pairing QR code from your Family CFO dashboard and captures receipts or documents you attach in chat.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "The camera captures receipts or documents you attach in chat.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Face ID keeps your household finances locked to you.";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Family CFO talks directly to your home server on your own network — no cloud in between.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "The microphone lets you talk to your advisor. Speech is transcribed on this phone; audio never leaves the device.";
@@ -452,7 +452,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Family CFO";
-				INFOPLIST_KEY_NSCameraUsageDescription = "The camera scans the pairing QR code from your Family CFO dashboard and captures receipts or documents you attach in chat.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "The camera captures receipts or documents you attach in chat.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Face ID keeps your household finances locked to you.";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Family CFO talks directly to your home server on your own network — no cloud in between.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "The microphone lets you talk to your advisor. Speech is transcribed on this phone; audio never leaves the device.";

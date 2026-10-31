@@ -2155,6 +2155,22 @@
         }
       }
     },
+    "Activation queued…": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aktyvinimas įtrauktas į eilę…"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã xếp hàng kích hoạt…"
+          }
+        }
+      }
+    },
     "Activity": {
       "localizations": {
         "lt": {
@@ -3121,6 +3137,22 @@
         }
       }
     },
+    "Automatic pruning is paused. Review and activate the retention policy; the server reports no additional recovery fault for this destination.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatinis valymas pristabdytas. Peržiūrėkite ir aktyvinkite saugojimo politiką; serveris nepraneša apie kitą šios paskirties vietos atkūrimo triktį."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tự động dọn bản sao đã tạm dừng. Hãy xem xét và kích hoạt chính sách lưu giữ; máy chủ không báo lỗi khôi phục nào khác cho đích này."
+          }
+        }
+      }
+    },
     "Away from home, connect through your household's own VPN or tailnet — the server is never exposed to the internet.": {
       "localizations": {
         "lt": {
@@ -3233,6 +3265,38 @@
         }
       }
     },
+    "Backup destination": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atsarginių kopijų paskirties vieta"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đích sao lưu"
+          }
+        }
+      }
+    },
+    "Backup destination saved.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atsarginių kopijų paskirties vieta išsaugota."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã lưu đích sao lưu."
+          }
+        }
+      }
+    },
     "Backup key copied.": {
       "localizations": {
         "lt": {
@@ -3261,6 +3325,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sự cố sao lưu"
+          }
+        }
+      }
+    },
+    "Backup schedule saved.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atsarginių kopijų tvarkaraštis išsaugotas."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã lưu lịch sao lưu."
           }
         }
       }
@@ -4133,22 +4213,6 @@
         }
       }
     },
-    "Certificate fingerprint": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Sertifikato kontrolinis kodas"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dấu vân tay chứng chỉ"
-          }
-        }
-      }
-    },
     "Change password": {
       "localizations": {
         "lt": {
@@ -4161,6 +4225,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Đổi mật khẩu"
+          }
+        }
+      }
+    },
+    "Change server": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đổi máy chủ"
+          }
+        },
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keisti serverį"
           }
         }
       }
@@ -4501,18 +4581,18 @@
         }
       }
     },
-    "Compare the fingerprint with the one shown on the dashboard. Pairing can be revoked there at any time.": {
+    "Compare the full fingerprint with the operator through a trusted channel before continuing. CA-signed servers use system certificate validation.": {
       "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Palyginkite kontrolinį kodą su rodomu skydelyje. Susiejimą ten galima atšaukti bet kada."
-          }
-        },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hãy so sánh dấu vân tay này với dấu hiện trên bảng điều khiển. Việc ghép nối có thể bị thu hồi ở đó bất cứ lúc nào."
+            "value": "Trước khi tiếp tục, đối chiếu toàn bộ dấu vân tay với người vận hành qua một kênh đáng tin cậy. Máy chủ có chứng chỉ do CA ký được xác thực bằng hệ thống."
+          }
+        },
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prieš tęsdami patikimu kanalu su operatoriumi palyginkite visą sertifikato kontrolinį kodą. CA pasirašytus serverių sertifikatus tikrina sistema."
           }
         }
       }
@@ -5047,6 +5127,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Không kết nối được với máy chủ: hãy chắc chắn điện thoại này ở cùng mạng (hoặc tailnet) với máy Family CFO của bạn."
+          }
+        }
+      }
+    },
+    "Could not securely save this device’s sign-in. Try signing in again.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không thể lưu thông tin đăng nhập của thiết bị một cách an toàn. Hãy đăng nhập lại."
+          }
+        },
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nepavyko saugiai išsaugoti šio įrenginio prisijungimo. Bandykite prisijungti dar kartą."
           }
         }
       }
@@ -7272,6 +7368,54 @@
           "stringUnit": {
             "state": "translated",
             "value": "Vừa máy này"
+          }
+        }
+      }
+    },
+    "Forget server": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quên máy chủ"
+          }
+        },
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pamiršti serverį"
+          }
+        }
+      }
+    },
+    "Forget this server": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quên máy chủ này"
+          }
+        },
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pamiršti šį serverį"
+          }
+        }
+      }
+    },
+    "Forget this server?": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quên máy chủ này?"
+          }
+        },
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pamiršti šį serverį?"
           }
         }
       }
@@ -10789,22 +10933,6 @@
         }
       }
     },
-    "On-box backup list unavailable": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Šiame įrenginyje esančių atsarginių kopijų sąrašas nepasiekiamas"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Danh sách sao lưu trên hộp không khả dụng"
-          }
-        }
-      }
-    },
     "On this box": {
       "localizations": {
         "lt": {
@@ -10871,6 +10999,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Đúng tiến độ — %1$@ · dự kiến %2$@"
+          }
+        }
+      }
+    },
+    "On-box backup list unavailable": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Šiame įrenginyje esančių atsarginių kopijų sąrašas nepasiekiamas"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Danh sách sao lưu trên hộp không khả dụng"
           }
         }
       }
@@ -10951,22 +11095,6 @@
           "stringUnit": {
             "state": "needs_review",
             "value": "Chỉ mật khẩu của bạn, điện thoại của bạn và khóa khôi phục mới mở được dữ liệu. Sau khi khởi động lại, không gì đọc được cho đến khi có người đăng nhập. Các việc chạy nền sẽ chạy bù khi phiên khóa trong bộ nhớ đang mở. Phiên này hết hạn 30 phút sau lần sử dụng gần nhất do thành viên thực hiện; đăng xuất không đóng phiên ngay lập tức. Bản sao lưu đã mã hóa vẫn chạy trong cả hai trường hợp."
-          }
-        }
-      }
-    },
-    "Open **Admin → Devices** on your Family CFO dashboard and generate a pairing QR code.": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Savo Family CFO skydelyje atverkite **Administravimas → Įrenginiai** ir sugeneruokite susiejimo QR kodą."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mở **Quản trị → Thiết bị** trên bảng điều khiển Family CFO của bạn và tạo mã QR ghép nối."
           }
         }
       }
@@ -11298,22 +11426,6 @@
         }
       }
     },
-    "Pair": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Susieti"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ghép nối"
-          }
-        }
-      }
-    },
     "Pair this phone with your household's box first, in the Family CFO app.": {
       "localizations": {
         "lt": {
@@ -11342,22 +11454,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ghép nối điện thoại này với máy của hộ gia đình để xem số liệu của bạn."
-          }
-        }
-      }
-    },
-    "Pair with your CFO": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Susiekite su savo CFO"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ghép nối với CFO"
           }
         }
       }
@@ -11396,38 +11492,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ghép nối %@ · chưa dùng lần nào"
-          }
-        }
-      }
-    },
-    "Pairing failed": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Susieti nepavyko"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ghép nối thất bại"
-          }
-        }
-      }
-    },
-    "Pairing…": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Susiejama…"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Đang ghép nối…"
           }
         }
       }
@@ -11540,22 +11604,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Dán từ khay nhớ tạm"
-          }
-        }
-      }
-    },
-    "Paste the QR payload below instead (shown under the QR on the dashboard).": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Vietoj to žemiau įklijuokite QR turinį (jis rodomas po QR kodu skydelyje)."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Thay vào đó hãy dán nội dung QR bên dưới (hiện ngay dưới mã QR trên bảng điều khiển)."
           }
         }
       }
@@ -12630,6 +12678,54 @@
         }
       }
     },
+    "Reload backup settings before saving again.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prieš išsaugodami dar kartą įkelkite atsarginių kopijų nustatymus."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hãy tải lại cài đặt sao lưu trước khi lưu lần nữa."
+          }
+        }
+      }
+    },
+    "Reload current settings": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Iš naujo įkelti dabartinius nustatymus"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tải lại cài đặt hiện tại"
+          }
+        }
+      }
+    },
+    "Reloading current box settings…": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Iš naujo įkeliami dabartiniai dėžutės nustatymai…"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang tải lại cài đặt hiện tại của hộp…"
+          }
+        }
+      }
+    },
     "Remove photo": {
       "localizations": {
         "lt": {
@@ -13062,6 +13158,22 @@
         }
       }
     },
+    "Retention": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saugojimas"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lưu giữ"
+          }
+        }
+      }
+    },
     "Retention and capacity": {
       "localizations": {
         "lt": {
@@ -13090,6 +13202,54 @@
           "stringUnit": {
             "state": "translated",
             "value": "Chế độ lưu giữ"
+          }
+        }
+      }
+    },
+    "Retention policy review is also required. Review and activate it after resolving the recovery issue above.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Taip pat būtina peržiūrėti saugojimo politiką. Išsprendę aukščiau nurodytą atkūrimo problemą, peržiūrėkite ir aktyvinkite politiką."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cũng cần xem xét chính sách lưu giữ. Hãy xem xét và kích hoạt sau khi xử lý vấn đề khôi phục ở trên."
+          }
+        }
+      }
+    },
+    "Retention save error. Reloading current box settings.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saugojimo išsaugojimo klaida. Iš naujo įkeliami dabartiniai dėžutės nustatymai."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lỗi lưu chính sách lưu giữ. Đang tải lại cài đặt hiện tại của hộp."
+          }
+        }
+      }
+    },
+    "Retention settings saved and activated.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saugojimo nustatymai išsaugoti ir aktyvinti."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã lưu và kích hoạt cài đặt lưu giữ."
           }
         }
       }
@@ -13138,6 +13298,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "Thử lại"
+          }
+        }
+      }
+    },
+    "Retry loading backup settings": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bandyti dar kartą įkelti atsarginių kopijų nustatymus"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thử tải lại cài đặt sao lưu"
+          }
+        }
+      }
+    },
+    "Retry save": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bandyti išsaugoti dar kartą"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thử lưu lại"
           }
         }
       }
@@ -13202,6 +13394,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Xem lại và hoàn tác các thao tác đã làm, sao lưu vào Synology của bạn, và xem mọi thiết bị đã ghép nối với hộ gia đình này. Bản sao lưu mã hóa chạy tự động hằng ngày."
+          }
+        }
+      }
+    },
+    "Review required": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Būtina peržiūra"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cần xem xét"
           }
         }
       }
@@ -13394,6 +13602,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Lưu"
+          }
+        }
+      }
+    },
+    "Save and activate current settings": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Išsaugoti ir aktyvinti dabartinius nustatymus"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lưu và kích hoạt cài đặt hiện tại"
           }
         }
       }
@@ -14238,22 +14462,6 @@
         }
       }
     },
-    "Sign in with email instead": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Prisijungti el. paštu"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Đăng nhập bằng email"
-          }
-        }
-      }
-    },
     "Sign out": {
       "localizations": {
         "lt": {
@@ -14286,6 +14494,54 @@
         }
       }
     },
+    "Sign-in failed unexpectedly. Check app/server compatibility and try again; the cause is not known.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đăng nhập thất bại ngoài dự kiến. Kiểm tra tính tương thích giữa ứng dụng và máy chủ rồi thử lại; chưa rõ nguyên nhân."
+          }
+        },
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prisijungimas netikėtai nepavyko. Patikrinkite programėlės ir serverio suderinamumą ir bandykite dar kartą; priežastis nežinoma."
+          }
+        }
+      }
+    },
+    "Sign-in was cancelled. If you did not cancel it, verify the server certificate with the operator and use Change server to confirm it explicitly.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đăng nhập đã bị hủy. Nếu bạn không hủy, hãy xác minh chứng chỉ máy chủ với người vận hành và chọn Đổi máy chủ để xác nhận rõ ràng."
+          }
+        },
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prisijungimas atšauktas. Jei jo neatšaukėte, su operatoriumi patikrinkite serverio sertifikatą ir pasirinkę Keisti serverį aiškiai jį patvirtinkite."
+          }
+        }
+      }
+    },
+    "Sign-in was cancelled. Try again when ready.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đăng nhập đã bị hủy. Hãy thử lại khi sẵn sàng."
+          }
+        },
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prisijungimas atšauktas. Bandykite dar kartą, kai būsite pasiruošę."
+          }
+        }
+      }
+    },
     "Signing in…": {
       "localizations": {
         "lt": {
@@ -14302,18 +14558,18 @@
         }
       }
     },
-    "Signs this member out but keeps the server pairing info — sign back in with email + password (ADR 0056), or scan a fresh QR. Good for switching members on a shared device.": {
+    "Signs this member out but keeps the server address and certificate trust — sign back in with your account. Make sure you know your password before signing out; there is no forgotten-password reset.": {
       "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Atjungia šį narį, bet palieka serverio susiejimo informaciją — prisijunkite iš naujo el. paštu + slaptažodžiu (ADR 0056) arba nuskaitykite naują QR kodą. Patogu, kai bendrame įrenginyje keičiasi nariai."
-          }
-        },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Đăng xuất thành viên này nhưng vẫn giữ thông tin ghép nối máy chủ — đăng nhập lại bằng email + mật khẩu (ADR 0056), hoặc quét mã QR mới. Tiện khi đổi thành viên trên thiết bị dùng chung."
+            "value": "Đăng xuất thành viên này nhưng giữ địa chỉ máy chủ và độ tin cậy của chứng chỉ — đăng nhập lại bằng tài khoản của bạn. Hãy chắc chắn bạn nhớ mật khẩu trước khi đăng xuất; không có chức năng đặt lại mật khẩu đã quên."
+          }
+        },
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Narys atjungiamas, bet serverio adresas ir pasitikėjimas sertifikatu išsaugomi — vėl prisijunkite savo paskyra. Prieš atsijungdami įsitikinkite, kad žinote slaptažodį; pamiršto slaptažodžio atkurti negalima."
           }
         }
       }
@@ -15095,18 +15351,34 @@
         }
       }
     },
-    "TLS handshake with the server failed (%lld). If the box uses a self-signed certificate, re-pair so the app can pin the current one.": {
+    "System-validated certificate": {
       "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "TLS ryšio užmegzti su serveriu nepavyko (%lld). Jei serveris naudoja savo paties pasirašytą sertifikatą, susiekite iš naujo, kad programėlė prisegtų dabartinį."
-          }
-        },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bắt tay TLS với máy chủ thất bại (%lld). Nếu máy dùng chứng chỉ tự ký, hãy ghép nối lại để ứng dụng ghim chứng chỉ hiện tại."
+            "value": "Chứng chỉ được hệ thống xác thực"
+          }
+        },
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sistemos patikrintas sertifikatas"
+          }
+        }
+      }
+    },
+    "TLS handshake with the server failed (%lld). Verify the certificate with the operator, then use Change server on the sign-in screen to confirm it explicitly.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bắt tay TLS với máy chủ thất bại (%lld). Xác minh chứng chỉ với người vận hành, rồi chọn Đổi máy chủ trên màn hình đăng nhập để xác nhận rõ ràng."
+          }
+        },
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TLS ryšio užmezgimas su serveriu nepavyko (%lld). Patikrinkite sertifikatą su operatoriumi, tada prisijungimo ekrane pasirinkite Keisti serverį ir aiškiai patvirtinkite."
           }
         }
       }
@@ -15501,22 +15773,6 @@
         }
       }
     },
-    "That doesn't look like a Family CFO pairing code.": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Tai nepanašu į Family CFO susiejimo kodą."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Đây không giống mã ghép nối Family CFO."
-          }
-        }
-      }
-    },
     "That file can't be scanned — use a photo or a PDF of the W-2.": {
       "localizations": {
         "lt": {
@@ -15763,18 +16019,18 @@
         }
       }
     },
-    "The app will only ever talk to the server presenting this certificate — the same trust as scanning the pairing QR.": {
+    "The backup settings are invalid.": {
       "localizations": {
         "lt": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Programėlė bendraus tik su serveriu, pateikiančiu šį sertifikatą — toks pat pasitikėjimas kaip nuskaičius susiejimo QR kodą."
+            "state": "translated",
+            "value": "Atsarginių kopijų nustatymai netinkami."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ứng dụng sẽ chỉ kết nối với máy chủ xuất trình chứng chỉ này — mức tin cậy giống như khi quét mã QR ghép nối."
+            "value": "Cài đặt sao lưu không hợp lệ."
           }
         }
       }
@@ -15855,6 +16111,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Máy này phải luôn có ít nhất một quản trị viên hệ thống."
+          }
+        }
+      }
+    },
+    "The box now matches these settings, but the original response was not confirmed.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dėžutės nustatymai dabar sutampa, tačiau pradinis atsakymas nebuvo patvirtintas."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hộp hiện khớp với các cài đặt này, nhưng phản hồi ban đầu chưa được xác nhận."
           }
         }
       }
@@ -16051,38 +16323,6 @@
         }
       }
     },
-    "The pairing code is incomplete: %@": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Susiejimo kodas nepilnas: %@"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mã ghép nối chưa đầy đủ: %@"
-          }
-        }
-      }
-    },
-    "The pairing code was already used or has expired. Generate a fresh one on the dashboard.": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Susiejimo kodas jau panaudotas arba nebegalioja. Sugeneruokite naują valdymo skydelyje."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mã ghép nối đã được dùng hoặc đã hết hạn. Hãy tạo mã mới trên bảng điều khiển."
-          }
-        }
-      }
-    },
     "The reader also found %lld charges on this statement. Storing them REPLACES whatever was read for this statement before — it never adds a second copy.": {
       "localizations": {
         "lt": {
@@ -16111,6 +16351,22 @@
           "stringUnit": {
             "state": "needs_review",
             "value": "Yêu cầu đã hết thời gian chờ khi cố vấn vẫn đang xử lý. Câu trả lời có thể vẫn được lưu — hãy kiểm tra lại cuộc trò chuyện này sau một phút."
+          }
+        }
+      }
+    },
+    "The request was cancelled or server trust was rejected. If the certificate changed, verify it with the operator, then use Change server on the sign-in screen to confirm it explicitly.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yêu cầu đã bị hủy hoặc độ tin cậy của máy chủ bị từ chối. Nếu chứng chỉ thay đổi, xác minh với người vận hành, rồi chọn Đổi máy chủ trên màn hình đăng nhập để xác nhận rõ ràng."
+          }
+        },
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Užklausa atšaukta arba pasitikėjimas serveriu atmestas. Jei sertifikatas pasikeitė, patikrinkite jį su operatoriumi, tada prisijungimo ekrane pasirinkite Keisti serverį ir aiškiai patvirtinkite."
           }
         }
       }
@@ -16147,6 +16403,22 @@
         }
       }
     },
+    "The schedule saves when selected. Destination values save when editing finishes. Retention changes use the separate activation button below. The password is encrypted on the box and never shown again.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tvarkaraštis išsaugomas jį pasirinkus. Paskirties vietos reikšmės išsaugomos baigus redaguoti. Saugojimo pakeitimams naudokite atskirą aktyvinimo mygtuką žemiau. Slaptažodis dėžutėje užšifruojamas ir daugiau nerodomas."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lịch được lưu khi chọn. Các giá trị đích được lưu khi chỉnh sửa xong. Thay đổi lưu giữ dùng nút kích hoạt riêng bên dưới. Mật khẩu được mã hóa trên hộp và không bao giờ hiển thị lại."
+          }
+        }
+      }
+    },
     "The server address and pinned certificate stay on this phone; only your session ends.": {
       "localizations": {
         "lt": {
@@ -16159,22 +16431,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Địa chỉ máy chủ và chứng chỉ đã ghim vẫn ở lại điện thoại này; chỉ phiên đăng nhập của bạn kết thúc."
-          }
-        }
-      }
-    },
-    "The server answered but its certificate was rejected. If the box's certificate was regenerated, this is expected — unpair and pair again.": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Serveris atsakė, bet jo sertifikatas buvo atmestas. Jei serverio sertifikatas buvo sukurtas iš naujo, taip ir turi būti — atsiekite įrenginį ir susiekite iš naujo."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Máy chủ có trả lời nhưng chứng chỉ bị từ chối. Nếu chứng chỉ của máy vừa được tạo lại thì điều này là bình thường — hãy huỷ ghép nối rồi ghép lại."
           }
         }
       }
@@ -16195,6 +16451,38 @@
         }
       }
     },
+    "The server certificate was rejected. Verify the server address and certificate with the operator. To trust a changed self-signed certificate, choose Change server and confirm it explicitly.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chứng chỉ máy chủ đã bị từ chối. Xác minh địa chỉ máy chủ và chứng chỉ với người vận hành. Để tin cậy chứng chỉ tự ký đã thay đổi, chọn Đổi máy chủ và xác nhận rõ ràng."
+          }
+        },
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Serverio sertifikatas atmestas. Su operatoriumi patikrinkite serverio adresą ir sertifikatą. Norėdami pasitikėti pakeistu savarankiškai pasirašytu sertifikatu, pasirinkite Keisti serverį ir aiškiai jį patvirtinkite."
+          }
+        }
+      }
+    },
+    "The server did not answer in time. Check its status and the network or VPN, then try again.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Máy chủ không phản hồi kịp thời. Kiểm tra trạng thái máy chủ và mạng hoặc VPN, rồi thử lại."
+          }
+        },
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Serveris laiku neatsakė. Patikrinkite jo būseną ir tinklą arba VPN, tada bandykite dar kartą."
+          }
+        }
+      }
+    },
     "The server didn't answer in time — it may be busy loading the model. Try again in a minute.": {
       "localizations": {
         "lt": {
@@ -16211,50 +16499,34 @@
         }
       }
     },
-    "The server uses a self-signed certificate but the pairing code carried no fingerprint to pin. Check the server's FAMILY_CFO_TLS_CERT_PATH.": {
+    "The server response could not be decoded. Check that the app and server are compatible.": {
       "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Serveris naudoja savarankiškai pasirašytą sertifikatą, bet susiejimo kode nebuvo kontrolinio kodo, kurį būtų galima prisegti. Patikrinkite serverio FAMILY_CFO_TLS_CERT_PATH."
-          }
-        },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Máy chủ dùng chứng chỉ tự ký nhưng mã ghép nối không kèm dấu vân tay để ghim. Hãy kiểm tra FAMILY_CFO_TLS_CERT_PATH của máy chủ."
+            "value": "Không thể giải mã phản hồi của máy chủ. Hãy kiểm tra tính tương thích giữa ứng dụng và máy chủ."
+          }
+        },
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nepavyko iškoduoti serverio atsakymo. Patikrinkite programėlės ir serverio suderinamumą."
           }
         }
       }
     },
-    "The server's certificate does not match the fingerprint in the pairing code. If the certificate was rotated, generate a new pairing QR.": {
+    "The sign-in request could not be encoded. Update the app and try again.": {
       "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Serverio sertifikatas neatitinka susiejimo kode nurodyto kontrolinio kodo. Jei sertifikatas buvo pakeistas, sugeneruokite naują susiejimo QR kodą."
-          }
-        },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Chứng chỉ của máy chủ không khớp với dấu vân tay trong mã ghép nối. Nếu chứng chỉ đã được thay, hãy tạo mã QR ghép nối mới."
-          }
-        }
-      }
-    },
-    "The server's certificate doesn't match the pinned fingerprint from pairing. If the box's certificate changed, re-pair from the dashboard's Devices page.": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Serverio sertifikatas nesutampa su susiejant prisegtu kontroliniu kodu. Jei serverio sertifikatas pasikeitė, susiekite iš naujo valdymo skydelio Įrenginių puslapyje."
+            "value": "Không thể mã hóa yêu cầu đăng nhập. Hãy cập nhật ứng dụng và thử lại."
           }
         },
-        "vi": {
+        "lt": {
           "stringUnit": {
             "state": "translated",
-            "value": "Chứng chỉ của máy chủ không khớp với dấu vân tay đã ghim khi ghép nối. Nếu chứng chỉ của máy đã thay đổi, hãy ghép nối lại từ trang Thiết bị trên bảng điều khiển."
+            "value": "Nepavyko užkoduoti prisijungimo užklausos. Atnaujinkite programėlę ir bandykite dar kartą."
           }
         }
       }
@@ -16565,18 +16837,18 @@
         }
       }
     },
-    "This device becomes a paired device — it appears on the dashboard's Devices page and can be revoked there.": {
+    "This device’s session is no longer valid. Sign out in Settings, then sign in again with your account.": {
       "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Šis įrenginys tampa susietu įrenginiu — jis matomas skydelio Įrenginių puslapyje ir ten gali būti atšauktas."
-          }
-        },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Thiết bị này trở thành thiết bị đã ghép nối — nó xuất hiện ở trang Thiết bị trên bảng điều khiển và có thể bị thu hồi ở đó."
+            "value": "Phiên của thiết bị này không còn hợp lệ. Đăng xuất trong Cài đặt, rồi đăng nhập lại bằng tài khoản của bạn."
+          }
+        },
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Šio įrenginio seansas nebegalioja. Atsijunkite Nuostatose, tada vėl prisijunkite savo paskyra."
           }
         }
       }
@@ -16689,44 +16961,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Thao tác này sẽ ghi đè cơ sở dữ liệu và tài liệu hiện tại bằng tệp Synology đã chọn có dấu thời gian %@. Thời gian tệp trên thư mục chia sẻ có thể là lúc tải lên thay vì thời điểm chụp chính xác. Không thể hoàn tác."
-          }
-        }
-      }
-    },
-    "This pairing code has expired. Generate a fresh one on the dashboard's Devices page.": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Šis susiejimo kodas nebegalioja. Sugeneruokite naują valdymo skydelio Įrenginių puslapyje."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mã ghép nối này đã hết hạn. Hãy tạo mã mới ở trang Thiết bị trên bảng điều khiển."
-          }
-        }
-      }
-    },
-    "This pairing code is version %lld; the app understands version %lld. Update the app.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "new",
-            "value": "This pairing code is version %1$lld; the app understands version %2$lld. Update the app."
-          }
-        },
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Šis susiejimo kodas yra %1$lld versijos; programėlė supranta %2$lld versiją. Atnaujinkite programėlę."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mã ghép nối này là phiên bản %1$lld; ứng dụng hiểu phiên bản %2$lld. Hãy cập nhật ứng dụng."
           }
         }
       }
@@ -17484,54 +17718,6 @@
         }
       }
     },
-    "Unpair": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Atsieti"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hủy ghép nối"
-          }
-        }
-      }
-    },
-    "Unpair this device": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Atsieti šį įrenginį"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hủy ghép nối thiết bị này"
-          }
-        }
-      }
-    },
-    "Unpair this device?": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Atsieti šį įrenginį?"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hủy ghép nối thiết bị này?"
-          }
-        }
-      }
-    },
     "Upcoming": {
       "localizations": {
         "lt": {
@@ -17608,6 +17794,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Dùng"
+          }
+        }
+      }
+    },
+    "Use an HTTPS server address without embedded credentials.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dùng địa chỉ máy chủ HTTPS không chứa thông tin đăng nhập."
+          }
+        },
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Naudokite HTTPS serverio adresą be įterptų prisijungimo duomenų."
           }
         }
       }
@@ -17704,6 +17906,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Dùng mô hình này"
+          }
+        }
+      }
+    },
+    "Use your own account. New members first accept an invitation in the dashboard. This device appears on Devices and can be revoked there. There is no forgotten-password reset; keep your password in your password manager.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dùng tài khoản của riêng bạn. Thành viên mới cần chấp nhận lời mời trên bảng điều khiển trước. Thiết bị này xuất hiện trong Thiết bị và có thể bị thu hồi quyền truy cập tại đó. Không có chức năng đặt lại mật khẩu đã quên; hãy lưu mật khẩu trong trình quản lý mật khẩu."
+          }
+        },
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Naudokite savo paskyrą. Nauji nariai pirmiausia priima kvietimą valdymo skydelyje. Šis įrenginys rodomas skiltyje Įrenginiai, kur jo prieigą galima atšaukti. Pamiršto slaptažodžio atkurti negalima; saugokite jį slaptažodžių tvarkyklėje."
           }
         }
       }
@@ -18349,22 +18567,6 @@
         }
       }
     },
-    "You are pairing with": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Susiejate su"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bạn đang ghép nối với"
-          }
-        }
-      }
-    },
     "You need both accounts on file first. Add the destination by hand on the Accounts tab — an account that never syncs (a 529, a workplace plan) can still be tracked.": {
       "localizations": {
         "lt": {
@@ -18887,6 +19089,22 @@
         }
       }
     },
+    "error": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "klaida"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "lỗi"
+          }
+        }
+      }
+    },
     "every two weeks": {
       "localizations": {
         "lt": {
@@ -18949,6 +19167,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "nạp cho %@"
+          }
+        }
+      }
+    },
+    "iOS blocked an insecure connection. Use the server’s HTTPS address.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iOS đã chặn kết nối không an toàn. Dùng địa chỉ HTTPS của máy chủ."
+          }
+        },
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iOS užblokavo nesaugų ryšį. Naudokite serverio HTTPS adresą."
           }
         }
       }
@@ -19419,6 +19653,22 @@
         }
       }
     },
+    "status": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "būsena"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "trạng thái"
+          }
+        }
+      }
+    },
     "stress test: if every commitment were called today, with no income counted": {
       "localizations": {
         "lt": {
@@ -19431,6 +19681,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "kiểm tra sức chịu đựng: nếu mọi cam kết đều bị đòi ngay hôm nay, không tính thu nhập"
+          }
+        }
+      }
+    },
+    "success": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "pavyko"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "thành công"
           }
         }
       }
@@ -19643,22 +19909,6 @@
         }
       }
     },
-    "…or paste the pairing payload": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "…arba įklijuokite susiejimo turinį"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "…hoặc dán nội dung ghép nối"
-          }
-        }
-      }
-    },
     "🤖 Written by %@, from this year's real figures.": {
       "localizations": {
         "lt": {
@@ -19689,138 +19939,6 @@
             "value": "🧮 Tóm tắt tự động — bật bộ máy AI để có bản diễn giải."
           }
         }
-      }
-    },
-    "Activation queued…": {
-      "localizations": {
-        "lt": { "stringUnit": { "state": "translated", "value": "Aktyvinimas įtrauktas į eilę…" } },
-        "vi": { "stringUnit": { "state": "translated", "value": "Đã xếp hàng kích hoạt…" } }
-      }
-    },
-    "Automatic pruning is paused. Review and activate the retention policy; the server reports no additional recovery fault for this destination.": {
-      "localizations": {
-        "lt": { "stringUnit": { "state": "translated", "value": "Automatinis valymas pristabdytas. Peržiūrėkite ir aktyvinkite saugojimo politiką; serveris nepraneša apie kitą šios paskirties vietos atkūrimo triktį." } },
-        "vi": { "stringUnit": { "state": "translated", "value": "Tự động dọn bản sao đã tạm dừng. Hãy xem xét và kích hoạt chính sách lưu giữ; máy chủ không báo lỗi khôi phục nào khác cho đích này." } }
-      }
-    },
-    "Backup destination": {
-      "localizations": {
-        "lt": { "stringUnit": { "state": "translated", "value": "Atsarginių kopijų paskirties vieta" } },
-        "vi": { "stringUnit": { "state": "translated", "value": "Đích sao lưu" } }
-      }
-    },
-    "Backup destination saved.": {
-      "localizations": {
-        "lt": { "stringUnit": { "state": "translated", "value": "Atsarginių kopijų paskirties vieta išsaugota." } },
-        "vi": { "stringUnit": { "state": "translated", "value": "Đã lưu đích sao lưu." } }
-      }
-    },
-    "Backup schedule saved.": {
-      "localizations": {
-        "lt": { "stringUnit": { "state": "translated", "value": "Atsarginių kopijų tvarkaraštis išsaugotas." } },
-        "vi": { "stringUnit": { "state": "translated", "value": "Đã lưu lịch sao lưu." } }
-      }
-    },
-    "Reload backup settings before saving again.": {
-      "localizations": {
-        "lt": { "stringUnit": { "state": "translated", "value": "Prieš išsaugodami dar kartą įkelkite atsarginių kopijų nustatymus." } },
-        "vi": { "stringUnit": { "state": "translated", "value": "Hãy tải lại cài đặt sao lưu trước khi lưu lần nữa." } }
-      }
-    },
-    "Reload current settings": {
-      "localizations": {
-        "lt": { "stringUnit": { "state": "translated", "value": "Iš naujo įkelti dabartinius nustatymus" } },
-        "vi": { "stringUnit": { "state": "translated", "value": "Tải lại cài đặt hiện tại" } }
-      }
-    },
-    "Reloading current box settings…": {
-      "localizations": {
-        "lt": { "stringUnit": { "state": "translated", "value": "Iš naujo įkeliami dabartiniai dėžutės nustatymai…" } },
-        "vi": { "stringUnit": { "state": "translated", "value": "Đang tải lại cài đặt hiện tại của hộp…" } }
-      }
-    },
-    "Retention": {
-      "localizations": {
-        "lt": { "stringUnit": { "state": "translated", "value": "Saugojimas" } },
-        "vi": { "stringUnit": { "state": "translated", "value": "Lưu giữ" } }
-      }
-    },
-    "Retention policy review is also required. Review and activate it after resolving the recovery issue above.": {
-      "localizations": {
-        "lt": { "stringUnit": { "state": "translated", "value": "Taip pat būtina peržiūrėti saugojimo politiką. Išsprendę aukščiau nurodytą atkūrimo problemą, peržiūrėkite ir aktyvinkite politiką." } },
-        "vi": { "stringUnit": { "state": "translated", "value": "Cũng cần xem xét chính sách lưu giữ. Hãy xem xét và kích hoạt sau khi xử lý vấn đề khôi phục ở trên." } }
-      }
-    },
-    "Retention save error. Reloading current box settings.": {
-      "localizations": {
-        "lt": { "stringUnit": { "state": "translated", "value": "Saugojimo išsaugojimo klaida. Iš naujo įkeliami dabartiniai dėžutės nustatymai." } },
-        "vi": { "stringUnit": { "state": "translated", "value": "Lỗi lưu chính sách lưu giữ. Đang tải lại cài đặt hiện tại của hộp." } }
-      }
-    },
-    "Retention settings saved and activated.": {
-      "localizations": {
-        "lt": { "stringUnit": { "state": "translated", "value": "Saugojimo nustatymai išsaugoti ir aktyvinti." } },
-        "vi": { "stringUnit": { "state": "translated", "value": "Đã lưu và kích hoạt cài đặt lưu giữ." } }
-      }
-    },
-    "Retry loading backup settings": {
-      "localizations": {
-        "lt": { "stringUnit": { "state": "translated", "value": "Bandyti dar kartą įkelti atsarginių kopijų nustatymus" } },
-        "vi": { "stringUnit": { "state": "translated", "value": "Thử tải lại cài đặt sao lưu" } }
-      }
-    },
-    "Retry save": {
-      "localizations": {
-        "lt": { "stringUnit": { "state": "translated", "value": "Bandyti išsaugoti dar kartą" } },
-        "vi": { "stringUnit": { "state": "translated", "value": "Thử lưu lại" } }
-      }
-    },
-    "Review required": {
-      "localizations": {
-        "lt": { "stringUnit": { "state": "translated", "value": "Būtina peržiūra" } },
-        "vi": { "stringUnit": { "state": "translated", "value": "Cần xem xét" } }
-      }
-    },
-    "Save and activate current settings": {
-      "localizations": {
-        "lt": { "stringUnit": { "state": "translated", "value": "Išsaugoti ir aktyvinti dabartinius nustatymus" } },
-        "vi": { "stringUnit": { "state": "translated", "value": "Lưu và kích hoạt cài đặt hiện tại" } }
-      }
-    },
-    "The backup settings are invalid.": {
-      "localizations": {
-        "lt": { "stringUnit": { "state": "translated", "value": "Atsarginių kopijų nustatymai netinkami." } },
-        "vi": { "stringUnit": { "state": "translated", "value": "Cài đặt sao lưu không hợp lệ." } }
-      }
-    },
-    "The box now matches these settings, but the original response was not confirmed.": {
-      "localizations": {
-        "lt": { "stringUnit": { "state": "translated", "value": "Dėžutės nustatymai dabar sutampa, tačiau pradinis atsakymas nebuvo patvirtintas." } },
-        "vi": { "stringUnit": { "state": "translated", "value": "Hộp hiện khớp với các cài đặt này, nhưng phản hồi ban đầu chưa được xác nhận." } }
-      }
-    },
-    "The schedule saves when selected. Destination values save when editing finishes. Retention changes use the separate activation button below. The password is encrypted on the box and never shown again.": {
-      "localizations": {
-        "lt": { "stringUnit": { "state": "translated", "value": "Tvarkaraštis išsaugomas jį pasirinkus. Paskirties vietos reikšmės išsaugomos baigus redaguoti. Saugojimo pakeitimams naudokite atskirą aktyvinimo mygtuką žemiau. Slaptažodis dėžutėje užšifruojamas ir daugiau nerodomas." } },
-        "vi": { "stringUnit": { "state": "translated", "value": "Lịch được lưu khi chọn. Các giá trị đích được lưu khi chỉnh sửa xong. Thay đổi lưu giữ dùng nút kích hoạt riêng bên dưới. Mật khẩu được mã hóa trên hộp và không bao giờ hiển thị lại." } }
-      }
-    },
-    "error": {
-      "localizations": {
-        "lt": { "stringUnit": { "state": "translated", "value": "klaida" } },
-        "vi": { "stringUnit": { "state": "translated", "value": "lỗi" } }
-      }
-    },
-    "status": {
-      "localizations": {
-        "lt": { "stringUnit": { "state": "translated", "value": "būsena" } },
-        "vi": { "stringUnit": { "state": "translated", "value": "trạng thái" } }
-      }
-    },
-    "success": {
-      "localizations": {
-        "lt": { "stringUnit": { "state": "translated", "value": "pavyko" } },
-        "vi": { "stringUnit": { "state": "translated", "value": "thành công" } }
       }
     }
   },

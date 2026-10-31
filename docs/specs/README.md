@@ -29,7 +29,7 @@ dedupe, the SwiftUI app and Angular dashboard at parity ([ADR 0025](../adr/0025-
 the Bills payment timeline, cash outlook and month spending plan, budgets, goals,
 loans, income & tax, backups (local + off-box), and a full undo/audit framework
 ([ADR 0023](../adr/0023-every-mutation-is-undoable.md)). Decisions through
-**ADR 0078** are recorded in [02-adrs.md](./02-adrs.md); deferrals in
+**ADR 0079** are recorded in [02-adrs.md](./02-adrs.md); deferrals in
 `docs/RELEASE-CHECKLIST.md`. See the [guides](../guides/README.md).
 
 The per-milestone log below is historical (it starts at M0 and does not run to
@@ -242,6 +242,14 @@ the current milestone); the ADR index and `VERSION` are the current-state source
   remains unchanged.
 
 A post-M8 spec-kit audit surfaced M9–M11 (write APIs, audit log, conversation history, dashboard shell upgrades) as promised-but-unowned work, plus the deferred follow-ups and vector-store/retrieval work now tracked in `docs/specs/12-implementation-tasks.md`. All are documented before implementation, per the spec-driven rule above.
+
+## Issue #162 account-only sign-in gate
+
+Accepted for implementation, 2026-10-31: [ADR 0079](../adr/0079-account-only-device-sign-in.md).
+Remove QR UI and QR-only APIs in one breaking contract change, with no legacy
+support or deferred cleanup. Preserve device sessions/keys and document account
+and encryption recovery limits. Security/mobile/dashboard specs are updated;
+OpenAPI is the implementation source of truth. No new data domain/advisor tool.
 
 Before coding a milestone, update the relevant documents with:
 

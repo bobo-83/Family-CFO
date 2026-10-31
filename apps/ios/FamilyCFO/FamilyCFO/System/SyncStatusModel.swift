@@ -9,12 +9,16 @@ import Observation
 @MainActor
 @Observable
 final class SyncStatusModel {
-    private let defaultsKey = "familyCFO.lastSyncedAt"
+    private let defaultsKey: String?
+    private let defaults: UserDefaults
 
     private(set) var lastSyncedAt: Date?
 
-    init() {
-        lastSyncedAt = UserDefaults.standard.object(forKey: defaultsKey) as? Date
+    init(scope: String? = nil, defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        // Only non-secret household/device ids, never the access token.
+        defaultsKey = scope.map { "familyCFO.lastSyncedAt.\($0)" }
+        lastSyncedAt = defaultsKey.flatMap { defaults.object(forKey: $0) as? Date }
     }
 
     /// A sync just finished — the data is fresh as of now.
@@ -43,6 +47,7 @@ final class SyncStatusModel {
     }
 
     private func persist() {
-        UserDefaults.standard.set(lastSyncedAt, forKey: defaultsKey)
+        guard let defaultsKey else { return }
+        defaults.set(lastSyncedAt, forKey: defaultsKey)
     }
 }

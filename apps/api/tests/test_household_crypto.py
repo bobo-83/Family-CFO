@@ -25,6 +25,48 @@ def _master_key(monkeypatch):
     household_crypto.reset_cache_for_tests()
 
 
+@pytest.mark.anyio
+async def test_account_device_login_unlocks_sealed_household_and_keeps_wraps(
+    _master_key, demo_client, demo_engine, demo_token
+) -> None:
+    import base64
+
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+
+    household_id = fixtures.DEMO_HOUSEHOLD_ID
+    ciphertext = household_crypto.encrypt_text(demo_engine, household_id, "synthetic household fact")
+    private_key = ec.generate_private_key(ec.SECP256R1())
+    public_key = base64.b64encode(private_key.public_key().public_bytes(
+        serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint
+    )).decode()
+    payload = {
+        "email": fixtures.DEMO_USER_EMAIL, "password": fixtures.DEMO_USER_PASSWORD,
+        "device_name": "Account-only phone", "device_public_key": public_key,
+    }
+    first = await demo_client.post("/api/v1/pairing/login", json=payload)
+    assert first.status_code == 201
+    first_id = first.json()["device_id"]
+    first_wrap = household_crypto.device_wrap_json(demo_engine, household_id, first_id)
+    assert first_wrap is not None
+    assert household_crypto.generate_recovery_key(demo_engine, household_id)
+    assert household_crypto.seal_household(demo_engine, household_id) is None
+    household_crypto.reset_cache_for_tests()
+
+    # Password login after restart unlocks through the existing member wrap and
+    # adds a fresh device wrap without changing an already-issued device's wrap.
+    second = await demo_client.post("/api/v1/pairing/login", json=payload)
+    assert second.status_code == 201
+    assert household_crypto.decrypt_text(demo_engine, household_id, ciphertext) == "synthetic household fact"
+    assert household_crypto.device_wrap_json(demo_engine, household_id, first_id) == first_wrap
+    assert household_crypto.device_wrap_json(demo_engine, household_id, second.json()["device_id"])
+    revoked = await demo_client.delete(
+        f"/api/v1/pairing/devices/{first_id}", headers={"Authorization": f"Bearer {demo_token}"}
+    )
+    assert revoked.status_code == 204
+    assert household_crypto.device_wrap_json(demo_engine, household_id, first_id) is None
+
+
 def test_passthrough_when_disabled(demo_engine, monkeypatch) -> None:
     monkeypatch.delenv("FAMILY_CFO_MASTER_KEY", raising=False)
     household_crypto.reset_cache_for_tests()

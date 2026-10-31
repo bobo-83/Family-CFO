@@ -6,19 +6,10 @@ import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
-import QRCode from 'qrcode';
-import type { Invite, Member, PairedDevice } from '../../api-client';
+import type { Invite, PairedDevice } from '../../api-client';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { apiErrorMessage } from '../../shared/api-error';
-
-interface PairingSessionView {
-  /** The member this QR pairs a device for. */
-  userId: string;
-  qrPayload: string;
-  qrImageDataUrl: string;
-  expiresAt: string;
-}
 
 @Component({
   selector: 'app-users',
@@ -39,11 +30,9 @@ export class Users {
   private readonly auth = inject(AuthService);
   private readonly formBuilder = inject(FormBuilder);
 
-  // ADR 0034: sections gate by RIGHT. Pairing your OWN device is always allowed;
-  // minting a code for another member needs device management.
+  // ADR 0034: sections gate by RIGHT.
   protected readonly currentUserId = () => this.auth.userId();
   protected readonly canRevokeDevices = () => this.auth.hasRight('devices.manage');
-  protected readonly canManageDevices = () => this.auth.hasRight('devices.manage');
   protected readonly canManageMembers = () => this.auth.hasRight('members.manage');
 
   /** The household's roles (presets + custom) for the assignment pickers. */
@@ -292,8 +281,7 @@ export class Users {
     );
   }
 
-  // Each member row expands in place to reveal that member's devices and a
-  // per-member "Pair a device" action, so every member gets their own QR.
+  // Each member row expands to reveal that member's revocable devices.
   protected readonly expandedUserId = signal<string | null>(this.auth.userId());
 
   protected toggleExpanded(userId: string): void {
@@ -304,59 +292,8 @@ export class Users {
     return this.expandedUserId() === userId;
   }
 
-  /** Own device: always. Another member's: needs device management, and an owner
-   *  can only ever pair their own device (matches the server rule). */
-  protected canPairForMember(member: Member): boolean {
-    if (member.user_id === this.currentUserId()) {
-      return true;
-    }
-    return this.canManageDevices() && member.role !== 'owner';
-  }
-
-  protected readonly pairingUserId = signal<string | null>(null);
-  protected readonly pairingError = signal<string | null>(null);
-  protected readonly pairingSession = signal<PairingSessionView | null>(null);
-
   protected readonly revokingId = signal<string | null>(null);
   protected readonly revokeError = signal<string | null>(null);
-
-  protected async pairDeviceFor(member: Member): Promise<void> {
-    if (this.pairingUserId()) {
-      return;
-    }
-
-    this.pairingUserId.set(member.user_id);
-    this.pairingError.set(null);
-    this.pairingSession.set(null);
-
-    // Pairing your own device sends no target; the server treats that as self and
-    // only requires membership. A different member is an explicit on-behalf mint.
-    const onBehalf = member.user_id !== this.currentUserId();
-    const { data, error } = await this.api.createPairingSession(
-      onBehalf ? member.user_id : undefined,
-    );
-
-    if (error || !data) {
-      this.pairingUserId.set(null);
-      this.pairingError.set(apiErrorMessage(error, $localize`Failed to create a pairing session.`));
-      return;
-    }
-
-    const qrImageDataUrl = await QRCode.toDataURL(data.qr_payload, { width: 240 });
-
-    this.pairingUserId.set(null);
-    this.expandedUserId.set(member.user_id);
-    this.pairingSession.set({
-      userId: member.user_id,
-      qrPayload: data.qr_payload,
-      qrImageDataUrl,
-      expiresAt: data.expires_at,
-    });
-  }
-
-  protected dismissPairing(): void {
-    this.pairingSession.set(null);
-  }
 
   protected async revokeDevice(deviceId: string): Promise<void> {
     if (this.revokingId()) {

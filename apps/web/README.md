@@ -46,12 +46,15 @@ Not implemented in M5: purchase advisor UI, chat, dark mode/i18n, and the produc
 
 ## M6 Scope (Dashboard Integration)
 
-M6 is primarily the iPhone app, which cannot be built from Linux (see `AGENTS.md`'s platform constraint). But M6's own spec says "Dashboard creates a pairing session" — that half is Angular work and is implemented here on the Users & Devices page:
+The dashboard retains member-attributed device listing and revocation:
+`GET /api/v1/pairing/devices` and `DELETE /api/v1/pairing/devices/{device_id}`
+(revocation requires `devices.manage`). ADR 0079 / issue #162 replaces QR
+provisioning with account sign-in guidance on both Devices and Users. Install or
+update the app, verify the HTTPS server, then sign in with your own account;
+new members first accept an invite. Existing device sessions remain valid.
 
-- **Pair a device** (`owner`/`adult`): `POST /api/v1/pairing/sessions` creates a short-lived, single-use session; the returned `qr_payload` is rendered client-side as a scannable QR code (via the `qrcode` package, pure JS, no native deps) plus its raw text and expiration. The payload is non-secret — it contains the API base URL, session id, and household id/name, not a token.
-- **Paired devices list and revocation** (`owner` only for revoke): `GET /api/v1/pairing/devices` and `DELETE /api/v1/pairing/devices/{device_id}`.
-- There is no QR *scanner* here — the dashboard only displays the code; scanning it is the iPhone app's job (M6, macOS-only, not built in this environment).
-- Verified end-to-end against a real backend: session creation renders a real QR image, and a device paired via `POST /api/v1/pairing/confirm` (simulating what the iPhone app will call) appears in the list and can be revoked.
+QR UI, the QR library, and QR-only APIs are retired in the same contract 0.162
+change, with no legacy support. See [account sign-in and recovery](../../docs/guides/account-sign-in.md).
 
 ## M11 Scope (Dashboard Data Entry and Review)
 

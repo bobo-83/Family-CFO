@@ -8,7 +8,6 @@ Family CFO is designed for local self-hosted use with sensitive household financ
 
 - Credentials
 - Session secrets
-- Pairing secrets
 - Financial documents
 - Bank statements
 - Tax documents
@@ -39,7 +38,7 @@ Family CFO is designed for local self-hosted use with sensitive household financ
 ## Required Controls
 
 - HTTPS for app-to-server communication.
-- Secure pairing for mobile clients.
+- Account-only mobile sign-in into revocable device sessions (ADR 0079).
 - Local authentication.
 - Rights-based access control (ADR 0034): atomic RIGHTS are bundled into ROLES
   (built-in Admin/User/Viewer/Child presets plus per-household custom roles)
@@ -54,10 +53,11 @@ Family CFO is designed for local self-hosted use with sensitive household financ
 
 ## Credential Handling (Humans and AI Agents Alike)
 
-Nothing in this system may **ask the user for a password, passphrase, private
-key, or API token**, and nothing may accept one if offered. This applies to the
-application, the operational scripts, and to AI coding agents working on the
-repository (`AGENTS.md`).
+AI agents and operational scripts must never ask for or accept a user's
+password, passphrase, private key or API token (`AGENTS.md`). Authentication
+belongs in a tool the user drives directly. The application's own HTTPS
+account sign-in/password-change form is that boundary (ADRs 0056/0079): it
+must not expose credentials to an agent, transcript, diagnostic or log.
 
 The reasoning is the same one that keeps the household's finances on their own
 hardware: a secret that is typed into a prompt has been disclosed. It comes to
@@ -71,7 +71,7 @@ manufacturing an exposure that the design should have made unnecessary.
 | Need | Correct mechanism | Never |
 |---|---|---|
 | SSH to the box | `~/.ssh/config` + `ssh-agent`; key authorised once by the user's own `ssh-copy-id` | Prompting for a password; storing `SSH_KEY`/passwords in a config file |
-| Device credential (iPhone) | QR pairing → revocable token in the Keychain (M83) | Typing a server password into the app |
+| Device credential (iPhone) | User-driven HTTPS account sign-in → revocable device token in the Keychain (ADR 0079) | Passing account credentials through an agent or operational script |
 | Any third-party CLI | That tool's own login (`gh auth login`, `docker login`), run by the user | An agent collecting the secret and passing it on |
 | Deploy configuration | `.deploy.env` — a **destination**, not a credential | A secret in any committed or gitignored repo file |
 
@@ -173,9 +173,19 @@ platform credential stores; no human or agent is asked to disclose a secret.
 
 The iPhone app should use Face ID where available for local unlock. Server authorization remains token-based and revocable.
 
-## Pairing
+## Device sign-in (issue #162, ADR 0079)
 
-Initial pairing should use a short-lived QR code from the home server. Pairing creates a device record and scoped credentials.
+Account sign-in is the sole new-device authentication path. Remove both QR
+issuance and confirmation with the UI in the same release; outstanding codes
+cannot be redeemed. Keep existing device sessions, revocation and encryption
+wraps. HTTPS, host-valid system trust or explicitly confirmed self-signed pins,
+and shared login throttling remain required. Preserve server/trust settings
+across sign-out/relaunch; never silently accept a changed self-signed pin.
+
+Bootstrap and copy-link invitations establish accounts. Forgotten-password
+reset is not implemented; account recovery is not equivalent to household-key
+recovery. See ADR 0079 and the account sign-in guide for loss/recovery limits.
+Error messages classify wrapped failures using allowlisted metadata only.
 
 ## Logging
 

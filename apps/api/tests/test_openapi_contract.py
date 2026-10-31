@@ -373,10 +373,10 @@ def test_recursive_response_parity_rejects_nested_drift(mutate, expected: str) -
     assert any(expected in error for error in errors), errors
 
 
-def test_0161_fixture_is_the_immutable_authoritative_contract() -> None:
-    fixture = SHARED_OPENAPI.parent / "compatibility" / "0.161.yaml"
+def test_0162_fixture_is_the_immutable_authoritative_contract() -> None:
+    fixture = SHARED_OPENAPI.parent / "compatibility" / "0.162.yaml"
     assert fixture.read_bytes() == SHARED_OPENAPI.read_bytes()
-    assert load_shared_openapi()["info"]["version"] == "0.161"
+    assert load_shared_openapi()["info"]["version"] == "0.162"
 
     legacy_fixture = load_shared_openapi(SHARED_OPENAPI.parent / "compatibility" / "0.160.yaml")
     assert legacy_fixture["info"]["version"] == "0.160"

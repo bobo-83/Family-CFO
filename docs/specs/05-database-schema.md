@@ -10,7 +10,7 @@ The schema must protect precision, auditability, and privacy.
 - users
 - household_memberships
 - auth_sessions
-- pairing_sessions
+- paired_devices (member-owned; account sign-in, ADR 0079)
 - accounts
 - account_balances
 - transactions
@@ -31,6 +31,9 @@ The schema must protect precision, auditability, and privacy.
 - ai_runtime_configs
 - audit_events
 - backup_jobs
+
+QR-only `pairing_sessions` is dropped by migration `0097_retire_qr_pairing`.
+Existing devices, auth sessions and household key wraps are preserved.
 
 ## Money Storage
 

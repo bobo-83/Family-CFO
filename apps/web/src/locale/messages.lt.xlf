@@ -2865,82 +2865,6 @@
         <note priority="1" from="description">Paired iPhone devices page</note>
         <note priority="1" from="meaning">Page title</note>
       </trans-unit>
-      <trans-unit id="7567657377230823388" datatype="html">
-        <source> Pair the Family CFO iPhone app by scanning a code from this screen. Paired devices get their own revocable credential — losing a phone never means changing your password.
-</source>
-        <target state="needs-review-translation"> Susiekite Family CFO iPhone programėlę nuskaitydami kodą šiame ekrane. Susieti įrenginiai gauna savo atšaukiamą prieigą — pametus telefoną slaptažodžio keisti nereikia.
-</target>
-        <note priority="1" from="description">Explains device pairing; Family CFO is the product name and stays untranslated</note>
-        <note priority="1" from="meaning">Page intro</note>
-      </trans-unit>
-      <trans-unit id="2554929025797238246" datatype="html">
-        <source>Pair a device</source>
-        <target state="needs-review-translation">Susieti įrenginį</target>
-        <note priority="1" from="description">Creates a one-time pairing code for a phone</note>
-        <note priority="1" from="meaning">Section heading</note>
-      </trans-unit>
-      <trans-unit id="5999034894756694607" datatype="html">
-        <source>Pair this code for</source>
-        <target state="needs-review-translation">Kam skirtas šis kodas</target>
-        <note priority="1" from="description">Which household member the pairing code is minted for</note>
-        <note priority="1" from="meaning">Form field label</note>
-      </trans-unit>
-      <trans-unit id="6267136566792439019" datatype="html">
-        <source>Myself (this account)</source>
-        <target state="needs-review-translation">Sau (ši paskyra)</target>
-        <note priority="1" from="description">Pair a device for the signed-in user rather than another member</note>
-        <note priority="1" from="meaning">Select option</note>
-      </trans-unit>
-      <trans-unit id="4472224733997606576" datatype="html">
-        <source> Generate a code for a member so they can pair on their phone — they never need to sign into this dashboard. </source>
-        <target state="needs-review-translation"> Sugeneruokite kodą nariui, kad jis galėtų susieti savo telefoną — jam niekada nereikės prisijungti prie šios valdymo srities. </target>
-        <note priority="1" from="description">Why an owner would mint a code for another member</note>
-        <note priority="1" from="meaning">Pairing hint</note>
-      </trans-unit>
-      <trans-unit id="6339736098850662448" datatype="html">
-        <source> Scan with the Family CFO app. This code expires <x id="INTERPOLATION" equiv-text="{{ qrExpiresAt() | date: &apos;shortTime&apos; }}"/> and can only be used once. </source>
-        <target state="needs-review-translation"> Nuskaitykite Family CFO programėle. Šis kodas nustoja galioti <x id="INTERPOLATION" equiv-text="{{ qrExpiresAt() | date: &apos;shortTime&apos; }}"/> ir tinka tik vieną kartą. </target>
-        <note priority="1" from="description">When the shown pairing code expires; Family CFO is the product name and stays untranslated</note>
-        <note priority="1" from="meaning">Pairing hint</note>
-      </trans-unit>
-      <trans-unit id="8223557053828792301" datatype="html">
-        <source> Server certificate fingerprint (the app pins this): <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code&gt;"/><x id="INTERPOLATION" equiv-text="{{ fp }}"/><x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/></source>
-        <target state="needs-review-translation"> Serverio sertifikato kontrolinis kodas (programėlė jį įsimena): <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code&gt;"/><x id="INTERPOLATION" equiv-text="{{ fp }}"/><x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/></target>
-        <note priority="1" from="description">The TLS certificate fingerprint the phone app pins</note>
-        <note priority="1" from="meaning">Pairing detail</note>
-      </trans-unit>
-      <trans-unit id="5744567256617637254" datatype="html">
-        <source> ⚠️ No server certificate fingerprint available — the app will ask you to confirm the connection manually on first pairing. </source>
-        <target state="needs-review-translation"> ⚠️ Serverio sertifikato kontrolinio kodo nėra — pirmą kartą siejant programėlė paprašys ryšį patvirtinti rankiniu būdu. </target>
-        <note priority="1" from="description">No certificate fingerprint is available for the pairing code</note>
-        <note priority="1" from="meaning">Pairing warning</note>
-      </trans-unit>
-      <trans-unit id="1240771649780327556" datatype="html">
-        <source><x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/>Pairing on this same iPhone?<x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/> You can&apos;t scan a code on your own screen — copy it instead, open the Family CFO app&apos;s pairing screen, and paste it into “…or paste the pairing payload”. </source>
-        <target state="needs-review-translation"><x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/>Siejate tą patį iPhone?<x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/> Kodo savo paties ekrane nuskaityti negalite — nukopijuokite jį, atverkite Family CFO programėlės siejimo ekraną ir įklijuokite į „…or paste the pairing payload“. </target>
-        <note priority="1" from="description">How to pair when the dashboard is open on the same iPhone; Family CFO is the product name and the quoted phrase is a label inside the iPhone app</note>
-        <note priority="1" from="meaning">Pairing hint</note>
-      </trans-unit>
-      <trans-unit id="2283059715694536843" datatype="html">
-        <source>{VAR_SELECT, select, true {✓ Copied — now paste it in the app} other {Copy pairing code}}</source>
-        <target state="needs-review-translation">{VAR_SELECT, select, true {✓ Nukopijuota — dabar įklijuokite programėlėje} other {Kopijuoti siejimo kodą}}</target>
-      </trans-unit>
-      <trans-unit id="5789699386310979875" datatype="html">
-        <source> Generate a new code </source>
-        <target state="needs-review-translation"> Sugeneruoti naują kodą </target>
-        <note priority="1" from="description">Replaces the shown pairing code with a fresh one</note>
-        <note priority="1" from="meaning">Button</note>
-      </trans-unit>
-      <trans-unit id="8556502853877068492" datatype="html">
-        <source> The code carries the server address, its certificate fingerprint, and a one-time secret — valid for 10 minutes. </source>
-        <target state="needs-review-translation"> Kode įrašytas serverio adresas, jo sertifikato kontrolinis kodas ir vienkartinė paslaptis — galioja 10 minučių. </target>
-        <note priority="1" from="description">What the pairing code contains and how long it lasts</note>
-        <note priority="1" from="meaning">Pairing hint</note>
-      </trans-unit>
-      <trans-unit id="4863888213475709656" datatype="html">
-        <source>{VAR_SELECT, select, qr {Generating…} other {Show pairing code}}</source>
-        <target state="needs-review-translation">{VAR_SELECT, select, qr {Generuojama…} other {Rodyti siejimo kodą}}</target>
-      </trans-unit>
       <trans-unit id="6750503838638617973" datatype="html">
         <source>Install the iPhone app</source>
         <target state="needs-review-translation">Įdiekite iPhone programėlę</target>
@@ -3004,16 +2928,6 @@
       <trans-unit id="6364709144780685279" datatype="html">
         <source>Failed to load paired devices.</source>
         <target state="needs-review-translation">Nepavyko įkelti susietų įrenginių.</target>
-      </trans-unit>
-      <trans-unit id="8503605852374543619" datatype="html">
-        <source>Failed to create a pairing code.</source>
-        <target state="needs-review-translation">Nepavyko sukurti siejimo kodo.</target>
-      </trans-unit>
-      <trans-unit id="996569143176860756" datatype="html">
-        <source>Could not copy automatically — select the code below and copy it.</source>
-        <target state="needs-review-translation">Nepavyko nukopijuoti automatiškai — pažymėkite kodą žemiau ir nukopijuokite jį.</target>
-        <note priority="1" from="description">The browser refused the copy, so the user must select the payload manually</note>
-        <note priority="1" from="meaning">Clipboard error</note>
       </trans-unit>
       <trans-unit id="7095978614993552405" datatype="html">
         <source>Failed to revoke the device.</source>
@@ -6212,14 +6126,6 @@
         <note priority="1" from="description">Household members and the phones paired to them</note>
         <note priority="1" from="meaning">Page title</note>
       </trans-unit>
-      <trans-unit id="4093197265135495800" datatype="html">
-        <source> Manage household members and the devices paired to them. Open a member to pair a phone — each member gets their own QR code to scan with the Family CFO iPhone app.
-</source>
-        <target state="needs-review-translation"> Tvarkykite namų ūkio narius ir su jais susietus įrenginius. Atverkite narį, kad susietumėte telefoną — kiekvienas narys gauna savo QR kodą, kurį nuskaito Family CFO iPhone programėle.
-</target>
-        <note priority="1" from="description">Explains what the users page does; Family CFO is the product name and stays untranslated</note>
-        <note priority="1" from="meaning">Page intro</note>
-      </trans-unit>
       <trans-unit id="2713013415028366791" datatype="html">
         <source>Household members</source>
         <target state="needs-review-translation">Namų ūkio nariai</target>
@@ -6267,36 +6173,6 @@
         <target state="needs-review-translation">Atšaukti</target>
         <note priority="1" from="description">Revokes this device&apos;s pairing</note>
         <note priority="1" from="meaning">Button</note>
-      </trans-unit>
-      <trans-unit id="5620747939777202112" datatype="html">
-        <source>Pairing QR code</source>
-        <target state="needs-review-translation">Siejimo QR kodas</target>
-        <note priority="1" from="description">The QR code a phone scans to pair</note>
-        <note priority="1" from="meaning">Image alternative text</note>
-      </trans-unit>
-      <trans-unit id="7249626034886191485" datatype="html">
-        <source>Expires <x id="INTERPOLATION" equiv-text="{{ session.expiresAt | date: &apos;medium&apos; }}"/></source>
-        <target state="needs-review-translation">Galioja iki <x id="INTERPOLATION" equiv-text="{{ session.expiresAt | date: &apos;medium&apos; }}"/></target>
-        <note priority="1" from="description">When the pairing code stops working</note>
-        <note priority="1" from="meaning">Pairing session</note>
-      </trans-unit>
-      <trans-unit id="3202293168712124014" datatype="html">
-        <source>Creating session…</source>
-        <target state="needs-review-translation">Kuriamas seansas…</target>
-        <note priority="1" from="description">Shown while the pairing session is being minted</note>
-        <note priority="1" from="meaning">Button</note>
-      </trans-unit>
-      <trans-unit id="455861214701092763" datatype="html">
-        <source>Pair a device</source>
-        <target state="needs-review-translation">Susieti įrenginį</target>
-        <note priority="1" from="description">Mints a QR code that pairs a phone to this member</note>
-        <note priority="1" from="meaning">Button</note>
-      </trans-unit>
-      <trans-unit id="5095742223714310052" datatype="html">
-        <source>Only an admin can pair a device for another member.</source>
-        <target state="needs-review-translation">Susieti įrenginį kito nario vardu gali tik administratorius.</target>
-        <note priority="1" from="description">Pairing on another member&apos;s behalf needs device management</note>
-        <note priority="1" from="meaning">Permission notice</note>
       </trans-unit>
       <trans-unit id="1665511307503965102" datatype="html">
         <source>No members.</source>
@@ -6505,10 +6381,6 @@
       <trans-unit id="4550505008254013372" datatype="html">
         <source>Failed to remove member.</source>
         <target state="needs-review-translation">Nepavyko pašalinti nario.</target>
-      </trans-unit>
-      <trans-unit id="1084482962874118425" datatype="html">
-        <source>Failed to create a pairing session.</source>
-        <target state="needs-review-translation">Nepavyko sukurti siejimo seanso.</target>
       </trans-unit>
       <trans-unit id="3205300559166190933" datatype="html">
         <source>Failed to revoke device.</source>
@@ -8219,6 +8091,20 @@
       <trans-unit id="3225932137483997572" datatype="html">
         <source>Automatic pruning is paused until an administrator activates retention. The server reports no additional inventory, read-probe, capacity, or anomaly reason.</source>
         <target state="translated">Automatinis šalinimas pristabdytas, kol administratorius aktyvins saugojimo taisyklę. Serveris nepraneša apie jokias papildomas inventoriaus, nuskaitymo patikros, talpos ar anomalijų priežastis.</target>
+      </trans-unit>
+      <trans-unit id="8725679871552657096" datatype="html">
+        <source>Former or unknown member</source>
+        <target state="translated">Buvęs arba nežinomas narys</target>
+      </trans-unit>
+      <trans-unit id="3717125786302368582" datatype="html">
+        <source> Manage household members and their devices. Invite each member to choose their own password, then sign in to the Family CFO iPhone app with their own account.
+</source>
+        <target state="translated">Tvarkykite šeimos narius ir jų įrenginius. Pakvieskite kiekvieną narį pasirinkti savo slaptažodį, tada prisijungti prie Family CFO programėlės iPhone savo paskyra.</target>
+      </trans-unit>
+      <trans-unit id="6538178668645219024" datatype="html">
+        <source> Open the Family CFO iPhone app, enter this server’s address, verify its certificate, and sign in with your own account. Ask the household admin for an invitation if you need an account. Devices get their own revocable credential. Older apps must update to account sign-in; existing sessions remain valid.
+</source>
+        <target state="translated">Atidarykite Family CFO programėlę iPhone, įveskite šio serverio adresą, patikrinkite jo sertifikatą ir prisijunkite savo paskyra. Jei reikia paskyros, paprašykite šeimos administratoriaus kvietimo. Kiekvienas įrenginys gauna atskirą atšaukiamą prieigą. Senesnes programėles reikia atnaujinti, kad būtų galima prisijungti paskyra; esami seansai lieka galioti.</target>
       </trans-unit>
     </body>
   </file>

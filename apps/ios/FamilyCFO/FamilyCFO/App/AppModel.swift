@@ -11,9 +11,8 @@ struct ServerConfig: Codable, Equatable {
     var deviceName: String
 }
 
-/// The revocable device credential from `POST /pairing/confirm`, stored in
-/// the Keychain (M83). `role` is who the device acts as — the pairing
-/// session's creator.
+/// The revocable device credential stored in the Keychain. Existing QR-issued
+/// credentials decode unchanged; new sessions come from `POST /pairing/login`.
 struct StoredCredential: Codable, Equatable {
     var deviceID: String
     var accessToken: String
@@ -29,6 +28,14 @@ struct StoredCredential: Codable, Equatable {
 @MainActor
 @Observable
 final class AppModel {
+    @ObservationIgnored private let storage: AppSessionStorage
+    @ObservationIgnored private let effects: AppSessionEffects
+
+    init(storage: AppSessionStorage = .live, effects: AppSessionEffects = .live) {
+        self.storage = storage
+        self.effects = effects
+    }
+
     enum Phase: Equatable {
         case loading
         case unpaired
@@ -42,6 +49,9 @@ final class AppModel {
     /// prevents an outgoing load from replacing or cancelling the new session's
     /// notification for a coincidentally identical bill id.
     private(set) var billNotificationScope = UUID().uuidString
+    /// Set only during a cold, valid stored-session restoration. A fresh
+    /// sign-in/account replacement must never inherit this language cache.
+    @ObservationIgnored private var restoringStoredLanguage: String?
     private(set) var credential: StoredCredential? {
         didSet {
             // #156: a new token is a new session — sign-in, pairing, sign-out —
@@ -50,20 +60,17 @@ final class AppModel {
             if oldValue?.accessToken != credential?.accessToken {
                 householdCurrency.invalidate()
                 monthTransactions.invalidate()
+                advisorAsk = nil
+                householdLanguage = restoringStoredLanguage ?? "en"
+                syncStatus = storage.makeSyncStatus(credential.map {
+                    "\(server?.householdID ?? ""):\($0.deviceID)"
+                })
 
                 billNotificationScope = UUID().uuidString
                 let currentScope = billNotificationScope
-                Task {
-                    await BillNotificationScheduler(
-                        scheduler: SystemNotificationScheduler()
-                    ).clear(exceptScope: currentScope)
-                }
-
-                // Primitive widget snapshots contain no session provenance. A
-                // session boundary therefore invalidates them immediately rather
-                // than letting another household's figures remain visible.
-                OverviewSnapshotStore().clear()
-                WidgetRefresher.reloadOverview()
+                // Production clears notifications and unscoped widget snapshots.
+                // Tests supply isolated/no-op collaborators, not the host services.
+                effects.clearArtifacts(currentScope)
             }
         }
     }
@@ -92,7 +99,7 @@ final class AppModel {
     var householdSessionIdentity: String? { currencySessionKey }
 
     /// Shared bank-data freshness, shown identically on every synced screen (M103).
-    let syncStatus = SyncStatusModel()
+    private(set) var syncStatus = SyncStatusModel()
 
     /// A grounded question another screen wants the advisor to answer — e.g. the
     /// Year chart's "explain this month's income" (ADR 0068). MainTabView jumps
@@ -124,7 +131,7 @@ final class AppModel {
     /// source. The mirror also means the FIRST request after launch already
     /// carries the right language, before any context fetch returns.
     var householdLanguage = "en" {
-        didSet { UserDefaults.standard.set(householdLanguage, forKey: Self.languageKey) }
+        didSet { storage.writeLanguage(householdLanguage) }
     }
 
     nonisolated static let languageKey = "family-cfo.householdLanguage"
@@ -150,17 +157,18 @@ final class AppModel {
     private var client: Client? {
         guard let server, let credential else { return nil }
         let token = credential.accessToken
+        let storage = storage
         return APIClientFactory.makeClient(
             baseURL: server.apiBaseURL,
             pinnedCertificateSHA256: server.certificateSHA256,
             token: { token },
             // ADR 0072 Phase 3: lets a sealed household's 423 answer trigger
             // one device unwrap-and-unlock before the request is replayed.
-            devicePrivateKey: { KeychainStore.load(account: "device-private-key") },
+            devicePrivateKey: { storage.readCredential("device-private-key") },
             // #10 phase 4: the API writes its own prose (error details) in this
             // language. Read live from the cached household setting, so a
             // mid-session change applies to the next request.
-            language: { UserDefaults.standard.string(forKey: AppModel.languageKey) },
+            language: { storage.readLanguage() },
             advisorRecoveryHorizon: advisorRecoveryHorizon
         )
     }
@@ -297,39 +305,57 @@ final class AppModel {
         // Re-register the Siri App Shortcuts on every launch: rapid TestFlight
         // updates can silently drop the registration, breaking "Ask my CFO"
         // until a refresh (user report 2026-07-26). Cheap and idempotent.
-        FamilyCFOShortcuts.updateAppShortcutParameters()
-        if let data = UserDefaults.standard.data(forKey: Self.serverDefaultsKey),
-            let server = try? JSONDecoder().decode(ServerConfig.self, from: data),
-            let credentialData = KeychainStore.load(account: Self.credentialAccount),
-            let credential = try? JSONDecoder().decode(StoredCredential.self, from: credentialData)
-        {
-            self.server = server
-            self.credential = credential
-            phase = .locked
+        effects.registerShortcuts()
+        restoreSession(
+            serverData: storage.readServer(),
+            credentialData: storage.readCredential(Self.credentialAccount)
+        )
+        if phase == .locked {
             // ADR 0067 v6: listen for the watch's credential requests from the
             // very first launch moment, not only after an unlock.
-            PhoneWatchBridge.shared.activate()
-        } else {
-            phase = .unpaired
+            effects.activateWatch()
         }
+    }
+
+    /// Server settings survive a signed-out relaunch, independently of a token.
+    /// This seam also tests old credential decoding without touching Keychain.
+    func restoreSession(serverData: Data?, credentialData: Data?) {
+        let restoredServer = serverData.flatMap {
+            try? JSONDecoder().decode(ServerConfig.self, from: $0)
+        }
+        let restoredCredential = restoredServer == nil ? nil : credentialData.flatMap {
+            try? JSONDecoder().decode(StoredCredential.self, from: $0)
+        }
+        if phase == .loading, credential == nil, restoredCredential != nil {
+            restoringStoredLanguage = storage.readLanguage() ?? "en"
+        }
+        defer { restoringStoredLanguage = nil }
+        server = restoredServer
+        credential = restoredCredential
+        // nil -> nil does not cross the token boundary in didSet, but a
+        // signed-out/corrupt restoration must still clear stale persisted state.
+        if credential == nil { householdLanguage = "en" }
+        phase = credential == nil ? .unpaired : .locked
     }
 
     /// Latest-wins re-push whenever the app comes forward (ADR 0067 v6): the
     /// watch's copy of the pairing can never lag more than one foregrounding.
     func pushWatchPairing() {
         guard phase == .ready else { return }
-        PhoneWatchBridge.shared.push(server: server, credential: credential)
+        effects.pushWatch(server, credential)
     }
 
     func unlock() async {
         guard phase == .locked else { return }
-        if await BiometricGate.authenticate() {
+        let requestedSession = currencySessionKey
+        if await BiometricGate.authenticate(), phase == .locked,
+            currencySessionKey == requestedSession {
             phase = .ready
             await refreshSessionRights()
             seedHouseholdLanguage()
             // M-watch (ADR 0067): keep the watch's copy of the pairing fresh.
-            PhoneWatchBridge.shared.activate()
-            PhoneWatchBridge.shared.push(server: server, credential: credential)
+            effects.activateWatch()
+            effects.pushWatch(server, credential)
         }
     }
 
@@ -343,31 +369,35 @@ final class AppModel {
         guard case .ok(let response) = try? await client.getSessionInfo(.init()),
             let info = try? response.body.json
         else { return }
+        // A response to the old device must never resurrect it after sign-out.
+        guard self.credential?.accessToken == credential.accessToken else { return }
         guard credential.rights != info.rights || credential.roleName != info.roleName else {
             return
         }
         credential.rights = info.rights
         credential.roleName = info.roleName
         if let data = try? JSONEncoder().encode(credential) {
-            try? KeychainStore.save(data, account: Self.credentialAccount)
+            try? storage.writeCredential(data, Self.credentialAccount)
         }
         self.credential = credential
     }
 
-    func completePairing(server: ServerConfig, credential: StoredCredential) {
+    @discardableResult
+    func completePairing(server: ServerConfig, credential: StoredCredential) -> Bool {
         guard let data = try? JSONEncoder().encode(server),
             let credentialData = try? JSONEncoder().encode(credential),
-            (try? KeychainStore.save(credentialData, account: Self.credentialAccount)) != nil
+            (try? storage.writeCredential(credentialData, Self.credentialAccount)) != nil
         else {
-            return
+            return false
         }
-        UserDefaults.standard.set(data, forKey: Self.serverDefaultsKey)
+        storage.writeServer(data)
         self.server = server
         self.credential = credential
         phase = .ready
-        PhoneWatchBridge.shared.activate()
-        PhoneWatchBridge.shared.push(server: server, credential: credential)
+        effects.activateWatch()
+        effects.pushWatch(server, credential)
         seedHouseholdLanguage()
+        return true
     }
 
     /// One best-effort context fetch per session so the language cache is
@@ -386,27 +416,28 @@ final class AppModel {
     /// Forgets the pairing locally. Revoking the credential server-side
     /// happens on the Devices screen (in-app or dashboard, devices.manage).
     func unpair() {
-        PhoneWatchBridge.shared.push(server: nil, credential: nil)
-        KeychainStore.delete(account: Self.credentialAccount)
-        UserDefaults.standard.removeObject(forKey: Self.serverDefaultsKey)
+        effects.pushWatch(nil, nil)
+        storage.deleteCredential(Self.credentialAccount)
+        storage.deleteCredential("device-private-key")
+        storage.writeServer(nil)
         server = nil
         credential = nil
         phase = .unpaired
     }
 
-    /// ADR 0056: sign out WITHOUT unpairing — drops the credential (revoking
-    /// its session server-side, best-effort) but keeps the server address and
-    /// pinned certificate, so signing back in is just email + password on the
-    /// login screen (or scanning a fresh QR). Enables switching members on a
-    /// shared device.
+    /// ADR 0079: sign out but preserve server address/trust across relaunch.
+    /// Clear local access before awaiting best-effort server revocation.
     func signOut() async {
-        if let client {
-            _ = try? await client.deleteAuthSession(.init())
-        }
-        PhoneWatchBridge.shared.push(server: server, credential: nil)
-        KeychainStore.delete(account: Self.credentialAccount)
-        KeychainStore.delete(account: "device-private-key")
+        let outgoingClient = client
+        effects.pushWatch(server, nil)
+        storage.deleteCredential(Self.credentialAccount)
+        storage.deleteCredential("device-private-key")
         credential = nil
+        advisorAsk = nil
+        householdLanguage = "en"
         phase = .unpaired
+        if let outgoingClient {
+            await effects.revokeSession(outgoingClient)
+        }
     }
 }

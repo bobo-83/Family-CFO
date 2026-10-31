@@ -86,6 +86,84 @@ def test_migrations_upgrade_and_downgrade_cleanly(tmp_path) -> None:
     assert re_upgraded.returncode == 0, re_upgraded.stderr
 
 
+@pytest.mark.anyio
+async def test_0097_drops_outstanding_codes_but_preserves_device_access(tmp_path) -> None:
+    from datetime import timedelta
+
+    import httpx
+    from sqlalchemy import MetaData, Table
+
+    from family_cfo_api import fixtures, security
+    from family_cfo_api.main import create_app
+
+    database_url = f"sqlite:///{tmp_path / 'retire_qr.db'}"
+    before = _run_alembic("upgrade", "0096_backup_repair_index", database_url=database_url)
+    assert before.returncode == 0, before.stderr
+    engine = create_engine(database_url)
+    try:
+        fixtures.seed_demo_household(engine)
+        token = security.generate_access_token()
+        device = repository.create_paired_device_with_session(
+            engine, household_id=fixtures.DEMO_HOUSEHOLD_ID, user_id=fixtures.DEMO_USER_ID,
+            device_name="Existing QR-issued device", device_public_key="existing-key",
+            access_token=token, token_hash=security.hash_token(token),
+            expires_at=repository.utcnow() + timedelta(days=30),
+        )
+        old_codes = Table("pairing_sessions", MetaData(), autoload_with=engine)
+        with engine.begin() as conn:
+            conn.execute(insert(models.household_keys).values(
+                id=repository.new_id(), household_id=fixtures.DEMO_HOUSEHOLD_ID,
+                wrapped_dek="synthetic-wrapped-key", canary="synthetic-canary",
+                key_generation=1, created_at=repository.utcnow(),
+            ))
+            for kind, subject in [("device", device.device_id), ("member", fixtures.DEMO_USER_ID)]:
+                conn.execute(insert(models.household_key_wraps).values(
+                    id=repository.new_id(), household_id=fixtures.DEMO_HOUSEHOLD_ID,
+                    kind=kind, subject_id=subject, wrap_json="{}", created_at=repository.utcnow(),
+                ))
+            conn.execute(insert(old_codes).values(
+                id="outstanding-pre-upgrade-code", household_id=fixtures.DEMO_HOUSEHOLD_ID,
+                created_by_user_id=fixtures.DEMO_USER_ID, qr_payload="{}",
+                created_at=repository.utcnow(), expires_at=repository.utcnow() + timedelta(minutes=10),
+            ))
+        preserved = [models.paired_devices, models.auth_sessions, models.household_keys,
+                     models.household_key_wraps]
+        with engine.connect() as conn:
+            snapshots = {table.name: conn.execute(select(table)).mappings().all()
+                         for table in preserved}
+
+        upgraded = _run_alembic("upgrade", "head", database_url=database_url)
+        assert upgraded.returncode == 0, upgraded.stderr
+        assert "pairing_sessions" not in inspect(engine).get_table_names()
+        with engine.connect() as conn:
+            for table in preserved:
+                assert conn.execute(select(table)).mappings().all() == snapshots[table.name]
+        session = repository.get_session_context(engine, security.hash_token(token))
+        assert session is not None and session.device_id == device.device_id
+        app = create_app(Settings(health_check_database=False), engine=engine)
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="https://testserver"
+        ) as client:
+            stale = await client.post("/api/v1/pairing/confirm", json={
+                "pairing_session_id": "outstanding-pre-upgrade-code",
+                "device_name": "Old client", "device_public_key": "k",
+            })
+            assert stale.status_code == 404
+            existing = await client.get(
+                "/api/v1/auth/session", headers={"Authorization": f"Bearer {token}"}
+            )
+            assert existing.status_code == 200
+            assert existing.json()["device_id"] == device.device_id
+
+        downgraded = _run_alembic("downgrade", "0096_backup_repair_index", database_url=database_url)
+        assert downgraded.returncode == 0, downgraded.stderr
+        with engine.connect() as conn:
+            assert conn.execute(select(old_codes)).all() == []
+        assert repository.get_session_context(engine, security.hash_token(token)) is not None
+    finally:
+        engine.dispose()
+
+
 def _assert_backup_repair_index(engine: Engine) -> None:
     indexes = {
         index["name"]: index["column_names"]

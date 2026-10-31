@@ -476,7 +476,7 @@ struct OverviewViewModelTests {
         await viewModel.load()
 
         #expect(viewModel.context == nil)
-        #expect(viewModel.errorMessage?.contains("pairing") == true)
+        #expect(viewModel.errorMessage?.contains("Sign out") == true)
     }
 
     @Test func optionalFailureKeepsAuthoritativeContext() async {
@@ -954,7 +954,7 @@ struct OverviewViewModelTests {
         await viewModel.stopTracking(contributionID: "sc-1")
 
         #expect(api.callCount == 0)
-        #expect(viewModel.errorMessage?.contains("pairing") == true)
+        #expect(viewModel.errorMessage?.contains("Sign out") == true)
     }
 
     /// Declared rows were never seen in the ledger, so an occurrence count would
@@ -1052,7 +1052,7 @@ struct OverviewViewModelTests {
         await viewModel.linkContribution(contributionID: "sc-1", goalID: "goal-college")
 
         #expect(api.callCount == 0)
-        #expect(viewModel.errorMessage?.contains("pairing") == true)
+        #expect(viewModel.errorMessage?.contains("Sign out") == true)
     }
 
     /// Goal names load lazily via one goals-list fetch — only when a loaded

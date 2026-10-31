@@ -147,45 +147,23 @@ class AuthSession(BaseModel):
     rights: list[str] | None = None
 
 
-class PairingSessionCreateRequest(BaseModel):
-    # Owner-only: mint the pairing code for another household member, so a regular
-    # member never has to sign into the dashboard to pair their phone. Omitted =
-    # pair for yourself (the caller). See pairing.create_pairing_session.
-    user_id: str | None = None
-
-
-class PairingSession(BaseModel):
-    id: str
-    qr_payload: str
-    expires_at: datetime
-
-
-class PairingConfirmRequest(BaseModel):
-    pairing_session_id: str
-    device_name: str = Field(min_length=1, max_length=120)
-    device_public_key: str = Field(min_length=1)
-
-
 class DeviceCredential(BaseModel):
     device_id: str
     access_token: str
     expires_at: datetime
-    # M83: role of the user the device acts as (the pairing session's
-    # creator), so the mobile app can build its role-aware shell without
+    # Role of the signed-in member, so the app builds its role-aware shell without
     # spending the device token on a session refresh.
     role: HouseholdRole | None = None
     # ADR 0034: the resolved rights of that user's assigned role.
     role_name: str | None = None
     rights: list[str] | None = None
-    # ADR 0056: the household, so the email-login path (no QR payload) can
-    # build the device's ServerConfig. Also populated on QR confirm.
+    # The signed-in household, used to build the device's ServerConfig.
     household_id: str | None = None
     household_name: str | None = None
 
 
 class PairingLoginRequest(BaseModel):
-    # ADR 0056: credentialed pairing — the iOS login screen. Same outcome as a
-    # QR confirm: a paired device with a device-bound session.
+    # ADR 0079: account-only device sign-in with a revocable device-bound session.
     email: str = Field(min_length=3, max_length=255)
     password: str = Field(min_length=1)
     device_name: str = Field(min_length=1, max_length=120)

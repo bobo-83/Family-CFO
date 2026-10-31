@@ -14,13 +14,6 @@ function response(data: unknown, error?: unknown) {
   } as never;
 }
 
-const QR_PAYLOAD = JSON.stringify({
-  type: 'family-cfo-pairing',
-  api_base_url: 'https://192.168.1.10:8443/api/v1',
-  pairing_session_id: 'secret',
-  certificate_sha256: 'ab'.repeat(32),
-});
-
 function configure(apiMock: Record<string, unknown>, role: string) {
   TestBed.configureTestingModule({
     imports: [Devices],
@@ -32,14 +25,15 @@ function configure(apiMock: Record<string, unknown>, role: string) {
 }
 
 describe('Devices', () => {
-  it('lists devices and renders the pairing QR with the pinned fingerprint (M83a)', async () => {
+  it('lists existing devices with account sign-in and installation guidance', async () => {
     const apiMock = {
-      listMembers: vi.fn().mockResolvedValue(response({ members: [] })),
+      listMembers: vi.fn().mockResolvedValue(response({ members: [{ user_id: 'u1', display_name: 'Alex' }] })),
       listPairedDevices: vi.fn().mockResolvedValue(
         response({
           devices: [
             {
               id: 'd1',
+              user_id: 'u1',
               name: "Alex's iPhone",
               created_at: '2026-07-12T10:00:00Z',
               last_seen_at: null,
@@ -48,9 +42,7 @@ describe('Devices', () => {
           ],
         }),
       ),
-      createPairingSession: vi.fn().mockResolvedValue(
-        response({ id: 's1', qr_payload: QR_PAYLOAD, expires_at: '2026-07-12T10:10:00Z' }),
-      ),
+
     };
     configure(apiMock, 'owner');
 
@@ -62,17 +54,14 @@ describe('Devices', () => {
     const host = fixture.nativeElement as HTMLElement;
     expect(host.textContent).toContain("Alex's iPhone");
 
-    (host.querySelector('.pairing-card button') as HTMLButtonElement).click();
-    await vi.waitFor(() => {
-      fixture.detectChanges();
-      expect(host.querySelector('.pairing-card__qr svg')).not.toBeNull();
-    });
-    // The fingerprint the iPhone will pin is shown for manual verification.
-    expect(host.textContent).toContain('ab'.repeat(32));
-    expect(apiMock.createPairingSession).toHaveBeenCalledOnce();
+    expect(host.textContent).toContain('sign in with your own account');
+    expect(host.textContent).toContain('Alex');
+    expect(host.querySelector('a[href="/ota/"]')).not.toBeNull();
+    expect(host.querySelector('.pairing-card__qr')).toBeNull();
+    expect(host.querySelector('textarea')).toBeNull();
   });
 
-  it('viewer can pair their own device but cannot revoke (ADR 0034)', async () => {
+  it('viewer gets sign-in guidance but cannot revoke (ADR 0034)', async () => {
     const apiMock = {
       listMembers: vi.fn().mockResolvedValue(response({ members: [] })),
       listPairedDevices: vi.fn().mockResolvedValue(
@@ -97,9 +86,7 @@ describe('Devices', () => {
     fixture.detectChanges();
 
     const host = fixture.nativeElement as HTMLElement;
-    // ADR 0034: pairing your OWN device needs only membership, so the QR card
-    // now shows for every member; revoking still needs devices.manage.
-    expect(host.querySelector('.pairing-card:not(.install-card)')).not.toBeNull();
+    expect(host.textContent).toContain('sign in with your own account');
     expect(host.textContent).toContain('revoked');
     expect(host.querySelector('.device-list__revoke')).toBeNull();
   });

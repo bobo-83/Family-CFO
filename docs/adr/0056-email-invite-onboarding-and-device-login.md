@@ -2,7 +2,10 @@
 
 ## Status
 
-Accepted.
+Accepted. QR-retention clauses and delegated QR setup are superseded by
+[ADR 0079](0079-account-only-device-sign-in.md): account-only new-device sign-in,
+with QR UI and protocol retired together. Invites and shared device-session
+semantics remain. Historical comparisons to QR below do not retain that path.
 
 ## Context
 
