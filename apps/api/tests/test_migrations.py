@@ -410,13 +410,14 @@ def test_postgresql_17_backup_migrations_and_singleton_bootstrap() -> None:
             schema = inspect(schema_engine)
             assert "backup_settings" in schema.get_table_names()
             assert "backup_retention_events" in schema.get_table_names()
+            assert "pairing_sessions" not in schema.get_table_names()
             assert {column["name"] for column in schema.get_columns("backup_jobs")} >= {
                 "prune_reason"
             }
             with schema_engine.connect() as connection:
                 assert connection.execute(
                     text("SELECT version_num FROM alembic_version")
-                ).scalar_one() == ("0096_backup_repair_index")
+                ).scalar_one() == "0097_retire_qr_pairing"
                 assert (
                     connection.execute(text("SELECT count(*) FROM backup_settings")).scalar_one()
                     == 0

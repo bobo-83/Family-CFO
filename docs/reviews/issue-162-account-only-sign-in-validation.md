@@ -143,3 +143,27 @@ and tested, not sent through a second review. Reconciliation:
 No commit/push, deployment, physical-device acceptance or issue closure was
 performed. PostgreSQL/physical-device gates from the earlier record remain
 unpassed; no legacy QR API cleanup is deferred.
+
+## Backend CI migration assertion follow-up
+
+PR #165's initial backend run executed all PostgreSQL tests and reported one
+failure with 1,248 passes: the backup bootstrap integration test still expected
+migration `0096_backup_repair_index` after successfully upgrading to
+`0097_retire_qr_pairing`. The earlier local run skipped PostgreSQL tests and did
+not expose that stale assertion. No production migration failure was observed.
+
+Updated the expected revision and added an explicit check that the QR-only
+`pairing_sessions` table is absent after the PostgreSQL upgrade. Reproduced the
+original failure locally before editing, using an isolated PostgreSQL 17 test
+container with `FAMILY_CFO_REQUIRE_POSTGRESQL=1`.
+
+Validation after the fix:
+
+- Migration suite: **8 passed**, no skips.
+- Full backend suite: **1,249 passed**, no skips; enforced crypto coverage
+  **100%**. Log: `/tmp/issue162-pg-full.log`.
+- API lint, OpenAPI drift check and diff whitespace check passed.
+
+This passes the previously unrun local PostgreSQL test gate; it does not claim
+production migration, recovery or physical-device acceptance. No runtime code,
+contract or migration was changed in this follow-up.
