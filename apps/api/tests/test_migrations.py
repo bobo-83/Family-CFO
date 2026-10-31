@@ -8,10 +8,10 @@ from pathlib import Path
 from uuid import UUID, uuid4
 
 import pytest
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import create_engine, insert, inspect, select, text
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import repository
+from family_cfo_api import models, repository
 from family_cfo_api.config import Settings
 
 API_DIR = Path(__file__).resolve().parents[1]
@@ -84,6 +84,74 @@ def test_migrations_upgrade_and_downgrade_cleanly(tmp_path) -> None:
 
     re_upgraded = _run_alembic("upgrade", "head", database_url=database_url)
     assert re_upgraded.returncode == 0, re_upgraded.stderr
+
+
+def _assert_backup_repair_index(engine: Engine) -> None:
+    indexes = {
+        index["name"]: index["column_names"]
+        for index in inspect(engine).get_indexes("backup_retention_events")
+    }
+    expected = ["destination_generation", "archive_key", "action", "occurred_at", "event_key"]
+    assert indexes["ix_backup_retention_events_repair_lookup"] == expected
+    model_index = next(
+        index
+        for index in models.backup_retention_events.indexes
+        if index.name == "ix_backup_retention_events_repair_lookup"
+    )
+    assert [column.name for column in model_index.columns] == expected
+
+
+def test_0096_repair_index_upgrade_and_downgrade_preserve_journal(tmp_path) -> None:
+    database_url = f"sqlite:///{tmp_path / 'backup_repair_0096.db'}"
+    before_index = _run_alembic(
+        "upgrade", "0095_backup_settings_revision", database_url=database_url
+    )
+    assert before_index.returncode == 0, before_index.stderr
+    engine = create_engine(database_url)
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                insert(models.backup_retention_events).values(
+                    id=str(uuid4()),
+                    destination="local",
+                    archive_key="synthetic.enc",
+                    operation_id="repair-index-migration",
+                    event_key="a" * 64,
+                    destination_generation=str(uuid4()),
+                    action="prune_failed",
+                    reason="delete_failed",
+                    occurred_at=datetime(2026, 10, 8, 12, tzinfo=UTC),
+                )
+            )
+            original = connection.execute(select(models.backup_retention_events)).mappings().all()
+
+        upgraded = _run_alembic("upgrade", "head", database_url=database_url)
+        assert upgraded.returncode == 0, upgraded.stderr
+        _assert_backup_repair_index(engine)
+        with engine.connect() as connection:
+            assert (
+                connection.execute(select(models.backup_retention_events)).mappings().all()
+                == original
+            )
+
+        downgraded = _run_alembic(
+            "downgrade", "0095_backup_settings_revision", database_url=database_url
+        )
+        assert downgraded.returncode == 0, downgraded.stderr
+        assert "ix_backup_retention_events_repair_lookup" not in {
+            index["name"] for index in inspect(engine).get_indexes("backup_retention_events")
+        }
+        with engine.connect() as connection:
+            assert (
+                connection.execute(select(models.backup_retention_events)).mappings().all()
+                == original
+            )
+
+        re_upgraded = _run_alembic("upgrade", "head", database_url=database_url)
+        assert re_upgraded.returncode == 0, re_upgraded.stderr
+        _assert_backup_repair_index(engine)
+    finally:
+        engine.dispose()
 
 
 def test_0095_revision_backfill_and_downgrade_preserve_settings(tmp_path) -> None:
@@ -260,6 +328,7 @@ def test_postgresql_17_backup_migrations_and_singleton_bootstrap() -> None:
 
         schema_engine = create_engine(database_url)
         try:
+            _assert_backup_repair_index(schema_engine)
             schema = inspect(schema_engine)
             assert "backup_settings" in schema.get_table_names()
             assert "backup_retention_events" in schema.get_table_names()
@@ -269,7 +338,7 @@ def test_postgresql_17_backup_migrations_and_singleton_bootstrap() -> None:
             with schema_engine.connect() as connection:
                 assert connection.execute(
                     text("SELECT version_num FROM alembic_version")
-                ).scalar_one() == ("0095_backup_settings_revision")
+                ).scalar_one() == ("0096_backup_repair_index")
                 assert (
                     connection.execute(text("SELECT count(*) FROM backup_settings")).scalar_one()
                     == 0

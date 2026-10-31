@@ -876,6 +876,14 @@ backup_retention_events = Table(
         "destination_generation",
         "occurred_at",
     ),
+    Index(
+        "ix_backup_retention_events_repair_lookup",
+        "destination_generation",
+        "archive_key",
+        "action",
+        "occurred_at",
+        "event_key",
+    ),
 )
 
 audit_events = Table(

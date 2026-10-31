@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from sqlalchemy import insert
+from sqlalchemy import event, insert
 from sqlalchemy.engine import Engine
 
 from family_cfo_api import __version__ as APP_VERSION
@@ -341,6 +341,64 @@ def test_status_evidence_scopes_generation_and_repairs_failures(
     assert evidence().unresolved_prune_failure is False
 
 
+def test_repaired_failure_history_uses_archive_scoped_index(demo_file_engine: Engine) -> None:
+    as_of = datetime(2026, 10, 8, 12, tzinfo=UTC)
+    generation = repository.get_backup_settings(demo_file_engine).local_destination_generation
+    rows = []
+    # Every failure is repaired only after the whole failure batch. An unindexed
+    # correlated lookup repeatedly scans unrelated archives, even with no fault
+    # left to report. Use a plan assertion rather than a host-speed threshold.
+    for action, offset in (("prune_failed", 0), ("reconciled", 1)):
+        for index in range(1000):
+            sequence = len(rows)
+            rows.append(
+                {
+                    "id": f"repair-{sequence}",
+                    "destination": "local",
+                    "archive_key": f"archive-{index}.enc",
+                    "operation_id": f"repair-{sequence}",
+                    "event_key": f"{sequence:064x}",
+                    "destination_generation": generation,
+                    "action": action,
+                    "reason": "delete_failed",
+                    "occurred_at": as_of - timedelta(minutes=2 - offset)
+                    + timedelta(microseconds=index),
+                }
+            )
+    with demo_file_engine.begin() as conn:
+        conn.execute(insert(models.backup_retention_events), rows)
+
+    statements = []
+
+    def capture_statement(conn, cursor, statement, parameters, context, executemany):
+        statements.append((statement, parameters))
+
+    event.listen(demo_file_engine, "before_cursor_execute", capture_statement)
+    try:
+        evidence = repository.backup_retention_status_evidence(
+            demo_file_engine,
+            destination_generation=generation,
+            since=as_of - timedelta(days=90),
+            target_start=as_of - timedelta(days=90),
+            target_end=as_of - timedelta(days=83),
+        )
+    finally:
+        event.remove(demo_file_engine, "before_cursor_execute", capture_statement)
+    assert evidence.unresolved_prune_failure is False
+    assert len(statements) == 1
+    statement, parameters = statements[0]
+    with demo_file_engine.connect() as conn:
+        plan = conn.exec_driver_sql("EXPLAIN QUERY PLAN " + statement, parameters).all()
+    repair_steps = [row[3] for row in plan if "SEARCH later " in row[3]]
+    assert repair_steps, plan
+    assert all(
+        "ix_backup_retention_events_repair_lookup" in step
+        and "archive_key=?" in step
+        and "action=?" in step
+        for step in repair_steps
+    ), repair_steps
+
+
 def test_status_evidence_uses_deterministic_ties_and_target_archive_time(
     demo_file_engine: Engine
 ) -> None:
@@ -597,6 +655,8 @@ def test_unreadable_outer_target_cannot_report_met_or_healthy(
     demo_file_engine: Engine, demo_file_settings, monkeypatch
 ) -> None:
     as_of = datetime(2027, 1, 10, 12, tzinfo=UTC)
+    # This case requires mature history, independent of the contributor's clock.
+    monkeypatch.setattr(repository, "utcnow", lambda: as_of - timedelta(days=91))
     current = _activate(demo_file_engine)
     encrypted = banksync.encrypt_credential(demo_file_settings, "not-a-real-password")
     repository.update_and_activate_backup_settings(
