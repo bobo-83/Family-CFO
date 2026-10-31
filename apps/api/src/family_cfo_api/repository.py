@@ -12,7 +12,7 @@ from datetime import UTC, date, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
-from sqlalchemy import delete, func, insert, select, update
+from sqlalchemy import and_, delete, func, insert, literal, or_, select, update
 from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.exc import IntegrityError
 
@@ -5564,6 +5564,132 @@ def list_backup_retention_events_for_status(
     with engine.connect() as conn:
         rows = conn.execute(query).mappings().all()
     return [_backup_retention_event_from_row(row) for row in rows]
+
+
+@dataclass(frozen=True, slots=True)
+class BackupRetentionStatusEvidence:
+    latest_inventory_failed: bool
+    unresolved_prune_failure: bool
+    missing_deletion_timestamp: bool
+    target_opportunity: bool
+    target_shortened: bool
+
+
+def backup_retention_status_evidence(
+    engine: Engine,
+    *,
+    destination_generation: str,
+    since: datetime | None,
+    target_start: datetime | None,
+    target_end: datetime | None,
+) -> BackupRetentionStatusEvidence:
+    """Summarize all relevant current-generation facts without a row-count cutoff.
+
+    Hourly inventory and prune journaling can exceed any fixed newest-N window.
+    Existence and latest-row predicates keep status bounded while preserving
+    archive-time causality and the journal's deterministic latest ordering.
+    """
+    events = models.backup_retention_events
+    base = events.c.destination_generation == destination_generation
+    if since is not None:
+        base = and_(base, events.c.occurred_at >= _backup_input_utc(since, "since"))
+
+    target_time = None
+    if target_start is not None and target_end is not None:
+        start = _backup_input_utc(target_start, "target_start")
+        end = _backup_input_utc(target_end, "target_end")
+        if end < start:
+            raise ValueError("target_end must not precede target_start")
+
+        def in_target(column):
+            return column == start if end == start else and_(column >= start, column < end)
+
+        target_time = or_(
+            in_target(events.c.archive_taken_at),
+            and_(
+                events.c.action == "capacity_blocked",
+                events.c.archive_taken_at.is_(None),
+                in_target(events.c.occurred_at),
+            ),
+        )
+
+    failed = events.alias("failed")
+    later = events.alias("later")
+    failure_scope = failed.c.destination_generation == destination_generation
+    if since is not None:
+        failure_scope = and_(
+            failure_scope, failed.c.occurred_at >= _backup_input_utc(since, "since")
+        )
+    later_event = select(later.c.id).where(
+        later.c.destination_generation == failed.c.destination_generation,
+        later.c.archive_key == failed.c.archive_key,
+        later.c.action.in_(("pruned", "explicit_deleted", "reconciled")),
+        later.c.occurred_at >= failed.c.occurred_at,
+        or_(
+            later.c.occurred_at > failed.c.occurred_at,
+            later.c.event_key < failed.c.event_key,
+        ),
+    )
+    latest_inventory = (
+        select(events.c.action)
+        .where(base, events.c.action.in_(("inventory_failed", "inventory_succeeded")))
+        .order_by(events.c.occurred_at.desc(), events.c.event_key.asc())
+        .limit(1)
+        .scalar_subquery()
+    )
+    unresolved_prune_failure = (
+        select(failed.c.id)
+        .where(
+            failure_scope,
+            failed.c.action == "prune_failed",
+            failed.c.archive_key.is_not(None),
+            ~later_event.exists(),
+        )
+        .exists()
+    )
+    missing_deletion_timestamp = (
+        select(events.c.id)
+        .where(
+            base,
+            events.c.action.in_(("pruned", "explicit_deleted")),
+            events.c.archive_taken_at.is_(None),
+        )
+        .exists()
+    )
+    target_opportunity = (
+        select(events.c.id).where(base, target_time).exists()
+        if target_time is not None
+        else literal(False)
+    )
+    target_shortened = (
+        select(events.c.id)
+        .where(
+            base,
+            target_time,
+            events.c.action.in_(("pruned", "explicit_deleted", "capacity_blocked")),
+        )
+        .exists()
+        if target_time is not None
+        else literal(False)
+    )
+    # A single statement gives every fact one database snapshot even while
+    # maintenance is journaling. Each subquery returns only a scalar/boolean.
+    statement = select(
+        latest_inventory.label("latest_inventory"),
+        unresolved_prune_failure.label("unresolved_prune_failure"),
+        missing_deletion_timestamp.label("missing_deletion_timestamp"),
+        target_opportunity.label("target_opportunity"),
+        target_shortened.label("target_shortened"),
+    )
+    with engine.connect() as conn:
+        row = conn.execute(statement).one()
+    return BackupRetentionStatusEvidence(
+        latest_inventory_failed=row.latest_inventory == "inventory_failed",
+        unresolved_prune_failure=bool(row.unresolved_prune_failure),
+        missing_deletion_timestamp=bool(row.missing_deletion_timestamp),
+        target_opportunity=bool(row.target_opportunity),
+        target_shortened=bool(row.target_shortened),
+    )
 
 
 def list_unresolved_backup_delete_intents(

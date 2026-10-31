@@ -141,6 +141,15 @@ deterministic `event_key`; opaque destination generation; `action`; stable
 and JSON snapshot; redacted nullable detail; and UTC occurrence time. Index
 `(destination_generation, occurred_at)`.
 
+Migration `0096_backup_repair_index.py`, parented to
+`0095_backup_settings_revision`, adds
+`ix_backup_retention_events_repair_lookup` on
+`(destination_generation, archive_key, action, occurred_at, event_key)`.
+Current-generation recovery status uses this covering index to find successful
+repairs for each archive without repeatedly scanning unrelated journal rows.
+The migration changes no journal facts or status semantics; downgrade drops
+only this index.
+
 Actions cover `pruned`, `explicit_deleted`, `reconciled`, `prune_failed`,
 `inventory_failed`, `inventory_succeeded`, `capacity_blocked`, `lock_skipped`,
 `anomaly_detected`, and `restore_reset`. The unique event key includes operation,

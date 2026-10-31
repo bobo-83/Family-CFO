@@ -264,6 +264,17 @@ make it `shortened`; mature sparse/failing history is `incomplete`; pending
 review, probe/inventory uncertainty, missing causality, or protected anomalies
 is `unknown`.
 
+Recovery status evaluates current-generation journal evidence with bounded
+database predicates, not a fixed count of the newest events. Routine hourly
+inventory successes and completed prunes must not make history appear
+incomplete merely by pushing target-bucket facts past a row limit. The
+predicates retain the latest inventory outcome (with deterministic tie
+ordering), unresolved per-archive prune failures, deletion events lacking
+archive time, and opportunity/shortening facts in the intersecting target
+bucket. An unknown deletion time remains unknown rather than being inferred
+from visible inventory; this is a status qualification, not a reconstruction
+of unrecorded history.
+
 Overall status never lets healthy local storage hide an unavailable configured
 Synology destination. Dates come only from qualified endpoints. Every API and UI
 uses “oldest readable backup currently visible” or “recovery candidate,” not

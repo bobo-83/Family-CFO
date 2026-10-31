@@ -46,7 +46,6 @@ _PROTECTING_METADATA_CODES = frozenset(
     {"missing_storage_path", "missing_file", "unsafe_storage_path", "size_mismatch"}
 )
 _NON_PROTECTING_CODES = frozenset({"compatibility_unknown"})
-_SHORTENING_ACTIONS = frozenset({"pruned", "explicit_deleted", "capacity_blocked"})
 _SAFE_REASONS = {
     "destination_not_configured": "No off-box backup destination is configured.",
     "credentials_unavailable": "The stored Synology credential could not be opened.",
@@ -65,7 +64,6 @@ _SAFE_REASONS = {
     "logical_cap_unsatisfied": "The newest backup alone exceeds the configured size limit.",
     "coverage_shortened": "Storage limits or deletion shortened the configured recovery window.",
     "coverage_incomplete": "Backup history does not yet reach the configured recovery target.",
-    "retention_event_history_incomplete": "Recovery history is incomplete.",
     "unresolved_inventory_failure": "The latest inventory check failed.",
     "unresolved_prune_failure": "A retention deletion has not completed.",
     "coverage_unknown": "The configured recovery-window coverage cannot be determined.",
@@ -297,50 +295,22 @@ def _target_interval(
     return cutoff, cutoff, cutoff
 
 
-def _events(
+def _evidence(
     engine: Engine,
     *,
     generation: str,
     policy: RetentionPolicy,
     retention_activated_at: datetime | None,
     as_of: datetime,
-) -> tuple[tuple[repository.BackupRetentionEventRecord, ...], bool]:
-    _, bucket_start, _ = _target_interval(policy, as_of)
+) -> repository.BackupRetentionStatusEvidence:
+    cutoff, bucket_start, bucket_end = _target_interval(policy, as_of)
     since = bucket_start if bucket_start is not None else retention_activated_at
-    found = repository.list_backup_retention_events_for_status(
-        engine, destination_generation=generation, since=since, limit=501
-    )
-    return tuple(found[:500]), len(found) > 500
-
-
-def _latest_inventory_failed(events: tuple[repository.BackupRetentionEventRecord, ...]) -> bool:
-    latest = next(
-        (event for event in events if event.action in ("inventory_failed", "inventory_succeeded")),
-        None,
-    )
-    return latest is not None and latest.action == "inventory_failed"
-
-
-def _has_unresolved_prune_failure(
-    events: tuple[repository.BackupRetentionEventRecord, ...],
-) -> bool:
-    latest_by_archive: dict[str, repository.BackupRetentionEventRecord] = {}
-    for event in events:
-        if event.archive_key is not None and event.archive_key not in latest_by_archive:
-            latest_by_archive[event.archive_key] = event
-    return any(event.action == "prune_failed" for event in latest_by_archive.values())
-
-
-def _event_in_interval(
-    event: repository.BackupRetentionEventRecord,
-    start: datetime,
-    end: datetime,
-) -> bool:
-    timestamp = event.archive_taken_at
-    if timestamp is None and event.action == "capacity_blocked":
-        timestamp = event.occurred_at
-    return timestamp is not None and (
-        timestamp == start if end == start else start <= timestamp < end
+    return repository.backup_retention_status_evidence(
+        engine,
+        destination_generation=generation,
+        since=since,
+        target_start=max(cutoff, bucket_start) if cutoff and bucket_start else None,
+        target_end=bucket_end,
     )
 
 
@@ -352,8 +322,7 @@ def _coverage(
     qualified: tuple[BackupInventoryItem, ...],
     probe_complete: bool,
     protected_count: int,
-    events: tuple[repository.BackupRetentionEventRecord, ...],
-    events_incomplete: bool,
+    evidence: repository.BackupRetentionStatusEvidence,
     plan: RetentionPlan,
     as_of: datetime,
 ) -> CoverageStatus:
@@ -364,16 +333,11 @@ def _coverage(
     # The target bucket is intersected with the policy horizon. Pre-cutoff
     # archives are not retained merely to make status look satisfied.
     target_start = max(cutoff, bucket_start)
-    missing_causality = any(
-        event.action in {"pruned", "explicit_deleted"} and event.archive_taken_at is None
-        for event in events
-    )
     if (
         review_required
         or not probe_complete
         or protected_count
-        or events_incomplete
-        or missing_causality
+        or evidence.missing_deletion_timestamp
     ):
         return "unknown"
     if not qualified:
@@ -402,18 +366,13 @@ def _coverage(
     ):
         return "met"
 
-    shortening_event = any(
-        event.action in _SHORTENING_ACTIONS
-        and _event_in_interval(event, target_start, bucket_end)
-        for event in events
-    )
-    if shortening_event:
+    if evidence.target_shortened:
         return "shortened"
 
     outer_days = policy.weekly_until_days or 0
     young = activated_at is not None and activated_at > as_of - timedelta(days=outer_days)
-    opportunity = any(target_start <= item.taken_at < bucket_end for item in qualified) or any(
-        _event_in_interval(event, target_start, bucket_end) for event in events
+    opportunity = any(target_start <= item.taken_at < bucket_end for item in qualified) or (
+        evidence.target_opportunity
     )
     if young and not opportunity:
         return "building"
@@ -456,7 +415,6 @@ def _status_and_reasons(
     logical_cap_unsatisfied: bool,
     inventory_failed: bool,
     prune_failed: bool,
-    events_incomplete: bool,
     unavailable_code: str,
 ) -> tuple[DestinationStatus, tuple[str, ...], str | None]:
     codes: set[str] = set()
@@ -500,8 +458,6 @@ def _status_and_reasons(
             codes.add("unresolved_inventory_failure")
         if prune_failed:
             codes.add("unresolved_prune_failure")
-        if events_incomplete:
-            codes.add("retention_event_history_incomplete")
         if coverage == "unknown":
             codes.add("coverage_unknown")
         elif coverage == "incomplete":
@@ -544,15 +500,15 @@ def _local_snapshot(
     metadata, protected, unknown, incompatible = _diagnostics(
         items, len(inventory.protected_entries)
     )
-    events, events_incomplete = _events(
+    evidence = _evidence(
         engine,
         generation=stored.local_destination_generation,
         policy=stored.local_retention,
         retention_activated_at=stored.retention_activated_at,
         as_of=as_of,
     )
-    inventory_failed = _latest_inventory_failed(events)
-    prune_failed = _has_unresolved_prune_failure(events)
+    inventory_failed = evidence.latest_inventory_failed
+    prune_failed = evidence.unresolved_prune_failure
     coverage = _coverage(
         policy=stored.local_retention,
         activated_at=stored.retention_activated_at,
@@ -560,8 +516,7 @@ def _local_snapshot(
         qualified=qualified,
         probe_complete=inventory.available,
         protected_count=protected,
-        events=events,
-        events_incomplete=events_incomplete,
+        evidence=evidence,
         plan=plan,
         as_of=as_of,
     )
@@ -580,7 +535,6 @@ def _local_snapshot(
         logical_cap_unsatisfied=_logical_cap_unsatisfied(qualified, stored.local_max_bytes, plan),
         inventory_failed=inventory_failed,
         prune_failed=prune_failed,
-        events_incomplete=events_incomplete,
         unavailable_code="local_inventory_unavailable",
     )
     oldest = qualified[-1] if qualified else None
@@ -667,7 +621,6 @@ def _offbox_snapshot(
             logical_cap_unsatisfied=False,
             inventory_failed=False,
             prune_failed=False,
-            events_incomplete=False,
             unavailable_code="inventory_unavailable",
         )
         return DestinationRecoverySnapshot(
@@ -719,7 +672,6 @@ def _offbox_snapshot(
             logical_cap_unsatisfied=False,
             inventory_failed=False,
             prune_failed=False,
-            events_incomplete=False,
             unavailable_code=target_error or "inventory_unavailable",
         )
         return DestinationRecoverySnapshot(
@@ -774,7 +726,6 @@ def _offbox_snapshot(
             logical_cap_unsatisfied=False,
             inventory_failed=True,
             prune_failed=False,
-            events_incomplete=False,
             unavailable_code="inventory_unavailable",
         )
         return DestinationRecoverySnapshot(
@@ -825,15 +776,15 @@ def _offbox_snapshot(
     oldest = item_by_key.get(probe.oldest_readable.filename) if probe.oldest_readable else None
     newest = item_by_key.get(probe.newest_readable.filename) if probe.newest_readable else None
     metadata, protected, unknown, incompatible = _diagnostics(items, len(raw.protected_entries))
-    events, events_incomplete = _events(
+    evidence = _evidence(
         engine,
         generation=stored.offbox_destination_generation,
         policy=stored.offbox_retention,
         retention_activated_at=stored.retention_activated_at,
         as_of=as_of,
     )
-    inventory_failed = _latest_inventory_failed(events)
-    prune_failed = _has_unresolved_prune_failure(events)
+    inventory_failed = evidence.latest_inventory_failed
+    prune_failed = evidence.unresolved_prune_failure
     probe_complete = probe.status == "complete" and oldest is not None and newest is not None
     if not qualified and probe.status == "complete":
         probe_complete = True
@@ -844,8 +795,7 @@ def _offbox_snapshot(
         qualified=read_qualified,
         probe_complete=probe_complete,
         protected_count=protected,
-        events=events,
-        events_incomplete=events_incomplete,
+        evidence=evidence,
         plan=plan,
         as_of=as_of,
     )
@@ -873,7 +823,6 @@ def _offbox_snapshot(
         logical_cap_unsatisfied=_logical_cap_unsatisfied(qualified, stored.offbox_max_bytes, plan),
         inventory_failed=inventory_failed,
         prune_failed=prune_failed,
-        events_incomplete=events_incomplete,
         unavailable_code="inventory_unavailable",
     )
     return DestinationRecoverySnapshot(

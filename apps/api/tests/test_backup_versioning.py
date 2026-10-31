@@ -262,7 +262,7 @@ def test_restore_migrates_real_0092_archive_before_live_promotion(
     with demo_file_engine.connect() as connection:
         assert (
             connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-            == "0095_backup_settings_revision"
+            == "0096_backup_repair_index"
         )
     assert result.job.id == source.id
     assert result.job.status == "completed"
