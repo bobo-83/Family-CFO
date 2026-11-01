@@ -248,3 +248,13 @@ Validation:
 
 No production migration, physical-device acceptance, merge or deployment was
 performed. No legacy QR protocol support or deferred cleanup was introduced.
+
+## Release preflight: OTA guidance
+
+Before publishing, inspection found that the OTA script's generated landing page
+still instructed users to generate/scan a QR code. Replaced that stale text with
+account sign-in, preserved-session and explicit certificate-verification guidance.
+A static regression reads the actual emitted HTML heredoc without executing any
+build/signing/deployment tool; it failed before the text correction and passed
+afterward. API lint, shell syntax and diff checks passed. Four focused review
+lanes completed with no findings. Fresh PR CI must pass before merge/deployment.
