@@ -19,6 +19,7 @@ export class Devices {
   protected readonly devices = signal<PairedDevice[]>([]);
   protected readonly members = signal<Member[]>([]);
   private readonly memberLookup = signal<'loading' | 'loaded' | 'failed'>('loading');
+  private loadGeneration = 0;
   protected readonly loading = signal(true);
   protected readonly loadError = signal<string | null>(null);
   protected readonly busy = signal<string | null>(null);
@@ -41,27 +42,43 @@ export class Devices {
   }
 
   private async load(): Promise<void> {
+    const generation = ++this.loadGeneration;
     this.loadError.set(null);
     this.memberLookup.set('loading');
     this.members.set([]);
-    const { data, error } = await this.api.listPairedDevices();
-    this.loading.set(false);
-    if (error || !data) {
-      this.loadError.set(apiErrorMessage(error, $localize`Failed to load paired devices.`));
-      return;
-    }
-    this.devices.set(data.devices);
     try {
-      const { data: memberData, error: memberError } = await this.api.listMembers();
-      if (memberError || !memberData) {
-        this.memberLookup.set('failed');
+      const { data, error } = await this.api.listPairedDevices();
+      if (generation !== this.loadGeneration) {
         return;
       }
-      this.members.set(memberData.members);
-      this.memberLookup.set('loaded');
-    } catch {
-      // Owner names are optional enrichment; keep device management usable.
-      this.memberLookup.set('failed');
+      this.loading.set(false);
+      if (error || !data) {
+        this.loadError.set(apiErrorMessage(error, $localize`Failed to load paired devices.`));
+        return;
+      }
+      this.devices.set(data.devices);
+      try {
+        const { data: memberData, error: memberError } = await this.api.listMembers();
+        if (generation !== this.loadGeneration) {
+          return;
+        }
+        if (memberError || !memberData) {
+          this.memberLookup.set('failed');
+          return;
+        }
+        this.members.set(memberData.members);
+        this.memberLookup.set('loaded');
+      } catch {
+        // Owner names are optional enrichment; keep device management usable.
+        if (generation === this.loadGeneration) {
+          this.memberLookup.set('failed');
+        }
+      }
+    } catch (error) {
+      if (generation === this.loadGeneration) {
+        this.loading.set(false);
+        this.loadError.set(apiErrorMessage(error, $localize`Failed to load paired devices.`));
+      }
     }
   }
 

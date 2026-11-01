@@ -200,3 +200,51 @@ Regression tests failed before the production fixes. After the fixes:
 Backend code, contract and migrations are unchanged; the earlier PostgreSQL
 validation remains separate evidence. Physical-device, production recovery and
 release gates remain unrun. No merge, deployment or issue closure is implied.
+
+## Latest-wins and retained-key coverage follow-up
+
+The final PR review reproduced a member-enrichment race: revocation could start
+another roster load before an older member lookup completed, letting stale
+success/failure overwrite newer owner labels. A monotonically increasing load
+generation now guards device and member results, including thrown failures.
+Current device-list rejection ends the loading state with an error; a superseded
+rejection has no effect and produces no unhandled promise rejection.
+
+Coverage strengthened in the same separate follow-up commit:
+
+- Six deferred member-result interleavings and three deferred device-result
+  interleavings cover stale success, returned errors and thrown failures after
+  newer loads finish. Current device-list rejection is also tested. Four race
+  regressions failed before the generation guard.
+- The populated migration-preservation test runs on both SQLite and isolated
+  PostgreSQL 17 schemas. It compares pre/post device, session, household-key and
+  wrap rows, invalidates outstanding QR codes and checks schema-only rollback.
+- After migration and a key-cache reset, the existing device remains locked
+  until its retained private key unwraps its fetched wrap and opens the real
+  key-session endpoint; no password re-login or cached key masks the result.
+- The account-login crypto test now creates independent device key pairs. Each
+  private key opens only its own wrap and unlocks after a fresh cache reset;
+  cross-device wrong-key attempts fail authentication. Keys are generated only
+  at test runtime and are never logged or committed.
+
+Review reconciliation for snapshot `2026-10-31/2142`: **4/4 lanes completed**.
+Lanes 2–4 reported no findings. Lane 1's rejected-device-request handling gap
+was accepted as robustness work (the missing catch was inherited, not a newly
+introduced P1), then fixed and covered with current/superseded rejection tests.
+Final refinements were checked locally rather than sent for repeated review.
+
+Validation:
+
+- Focused migration/crypto suite: **28 passed**, including both database engines.
+- Full PostgreSQL-required backend suite: **1,250 passed**, no skips; enforced
+  crypto coverage **100%**. API lint and OpenAPI drift checks passed. Log:
+  `/tmp/issue162-review-final-api.log`.
+- Full web suite: **397 passed**, 35 files; localized production build passed.
+  Log: `/tmp/issue162-review-final-web.log`.
+- Web oldest-contract compatibility, version/fixture/hygiene and diff-whitespace
+  checks passed.
+- Swift/iOS source is unchanged in this follow-up; its prior 550-test result is
+  separate evidence, not a fresh execution claim.
+
+No production migration, physical-device acceptance, merge or deployment was
+performed. No legacy QR protocol support or deferred cleanup was introduced.

@@ -189,6 +189,126 @@ describe('Devices', () => {
     expect(apiMock.listMembers).toHaveBeenCalledTimes(2);
   });
 
+  it.each([
+    ['success', 'success'], ['success', 'failure'],
+    ['error', 'success'], ['error', 'failure'],
+    ['throw', 'success'], ['throw', 'failure'],
+  ])('ignores superseded member %s after latest lookup %s', async (oldResult, latestResult) => {
+    let resolveOld!: (value: never) => void;
+    let rejectOld!: (reason: unknown) => void;
+    const oldMembers = new Promise<never>((resolve, reject) => {
+      resolveOld = resolve;
+      rejectOld = reject;
+    });
+    const apiMock = {
+      listPairedDevices: vi.fn().mockResolvedValue(response({ devices: [{
+        id: 'd1', user_id: 'u1', name: 'Synthetic phone',
+        created_at: '2026-07-01T10:00:00Z', last_seen_at: null, revoked_at: null,
+      }] })),
+      listMembers: vi.fn().mockReturnValueOnce(oldMembers).mockResolvedValueOnce(
+        latestResult === 'success'
+          ? response({ members: [{ user_id: 'u1', display_name: 'Latest owner' }] })
+          : response(undefined, { error: { message: 'synthetic latest failure' } }),
+      ),
+      revokePairedDevice: vi.fn().mockResolvedValue(response(undefined)),
+    };
+    configure(apiMock, 'owner');
+    const fixture = TestBed.createComponent(Devices);
+    fixture.detectChanges();
+    await vi.waitFor(() => expect(apiMock.listMembers).toHaveBeenCalledTimes(1));
+    fixture.detectChanges();
+    const host = fixture.nativeElement as HTMLElement;
+    (host.querySelector('.device-list__revoke') as HTMLButtonElement).click();
+    const expected = latestResult === 'success' ? 'Latest owner' : 'Member name unavailable';
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(host.textContent).toContain(expected);
+    });
+    if (oldResult === 'throw') {
+      rejectOld(new Error('synthetic superseded failure'));
+    } else {
+      resolveOld(oldResult === 'success'
+        ? response({ members: [{ user_id: 'u1', display_name: 'Stale owner' }] })
+        : response(undefined, { error: { message: 'synthetic superseded failure' } }));
+    }
+    await oldMembers.catch(() => undefined);
+    fixture.detectChanges();
+    expect(host.textContent).toContain(expected);
+    expect(host.textContent).not.toContain('Stale owner');
+    expect(apiMock.listMembers).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(['success', 'error', 'throw'])('ignores a superseded device-list %s', async (oldResult) => {
+    const original = [
+      { id: 'd1', user_id: 'u1', name: 'First phone', created_at: '2026-07-01T10:00:00Z',
+        last_seen_at: null, revoked_at: null },
+      { id: 'd2', user_id: 'u1', name: 'Second phone', created_at: '2026-07-01T10:00:00Z',
+        last_seen_at: null, revoked_at: null },
+    ];
+    let resolveOld!: (value: never) => void;
+    let rejectOld!: (reason: unknown) => void;
+    const oldDevices = new Promise<never>((resolve, reject) => {
+      resolveOld = resolve;
+      rejectOld = reject;
+    });
+    const apiMock = {
+      listPairedDevices: vi.fn()
+        .mockResolvedValueOnce(response({ devices: original }))
+        .mockReturnValueOnce(oldDevices)
+        .mockResolvedValueOnce(response({ devices: [{ ...original[0], id: 'd3', name: 'Latest phone' }] })),
+      listMembers: vi.fn().mockResolvedValue(response({ members: [{ user_id: 'u1', display_name: 'Alex' }] })),
+      revokePairedDevice: vi.fn().mockResolvedValue(response(undefined)),
+    };
+    configure(apiMock, 'owner');
+    const fixture = TestBed.createComponent(Devices);
+    fixture.detectChanges();
+    const host = fixture.nativeElement as HTMLElement;
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(host.querySelectorAll('.device-list__revoke').length).toBe(2);
+    });
+    (host.querySelector('.device-list__revoke') as HTMLButtonElement).click();
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(apiMock.listPairedDevices).toHaveBeenCalledTimes(2);
+      expect((host.querySelectorAll('.device-list__revoke')[1] as HTMLButtonElement).disabled).toBe(false);
+    });
+    (host.querySelectorAll('.device-list__revoke')[1] as HTMLButtonElement).click();
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(host.textContent).toContain('Latest phone');
+    });
+    if (oldResult === 'throw') {
+      rejectOld(new Error('synthetic superseded device failure'));
+    } else {
+      resolveOld(oldResult === 'success'
+        ? response({ devices: [{ ...original[0], name: 'Stale phone' }] })
+        : response(undefined, { error: { message: 'synthetic superseded device failure' } }));
+    }
+    await oldDevices.catch(() => undefined);
+    fixture.detectChanges();
+    expect(host.textContent).toContain('Latest phone');
+    expect(host.textContent).not.toContain('Stale phone');
+    expect(host.textContent).not.toContain('synthetic superseded device failure');
+    expect(apiMock.listMembers).toHaveBeenCalledTimes(2);
+  });
+
+  it('reports a current device-list rejection instead of leaving the spinner active', async () => {
+    const apiMock = {
+      listPairedDevices: vi.fn().mockRejectedValue(new Error('synthetic device lookup failure')),
+      listMembers: vi.fn(),
+    };
+    configure(apiMock, 'viewer');
+    const fixture = TestBed.createComponent(Devices);
+    fixture.detectChanges();
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('.page-error')?.textContent).toBeTruthy();
+    });
+    expect(fixture.nativeElement.textContent).not.toContain('Loading…');
+    expect(apiMock.listMembers).not.toHaveBeenCalled();
+  });
+
   it('owner revokes a device and the list reloads', async () => {
     const apiMock = {
       listMembers: vi.fn().mockResolvedValue(response({ members: [] })),

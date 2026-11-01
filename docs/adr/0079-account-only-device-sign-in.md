@@ -61,7 +61,9 @@ best-effort revoke that issued session using its token and the same URL/trust,
 remove any newly saved private key, and report the storage failure even if
 revocation is unavailable. Do not complete the local session or activate watch
 access. Device-owner labels distinguish pending/unavailable member lookups from
-a successful lookup that does not contain the member.
+a successful lookup that does not contain the member. Overlapping roster loads
+are latest-wins: superseded device/member results and failures cannot overwrite
+the newest roster or owner-lookup state.
 
 Cold restoration of valid existing credentials preserves the cached household
 request language before the first request, even offline. A real session/account
@@ -112,6 +114,11 @@ preservation of existing device/auth/key records, account login/rights,
 wrong credentials/shared throttling, device list/revoke, sealed-key wraps,
 fresh iOS setup, stored-server sign-out/relaunch, HTTPS and wrapper-aware safe
 errors. Retain tests of account switching/cache isolation and watch continuity.
+Run populated migration/session/key preservation on SQLite and PostgreSQL 17;
+after migration and key-cache reset, an existing device must unlock through its
+retained private key without password re-login. Distinct device keys must each
+open their own wrap and fail to open the other device's wrap. Test superseded
+roster/member completions (including failures) after a newer load finishes.
 Generated-client drift, contract/version fixtures, API/web suites and iOS/watch
 build/tests are gates; report unavailable/runtime/manual gates separately.
 Update current mobile/security/dashboard specs, onboarding/recovery guides and

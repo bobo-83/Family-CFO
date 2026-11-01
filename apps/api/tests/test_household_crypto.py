@@ -29,20 +29,17 @@ def _master_key(monkeypatch):
 async def test_account_device_login_unlocks_sealed_household_and_keeps_wraps(
     _master_key, demo_client, demo_engine, demo_token
 ) -> None:
-    import base64
-
-    from cryptography.hazmat.primitives import serialization
+    from _test_keys import device_public_key, unwrap_device_key
+    from cryptography.exceptions import InvalidTag
     from cryptography.hazmat.primitives.asymmetric import ec
 
     household_id = fixtures.DEMO_HOUSEHOLD_ID
     ciphertext = household_crypto.encrypt_text(demo_engine, household_id, "synthetic household fact")
-    private_key = ec.generate_private_key(ec.SECP256R1())
-    public_key = base64.b64encode(private_key.public_key().public_bytes(
-        serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint
-    )).decode()
+    first_key = ec.generate_private_key(ec.SECP256R1())
+    second_key = ec.generate_private_key(ec.SECP256R1())
     payload = {
         "email": fixtures.DEMO_USER_EMAIL, "password": fixtures.DEMO_USER_PASSWORD,
-        "device_name": "Account-only phone", "device_public_key": public_key,
+        "device_name": "Account-only phone", "device_public_key": device_public_key(first_key),
     }
     first = await demo_client.post("/api/v1/pairing/login", json=payload)
     assert first.status_code == 201
@@ -55,11 +52,40 @@ async def test_account_device_login_unlocks_sealed_household_and_keeps_wraps(
 
     # Password login after restart unlocks through the existing member wrap and
     # adds a fresh device wrap without changing an already-issued device's wrap.
-    second = await demo_client.post("/api/v1/pairing/login", json=payload)
+    second = await demo_client.post("/api/v1/pairing/login", json={
+        **payload, "device_name": "Second account phone",
+        "device_public_key": device_public_key(second_key),
+    })
     assert second.status_code == 201
     assert household_crypto.decrypt_text(demo_engine, household_id, ciphertext) == "synthetic household fact"
     assert household_crypto.device_wrap_json(demo_engine, household_id, first_id) == first_wrap
-    assert household_crypto.device_wrap_json(demo_engine, household_id, second.json()["device_id"])
+    second_wrap = household_crypto.device_wrap_json(
+        demo_engine, household_id, second.json()["device_id"]
+    )
+    assert second_wrap is not None
+
+    for credential, private_key, other_key, expected_wrap in [
+        (first.json(), first_key, second_key, first_wrap),
+        (second.json(), second_key, first_key, second_wrap),
+    ]:
+        household_crypto.reset_cache_for_tests()
+        with pytest.raises(household_crypto.HouseholdLockedError):
+            household_crypto.decrypt_text(demo_engine, household_id, ciphertext)
+        device_headers = {"Authorization": f"Bearer {credential['access_token']}"}
+        wrapped = await demo_client.get("/api/v1/household/device-wrap", headers=device_headers)
+        assert wrapped.status_code == 200
+        assert wrapped.json()["wrap_json"] == expected_wrap
+        with pytest.raises(InvalidTag):
+            unwrap_device_key(expected_wrap, other_key)
+        dek = unwrap_device_key(expected_wrap, private_key)
+        unlocked = await demo_client.post(
+            "/api/v1/household/key-session", headers=device_headers, json={"dek": dek.decode()}
+        )
+        assert unlocked.status_code == 200
+        assert household_crypto.decrypt_text(
+            demo_engine, household_id, ciphertext
+        ) == "synthetic household fact"
+
     revoked = await demo_client.delete(
         f"/api/v1/pairing/devices/{first_id}", headers={"Authorization": f"Bearer {demo_token}"}
     )

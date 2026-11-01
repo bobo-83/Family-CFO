@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID, uuid4
@@ -86,41 +87,93 @@ def test_migrations_upgrade_and_downgrade_cleanly(tmp_path) -> None:
     assert re_upgraded.returncode == 0, re_upgraded.stderr
 
 
+@pytest.fixture(params=["sqlite", "postgresql17"])
+def qr_migration_database_url(request: pytest.FixtureRequest, tmp_path: Path) -> Iterator[str]:
+    if request.param == "sqlite":
+        yield f"sqlite:///{tmp_path / 'retire_qr.db'}"
+        return
+
+    admin_engine = _postgresql_test_engine()
+    schema_name = f"family_cfo_qr_retirement_{uuid4().hex}"
+    schema_created = False
+    try:
+        try:
+            with admin_engine.begin() as connection:
+                connection.execute(text(f'CREATE SCHEMA "{schema_name}"'))
+            schema_created = True
+        except Exception as exc:  # noqa: BLE001 - required mode fails loudly
+            if _postgresql_required():
+                pytest.fail(f"required PostgreSQL test schema is unavailable: {type(exc).__name__}")
+            pytest.skip(f"PostgreSQL test schema is unavailable: {type(exc).__name__}")
+        yield admin_engine.url.update_query_dict(
+            {"options": f"-csearch_path={schema_name}"}
+        ).render_as_string(hide_password=False)
+    finally:
+        if schema_created:
+            with admin_engine.begin() as connection:
+                connection.execute(text(f'DROP SCHEMA IF EXISTS "{schema_name}" CASCADE'))
+        admin_engine.dispose()
+
+
+@pytest.fixture
+def _migration_master_key(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    from cryptography.fernet import Fernet
+
+    from family_cfo_api import household_crypto
+    from family_cfo_api.config import get_settings
+
+    monkeypatch.setenv("FAMILY_CFO_MASTER_KEY", Fernet.generate_key().decode())
+    get_settings.cache_clear()
+    household_crypto.reset_cache_for_tests()
+    try:
+        yield
+    finally:
+        get_settings.cache_clear()
+        household_crypto.reset_cache_for_tests()
+
+
 @pytest.mark.anyio
-async def test_0097_drops_outstanding_codes_but_preserves_device_access(tmp_path) -> None:
+async def test_0097_drops_outstanding_codes_but_preserves_device_access(
+    qr_migration_database_url: str, _migration_master_key
+) -> None:
     from datetime import timedelta
 
     import httpx
+    from _test_keys import device_public_key, unwrap_device_key
+    from cryptography.exceptions import InvalidTag
+    from cryptography.hazmat.primitives.asymmetric import ec
     from sqlalchemy import MetaData, Table
 
-    from family_cfo_api import fixtures, security
+    from family_cfo_api import fixtures, household_crypto, security
     from family_cfo_api.main import create_app
 
-    database_url = f"sqlite:///{tmp_path / 'retire_qr.db'}"
+    database_url = qr_migration_database_url
     before = _run_alembic("upgrade", "0096_backup_repair_index", database_url=database_url)
     assert before.returncode == 0, before.stderr
     engine = create_engine(database_url)
     try:
         fixtures.seed_demo_household(engine)
         token = security.generate_access_token()
+        private_key = ec.generate_private_key(ec.SECP256R1())
+        public_key = device_public_key(private_key)
         device = repository.create_paired_device_with_session(
             engine, household_id=fixtures.DEMO_HOUSEHOLD_ID, user_id=fixtures.DEMO_USER_ID,
-            device_name="Existing QR-issued device", device_public_key="existing-key",
+            device_name="Existing QR-issued device", device_public_key=public_key,
             access_token=token, token_hash=security.hash_token(token),
             expires_at=repository.utcnow() + timedelta(days=30),
         )
+        household_id = fixtures.DEMO_HOUSEHOLD_ID
+        ciphertext = household_crypto.encrypt_text(engine, household_id, "synthetic retained fact")
+        household_crypto.on_password_established(
+            engine, household_id, fixtures.DEMO_USER_ID, fixtures.DEMO_USER_PASSWORD
+        )
+        household_crypto.ensure_device_wrap(engine, household_id, device.device_id, public_key)
+        original_wrap = household_crypto.device_wrap_json(engine, household_id, device.device_id)
+        assert original_wrap is not None
+        assert household_crypto.generate_recovery_key(engine, household_id)
+        assert household_crypto.seal_household(engine, household_id) is None
         old_codes = Table("pairing_sessions", MetaData(), autoload_with=engine)
         with engine.begin() as conn:
-            conn.execute(insert(models.household_keys).values(
-                id=repository.new_id(), household_id=fixtures.DEMO_HOUSEHOLD_ID,
-                wrapped_dek="synthetic-wrapped-key", canary="synthetic-canary",
-                key_generation=1, created_at=repository.utcnow(),
-            ))
-            for kind, subject in [("device", device.device_id), ("member", fixtures.DEMO_USER_ID)]:
-                conn.execute(insert(models.household_key_wraps).values(
-                    id=repository.new_id(), household_id=fixtures.DEMO_HOUSEHOLD_ID,
-                    kind=kind, subject_id=subject, wrap_json="{}", created_at=repository.utcnow(),
-                ))
             conn.execute(insert(old_codes).values(
                 id="outstanding-pre-upgrade-code", household_id=fixtures.DEMO_HOUSEHOLD_ID,
                 created_by_user_id=fixtures.DEMO_USER_ID, qr_payload="{}",
@@ -154,6 +207,26 @@ async def test_0097_drops_outstanding_codes_but_preserves_device_access(tmp_path
             )
             assert existing.status_code == 200
             assert existing.json()["device_id"] == device.device_id
+
+            # Neither a live key cache nor another password login may mask loss
+            # of the pre-upgrade device's independently retained private key.
+            household_crypto.reset_cache_for_tests()
+            with pytest.raises(household_crypto.HouseholdLockedError):
+                household_crypto.decrypt_text(engine, household_id, ciphertext)
+            headers = {"Authorization": f"Bearer {token}"}
+            wrapped = await client.get("/api/v1/household/device-wrap", headers=headers)
+            assert wrapped.status_code == 200
+            assert wrapped.json()["wrap_json"] == original_wrap
+            with pytest.raises(InvalidTag):
+                unwrap_device_key(original_wrap, ec.generate_private_key(ec.SECP256R1()))
+            dek = unwrap_device_key(original_wrap, private_key)
+            unlocked = await client.post(
+                "/api/v1/household/key-session", headers=headers, json={"dek": dek.decode()}
+            )
+            assert unlocked.status_code == 200
+            assert household_crypto.decrypt_text(
+                engine, household_id, ciphertext
+            ) == "synthetic retained fact"
 
         downgraded = _run_alembic("downgrade", "0096_backup_repair_index", database_url=database_url)
         assert downgraded.returncode == 0, downgraded.stderr
