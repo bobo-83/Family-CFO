@@ -1,7 +1,7 @@
 <h1 i18n="Page title|Household members and the phones paired to them">Users &amp; devices</h1>
 <p class="page-empty" i18n="Page intro|Explains what the users page does; Family CFO is the product name and stays untranslated">
-  Manage household members and the devices paired to them. Open a member to pair a
-  phone — each member gets their own QR code to scan with the Family CFO iPhone app.
+  Manage household members and their devices. Invite each member to choose their
+  own password, then sign in to the Family CFO iPhone app with their own account.
 </p>
 
 <h2 i18n="Section heading|The roster of people in this household">Household members</h2>
@@ -105,46 +105,6 @@
                 }
               }
 
-              @if (pairingSession()?.userId === member.user_id) {
-                @if (pairingSession(); as session) {
-                  <mat-card appearance="outlined" class="pairing-card">
-                    <mat-card-content>
-                    <img
-                      [src]="session.qrImageDataUrl"
-                      alt="Pairing QR code"
-                      i18n-alt="Image alternative text|The QR code a phone scans to pair"
-                      width="240"
-                      height="240"
-                    />
-                    <p class="pairing-card__expiry" i18n="Pairing session|When the pairing code stops working">Expires {{ session.expiresAt | date: 'medium' }}</p>
-                    <button
-                      mat-stroked-button
-                      type="button"
-                      (click)="dismissPairing()"
-                      i18n="Button|Dismisses the pairing QR code"
-                    >
-                      Done
-                    </button>
-                    </mat-card-content>
-                  </mat-card>
-                }
-              } @else if (canPairForMember(member)) {
-                <button
-                  mat-flat-button
-                  type="button"
-                  class="member-devices__pair"
-                  [disabled]="pairingUserId() === member.user_id"
-                  (click)="pairDeviceFor(member)"
-                >
-                  @if (pairingUserId() === member.user_id) {
-                    <ng-container i18n="Button|Shown while the pairing session is being minted">Creating session…</ng-container>
-                  } @else {
-                    <ng-container i18n="Button|Mints a QR code that pairs a phone to this member">Pair a device</ng-container>
-                  }
-                </button>
-              } @else {
-                <p class="page-empty" i18n="Permission notice|Pairing on another member's behalf needs device management">Only an admin can pair a device for another member.</p>
-              }
             </div>
           }
         </li>
@@ -155,9 +115,6 @@
   }
 }
 
-@if (pairingError(); as message) {
-  <p class="page-error" role="alert">{{ message }}</p>
-}
 @if (revokeError(); as message) {
   <p class="page-error" role="alert">{{ message }}</p>
 }

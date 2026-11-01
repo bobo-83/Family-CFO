@@ -26,7 +26,7 @@ enum AdvisorErrorDescriber {
             // Our pinning delegate cancels the challenge on a mismatch.
             return String(
                 localized:
-                    "The server's certificate doesn't match the pinned fingerprint from pairing. If the box's certificate changed, re-pair from the dashboard's Devices page."
+                    "The request was cancelled or server trust was rejected. If the certificate changed, verify it with the operator, then use Change server on the sign-in screen to confirm it explicitly."
             )
         case NSURLErrorTimedOut:
             if context == .streamedTurn {
@@ -52,7 +52,7 @@ enum AdvisorErrorDescriber {
             NSURLErrorServerCertificateHasBadDate, NSURLErrorServerCertificateNotYetValid:
             return String(
                 localized:
-                    "TLS handshake with the server failed (\(nsError.code)). If the box uses a self-signed certificate, re-pair so the app can pin the current one."
+                    "TLS handshake with the server failed (\(nsError.code)). Verify the certificate with the operator, then use Change server on the sign-in screen to confirm it explicitly."
             )
         default:
             return String(localized: "Network error \(nsError.code): \(nsError.localizedDescription)")

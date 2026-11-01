@@ -2,6 +2,10 @@
 
 ## Status
 
+QR bootstrap/delegated provisioning is superseded by [ADR 0079](0079-account-only-device-sign-in.md).
+Shared member-owned device sessions and revocation remain. The text below
+records the historical QR decision, not current onboarding behavior.
+
 Accepted.
 
 ## Context

@@ -36,9 +36,10 @@ DENY`, `Referrer-Policy`, a `Content-Security-Policy`).
   instance (counters reset on restart, don't span replicas) — defense in depth,
   not a substitute for fronting an internet-exposed deployment with an
   authenticating proxy. Tune with `FAMILY_CFO_AUTH_RATE_LIMIT_*`.
-- **Pairing secret:** a pairing session id is a CSPRNG token (not a uuid),
-  single-use, and short-lived; it is the QR-borne bearer secret for the
-  otherwise-unauthenticated `POST /api/v1/pairing/confirm`.
+- **Account-only devices:** `POST /api/v1/pairing/login` uses account credentials
+  over HTTPS and issues a revocable device token. QR issuance/redemption and
+  outstanding codes are retired together (ADR 0079). Existing sessions and
+  encryption wraps remain valid. See [account sign-in](account-sign-in.md).
 
 ## AI runtime (SSRF guard)
 

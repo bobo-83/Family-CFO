@@ -220,8 +220,10 @@ cat > "$EXPORT_DIR/index.html" <<HTML
   progress ring while it downloads, then it's ready. <strong>You can close this page.</strong>
   <br><br>
   <b>First launch after a box update?</b>
-  If the app says it can't reach your box, open the dashboard → <strong>Devices</strong>,
-  generate a pairing code, and scan it once. That re-links the app to the box.
+  Existing signed-in devices stay signed in after updating. If you need to sign in,
+  enter this server's address in the app, verify its certificate, and sign in with your own account.
+  If a saved server's certificate changed, verify the new fingerprint with the operator
+  before using <strong>Change server</strong>; do not bypass a trust warning.
   <br><br>
   Tapping Install again just reinstalls this same build over the top — harmless, and it
   keeps your data and pairing.

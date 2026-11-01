@@ -3,11 +3,8 @@ import Foundation
 import Observation
 import UIKit
 
-/// ADR 0056: the email-login path onto a box — credentialed pairing. The user
-/// types the server address; ONE explicit health request captures the server's
-/// certificate fingerprint (trust-on-first-use, the same trust act as scanning
-/// the admin's QR); the user confirms it; then `/pairing/login` runs PINNED to
-/// that fingerprint and yields an ordinary paired-device credential.
+/// ADR 0079: account-only sign-in into a revocable, device-bound session.
+/// First setup confirms server trust; re-entry preserves stored trust.
 @MainActor
 @Observable
 final class LoginViewModel {
@@ -31,15 +28,32 @@ final class LoginViewModel {
     typealias ClientBuilder = @Sendable (_ baseURL: URL, _ fingerprint: String?) -> Client
 
     private let buildClient: ClientBuilder
+    private let savePrivateKey: @Sendable (Data) throws -> Void
+    private let deletePrivateKey: @Sendable () -> Void
+    private let buildRevocationClient: @Sendable (URL, String?, String) -> Client
 
     init(
         step: Step = .enterServer,
+        savePrivateKey: @escaping @Sendable (Data) throws -> Void = {
+            try KeychainStore.save($0, account: "device-private-key")
+        },
+        deletePrivateKey: @escaping @Sendable () -> Void = {
+            KeychainStore.delete(account: "device-private-key")
+        },
+        buildRevocationClient: @escaping @Sendable (URL, String?, String) -> Client = {
+            baseURL, fingerprint, token in
+            APIClientFactory.makeClient(
+                baseURL: baseURL, pinnedCertificateSHA256: fingerprint, token: { token })
+        },
         buildClient: @escaping ClientBuilder = { baseURL, fingerprint in
             APIClientFactory.makeClient(baseURL: baseURL, pinnedCertificateSHA256: fingerprint)
         }
     ) {
         self.step = step
         self.buildClient = buildClient
+        self.savePrivateKey = savePrivateKey
+        self.deletePrivateKey = deletePrivateKey
+        self.buildRevocationClient = buildRevocationClient
     }
 
     var serverAddress: String = ""
@@ -63,7 +77,10 @@ final class LoginViewModel {
         var text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return nil }
         if !text.contains("://") { text = "https://" + text }
-        guard var components = URLComponents(string: text), components.host?.isEmpty == false
+        guard var components = URLComponents(string: text),
+            components.scheme?.lowercased() == "https",
+            components.user == nil, components.password == nil,
+            components.host?.isEmpty == false
         else { return nil }
         if components.port == nil { components.port = defaultPort }
         components.query = nil
@@ -98,60 +115,17 @@ final class LoginViewModel {
         }
     }
 
-    /// Why the health probe failed, in words that point at the right thing.
-    ///
-    /// This used to discard `error` and always say "could not reach the
-    /// server", which sent two separate debugging sessions at the network
-    /// while the causes were a missing port and something else entirely. Every
-    /// cause produced identical text, so the message was unfalsifiable.
-    ///
-    /// The trailing code is deliberate. A self-hosted box is operated by the
-    /// person reading this, and `NSURLErrorDomain -1202` is the difference
-    /// between "your certificate changed" and "nothing is listening" — worth
-    /// more than a tidier sentence.
     static func describeServerCheck(_ error: Error) -> String {
-        let nsError = error as NSError
-        let detail = "\(nsError.domain) \(nsError.code)"
-        let explanation: String
-        switch (nsError.domain, nsError.code) {
-        case (NSURLErrorDomain, NSURLErrorServerCertificateUntrusted),
-            (NSURLErrorDomain, NSURLErrorSecureConnectionFailed),
-            (NSURLErrorDomain, NSURLErrorServerCertificateHasBadDate),
-            (NSURLErrorDomain, NSURLErrorServerCertificateNotYetValid):
-            explanation = String(
-                localized:
-                    "The server answered but its certificate was rejected. If the box's certificate was regenerated, this is expected — unpair and pair again."
-            )
-        case (NSURLErrorDomain, NSURLErrorCannotConnectToHost):
-            explanation = String(
-                localized:
-                    "Nothing is listening at that address and port. The box serves 8443; check the port."
-            )
-        case (NSURLErrorDomain, NSURLErrorCannotFindHost):
-            explanation = String(
-                localized:
-                    "That name could not be resolved. If it is a tailnet name, check the VPN is connected."
-            )
-        case (NSURLErrorDomain, NSURLErrorTimedOut):
-            explanation = String(
-                localized:
-                    "The address is reachable in principle but nothing answered in time — usually a firewall between this phone and the box."
-            )
-        case (NSURLErrorDomain, NSURLErrorNotConnectedToInternet),
-            (NSURLErrorDomain, NSURLErrorNetworkConnectionLost):
-            explanation = String(
-                localized: "This phone lost its network connection.")
-        case (NSURLErrorDomain, NSURLErrorAppTransportSecurityRequiresSecureConnection):
-            explanation = String(
-                localized:
-                    "iOS blocked the connection before it was made (App Transport Security).")
-        default:
-            explanation = String(
-                localized:
-                    "Could not reach the server: make sure this phone is on the same network (or tailnet) as your Family CFO box."
-            )
-        }
-        return "\(explanation)\n\n[\(detail): \(nsError.localizedDescription)]"
+        SignInErrorDescriber.describe(error)
+    }
+
+    /// No probe and no TOFU on re-entry: use precisely the saved address/pin.
+    func restoreServer(_ server: ServerConfig?) {
+        guard step == .enterServer, serverAddress.isEmpty, let server,
+            server.apiBaseURL.scheme?.lowercased() == "https"
+        else { return }
+        serverAddress = server.apiBaseURL.absoluteString
+        step = .credentials(baseURL: server.apiBaseURL, fingerprint: server.certificateSHA256)
     }
 
     func confirmServer() {
@@ -160,13 +134,21 @@ final class LoginViewModel {
     }
 
     func startOver() {
+        password = ""
+        signInError = nil
         step = .enterServer
     }
 
     func signIn(into model: AppModel) async {
         guard case .credentials(let baseURL, let fingerprint) = step else { return }
+        guard baseURL.scheme?.lowercased() == "https",
+            baseURL.user == nil, baseURL.password == nil else {
+            step = .failed(String(localized: "Use an HTTPS server address without embedded credentials."))
+            return
+        }
+        signInError = nil
         step = .signingIn
-        // The private key stays on the device, like QR pairing (M83).
+        // The private key stays on the device.
         let privateKey = P256.Signing.PrivateKey()
         let client = buildClient(baseURL, fingerprint)
         do {
@@ -186,25 +168,42 @@ final class LoginViewModel {
             switch output {
             case .created(let response):
                 let credential = try response.body.json
-                try? KeychainStore.save(
-                    privateKey.rawRepresentation, account: "device-private-key")
-                model.completePairing(
-                    server: ServerConfig(
-                        apiBaseURL: baseURL,
-                        certificateSHA256: fingerprint,
-                        householdID: credential.householdId ?? "",
-                        householdName: credential.householdName ?? "Your household",
-                        deviceName: deviceName
-                    ),
-                    credential: StoredCredential(
-                        deviceID: credential.deviceId,
-                        accessToken: credential.accessToken,
-                        expiresAt: credential.expiresAt,
-                        role: credential.role,
-                        roleName: credential.roleName,
-                        rights: credential.rights
+                var privateKeySaved = false
+                let saved: Bool
+                do {
+                    try savePrivateKey(privateKey.rawRepresentation)
+                    privateKeySaved = true
+                    saved = model.completePairing(
+                        server: ServerConfig(
+                            apiBaseURL: baseURL,
+                            certificateSHA256: fingerprint,
+                            householdID: credential.householdId ?? "",
+                            householdName: credential.householdName ?? "Your household",
+                            deviceName: deviceName
+                        ),
+                        credential: StoredCredential(
+                            deviceID: credential.deviceId,
+                            accessToken: credential.accessToken,
+                            expiresAt: credential.expiresAt,
+                            role: credential.role,
+                            roleName: credential.roleName,
+                            rights: credential.rights
+                        )
                     )
-                )
+                } catch {
+                    saved = false
+                }
+                password = ""
+                if !saved {
+                    if privateKeySaved { deletePrivateKey() }
+                    // The server already issued this session. Never use an old
+                    // model credential or change trust while compensating for
+                    // a local save failure. Cleanup failure must not hide it.
+                    let cleanup = buildRevocationClient(baseURL, fingerprint, credential.accessToken)
+                    _ = try? await cleanup.deleteAuthSession(.init())
+                    step = .credentials(baseURL: baseURL, fingerprint: fingerprint)
+                    signInError = String(localized: "Could not securely save this device’s sign-in. Try signing in again.")
+                }
             case .unauthorized:
                 password = ""
                 step = .credentials(baseURL: baseURL, fingerprint: fingerprint)
@@ -218,12 +217,14 @@ final class LoginViewModel {
                 signInError = RetryAfter.tooManyAttemptsMessage(
                     headerValue: response.headers.retryAfter)
             case .undocumented(let status, _):
-                step = .failed(
-                    String(localized: "The server answered with an unexpected status (\(status))."))
+                step = .credentials(baseURL: baseURL, fingerprint: fingerprint)
+                signInError = String(localized: "The server answered with an unexpected status (\(status)).")
             }
         } catch {
-            step = .failed(
-                PairingViewModel.describeTransportFailure(error, pinned: fingerprint != nil))
+            // Retry keeps the attempted URL and trust. Only the explicit
+            // Change server action may restart certificate discovery.
+            step = .credentials(baseURL: baseURL, fingerprint: fingerprint)
+            signInError = SignInErrorDescriber.describe(error)
         }
     }
 

@@ -2,10 +2,9 @@ import CryptoKit
 import Foundation
 import Security
 
-/// Certificate pinning per the mobile spec: the pairing QR carries the
-/// SHA-256 of the server's DER certificate and the app pins it — no CA
-/// installation dance, self-signed certificates included. Re-pairing
-/// rotates the pin.
+/// Certificate trust per ADR 0079: explicit server setup confirms the full
+/// SHA-256 of a self-signed certificate. Changing trust requires explicit setup;
+/// existing pins remain valid through the account-only upgrade.
 ///
 /// #86: pinning is only right for a SELF-SIGNED certificate, where the
 /// fingerprint is the whole of the trust. A certificate that chains to a root
@@ -60,11 +59,10 @@ enum CertificatePin {
     }
 }
 
-/// ADR 0056: trust-on-first-use for the email-login path, which has no QR to
-/// carry a fingerprint. Used for exactly ONE explicit setup request (a health
+/// ADR 0079: trust-on-first-use during explicit server setup (a health
 /// check the user initiates): it accepts the presented server certificate and
 /// records its SHA-256 so the user can confirm it — after which every request
-/// is pinned to that hash, exactly like a QR pairing. Never used for ongoing
+/// is pinned to that hash. Never used for ongoing
 /// traffic.
 ///
 /// #86: a certificate the system trusts for this host is NOT captured.

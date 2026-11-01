@@ -11,7 +11,7 @@ enum WatchDictation {
     /// nil when the user cancelled or the controller isn't reachable.
     static func ask() async -> String? {
         await withCheckedContinuation { continuation in
-            guard let controller = WKExtension.shared().visibleInterfaceController else {
+            guard let controller = WKApplication.shared().visibleInterfaceController else {
                 continuation.resume(returning: nil)
                 return
             }

@@ -1,12 +1,8 @@
 import SwiftUI
 
-/// ADR 0056: sign in with email + password instead of scanning a QR — for a
-/// member who joined via an invite link, or re-entry after an unpair. The
-/// result is an ordinary paired device (visible and revocable on the
-/// dashboard's Devices page).
+/// The unauthenticated root: account-only device sign-in (ADR 0079).
 struct LoginView: View {
     @Environment(AppModel.self) private var model
-    @Environment(\.dismiss) private var dismiss
     @State private var viewModel = LoginViewModel()
 
     var body: some View {
@@ -36,17 +32,8 @@ struct LoginView: View {
             }
             .navigationTitle("Sign in")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-            }
             .task {
-                // After a sign-out the server info survives (ADR 0056) —
-                // prefill it so signing back in is just email + password.
-                if viewModel.serverAddress.isEmpty, let server = model.server {
-                    viewModel.serverAddress = server.apiBaseURL.absoluteString
-                }
+                viewModel.restoreServer(model.server)
             }
         }
     }
@@ -69,7 +56,7 @@ struct LoginView: View {
                     Text("Continue")
                 }
             }
-            .disabled(viewModel.serverAddress.isEmpty)
+            .disabled(viewModel.serverAddress.isEmpty || viewModel.step == .checkingServer)
         } header: {
             Text("Your Family CFO server")
         } footer: {
@@ -85,15 +72,19 @@ struct LoginView: View {
     private func confirmSection(baseURL: URL, fingerprint: String?) -> some View {
         Section {
             LabeledContent("Server", value: baseURL.host() ?? baseURL.absoluteString)
-            LabeledContent(
-                "Certificate", value: LoginViewModel.shortFingerprint(fingerprint))
+            LabeledContent("Certificate") {
+                Text(fingerprint ?? String(localized: "System-validated certificate"))
+                    .font(.caption.monospaced())
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             Button("This is my server — continue") { viewModel.confirmServer() }
             Button("Start over", role: .cancel) { viewModel.startOver() }
         } header: {
             Text("Confirm the server")
         } footer: {
             Text(
-                "The app will only ever talk to the server presenting this certificate — the same trust as scanning the pairing QR."
+                "Compare the full fingerprint with the operator through a trusted channel before continuing. CA-signed servers use system certificate validation."
             )
         }
     }
@@ -106,6 +97,7 @@ struct LoginView: View {
                 .autocorrectionDisabled()
             SecureField("Password", text: $viewModel.password)
             TextField("Device name", text: $viewModel.deviceName)
+            Button("Change server") { viewModel.startOver() }
             if let error = viewModel.signInError {
                 Label(error, systemImage: "exclamationmark.triangle")
                     .foregroundStyle(.red)
@@ -118,7 +110,7 @@ struct LoginView: View {
         } header: {
             Text("Your account on \(baseURL.host() ?? "the box")")
         } footer: {
-            Text("This device becomes a paired device — it appears on the dashboard's Devices page and can be revoked there.")
+            Text("Use your own account. New members first accept an invitation in the dashboard. This device appears on Devices and can be revoked there. There is no forgotten-password reset; keep your password in your password manager.")
         }
     }
 }

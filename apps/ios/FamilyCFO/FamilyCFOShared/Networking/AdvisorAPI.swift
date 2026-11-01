@@ -146,7 +146,7 @@ enum APIError: Error, LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .unauthorized:
-            return "This device's pairing is no longer valid. Re-pair from the dashboard's Devices page."
+            return String(localized: "This device’s session is no longer valid. Sign out in Settings, then sign in again with your account.")
         case .server(let status):
             // 423 (ADR 0072 Phase 3): sealed household, no live key session,
             // and the device auto-unlock couldn't open one — the server's

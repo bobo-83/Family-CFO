@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID, uuid4
@@ -84,6 +85,156 @@ def test_migrations_upgrade_and_downgrade_cleanly(tmp_path) -> None:
 
     re_upgraded = _run_alembic("upgrade", "head", database_url=database_url)
     assert re_upgraded.returncode == 0, re_upgraded.stderr
+
+
+@pytest.fixture(params=["sqlite", "postgresql17"])
+def qr_migration_database_url(request: pytest.FixtureRequest, tmp_path: Path) -> Iterator[str]:
+    if request.param == "sqlite":
+        yield f"sqlite:///{tmp_path / 'retire_qr.db'}"
+        return
+
+    admin_engine = _postgresql_test_engine()
+    schema_name = f"family_cfo_qr_retirement_{uuid4().hex}"
+    schema_created = False
+    try:
+        try:
+            with admin_engine.begin() as connection:
+                connection.execute(text(f'CREATE SCHEMA "{schema_name}"'))
+            schema_created = True
+        except Exception as exc:  # noqa: BLE001 - required mode fails loudly
+            if _postgresql_required():
+                pytest.fail(f"required PostgreSQL test schema is unavailable: {type(exc).__name__}")
+            pytest.skip(f"PostgreSQL test schema is unavailable: {type(exc).__name__}")
+        yield admin_engine.url.update_query_dict(
+            {"options": f"-csearch_path={schema_name}"}
+        ).render_as_string(hide_password=False)
+    finally:
+        if schema_created:
+            with admin_engine.begin() as connection:
+                connection.execute(text(f'DROP SCHEMA IF EXISTS "{schema_name}" CASCADE'))
+        admin_engine.dispose()
+
+
+@pytest.fixture
+def _migration_master_key(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    from cryptography.fernet import Fernet
+
+    from family_cfo_api import household_crypto
+    from family_cfo_api.config import get_settings
+
+    monkeypatch.setenv("FAMILY_CFO_MASTER_KEY", Fernet.generate_key().decode())
+    get_settings.cache_clear()
+    household_crypto.reset_cache_for_tests()
+    try:
+        yield
+    finally:
+        get_settings.cache_clear()
+        household_crypto.reset_cache_for_tests()
+
+
+@pytest.mark.anyio
+async def test_0097_drops_outstanding_codes_but_preserves_device_access(
+    qr_migration_database_url: str, _migration_master_key
+) -> None:
+    from datetime import timedelta
+
+    import httpx
+    from _test_keys import device_public_key, unwrap_device_key
+    from cryptography.exceptions import InvalidTag
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from sqlalchemy import MetaData, Table
+
+    from family_cfo_api import fixtures, household_crypto, security
+    from family_cfo_api.main import create_app
+
+    database_url = qr_migration_database_url
+    before = _run_alembic("upgrade", "0096_backup_repair_index", database_url=database_url)
+    assert before.returncode == 0, before.stderr
+    engine = create_engine(database_url)
+    try:
+        fixtures.seed_demo_household(engine)
+        token = security.generate_access_token()
+        private_key = ec.generate_private_key(ec.SECP256R1())
+        public_key = device_public_key(private_key)
+        device = repository.create_paired_device_with_session(
+            engine, household_id=fixtures.DEMO_HOUSEHOLD_ID, user_id=fixtures.DEMO_USER_ID,
+            device_name="Existing QR-issued device", device_public_key=public_key,
+            access_token=token, token_hash=security.hash_token(token),
+            expires_at=repository.utcnow() + timedelta(days=30),
+        )
+        household_id = fixtures.DEMO_HOUSEHOLD_ID
+        ciphertext = household_crypto.encrypt_text(engine, household_id, "synthetic retained fact")
+        household_crypto.on_password_established(
+            engine, household_id, fixtures.DEMO_USER_ID, fixtures.DEMO_USER_PASSWORD
+        )
+        household_crypto.ensure_device_wrap(engine, household_id, device.device_id, public_key)
+        original_wrap = household_crypto.device_wrap_json(engine, household_id, device.device_id)
+        assert original_wrap is not None
+        assert household_crypto.generate_recovery_key(engine, household_id)
+        assert household_crypto.seal_household(engine, household_id) is None
+        old_codes = Table("pairing_sessions", MetaData(), autoload_with=engine)
+        with engine.begin() as conn:
+            conn.execute(insert(old_codes).values(
+                id="outstanding-pre-upgrade-code", household_id=fixtures.DEMO_HOUSEHOLD_ID,
+                created_by_user_id=fixtures.DEMO_USER_ID, qr_payload="{}",
+                created_at=repository.utcnow(), expires_at=repository.utcnow() + timedelta(minutes=10),
+            ))
+        preserved = [models.paired_devices, models.auth_sessions, models.household_keys,
+                     models.household_key_wraps]
+        with engine.connect() as conn:
+            snapshots = {table.name: conn.execute(select(table)).mappings().all()
+                         for table in preserved}
+
+        upgraded = _run_alembic("upgrade", "head", database_url=database_url)
+        assert upgraded.returncode == 0, upgraded.stderr
+        assert "pairing_sessions" not in inspect(engine).get_table_names()
+        with engine.connect() as conn:
+            for table in preserved:
+                assert conn.execute(select(table)).mappings().all() == snapshots[table.name]
+        session = repository.get_session_context(engine, security.hash_token(token))
+        assert session is not None and session.device_id == device.device_id
+        app = create_app(Settings(health_check_database=False), engine=engine)
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="https://testserver"
+        ) as client:
+            stale = await client.post("/api/v1/pairing/confirm", json={
+                "pairing_session_id": "outstanding-pre-upgrade-code",
+                "device_name": "Old client", "device_public_key": "k",
+            })
+            assert stale.status_code == 404
+            existing = await client.get(
+                "/api/v1/auth/session", headers={"Authorization": f"Bearer {token}"}
+            )
+            assert existing.status_code == 200
+            assert existing.json()["device_id"] == device.device_id
+
+            # Neither a live key cache nor another password login may mask loss
+            # of the pre-upgrade device's independently retained private key.
+            household_crypto.reset_cache_for_tests()
+            with pytest.raises(household_crypto.HouseholdLockedError):
+                household_crypto.decrypt_text(engine, household_id, ciphertext)
+            headers = {"Authorization": f"Bearer {token}"}
+            wrapped = await client.get("/api/v1/household/device-wrap", headers=headers)
+            assert wrapped.status_code == 200
+            assert wrapped.json()["wrap_json"] == original_wrap
+            with pytest.raises(InvalidTag):
+                unwrap_device_key(original_wrap, ec.generate_private_key(ec.SECP256R1()))
+            dek = unwrap_device_key(original_wrap, private_key)
+            unlocked = await client.post(
+                "/api/v1/household/key-session", headers=headers, json={"dek": dek.decode()}
+            )
+            assert unlocked.status_code == 200
+            assert household_crypto.decrypt_text(
+                engine, household_id, ciphertext
+            ) == "synthetic retained fact"
+
+        downgraded = _run_alembic("downgrade", "0096_backup_repair_index", database_url=database_url)
+        assert downgraded.returncode == 0, downgraded.stderr
+        with engine.connect() as conn:
+            assert conn.execute(select(old_codes)).all() == []
+        assert repository.get_session_context(engine, security.hash_token(token)) is not None
+    finally:
+        engine.dispose()
 
 
 def _assert_backup_repair_index(engine: Engine) -> None:
@@ -332,13 +483,14 @@ def test_postgresql_17_backup_migrations_and_singleton_bootstrap() -> None:
             schema = inspect(schema_engine)
             assert "backup_settings" in schema.get_table_names()
             assert "backup_retention_events" in schema.get_table_names()
+            assert "pairing_sessions" not in schema.get_table_names()
             assert {column["name"] for column in schema.get_columns("backup_jobs")} >= {
                 "prune_reason"
             }
             with schema_engine.connect() as connection:
                 assert connection.execute(
                     text("SELECT version_num FROM alembic_version")
-                ).scalar_one() == ("0096_backup_repair_index")
+                ).scalar_one() == "0097_retire_qr_pairing"
                 assert (
                     connection.execute(text("SELECT count(*) FROM backup_settings")).scalar_one()
                     == 0

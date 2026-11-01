@@ -54,7 +54,6 @@ import {
   type InviteAcceptRequest,
   createRole,
   createMemory,
-  createPairingSession,
   createTransaction,
   declareSavingsContribution,
   deleteAccount,
@@ -859,10 +858,6 @@ export class ApiService {
   }
 
   // --- Pairing / devices ---
-  createPairingSession(userId?: string) {
-    return createPairingSession(userId ? { body: { user_id: userId } } : {});
-  }
-
   listPairedDevices() {
     return listPairedDevices();
   }

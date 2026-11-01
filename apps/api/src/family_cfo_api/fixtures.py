@@ -260,7 +260,6 @@ _RESET_PROTECTED_TABLES = frozenset(
         "users",
         "roles",
         "household_memberships",
-        "pairing_sessions",
         "paired_devices",
         "auth_sessions",
         # Operational config, not persona data: losing it silently downgrades

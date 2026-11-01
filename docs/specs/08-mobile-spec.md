@@ -24,7 +24,7 @@ device: iPhone 15 Pro Max (matches the dashboard's 393pt discipline).
 Ordered by milestone:
 
 1. **Foundation (M83)** — generated Swift client from the OpenAPI contract,
-   QR pairing, Keychain credential, Face ID unlock, TLS trust, remote
+   account-only device sign-in (ADR 0079), Keychain credential, Face ID unlock, TLS trust, remote
    access via the household's own VPN (Tailscale/WireGuard documented).
 2. **Advisor chat (M84)** — the flagship screen. Conversations, grounded
    answers, image attachments (camera/library), PDF attachments.
@@ -81,7 +81,7 @@ Ordered by milestone:
 - Camera capture (receipts, W2s, documents)
 - Face ID local unlock
 - Local notifications (bill due dates — computed on device)
-- QR pairing with home server
+- Account sign-in with home server; no QR scan or pasted pairing secret
 - Secure authentication (Keychain, revocable device credential)
 
 ## Non-Responsibilities
@@ -101,8 +101,18 @@ Ordered by milestone:
 - **Client generation**: Swift client generated from
   `shared/openapi/family-cfo.v1.yaml` (contract-first, same as Angular);
   CI check added alongside the Angular drift check.
-- **TLS**: the pairing QR carries the server certificate fingerprint; the
-  app pins it (no CA installation dance). Re-pairing rotates the pin.
+- **TLS**: HTTPS only. First setup explicitly confirms the server and full
+  self-signed certificate fingerprint; host-valid system trust handles CA-signed
+  servers. Stored trust survives sign-out/relaunch; changing server or trusting a
+  changed self-signed certificate requires explicit setup (ADR 0079).
+- **Sign-in**: the unauthenticated root is account login. `POST /pairing/login`
+  creates a revocable device session, not a browser session. Preserve all
+  existing credentials/private keys and phone/watch relay on upgrade. Remove QR
+  bootstrap UI/APIs in the same contract change. Account establishment, lost
+  password/session and sealed-key recovery limits are specified in ADR 0079.
+- **Tests**: fresh setup, HTTPS/trust errors, safe wrapped-error classification,
+  sign-out/relaunch restoration, wrong password/throttling, old-credential
+  decoding, account/cache isolation and watch session continuity.
 - **Remote access**: the app takes a configurable base URL; the documented
   path for off-LAN use is the household's own tailnet/VPN so the box is
   never exposed to the internet (ADR 0008).
@@ -133,14 +143,18 @@ Example:
 
 Photos should remain on device whenever structured extraction is sufficient.
 
-## Pairing Flow
+## Account Sign-in Flow (ADR 0079)
 
-1. User opens dashboard onboarding.
-2. Server displays QR code (URL + certificate fingerprint + pairing secret).
-3. iPhone scans QR code.
-4. App confirms server identity (pins the fingerprint) and household.
-5. Server creates device credential.
-6. App stores credential in the Keychain behind Face ID.
+1. Bootstrap an account or accept a copy-link invite in the browser.
+2. Enter the HTTPS server address in the iPhone sign-in screen.
+3. Confirm the server identity and full self-signed fingerprint (host-valid
+   CA-signed certificates use system trust).
+4. Sign in with your own email/password through `POST /pairing/login`.
+5. Server creates a member-owned device credential and encryption wrap.
+6. App stores the device credential/private key in Keychain behind local unlock.
+
+Re-entry restores server/trust settings even after a signed-out relaunch.
+Changing trust requires explicit setup. No QR bootstrap exists.
 
 ## Acceptance Criteria
 

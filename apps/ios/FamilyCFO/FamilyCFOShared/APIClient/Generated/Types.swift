@@ -16,19 +16,9 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /health`.
     /// - Remark: Generated from `#/paths//health/get(getHealth)`.
     func getHealth(_ input: Operations.GetHealth.Input) async throws -> Operations.GetHealth.Output
-    /// Create a short-lived pairing session for a device
+    /// Sign a device in with email + password
     ///
-    /// - Remark: HTTP `POST /pairing/sessions`.
-    /// - Remark: Generated from `#/paths//pairing/sessions/post(createPairingSession)`.
-    func createPairingSession(_ input: Operations.CreatePairingSession.Input) async throws -> Operations.CreatePairingSession.Output
-    /// Confirm mobile device pairing
-    ///
-    /// - Remark: HTTP `POST /pairing/confirm`.
-    /// - Remark: Generated from `#/paths//pairing/confirm/post(confirmPairing)`.
-    func confirmPairing(_ input: Operations.ConfirmPairing.Input) async throws -> Operations.ConfirmPairing.Output
-    /// Sign a device in with email + password (credentialed pairing)
-    ///
-    /// ADR 0056: the iOS login screen. Same outcome as a QR confirm — a paired device with a device-bound session — so the Devices page and revocation cover phones however they signed in.
+    /// ADR 0079: the sole new-device sign-in path. Creates a member-owned device with a revocable device-bound session and encryption wrap.
     ///
     /// - Remark: HTTP `POST /pairing/login`.
     /// - Remark: Generated from `#/paths//pairing/login/post(createDeviceSessionWithPassword)`.
@@ -903,35 +893,9 @@ extension APIProtocol {
     public func getHealth(headers: Operations.GetHealth.Input.Headers = .init()) async throws -> Operations.GetHealth.Output {
         try await getHealth(Operations.GetHealth.Input(headers: headers))
     }
-    /// Create a short-lived pairing session for a device
+    /// Sign a device in with email + password
     ///
-    /// - Remark: HTTP `POST /pairing/sessions`.
-    /// - Remark: Generated from `#/paths//pairing/sessions/post(createPairingSession)`.
-    public func createPairingSession(
-        headers: Operations.CreatePairingSession.Input.Headers = .init(),
-        body: Operations.CreatePairingSession.Input.Body? = nil
-    ) async throws -> Operations.CreatePairingSession.Output {
-        try await createPairingSession(Operations.CreatePairingSession.Input(
-            headers: headers,
-            body: body
-        ))
-    }
-    /// Confirm mobile device pairing
-    ///
-    /// - Remark: HTTP `POST /pairing/confirm`.
-    /// - Remark: Generated from `#/paths//pairing/confirm/post(confirmPairing)`.
-    public func confirmPairing(
-        headers: Operations.ConfirmPairing.Input.Headers = .init(),
-        body: Operations.ConfirmPairing.Input.Body
-    ) async throws -> Operations.ConfirmPairing.Output {
-        try await confirmPairing(Operations.ConfirmPairing.Input(
-            headers: headers,
-            body: body
-        ))
-    }
-    /// Sign a device in with email + password (credentialed pairing)
-    ///
-    /// ADR 0056: the iOS login screen. Same outcome as a QR confirm — a paired device with a device-bound session — so the Devices page and revocation cover phones however they signed in.
+    /// ADR 0079: the sole new-device sign-in path. Creates a member-owned device with a revocable device-bound session and encryption wrap.
     ///
     /// - Remark: HTTP `POST /pairing/login`.
     /// - Remark: Generated from `#/paths//pairing/login/post(createDeviceSessionWithPassword)`.
@@ -3068,81 +3032,6 @@ public enum Components {
                 case detection
             }
         }
-        /// Owner-only: mint the pairing code for another household member so a regular member never signs into the dashboard to pair their phone. Omit to pair for yourself.
-        ///
-        /// - Remark: Generated from `#/components/schemas/PairingSessionCreateRequest`.
-        public struct PairingSessionCreateRequest: Codable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/PairingSessionCreateRequest/user_id`.
-            public var userId: Swift.String?
-            /// Creates a new `PairingSessionCreateRequest`.
-            ///
-            /// - Parameters:
-            ///   - userId:
-            public init(userId: Swift.String? = nil) {
-                self.userId = userId
-            }
-            public enum CodingKeys: String, CodingKey {
-                case userId = "user_id"
-            }
-        }
-        /// - Remark: Generated from `#/components/schemas/PairingSession`.
-        public struct PairingSession: Codable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/PairingSession/id`.
-            public var id: Swift.String
-            /// - Remark: Generated from `#/components/schemas/PairingSession/qr_payload`.
-            public var qrPayload: Swift.String
-            /// - Remark: Generated from `#/components/schemas/PairingSession/expires_at`.
-            public var expiresAt: Foundation.Date
-            /// Creates a new `PairingSession`.
-            ///
-            /// - Parameters:
-            ///   - id:
-            ///   - qrPayload:
-            ///   - expiresAt:
-            public init(
-                id: Swift.String,
-                qrPayload: Swift.String,
-                expiresAt: Foundation.Date
-            ) {
-                self.id = id
-                self.qrPayload = qrPayload
-                self.expiresAt = expiresAt
-            }
-            public enum CodingKeys: String, CodingKey {
-                case id
-                case qrPayload = "qr_payload"
-                case expiresAt = "expires_at"
-            }
-        }
-        /// - Remark: Generated from `#/components/schemas/PairingConfirmRequest`.
-        public struct PairingConfirmRequest: Codable, Hashable, Sendable {
-            /// - Remark: Generated from `#/components/schemas/PairingConfirmRequest/pairing_session_id`.
-            public var pairingSessionId: Swift.String
-            /// - Remark: Generated from `#/components/schemas/PairingConfirmRequest/device_name`.
-            public var deviceName: Swift.String
-            /// - Remark: Generated from `#/components/schemas/PairingConfirmRequest/device_public_key`.
-            public var devicePublicKey: Swift.String
-            /// Creates a new `PairingConfirmRequest`.
-            ///
-            /// - Parameters:
-            ///   - pairingSessionId:
-            ///   - deviceName:
-            ///   - devicePublicKey:
-            public init(
-                pairingSessionId: Swift.String,
-                deviceName: Swift.String,
-                devicePublicKey: Swift.String
-            ) {
-                self.pairingSessionId = pairingSessionId
-                self.deviceName = deviceName
-                self.devicePublicKey = devicePublicKey
-            }
-            public enum CodingKeys: String, CodingKey {
-                case pairingSessionId = "pairing_session_id"
-                case deviceName = "device_name"
-                case devicePublicKey = "device_public_key"
-            }
-        }
         /// - Remark: Generated from `#/components/schemas/DeviceCredential`.
         public struct DeviceCredential: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/DeviceCredential/device_id`.
@@ -3151,7 +3040,7 @@ public enum Components {
             public var accessToken: Swift.String
             /// - Remark: Generated from `#/components/schemas/DeviceCredential/expires_at`.
             public var expiresAt: Foundation.Date
-            /// M83: household role of the user the device acts as (the pairing session's creator), so the mobile app can build its role-aware shell without spending the device token on a session refresh.
+            /// Household role of the signed-in member, so the mobile app can build its role-aware shell without spending the device token on a session refresh.
             ///
             /// - Remark: Generated from `#/components/schemas/DeviceCredential/role`.
             public var role: Components.Schemas.HouseholdRole?
@@ -3163,7 +3052,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/DeviceCredential/rights`.
             public var rights: [Swift.String]?
-            /// ADR 0056: the household, so the email-login path (no QR payload) can build the device's ServerConfig. Also populated on QR confirm.
+            /// The signed-in household, used to build the device's ServerConfig.
             ///
             /// - Remark: Generated from `#/components/schemas/DeviceCredential/household_id`.
             public var householdId: Swift.String?
@@ -3175,10 +3064,10 @@ public enum Components {
             ///   - deviceId:
             ///   - accessToken:
             ///   - expiresAt:
-            ///   - role: M83: household role of the user the device acts as (the pairing session's creator), so the mobile app can build its role-aware shell without spending the device token on a session refresh.
+            ///   - role: Household role of the signed-in member, so the mobile app can build its role-aware shell without spending the device token on a session refresh.
             ///   - roleName: ADR 0034: name of the assigned role (preset or custom).
             ///   - rights: ADR 0034: resolved rights — clients gate screens with these.
-            ///   - householdId: ADR 0056: the household, so the email-login path (no QR payload) can build the device's ServerConfig. Also populated on QR confirm.
+            ///   - householdId: The signed-in household, used to build the device's ServerConfig.
             ///   - householdName:
             public init(
                 deviceId: Swift.String,
@@ -3210,7 +3099,7 @@ public enum Components {
                 case householdName = "household_name"
             }
         }
-        /// ADR 0056: credentialed pairing — the iOS login screen. Same outcome as a QR confirm: a paired device with a device-bound session.
+        /// ADR 0079: account-only device sign-in with a device-bound session.
         ///
         /// - Remark: Generated from `#/components/schemas/PairingLoginRequest`.
         public struct PairingLoginRequest: Codable, Hashable, Sendable {
@@ -13002,343 +12891,9 @@ public enum Operations {
             }
         }
     }
-    /// Create a short-lived pairing session for a device
+    /// Sign a device in with email + password
     ///
-    /// - Remark: HTTP `POST /pairing/sessions`.
-    /// - Remark: Generated from `#/paths//pairing/sessions/post(createPairingSession)`.
-    public enum CreatePairingSession {
-        public static let id: Swift.String = "createPairingSession"
-        public struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/pairing/sessions/POST/header`.
-            public struct Headers: Sendable, Hashable {
-                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.CreatePairingSession.AcceptableContentType>]
-                /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.CreatePairingSession.AcceptableContentType>] = .defaultValues()) {
-                    self.accept = accept
-                }
-            }
-            public var headers: Operations.CreatePairingSession.Input.Headers
-            /// - Remark: Generated from `#/paths/pairing/sessions/POST/requestBody`.
-            @frozen public enum Body: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/pairing/sessions/POST/requestBody/content/application\/json`.
-                case json(Components.Schemas.PairingSessionCreateRequest)
-            }
-            public var body: Operations.CreatePairingSession.Input.Body?
-            /// Creates a new `Input`.
-            ///
-            /// - Parameters:
-            ///   - headers:
-            ///   - body:
-            public init(
-                headers: Operations.CreatePairingSession.Input.Headers = .init(),
-                body: Operations.CreatePairingSession.Input.Body? = nil
-            ) {
-                self.headers = headers
-                self.body = body
-            }
-        }
-        @frozen public enum Output: Sendable, Hashable {
-            public struct Created: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/pairing/sessions/POST/responses/201/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/pairing/sessions/POST/responses/201/content/application\/json`.
-                    case json(Components.Schemas.PairingSession)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas.PairingSession {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.CreatePairingSession.Output.Created.Body
-                /// Creates a new `Created`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.CreatePairingSession.Output.Created.Body) {
-                    self.body = body
-                }
-            }
-            /// Pairing session created
-            ///
-            /// - Remark: Generated from `#/paths//pairing/sessions/post(createPairingSession)/responses/201`.
-            ///
-            /// HTTP response code: `201 created`.
-            case created(Operations.CreatePairingSession.Output.Created)
-            /// The associated value of the enum case if `self` is `.created`.
-            ///
-            /// - Throws: An error if `self` is not `.created`.
-            /// - SeeAlso: `.created`.
-            public var created: Operations.CreatePairingSession.Output.Created {
-                get throws {
-                    switch self {
-                    case let .created(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "created",
-                            response: self
-                        )
-                    }
-                }
-            }
-            /// Error response
-            ///
-            /// - Remark: Generated from `#/paths//pairing/sessions/post(createPairingSession)/responses/401`.
-            ///
-            /// HTTP response code: `401 unauthorized`.
-            case unauthorized(Components.Responses._Error)
-            /// The associated value of the enum case if `self` is `.unauthorized`.
-            ///
-            /// - Throws: An error if `self` is not `.unauthorized`.
-            /// - SeeAlso: `.unauthorized`.
-            public var unauthorized: Components.Responses._Error {
-                get throws {
-                    switch self {
-                    case let .unauthorized(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "unauthorized",
-                            response: self
-                        )
-                    }
-                }
-            }
-            /// Error response
-            ///
-            /// - Remark: Generated from `#/paths//pairing/sessions/post(createPairingSession)/responses/403`.
-            ///
-            /// HTTP response code: `403 forbidden`.
-            case forbidden(Components.Responses._Error)
-            /// The associated value of the enum case if `self` is `.forbidden`.
-            ///
-            /// - Throws: An error if `self` is not `.forbidden`.
-            /// - SeeAlso: `.forbidden`.
-            public var forbidden: Components.Responses._Error {
-                get throws {
-                    switch self {
-                    case let .forbidden(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "forbidden",
-                            response: self
-                        )
-                    }
-                }
-            }
-            /// Error response
-            ///
-            /// - Remark: Generated from `#/paths//pairing/sessions/post(createPairingSession)/responses/404`.
-            ///
-            /// HTTP response code: `404 notFound`.
-            case notFound(Components.Responses._Error)
-            /// The associated value of the enum case if `self` is `.notFound`.
-            ///
-            /// - Throws: An error if `self` is not `.notFound`.
-            /// - SeeAlso: `.notFound`.
-            public var notFound: Components.Responses._Error {
-                get throws {
-                    switch self {
-                    case let .notFound(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "notFound",
-                            response: self
-                        )
-                    }
-                }
-            }
-            /// Undocumented response.
-            ///
-            /// A response with a code that is not documented in the OpenAPI document.
-            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
-        }
-        @frozen public enum AcceptableContentType: AcceptableProtocol {
-            case json
-            case other(Swift.String)
-            public init?(rawValue: Swift.String) {
-                switch rawValue.lowercased() {
-                case "application/json":
-                    self = .json
-                default:
-                    self = .other(rawValue)
-                }
-            }
-            public var rawValue: Swift.String {
-                switch self {
-                case let .other(string):
-                    return string
-                case .json:
-                    return "application/json"
-                }
-            }
-            public static var allCases: [Self] {
-                [
-                    .json
-                ]
-            }
-        }
-    }
-    /// Confirm mobile device pairing
-    ///
-    /// - Remark: HTTP `POST /pairing/confirm`.
-    /// - Remark: Generated from `#/paths//pairing/confirm/post(confirmPairing)`.
-    public enum ConfirmPairing {
-        public static let id: Swift.String = "confirmPairing"
-        public struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/pairing/confirm/POST/header`.
-            public struct Headers: Sendable, Hashable {
-                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ConfirmPairing.AcceptableContentType>]
-                /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ConfirmPairing.AcceptableContentType>] = .defaultValues()) {
-                    self.accept = accept
-                }
-            }
-            public var headers: Operations.ConfirmPairing.Input.Headers
-            /// - Remark: Generated from `#/paths/pairing/confirm/POST/requestBody`.
-            @frozen public enum Body: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/pairing/confirm/POST/requestBody/content/application\/json`.
-                case json(Components.Schemas.PairingConfirmRequest)
-            }
-            public var body: Operations.ConfirmPairing.Input.Body
-            /// Creates a new `Input`.
-            ///
-            /// - Parameters:
-            ///   - headers:
-            ///   - body:
-            public init(
-                headers: Operations.ConfirmPairing.Input.Headers = .init(),
-                body: Operations.ConfirmPairing.Input.Body
-            ) {
-                self.headers = headers
-                self.body = body
-            }
-        }
-        @frozen public enum Output: Sendable, Hashable {
-            public struct Ok: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/pairing/confirm/POST/responses/200/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/pairing/confirm/POST/responses/200/content/application\/json`.
-                    case json(Components.Schemas.DeviceCredential)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas.DeviceCredential {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.ConfirmPairing.Output.Ok.Body
-                /// Creates a new `Ok`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.ConfirmPairing.Output.Ok.Body) {
-                    self.body = body
-                }
-            }
-            /// Device paired
-            ///
-            /// - Remark: Generated from `#/paths//pairing/confirm/post(confirmPairing)/responses/200`.
-            ///
-            /// HTTP response code: `200 ok`.
-            case ok(Operations.ConfirmPairing.Output.Ok)
-            /// The associated value of the enum case if `self` is `.ok`.
-            ///
-            /// - Throws: An error if `self` is not `.ok`.
-            /// - SeeAlso: `.ok`.
-            public var ok: Operations.ConfirmPairing.Output.Ok {
-                get throws {
-                    switch self {
-                    case let .ok(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "ok",
-                            response: self
-                        )
-                    }
-                }
-            }
-            /// Error response
-            ///
-            /// - Remark: Generated from `#/paths//pairing/confirm/post(confirmPairing)/responses/400`.
-            ///
-            /// HTTP response code: `400 badRequest`.
-            case badRequest(Components.Responses._Error)
-            /// The associated value of the enum case if `self` is `.badRequest`.
-            ///
-            /// - Throws: An error if `self` is not `.badRequest`.
-            /// - SeeAlso: `.badRequest`.
-            public var badRequest: Components.Responses._Error {
-                get throws {
-                    switch self {
-                    case let .badRequest(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "badRequest",
-                            response: self
-                        )
-                    }
-                }
-            }
-            /// Undocumented response.
-            ///
-            /// A response with a code that is not documented in the OpenAPI document.
-            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
-        }
-        @frozen public enum AcceptableContentType: AcceptableProtocol {
-            case json
-            case other(Swift.String)
-            public init?(rawValue: Swift.String) {
-                switch rawValue.lowercased() {
-                case "application/json":
-                    self = .json
-                default:
-                    self = .other(rawValue)
-                }
-            }
-            public var rawValue: Swift.String {
-                switch self {
-                case let .other(string):
-                    return string
-                case .json:
-                    return "application/json"
-                }
-            }
-            public static var allCases: [Self] {
-                [
-                    .json
-                ]
-            }
-        }
-    }
-    /// Sign a device in with email + password (credentialed pairing)
-    ///
-    /// ADR 0056: the iOS login screen. Same outcome as a QR confirm — a paired device with a device-bound session — so the Devices page and revocation cover phones however they signed in.
+    /// ADR 0079: the sole new-device sign-in path. Creates a member-owned device with a revocable device-bound session and encryption wrap.
     ///
     /// - Remark: HTTP `POST /pairing/login`.
     /// - Remark: Generated from `#/paths//pairing/login/post(createDeviceSessionWithPassword)`.

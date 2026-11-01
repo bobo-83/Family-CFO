@@ -74,6 +74,27 @@ async def test_ai_runtime_accepts_allowlisted_base_url(demo_client, demo_token) 
 
 
 @pytest.mark.anyio
+async def test_device_login_shares_web_login_lockout(demo_engine, tmp_path) -> None:
+    app = create_app(
+        _settings(tmp_path, auth_rate_limit_max_attempts=2, auth_rate_limit_lockout_seconds=60),
+        engine=demo_engine,
+    )
+    payload = {"email": fixtures.DEMO_USER_EMAIL, "password": "wrongpassword",
+               "device_name": "Account phone", "device_public_key": "k"}
+    async with _client(app) as client:
+        for _ in range(2):
+            assert (await client.post("/api/v1/pairing/login", json=payload)).status_code == 401
+        payload["password"] = fixtures.DEMO_USER_PASSWORD
+        device = await client.post("/api/v1/pairing/login", json=payload)
+        assert device.status_code == 429
+        assert int(device.headers["Retry-After"]) > 0
+        web = await client.post("/api/v1/auth/sessions", json={
+            "email": fixtures.DEMO_USER_EMAIL, "password": fixtures.DEMO_USER_PASSWORD,
+        })
+        assert web.status_code == 429
+
+
+@pytest.mark.anyio
 async def test_repeated_bad_logins_get_locked_out(demo_engine, tmp_path) -> None:
     app = create_app(
         _settings(tmp_path, auth_rate_limit_max_attempts=3, auth_rate_limit_lockout_seconds=60),
@@ -157,16 +178,3 @@ def test_docs_disabled_in_production(demo_engine, tmp_path) -> None:
 
     dev = create_app(_settings(tmp_path, environment="development"), engine=demo_engine)
     assert dev.docs_url == "/api/v1/docs"
-
-
-# --- Pairing secret entropy --------------------------------------------------
-
-
-@pytest.mark.anyio
-async def test_pairing_session_id_is_high_entropy(demo_client, demo_token) -> None:
-    resp = await demo_client.post(
-        "/api/v1/pairing/sessions", headers={"Authorization": f"Bearer {demo_token}"}
-    )
-    assert resp.status_code == 201
-    # token_urlsafe(32) renders to ~43 url-safe chars — far beyond a 36-char uuid4.
-    assert len(resp.json()["id"]) >= 40

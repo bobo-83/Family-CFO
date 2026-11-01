@@ -23,7 +23,7 @@ Later migrations add:
 
 - M3: `recommendations`
 - M4: `recommendations.model_version`, `recommendations.prompt_version`, and `ai_runtime_configs`
-- M6 backend support: `pairing_sessions`, `paired_devices`, and nullable `auth_sessions.device_id` for device-backed session revocation
+- M6 backend support: `paired_devices` and nullable `auth_sessions.device_id` for device-backed session revocation. ADR 0079 / migration `0097_retire_qr_pairing` removes the QR-only `pairing_sessions` table while preserving established devices/sessions and encryption wraps.
 - M7: `imports`, `import_files`, `documents`, `document_extractions`, and nullable `transactions.import_id`/`transactions.possible_duplicate`
 - M8: `reports` and `backup_jobs`
 - M9: `audit_events`

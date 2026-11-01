@@ -17,7 +17,7 @@ apps/ios/
   FamilyCFO/                  Xcode project (app + unit tests)
     FamilyCFO/
       App/                    entry point, app state machine, role-aware tab shell
-      Pairing/                QR scan/paste → confirm → POST /pairing/confirm
+      Pairing/                account sign-in + server trust → POST /pairing/login
       Networking/             generated-client factory, cert pinning, auth middleware
       Security/               Keychain store, Face ID gate
       Chat/                   advisor chat: conversations, attachments, paste
@@ -140,36 +140,27 @@ scripts/generate-swift-client.sh --check  # what CI runs
 
 Never edit the generated files by hand; no hand-maintained DTOs.
 
-## Pairing and trust (M83)
+## Account sign-in and trust (ADR 0079, issue #162)
 
-1. On the dashboard, an owner/adult opens **Admin → Devices** and generates a
-   one-time (10-minute) pairing QR.
-2. The app scans it (or accepts the pasted payload when no camera is
-   available, e.g. in the simulator) and shows the server identity —
-   household, URL, certificate fingerprint — for confirmation.
-3. On confirm, the app calls `POST /pairing/confirm` and receives a
-   revocable 30-day device credential, stored in the Keychain
-   (device-only, non-migrating). The QR's `certificate_sha256` is pinned:
-   every TLS connection must present exactly that certificate, which is how
-   the home server's self-signed cert becomes trustworthy with no CA
-   install. Re-pairing rotates the pin.
-4. Face ID (or passcode) gates the UI on every launch where local
-   authentication is available.
-5. The credential carries the household `role`; the shell adapts
-   (owner/adult/viewer) and operator features stay on the web dashboard.
+The unauthenticated root is account sign-in. Enter the HTTPS server address,
+verify its identity/full self-signed fingerprint (or host-valid system trust),
+then sign in with your own account. `POST /pairing/login` creates a member-owned,
+revocable 30-day device session, with token/private key stored in Keychain.
+Face ID/passcode gates local unlock. Existing credentials/keys remain unchanged
+on upgrade, including credentials originally issued through QR.
 
-Revoke a device any time from the dashboard's Devices page (owner-only);
-the app's Settings page can also unpair locally.
+Devices remains available for listing/revocation (`devices.manage`). Sign-out
+keeps server/trust settings across relaunch; Change server explicitly establishes
+new trust. QR bootstrap and its APIs are removed together, with no legacy support.
+See [account sign-in and recovery](../../docs/guides/account-sign-in.md) for
+account establishment, lost-password limits, encryption recovery and rollout.
 
 ## Remote access
 
-The app talks to whatever base URL was in the pairing QR. The supported
+The app uses the HTTPS address entered during sign-in setup. The supported
 off-LAN path is the household's own tailnet/VPN (Tailscale/WireGuard) so the
-box is never exposed to the internet (ADR 0008): install the VPN on the
-phone, make the server reachable under the same name/IP as in the QR, and
-nothing else changes. If the dashboard is reached under a different hostname
-than the phone will use, generate the QR from the address the phone can
-reach, since the QR embeds the dashboard's own origin.
+box is never exposed to the internet (ADR 0008). Use a name/IP the phone can
+reach and verify the certificate for that address.
 
 ## Advisor chat (M84)
 

@@ -134,7 +134,7 @@ struct ChatViewModelTests {
 
         await viewModel.send("hello")
 
-        #expect(viewModel.errorMessage?.contains("Re-pair") == true)
+        #expect(viewModel.errorMessage?.contains("Sign out") == true)
     }
 
     @Test func aDroppedConnectionRecoversTheSavedAnswerInsteadOfErroring() async {

@@ -50,6 +50,11 @@ Angular client code must be generated from `shared/openapi/family-cfo.v1.yaml`.
 - Dashboard can manage local AI runtime configuration.
 - Dashboard can review imports before they affect financial state.
 - Dashboard can revoke paired devices.
+- Account-only onboarding (issue #162, ADR 0079): Devices and Users must not
+  issue/render/copy QR authentication secrets. Devices retains member-attributed
+  list/revoke and installation/account sign-in guidance; Users retains account
+  invites/roles. Existing sessions remain listed/revocable. Tests cover both
+  surfaces and verify no QR creation request is made.
 
 ## Debts & Loans page (M116)
 

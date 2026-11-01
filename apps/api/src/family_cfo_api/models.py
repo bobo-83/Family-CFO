@@ -272,23 +272,6 @@ household_invites = Table(
     Column("revoked_at", DateTime(timezone=True), nullable=True),
 )
 
-pairing_sessions = Table(
-    "pairing_sessions",
-    metadata,
-    # NOT a UUID: this id is the QR-borne CSPRNG bearer secret
-    # (`secrets.token_urlsafe(32)` ≈ 43 chars), so the column must be wider
-    # than the usual 36 (fixed in migration 0044 — Postgres enforces the width
-    # that SQLite silently ignored).
-    Column("id", String(64), primary_key=True),
-    Column("household_id", String(36), ForeignKey("households.id"), nullable=False),
-    Column("created_by_user_id", String(36), ForeignKey("users.id"), nullable=False),
-    Column("qr_payload", Text, nullable=False),
-    Column("created_at", DateTime(timezone=True), nullable=False),
-    Column("expires_at", DateTime(timezone=True), nullable=False),
-    Column("confirmed_at", DateTime(timezone=True), nullable=True),
-    Column("revoked_at", DateTime(timezone=True), nullable=True),
-)
-
 paired_devices = Table(
     "paired_devices",
     metadata,

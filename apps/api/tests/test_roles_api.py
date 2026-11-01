@@ -117,17 +117,16 @@ async def test_login_and_pairing_carry_rights(demo_client, demo_token) -> None:
     assert body["role_name"] == "Admin"
     assert "backups.manage" in body["rights"]
 
-    session = await demo_client.post(
-        "/api/v1/pairing/sessions", headers={"Authorization": f"Bearer {demo_token}"}
-    )
     confirmed = await demo_client.post(
-        "/api/v1/pairing/confirm",
+        "/api/v1/pairing/login",
         json={
-            "pairing_session_id": session.json()["id"],
+            "email": fixtures.DEMO_USER_EMAIL,
+            "password": fixtures.DEMO_USER_PASSWORD,
             "device_name": "Rights Phone",
             "device_public_key": "k",
         },
     )
+    assert confirmed.status_code == 201
     credential = confirmed.json()
     assert credential["role_name"] == "Admin"
     assert "accounts.manage" in credential["rights"]

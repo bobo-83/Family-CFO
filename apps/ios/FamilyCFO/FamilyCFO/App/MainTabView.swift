@@ -463,10 +463,10 @@ struct SettingsView: View {
                         confirmingSignOut = true
                     }
                 } footer: {
-                    Text("Signs this member out but keeps the server pairing info — sign back in with email + password (ADR 0056), or scan a fresh QR. Good for switching members on a shared device.")
+                    Text("Signs this member out but keeps the server address and certificate trust — sign back in with your account. Make sure you know your password before signing out; there is no forgotten-password reset.")
                 }
                 Section {
-                    Button("Unpair this device", role: .destructive) {
+                    Button("Forget this server", role: .destructive) {
                         confirmingUnpair = true
                     }
                 } footer: {
@@ -518,10 +518,10 @@ struct SettingsView: View {
                 Text("The server address and pinned certificate stay on this phone; only your session ends.")
             }
             .alert(
-                "Unpair this device?",
+                "Forget this server?",
                 isPresented: $confirmingUnpair
             ) {
-                Button("Unpair", role: .destructive) { model.unpair() }
+                Button("Forget server", role: .destructive) { model.unpair() }
                 Button("Cancel", role: .cancel) {}
             } message: {
                 Text("Removes the credential and the server info from this phone.")
