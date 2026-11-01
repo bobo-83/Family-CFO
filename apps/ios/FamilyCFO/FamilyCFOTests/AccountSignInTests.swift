@@ -50,6 +50,24 @@ private struct SuccessfulSignInTransport: ClientTransport {
     }
 }
 
+private final class SignInCleanupTransport: ClientTransport, @unchecked Sendable {
+    private let lock = NSLock()
+    private var recorded: [HTTPRequest] = []
+    let fails: Bool
+
+    init(fails: Bool) { self.fails = fails }
+
+    var requests: [HTTPRequest] { lock.withLock { recorded } }
+
+    func send(
+        _ request: HTTPRequest, body: HTTPBody?, baseURL: URL, operationID: String
+    ) async throws -> (HTTPResponse, HTTPBody?) {
+        lock.withLock { recorded.append(request) }
+        if fails { throw URLError(.notConnectedToInternet) }
+        return (HTTPResponse(status: .noContent), nil)
+    }
+}
+
 private final class SignInClientRecorder: @unchecked Sendable {
     struct Configuration: Equatable, Sendable {
         let url: URL
@@ -254,16 +272,38 @@ struct AccountSignInTests {
     }
 
     @Test(arguments: [Optional("saved-pin"), nil], ["device-private-key", AppModel.credentialAccount])
-    func persistenceFailuresKeepTrustAndDoNotCompleteALocalSession(
+    func persistenceFailuresKeepTrustAndRevokeTheIssuedSession(
         pin: String?, failedAccount: String
+    ) async {
+        await checkPersistenceFailure(pin: pin, failedAccount: failedAccount, cleanupFails: false)
+    }
+
+    @Test(arguments: [Optional("saved-pin"), nil], ["device-private-key", AppModel.credentialAccount])
+    func failedRevocationDoesNotHideTheStorageFailureOrCompleteSignIn(
+        pin: String?, failedAccount: String
+    ) async {
+        await checkPersistenceFailure(pin: pin, failedAccount: failedAccount, cleanupFails: true)
+    }
+
+    private func checkPersistenceFailure(
+        pin: String?, failedAccount: String, cleanupFails: Bool
     ) async {
         let harness = SessionTestHarness()
         defer { harness.cleanup() }
         harness.credentials.failWrites(to: failedAccount)
         let credentials = harness.credentials
+        let cleanup = SignInCleanupTransport(fails: cleanupFails)
+        let cleanupConfiguration = SignInClientRecorder()
+        let endpoint = URL(string: "https://box.invalid:443/finance/api/v1")!
         let vm = LoginViewModel(
-            step: .credentials(baseURL: url, fingerprint: pin),
+            step: .credentials(baseURL: endpoint, fingerprint: pin),
             savePrivateKey: { try credentials.write($0, account: "device-private-key") },
+            deletePrivateKey: { credentials.delete("device-private-key") },
+            buildRevocationClient: { url, fingerprint, token in
+                cleanupConfiguration.record(url, fingerprint)
+                return Client(serverURL: url, transport: cleanup,
+                              middlewares: [BearerAuthMiddleware(token: { token })])
+            },
             buildClient: { url, _ in Client(serverURL: url, transport: SuccessfulSignInTransport()) }
         )
         vm.email = "synthetic@example.invalid"
@@ -271,8 +311,15 @@ struct AccountSignInTests {
         let model = harness.makeModel()
         model.bootstrap()
         await vm.signIn(into: model)
-        #expect(vm.step == .credentials(baseURL: url, fingerprint: pin))
-        #expect(vm.signInError?.isEmpty == false)
+        #expect(vm.step == .credentials(baseURL: endpoint, fingerprint: pin))
+        #expect(vm.signInError == "Could not securely save this device’s sign-in. Try signing in again.")
+        #expect(vm.password.isEmpty)
+        #expect(cleanupConfiguration.configurations == [.init(url: endpoint, pin: pin)])
+        #expect(cleanup.requests.count == 1)
+        #expect(cleanup.requests.first?.method == .delete)
+        #expect(cleanup.requests.first?.path?.hasSuffix("/auth/sessions") == true)
+        #expect(cleanup.requests.first?.headerFields[.authorization] == "Bearer synthetic-token")
+        #expect(credentials.read("device-private-key") == nil)
         #expect(model.phase == .unpaired)
         #expect(model.credential == nil)
         #expect(harness.credentials.read(AppModel.credentialAccount) == nil)

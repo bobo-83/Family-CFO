@@ -6290,18 +6290,32 @@
         <note priority="1" from="description">Revokes this device&apos;s credential</note>
         <note priority="1" from="meaning">Button</note>
       </trans-unit>
+      <trans-unit id="2234648362838147840" datatype="html">
+        <source>Loading member…</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/devices/devices.ts</context>
+          <context context-type="linenumber">34</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="3343123448202169378" datatype="html">
+        <source>Member name unavailable</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/devices/devices.ts</context>
+          <context context-type="linenumber">37</context>
+        </context-group>
+      </trans-unit>
       <trans-unit id="8725679871552657096" datatype="html">
         <source>Former or unknown member</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/devices/devices.ts</context>
-          <context context-type="linenumber">33</context>
+          <context context-type="linenumber">40</context>
         </context-group>
       </trans-unit>
       <trans-unit id="6364709144780685279" datatype="html">
         <source>Failed to load paired devices.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/devices/devices.ts</context>
-          <context context-type="linenumber">41</context>
+          <context context-type="linenumber">50</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/users/users.ts</context>
@@ -6312,7 +6326,7 @@
         <source>Failed to revoke the device.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/devices/devices.ts</context>
-          <context context-type="linenumber">60</context>
+          <context context-type="linenumber">77</context>
         </context-group>
       </trans-unit>
       <trans-unit id="9140273881970816309" datatype="html">

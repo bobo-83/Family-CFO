@@ -56,6 +56,12 @@ Ordinary sign-in retries, including timeouts, TLS rejection, cancellation,
 decoding failures and unexpected HTTP statuses, stay on the credentials screen
 with the exact attempted URL and trust configuration. Only explicit Change
 server restarts certificate discovery. Error text remains inline and sanitized.
+If secure local persistence fails after the server issues a device session,
+best-effort revoke that issued session using its token and the same URL/trust,
+remove any newly saved private key, and report the storage failure even if
+revocation is unavailable. Do not complete the local session or activate watch
+access. Device-owner labels distinguish pending/unavailable member lookups from
+a successful lookup that does not contain the member.
 
 Cold restoration of valid existing credentials preserves the cached household
 request language before the first request, even offline. A real session/account

@@ -18,6 +18,7 @@ export class Devices {
   private readonly auth = inject(AuthService);
   protected readonly devices = signal<PairedDevice[]>([]);
   protected readonly members = signal<Member[]>([]);
+  private readonly memberLookup = signal<'loading' | 'loaded' | 'failed'>('loading');
   protected readonly loading = signal(true);
   protected readonly loadError = signal<string | null>(null);
   protected readonly busy = signal<string | null>(null);
@@ -29,12 +30,20 @@ export class Devices {
   }
 
   protected memberName(userId: string | null | undefined): string {
+    if (this.memberLookup() === 'loading') {
+      return $localize`Loading member…`;
+    }
+    if (this.memberLookup() === 'failed') {
+      return $localize`Member name unavailable`;
+    }
     return this.members().find((member) => member.user_id === userId)?.display_name
       ?? $localize`Former or unknown member`;
   }
 
   private async load(): Promise<void> {
     this.loadError.set(null);
+    this.memberLookup.set('loading');
+    this.members.set([]);
     const { data, error } = await this.api.listPairedDevices();
     this.loading.set(false);
     if (error || !data) {
@@ -42,9 +51,17 @@ export class Devices {
       return;
     }
     this.devices.set(data.devices);
-    const { data: memberData } = await this.api.listMembers();
-    if (memberData) {
+    try {
+      const { data: memberData, error: memberError } = await this.api.listMembers();
+      if (memberError || !memberData) {
+        this.memberLookup.set('failed');
+        return;
+      }
       this.members.set(memberData.members);
+      this.memberLookup.set('loaded');
+    } catch {
+      // Owner names are optional enrichment; keep device management usable.
+      this.memberLookup.set('failed');
     }
   }
 

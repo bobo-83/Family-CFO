@@ -8092,6 +8092,14 @@
         <source>Automatic pruning is paused until an administrator activates retention. The server reports no additional inventory, read-probe, capacity, or anomaly reason.</source>
         <target state="translated">Automatinis šalinimas pristabdytas, kol administratorius aktyvins saugojimo taisyklę. Serveris nepraneša apie jokias papildomas inventoriaus, nuskaitymo patikros, talpos ar anomalijų priežastis.</target>
       </trans-unit>
+      <trans-unit id="2234648362838147840" datatype="html">
+        <source>Loading member…</source>
+        <target state="translated">Įkeliamas narys…</target>
+      </trans-unit>
+      <trans-unit id="3343123448202169378" datatype="html">
+        <source>Member name unavailable</source>
+        <target state="translated">Nario vardas nepasiekiamas</target>
+      </trans-unit>
       <trans-unit id="8725679871552657096" datatype="html">
         <source>Former or unknown member</source>
         <target state="translated">Buvęs arba nežinomas narys</target>

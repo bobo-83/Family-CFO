@@ -8078,6 +8078,14 @@
         <source>Automatic pruning is paused until an administrator activates retention. The server reports no additional inventory, read-probe, capacity, or anomaly reason.</source>
         <target state="translated">Việc tự động xóa bị tạm dừng cho đến khi quản trị viên kích hoạt chính sách lưu giữ. Máy chủ không báo cáo thêm lý do nào về danh mục, kiểm tra đọc, dung lượng hoặc bất thường.</target>
       </trans-unit>
+      <trans-unit id="2234648362838147840" datatype="html">
+        <source>Loading member…</source>
+        <target state="translated">Đang tải thành viên…</target>
+      </trans-unit>
+      <trans-unit id="3343123448202169378" datatype="html">
+        <source>Member name unavailable</source>
+        <target state="translated">Không có tên thành viên</target>
+      </trans-unit>
       <trans-unit id="8725679871552657096" datatype="html">
         <source>Former or unknown member</source>
         <target state="translated">Thành viên cũ hoặc không xác định</target>

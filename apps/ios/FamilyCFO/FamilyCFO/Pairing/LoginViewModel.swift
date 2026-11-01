@@ -29,11 +29,21 @@ final class LoginViewModel {
 
     private let buildClient: ClientBuilder
     private let savePrivateKey: @Sendable (Data) throws -> Void
+    private let deletePrivateKey: @Sendable () -> Void
+    private let buildRevocationClient: @Sendable (URL, String?, String) -> Client
 
     init(
         step: Step = .enterServer,
         savePrivateKey: @escaping @Sendable (Data) throws -> Void = {
             try KeychainStore.save($0, account: "device-private-key")
+        },
+        deletePrivateKey: @escaping @Sendable () -> Void = {
+            KeychainStore.delete(account: "device-private-key")
+        },
+        buildRevocationClient: @escaping @Sendable (URL, String?, String) -> Client = {
+            baseURL, fingerprint, token in
+            APIClientFactory.makeClient(
+                baseURL: baseURL, pinnedCertificateSHA256: fingerprint, token: { token })
         },
         buildClient: @escaping ClientBuilder = { baseURL, fingerprint in
             APIClientFactory.makeClient(baseURL: baseURL, pinnedCertificateSHA256: fingerprint)
@@ -42,6 +52,8 @@ final class LoginViewModel {
         self.step = step
         self.buildClient = buildClient
         self.savePrivateKey = savePrivateKey
+        self.deletePrivateKey = deletePrivateKey
+        self.buildRevocationClient = buildRevocationClient
     }
 
     var serverAddress: String = ""
@@ -156,26 +168,39 @@ final class LoginViewModel {
             switch output {
             case .created(let response):
                 let credential = try response.body.json
-                try savePrivateKey(privateKey.rawRepresentation)
-                let saved = model.completePairing(
-                    server: ServerConfig(
-                        apiBaseURL: baseURL,
-                        certificateSHA256: fingerprint,
-                        householdID: credential.householdId ?? "",
-                        householdName: credential.householdName ?? "Your household",
-                        deviceName: deviceName
-                    ),
-                    credential: StoredCredential(
-                        deviceID: credential.deviceId,
-                        accessToken: credential.accessToken,
-                        expiresAt: credential.expiresAt,
-                        role: credential.role,
-                        roleName: credential.roleName,
-                        rights: credential.rights
+                var privateKeySaved = false
+                let saved: Bool
+                do {
+                    try savePrivateKey(privateKey.rawRepresentation)
+                    privateKeySaved = true
+                    saved = model.completePairing(
+                        server: ServerConfig(
+                            apiBaseURL: baseURL,
+                            certificateSHA256: fingerprint,
+                            householdID: credential.householdId ?? "",
+                            householdName: credential.householdName ?? "Your household",
+                            deviceName: deviceName
+                        ),
+                        credential: StoredCredential(
+                            deviceID: credential.deviceId,
+                            accessToken: credential.accessToken,
+                            expiresAt: credential.expiresAt,
+                            role: credential.role,
+                            roleName: credential.roleName,
+                            rights: credential.rights
+                        )
                     )
-                )
+                } catch {
+                    saved = false
+                }
                 password = ""
                 if !saved {
+                    if privateKeySaved { deletePrivateKey() }
+                    // The server already issued this session. Never use an old
+                    // model credential or change trust while compensating for
+                    // a local save failure. Cleanup failure must not hide it.
+                    let cleanup = buildRevocationClient(baseURL, fingerprint, credential.accessToken)
+                    _ = try? await cleanup.deleteAuthSession(.init())
                     step = .credentials(baseURL: baseURL, fingerprint: fingerprint)
                     signInError = String(localized: "Could not securely save this device’s sign-in. Try signing in again.")
                 }

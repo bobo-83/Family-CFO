@@ -167,3 +167,36 @@ Validation after the fix:
 This passes the previously unrun local PostgreSQL test gate; it does not claim
 production migration, recovery or physical-device acceptance. No runtime code,
 contract or migration was changed in this follow-up.
+
+## PR review fixes
+
+Both accepted findings are addressed together in a separate follow-up commit:
+
+- After a successful login response, private-key or credential persistence
+  failure best-effort revokes the newly issued session with its returned token
+  and the original URL/pin. A newly saved private key is removed. Revocation
+  failure cannot complete local sign-in, activate watch access, replace trust,
+  or hide the sanitized storage error. The dashboard device record is not
+  deleted by session logout; cleanup does not bypass device-management rights.
+- Device-owner labels distinguish member lookup loading, failure (including
+  thrown transport errors or missing data), and successful unmatched lookup.
+  Reload clears stale owner names. New labels are translated into vi/lt.
+
+Regression tests failed before the production fixes. After the fixes:
+
+- Focused iOS sign-in suite: **15 tests passed**, including both persistence
+  failures with/without a pin and successful/failed cleanup. The generated
+  DELETE request is checked for the issued bearer token and retained endpoint.
+- Full iOS/watch simulator suite: **550 tests passed**, 82 suites, signing and
+  parallel testing disabled. Result: `/tmp/issue162-review-full.xcresult`.
+- Full web suite: **387 tests passed**, 35 files; localized production build
+  passed. Member-loading, error/missing-data, thrown-error, successful-unmatched,
+  and failed-reload cases are covered.
+- Focused Oracle review of snapshot `2026-10-31/2104`: **4/4 lanes completed**,
+  all reported no findings; accepted after checking against the source/tests.
+- iOS/web oldest-contract compatibility builds, version/immutable-fixture checks,
+  repository hygiene and diff-whitespace checks passed.
+
+Backend code, contract and migrations are unchanged; the earlier PostgreSQL
+validation remains separate evidence. Physical-device, production recovery and
+release gates remain unrun. No merge, deployment or issue closure is implied.
