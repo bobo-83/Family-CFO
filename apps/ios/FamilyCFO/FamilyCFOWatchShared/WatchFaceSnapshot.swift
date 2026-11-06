@@ -73,6 +73,16 @@ struct WatchFaceSnapshotStore {
         self.defaults = suiteName.flatMap { UserDefaults(suiteName: $0) } ?? .standard
     }
 
+    var sessionExpiry: Date? {
+        get { defaults.object(forKey: "watch-face-session-expiry") as? Date }
+        nonmutating set { defaults.set(newValue, forKey: "watch-face-session-expiry") }
+    }
+
+    func loadActive(at now: Date) -> WatchFaceSnapshot? {
+        guard let sessionExpiry, now < sessionExpiry else { return nil }
+        return load()
+    }
+
     func save(_ snapshot: WatchFaceSnapshot) {
         guard let data = try? JSONEncoder().encode(snapshot) else { return }
         defaults.set(data, forKey: WatchFaceSnapshot.key)

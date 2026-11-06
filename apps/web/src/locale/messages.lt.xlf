@@ -8114,6 +8114,30 @@
 </source>
         <target state="translated">Atidarykite Family CFO programėlę iPhone, įveskite šio serverio adresą, patikrinkite jo sertifikatą ir prisijunkite savo paskyra. Jei reikia paskyros, paprašykite šeimos administratoriaus kvietimo. Kiekvienas įrenginys gauna atskirą atšaukiamą prieigą. Senesnes programėles reikia atnaujinti, kad būtų galima prisijungti paskyra; esami seansai lieka galioti.</target>
       </trans-unit>
+      <trans-unit id="3239589020047044075" datatype="html">
+        <source>Your session has expired. Please sign in again.</source>
+        <target state="translated">Jūsų seansas baigėsi. Prisijunkite dar kartą.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/login/login.ts</context>
+          <context context-type="linenumber">38</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="7283311528767488630" datatype="html">
+        <source>Please sign in again to continue.</source>
+        <target state="translated">Norėdami tęsti, prisijunkite dar kartą.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/login/login.ts</context>
+          <context context-type="linenumber">39</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="8092785966574664281" datatype="html">
+        <source> Your household data is still locked. Use Restore keys in <x id="START_LINK" ctype="x-a" equiv-text="&lt;a routerLink=&quot;/backups&quot;&gt;"/>Backups<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/>, or ask your household administrator to unlock it. </source>
+        <target state="translated"> Namų ūkio duomenys vis dar užrakinti. Naudokite raktų atkūrimą skiltyje <x id="START_LINK" ctype="x-a" equiv-text="&lt;a routerLink=&quot;/backups&quot;&gt;"/>Atsarginės kopijos<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/> arba paprašykite namų ūkio administratoriaus atrakinti duomenis. </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/shell/shell.html</context>
+          <context context-type="linenumber">99,102</context>
+        </context-group>
+      </trans-unit>
     </body>
   </file>
 </xliff>

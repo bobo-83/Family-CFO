@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
-import { getToken } from './token-store';
+import { fetchProtected } from './api-client-setup';
+import { authGeneration, ownsSession } from './token-store';
 import {
   applyAiModelSelection,
   applyImport,
@@ -246,10 +247,8 @@ export class ApiService {
    * with the server's human message so callers can show it verbatim.
    */
   async downloadHouseholdExport(): Promise<{ blob: Blob; filename: string }> {
-    const token = getToken();
-    const response = await fetch('/api/v1/household/export', {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
+    const owner = authGeneration();
+    const response = await fetchProtected('/api/v1/household/export');
     if (!response.ok) {
       let message = 'Export failed.';
       try {
@@ -262,7 +261,9 @@ export class ApiService {
     }
     const disposition = response.headers.get('Content-Disposition') ?? '';
     const filename = /filename="?([^";]+)"?/.exec(disposition)?.[1] ?? 'family-cfo-export.zip';
-    return { blob: await response.blob(), filename };
+    const blob = await response.blob();
+    if (!ownsSession(owner)) throw new DOMException('Session changed', 'AbortError');
+    return { blob, filename };
   }
 
   // ADR 0072 Phase 2: household data-key posture + recovery key.
@@ -315,12 +316,11 @@ export class ApiService {
    * Returns null when no voice service is configured (503).
    */
   async synthesizeSpeechBuffer(text: string): Promise<ArrayBuffer | null> {
-    const token = getToken();
-    const response = await fetch('/api/v1/voice/tts', {
+    const owner = authGeneration();
+    const response = await fetchProtected('/api/v1/voice/tts', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       // WAV so Web Audio's decodeAudioData works on Safari (ADR 0052).
       body: JSON.stringify({ text, format: 'wav' }),
@@ -328,7 +328,8 @@ export class ApiService {
     if (!response.ok) {
       return null;
     }
-    return await response.arrayBuffer();
+    const audio = await response.arrayBuffer();
+    return ownsSession(owner) ? audio : null;
   }
 
   listConversations() {
@@ -938,21 +939,20 @@ export class ApiService {
     body: ChatRequest,
     onProgress: (detail: string) => void,
   ): Promise<{ data?: ChatResponse; error?: { detail?: string } | unknown }> {
-    const token = getToken();
+    const owner = authGeneration();
     let response: Response;
     try {
-      response = await fetch('/api/v1/chat/messages/stream', {
+      response = await fetchProtected('/api/v1/chat/messages/stream', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+          },
         body: JSON.stringify(body),
       });
     } catch (error) {
       return { error };
     }
-    if (response.status === 404) {
+    if (response.status === 404 && ownsSession(owner)) {
       return await this.createChatMessage(body);
     }
     if (!response.ok || !response.body) {
@@ -980,6 +980,7 @@ export class ApiService {
     try {
       for (;;) {
         const { done, value } = await reader.read();
+        if (!ownsSession(owner)) return { error: { detail: 'Session changed.' } };
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
         let separator: number;
@@ -994,6 +995,8 @@ export class ApiService {
       if (tail) return tail;
     } catch (error) {
       return { error };
+    } finally {
+      void reader.cancel().catch(() => undefined);
     }
     return { error: { detail: 'The connection dropped before the answer arrived.' } };
   }

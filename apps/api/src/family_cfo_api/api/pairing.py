@@ -6,7 +6,14 @@ from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import audit, household_crypto, repository, rights, security
+from family_cfo_api import (
+    audit,
+    device_reauthentication,
+    household_crypto,
+    repository,
+    rights,
+    security,
+)
 from family_cfo_api.deps import (
     client_ip,
     get_current_session,
@@ -17,6 +24,9 @@ from family_cfo_api.deps import (
 from family_cfo_api.ratelimit import AuthRateLimiter
 from family_cfo_api.schemas import (
     DeviceCredential,
+    DeviceReauthenticationChallenge,
+    DeviceReauthenticationChallengeRequest,
+    DeviceReauthenticationRequest,
     ErrorResponse,
     PairedDevice,
     PairedDeviceListResponse,
@@ -122,6 +132,81 @@ async def create_device_session_with_password(
         credential.device_id,
         f"Signed in device '{payload.device_name}'",
     )
+    return _device_credential(engine, credential)
+
+
+@router.post(
+    "/pairing/reauthentication/challenge",
+    operation_id="createDeviceReauthenticationChallenge",
+    response_model=DeviceReauthenticationChallenge,
+    status_code=201,
+    responses={429: {"description": "Too many attempts", "model": ErrorResponse}},
+    summary="Issue a single-use challenge for existing device sign-in",
+)
+async def create_device_reauthentication_challenge(
+    payload: DeviceReauthenticationChallengeRequest,
+    request: Request,
+    engine: Engine = Depends(get_engine),
+    rate_limiter: AuthRateLimiter = Depends(get_rate_limiter),
+) -> DeviceReauthenticationChallenge:
+    keys = [f"device-reauth-challenge-ip:{client_ip(request)}"]
+    _check_reauthentication_rate_limit(rate_limiter, keys)
+    # Charge issuance regardless of whether the requested device exists.
+    rate_limiter.record_failure(keys)
+    challenge = device_reauthentication.issue_challenge(engine, payload.device_id)
+    if challenge is None:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many sign-in requests. Try again later.",
+            headers={"Retry-After": str(int(device_reauthentication.CHALLENGE_TTL.total_seconds()))},
+        )
+    return DeviceReauthenticationChallenge(challenge=challenge)
+
+
+def _check_reauthentication_rate_limit(limiter: AuthRateLimiter, keys: list[str]) -> None:
+    retry_after = limiter.retry_after(keys)
+    if retry_after is not None:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many login attempts. Try again later.",
+            headers={"Retry-After": str(retry_after)},
+        )
+
+
+@router.post(
+    "/pairing/reauthentication",
+    operation_id="reauthenticateDevice",
+    response_model=DeviceCredential,
+    status_code=201,
+    responses={
+        401: {"description": "Invalid credentials or device proof", "model": ErrorResponse},
+        429: {"description": "Too many attempts", "model": ErrorResponse},
+    },
+    summary="Sign in again on an existing device using a password and device proof",
+)
+async def reauthenticate_device(
+    payload: DeviceReauthenticationRequest,
+    request: Request,
+    engine: Engine = Depends(get_engine),
+    rate_limiter: AuthRateLimiter = Depends(get_rate_limiter),
+) -> DeviceCredential:
+    keys = [f"ip:{client_ip(request)}", f"email:{payload.email.lower()}"]
+    _check_reauthentication_rate_limit(rate_limiter, keys)
+    user = repository.get_user_by_email(engine, payload.email)
+    credential = None
+    if user is not None and security.verify_password(payload.password, user.password_hash):
+        credential = device_reauthentication.replace_device_session(
+            engine,
+            device_id=payload.device_id,
+            user_id=user.id,
+            challenge=payload.challenge,
+            signature=payload.signature,
+            ttl=DEVICE_SESSION_TTL,
+        )
+    if credential is None:
+        rate_limiter.record_failure(keys)
+        raise HTTPException(status_code=401, detail="Unable to sign in with this device")
+    rate_limiter.reset(keys)
     return _device_credential(engine, credential)
 
 

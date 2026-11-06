@@ -1,6 +1,7 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from '../core/auth.service';
+import { authGeneration, authState, needsKeyRecovery } from '../core/token-store';
 
 @Component({
   selector: 'app-shell',
@@ -83,6 +84,18 @@ export class Shell {
 
   constructor() {
     this.loadVersion();
+    effect(() => {
+      if (!this.activeGenerations().length) {
+        const owner = authGeneration();
+        void this.router.navigateByUrl('/login', { replaceUrl: true }).then((navigated) => {
+          // A newer login can arrive from another tab while the lazy login
+          // route is loading. Do not leave that session on the outgoing URL.
+          if (navigated && this.router.url === '/login' && owner !== authGeneration() && authState()) {
+            void this.router.navigateByUrl('/overview', { replaceUrl: true });
+          }
+        });
+      }
+    });
     void this.auth.refreshRights();
   }
 
@@ -90,6 +103,8 @@ export class Shell {
   private readonly router = inject(Router);
 
   protected readonly role = this.auth.role;
+  protected readonly needsKeyRecovery = needsKeyRecovery;
+  protected readonly activeGenerations = computed(() => authState() ? [authGeneration()] : []);
 
   /** Mobile drawer state; the sidebar is always visible on desktop widths. */
   protected readonly menuOpen = signal(false);
@@ -233,6 +248,5 @@ export class Shell {
 
   protected logout(): void {
     this.auth.logout();
-    void this.router.navigateByUrl('/login');
   }
 }

@@ -16,9 +16,9 @@ A sealed household key lock is distinct from both auth and the biometric lock. K
 
 ## Existing-device proof
 
-The challenge operation accepts the device ID without an old bearer. Issue an opaque 32-byte random challenge encoded as unpadded base64url. Give it a five-minute lifetime. Return the same response shape for unknown IDs. Apply separate IP throttling and bound live challenge storage. Persist a hash of the challenge with its device ID and expiry, and prune expired entries. The completion request carries the device ID, challenge, email, password and base64url-encoded 64-byte P-256 signature (raw big-endian r followed by s). Sign the UTF-8 bytes of the domain string `family-cfo/device-reauth/v1`, a newline, the device ID, a newline and the exact encoded challenge, with no trailing newline. Use ECDSA with SHA-256. Both clients must pass a shared verification vector before release.
+The challenge operation accepts the device ID without an old bearer. Issue an opaque 32-byte random challenge encoded as unpadded base64url. Give it a five-minute lifetime. Return the same response shape for unknown IDs. Apply separate IP throttling and bound live challenge storage. Persist a hash of the challenge with its device ID and expiry, and prune expired entries. The completion request carries the device ID, challenge, email, password and base64url-encoded 64-byte P-256 signature (raw big-endian r followed by s). Sign the UTF-8 bytes of the domain string `family-cfo/device-reauth/v1`, a newline, the device ID, a newline and the exact encoded challenge, with no trailing newline. Use ECDSA with SHA-256. The API and iPhone must pass a shared verification vector before release.
 
-Verify the password through the shared login IP/account throttle and verify the signature against the registered device public key. Validate that the device belongs to the account, is active and still belongs to a household the account can access. Within one transaction, serialize with device revocation and other renewals, consume the challenge, retire existing device bearers and issue the next device-bound bearer using the existing device TTL. Expired, replayed and unauthorized completions share a generic rejection. Never log request credentials or proof. Keep the device row, trust, private key and household wraps. Failure to install a new local bearer compensates by revoking only that bearer. A member with unavailable pairing can explicitly choose device setup.
+Verify the password through the shared login IP/account throttle and verify the signature against the registered device public key. Validate that the device belongs to the account, is active and still belongs to a household the account can access. Within one transaction, serialize with device revocation and other renewals, consume the challenge, retire existing device bearers and issue the next device-bound bearer using the existing device TTL. Expired, replayed and unauthorized completions share a generic rejection. Never log request credentials or proof. Keep the device row, trust, private key and household wraps. Audit the renewal inside the transaction with a fixed public summary so a sealed household does not need its data key to complete sign-in. Failure to install a new local bearer compensates by revoking only that bearer. A member with unavailable pairing can explicitly choose device setup.
 
 ## Companion
 
@@ -27,3 +27,15 @@ Publish expiry and explicit invalidation using an ordered, versioned phone conte
 ## Invariants and tradeoffs
 
 A stale request cannot revive or displace a newer session. A valid existing iPhone device can recover even after the old session row is pruned. Using the existing refresh endpoint would require an unexpired bearer and lose device binding. New-device enrollment would replace the key and create another device row. A one-time web sign-in avoids inventing an expiry for an existing opaque token. Authentication and credentials are outside the advisor registry.
+
+## Interoperability test vector
+
+The following public values are synthetic. The signature verifies under the
+registered public key for the exact challenge and device ID shown.
+
+| Field | Value |
+| --- | --- |
+| Device ID | `00000000-0000-4000-8000-000000000164` |
+| Challenge | `AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8` |
+| Public key (base64 of raw x and y) | `axfR8uEsQkf4vOblY6RA8ncDfYEt6zOg9KE5RdiYwpZP40Li/hp/m47n60p8D54WK84zV2sxXs7LtkBoN79R9Q==` |
+| Signature (base64url of raw r and s) | `k0W1YxjHtcknC23YxrA1h7_Vz6sSSud8QYL2O7M87g1XZERRTUVkwsVPezlVnR5QNFIFF_11z6LaW7F_8ws3mw` |

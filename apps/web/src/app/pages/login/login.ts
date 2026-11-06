@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -6,6 +6,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth.service';
+import { signInReason } from '../../core/token-store';
 
 @Component({
   selector: 'app-login',
@@ -21,6 +22,7 @@ import { AuthService } from '../../core/auth.service';
   styleUrl: './login.scss',
 })
 export class Login {
+  private readonly destroyRef = inject(DestroyRef);
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly formBuilder = inject(FormBuilder);
@@ -31,8 +33,18 @@ export class Login {
   });
 
   protected readonly submitting = signal(false);
-  // Seeded with any session-ending notice — e.g. a sealed household answered
-  // 423 and the API layer dropped the session (ADR 0072 Phase 3).
+  protected readonly notice = computed(() => {
+    switch (signInReason()) {
+      case 'expired': return $localize`Your session has expired. Please sign in again.`;
+      case 'rejected': return $localize`Please sign in again to continue.`;
+      default: return null;
+    }
+  });
+
+  constructor() {
+    this.destroyRef.onDestroy(() => signInReason.set(null));
+  }
+
   protected readonly errorMessage = signal<string | null>(null);
 
   protected async submit(): Promise<void> {
@@ -54,6 +66,6 @@ export class Login {
       return;
     }
 
-    await this.router.navigateByUrl('/overview');
+    if (!this.destroyRef.destroyed) await this.router.navigateByUrl('/overview');
   }
 }

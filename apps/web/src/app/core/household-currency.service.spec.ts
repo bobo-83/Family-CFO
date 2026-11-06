@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { vi } from 'vitest';
 import { ApiService } from './api.service';
 import { HouseholdCurrencyService, householdSessionKey } from './household-currency.service';
-import { clearAuthState, setAuthState } from './token-store';
+import { authGeneration, clearAuthState, setAuthState } from './token-store';
 
 function response(data: unknown, error?: unknown) {
   return {
@@ -14,7 +14,7 @@ function response(data: unknown, error?: unknown) {
 }
 
 function session(householdId: string, accessToken = 'token') {
-  setAuthState({ accessToken, householdId, userId: 'u1', role: 'owner' });
+  setAuthState({ accessToken, expiresAt: '2099-01-01T00:00:00Z', householdId, userId: 'u1', role: 'owner' });
 }
 
 /** A promise the test resolves by hand, to order completions against session changes. */
@@ -148,6 +148,6 @@ describe('HouseholdCurrencyService (#156)', () => {
   it('keys the unauthenticated case consistently', () => {
     expect(householdSessionKey()).toBe('no-session');
     session('hh-1', 't');
-    expect(householdSessionKey()).toBe('hh-1:t');
+    expect(householdSessionKey()).toBe(`hh-1:${authGeneration()}`);
   });
 });

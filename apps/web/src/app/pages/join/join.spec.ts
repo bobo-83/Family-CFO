@@ -55,7 +55,7 @@ describe('Join (ADR 0056)', () => {
       acceptInvite: vi.fn().mockResolvedValue(
         response({
           access_token: 'fresh-session',
-          expires_at: '2026-07-22T00:00:00Z',
+          expires_at: new Date(Date.now() + 3_600_000).toISOString(),
           household_id: 'hh-1',
           user_id: 'u-2',
           role: 'adult',
@@ -209,7 +209,7 @@ describe('Join (ADR 0056)', () => {
         acceptInvite: vi.fn().mockResolvedValue(
           response({
             access_token: 'fresh-session',
-            expires_at: '2026-07-22T00:00:00Z',
+            expires_at: new Date(Date.now() + 3_600_000).toISOString(),
             household_id: 'hh-1',
             user_id: 'u-2',
             role: 'adult',

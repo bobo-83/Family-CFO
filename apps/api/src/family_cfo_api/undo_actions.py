@@ -167,6 +167,7 @@ UNDO_POLICY: dict[str, str] = {
     "pairing.confirmed": IRREVERSIBLE,  # a device was paired (revoke it from Devices)
     "pairing.device_revoked": IRREVERSIBLE,  # a device was revoked (re-pair to restore)
     "pairing.login": IRREVERSIBLE,  # a device signed in (revoke it from Devices)
+    "pairing.reauthenticate": IRREVERSIBLE,  # replacement bearer supersedes the prior device session
     # invites (ADR 0056)
     "invite.created": UNDOABLE,
     "invite.revoked": UNDOABLE,

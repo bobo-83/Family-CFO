@@ -26,7 +26,11 @@ struct MainTabView: View {
     // Selection exists so other screens can steer here — the Year chart's
     // "explain this month" jumps to the Advisor tab (ADR 0068). If the role
     // can't chat, the Advisor tab is absent and SwiftUI shows the first tab.
-    @State private var selectedTab: MainTab = .advisor
+    @State private var selectedTab: MainTab
+
+    init(startAtOverview: Bool = false) {
+        _selectedTab = State(initialValue: startAtOverview ? .overview : .advisor)
+    }
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -67,6 +71,15 @@ struct MainTabView: View {
                 )
             }
             .badge(reviewModel?.reviewCount ?? 0)
+        }
+        .safeAreaInset(edge: .top) {
+            if model.needsHouseholdKeyRecovery {
+                Text("Your household data is still locked. Use Restore keys in Backups, or ask your household administrator to unlock it.")
+                    .font(.footnote)
+                    .padding(8)
+                    .frame(maxWidth: .infinity)
+                    .background(.regularMaterial)
+            }
         }
         .onChange(of: model.advisorAsk) { _, ask in
             guard ask != nil, model.rolePolicy.canChat else { return }

@@ -1,14 +1,13 @@
+import CryptoKit
 import Foundation
 import WatchConnectivity
 
-/// Pushes the paired server + credential to the Apple Watch (M-watch,
-/// ADR 0067) so the watch talks to the box directly. Application context is
-/// the right channel: latest-wins, delivered even when the watch app is
-/// closed, and re-sent automatically after reinstalls. Signing out pushes an
-/// empty token so the watch locks itself.
+/// Relays the phone's current session over WatchConnectivity. The generation
+/// record survives relaunch and contains only ordering metadata, never a bearer.
 final class PhoneWatchBridge: NSObject, WCSessionDelegate, @unchecked Sendable {
     static let shared = PhoneWatchBridge()
-
+    private static let stateKey = "family-cfo.watch-context-order"
+    private let lock = NSLock()
     private var pending: [String: String]?
 
     func activate() {
@@ -18,35 +17,33 @@ final class PhoneWatchBridge: NSObject, WCSessionDelegate, @unchecked Sendable {
         session.activate()
     }
 
-    /// Push (or clear, with nils) the watch's working set.
     func push(server: ServerConfig?, credential: StoredCredential?) {
-        let context: [String: String] = [
-            "apiBaseURL": server?.apiBaseURL.absoluteString ?? "",
-            "certificateSHA256": server?.certificateSHA256 ?? "",
-            "token": credential?.accessToken ?? "",
-            "householdName": server?.householdName ?? "",
-        ]
-        let session = WCSession.default
-        guard WCSession.isSupported(), session.activationState == .activated else {
-            pending = context
-            return
+        lock.withLock {
+            let context = orderedContext(server: server, credential: credential)
+            publish(context, via: WCSession.default)
         }
-        try? session.updateApplicationContext(context)
+    }
+
+    private func publish(_ context: [String: String], via session: WCSession) {
+        pending = context
+        guard WCSession.isSupported(), session.activationState == .activated else { return }
+        do {
+            try session.updateApplicationContext(context)
+            pending = nil
+        } catch {
+            // Keep the latest context for the next activation or foreground push.
+        }
     }
 
     func session(
         _ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState,
         error: Error?
     ) {
-        if activationState == .activated, let pending {
-            try? session.updateApplicationContext(pending)
-            self.pending = nil
+        lock.withLock {
+            if activationState == .activated, let pending { publish(pending, via: session) }
         }
     }
 
-    /// The watch hit a 401 and wants the current pairing NOW (ADR 0067 v6).
-    /// Read persisted state directly — this can arrive in a background launch
-    /// where nobody has unlocked the app, so the in-memory model may be cold.
     func session(
         _ session: WCSession, didReceiveMessage message: [String: Any],
         replyHandler: @escaping ([String: Any]) -> Void
@@ -55,21 +52,61 @@ final class PhoneWatchBridge: NSObject, WCSessionDelegate, @unchecked Sendable {
             replyHandler([:])
             return
         }
-        replyHandler(Self.persistedPairingContext() ?? [:])
+        let context = lock.withLock { persistedContext(via: session) }
+        replyHandler(context)
     }
 
-    static func persistedPairingContext() -> [String: String]? {
-        guard let data = UserDefaults.standard.data(forKey: AppModel.serverDefaultsKey),
+    private func persistedContext(via session: WCSession) -> [String: String] {
+        let defaults = UserDefaults.standard
+        let state = defaults.dictionary(forKey: Self.stateKey) as? [String: String]
+        if state?["state"] == "invalidated" {
+            return orderedContext(server: nil, credential: nil)
+        }
+        guard let data = defaults.data(forKey: AppModel.serverDefaultsKey),
             let server = try? JSONDecoder().decode(ServerConfig.self, from: data),
             let credentialData = KeychainStore.load(account: AppModel.credentialAccount),
             let credential = try? JSONDecoder().decode(StoredCredential.self, from: credentialData)
-        else { return nil }
-        return [
-            "apiBaseURL": server.apiBaseURL.absoluteString,
-            "certificateSHA256": server.certificateSHA256 ?? "",
-            "token": credential.accessToken,
-            "householdName": server.householdName,
+        else { return [:] } // unavailable is not authoritative logout
+        if credential.expiresAt <= Date() {
+            let context = orderedContext(server: nil, credential: nil)
+            publish(context, via: session)
+            return context
+        }
+        return orderedContext(server: server, credential: credential)
+    }
+
+    private func orderedContext(server: ServerConfig?, credential: StoredCredential?) -> [String: String] {
+        let defaults = UserDefaults.standard
+        let previous = defaults.dictionary(forKey: Self.stateKey) as? [String: String] ?? [:]
+        let active = if let server, let credential, credential.expiresAt > Date() {
+            (server, credential)
+        } else { nil as (ServerConfig, StoredCredential)? }
+        let state = active == nil ? "invalidated" : "active"
+        let fingerprint = active.map { pair in
+            // Hash the random bearer to identify foreground re-sends without
+            // copying it from Keychain into preferences.
+            SHA256.hash(data: Data(pair.1.accessToken.utf8)).description
+        }
+        var sequence = previous["sequence"].flatMap(UInt64.init) ?? 0
+        if previous["state"] != state || previous["fingerprint"] != fingerprint {
+            sequence += 1
+        }
+        var metadata = [
+            "version": "1", "state": state,
+            "scope": previous["scope"] ?? UUID().uuidString,
+            "sequence": String(sequence),
         ]
+        metadata["fingerprint"] = fingerprint
+        defaults.set(metadata, forKey: Self.stateKey)
+        metadata.removeValue(forKey: "fingerprint")
+        if let (server, credential) = active {
+            metadata["apiBaseURL"] = server.apiBaseURL.absoluteString
+            metadata["certificateSHA256"] = server.certificateSHA256 ?? ""
+            metadata["token"] = credential.accessToken
+            metadata["householdName"] = server.householdName
+            metadata["expiresAt"] = String(credential.expiresAt.timeIntervalSince1970)
+        }
+        return metadata
     }
 
     func sessionDidBecomeInactive(_ session: WCSession) {}

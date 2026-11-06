@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Family CFO API
-  version: "0.162"
+  version: "0.163"
   description: >
     Initial specification for the Family CFO self-hosted backend API.
     This contract is the source of truth for generated Swift and Angular clients.
@@ -60,6 +60,48 @@ paths:
       responses:
         "201":
           description: Device signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceCredential"
+        "401":
+          $ref: "#/components/responses/Error"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+  /pairing/reauthentication/challenge:
+    post:
+      tags: [Pairing]
+      operationId: createDeviceReauthenticationChallenge
+      summary: Issue a single-use challenge for existing device sign-in
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeviceReauthenticationChallengeRequest"
+      responses:
+        "201":
+          description: Short-lived challenge
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceReauthenticationChallenge"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+  /pairing/reauthentication:
+    post:
+      tags: [Pairing]
+      operationId: reauthenticateDevice
+      summary: Sign in again on an existing device using a password and device proof
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeviceReauthenticationRequest"
+      responses:
+        "201":
+          description: Replacement device-bound session
           content:
             application/json:
               schema:
@@ -4376,6 +4418,47 @@ components:
           type:
             - string
             - "null"
+    DeviceReauthenticationChallengeRequest:
+      type: object
+      required: [device_id]
+      properties:
+        device_id:
+          type: string
+          minLength: 1
+          maxLength: 36
+    DeviceReauthenticationChallenge:
+      type: object
+      required: [challenge]
+      properties:
+        challenge:
+          type: string
+          description: Single-use, five-minute challenge encoded as unpadded base64url.
+    DeviceReauthenticationRequest:
+      type: object
+      required: [device_id, challenge, email, password, signature]
+      properties:
+        device_id:
+          type: string
+          minLength: 1
+          maxLength: 36
+        challenge:
+          type: string
+          minLength: 43
+          maxLength: 43
+          pattern: '^[A-Za-z0-9_-]{43}$'
+        email:
+          type: string
+          minLength: 3
+          maxLength: 255
+        password:
+          type: string
+          minLength: 1
+        signature:
+          type: string
+          minLength: 86
+          maxLength: 86
+          pattern: '^[A-Za-z0-9_-]{86}$'
+          description: Raw ECDSA P-256 signature (r followed by s), encoded as unpadded base64url. See ADR 0080.
     PairingLoginRequest:
       type: object
       description: >-

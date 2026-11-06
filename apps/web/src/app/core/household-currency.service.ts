@@ -2,7 +2,7 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import type { HouseholdContext } from '../api-client';
 import { apiErrorMessage } from '../shared/api-error';
 import { ApiService } from './api.service';
-import { authState } from './token-store';
+import { authGeneration, authState } from './token-store';
 
 /**
  * The session a cached value belongs to (#156). Login and signup replace the
@@ -13,7 +13,7 @@ import { authState } from './token-store';
  */
 export function householdSessionKey(): string {
   const state = authState();
-  return state ? `${state.householdId}:${state.accessToken}` : 'no-session';
+  return state ? `${state.householdId}:${authGeneration()}` : 'no-session';
 }
 
 /**
