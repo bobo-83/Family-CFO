@@ -2094,3 +2094,12 @@ The Docker spec (`docs/specs/10-docker-spec.md`) plans a `family-cfo-vector` (Qd
 - [x] Verify backup restore works from a clean environment. (Full round trip verified on real PostgreSQL in M12.)
 - [x] Verify documentation is current. (Guides, READMEs, ADRs, and Acceptance State updated.)
 - [x] Tag first release. (`v0.1.0`.)
+
+## Session expiry and reauthentication (#164)
+
+- [x] Accept the lifecycle and recovery design in ADR 0080.
+- [ ] Implement Angular session ownership, expiry and mounted-route eviction.
+- [ ] Add the existing-device challenge API and generated clients.
+- [ ] Implement iPhone reauthentication and ordered Watch invalidation.
+- [ ] Run browser, simulator, PostgreSQL and paired-device acceptance gates.
+- [ ] Coordinate the contract release.

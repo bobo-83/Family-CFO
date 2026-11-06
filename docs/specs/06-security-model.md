@@ -202,3 +202,9 @@ ids, real private IPs/hostnames, personal home paths — and no secrets. These a
 supplied at build/run time (env / gitignored `.deploy.env`) or shown as
 placeholders. Enforced by `scripts/check-repo-hygiene.sh` (pattern-based; runs in
 the Security workflow and as a pre-commit hook) alongside gitleaks for secrets.
+
+## Session expiry (#164)
+
+[ADR 0080](../adr/0080-session-expiry-reauthentication.md) specifies expiry,
+request ownership, existing-device proof, and recovery. Auth expiry, local
+biometric lock and the sealed household key lock have separate transitions.
