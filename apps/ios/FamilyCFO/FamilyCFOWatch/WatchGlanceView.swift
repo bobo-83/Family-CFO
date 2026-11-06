@@ -175,12 +175,6 @@ struct WatchGlanceView: View {
             let result = try await client.getHouseholdContext(.init())
             guard owns(owner), !Task.isCancelled else { return }
             guard case .ok(let response) = result else {
-                // Usually a 401 from a stale relayed token (ADR 0067 v6):
-                // pull the phone's current pairing and try once more.
-                let refreshed = await model.requestFreshCredential(
-                    expectedIdentity: owner.identity)
-                if refreshed { return }  // the revision-keyed task restarts with the new credential
-                guard owns(owner), !Task.isCancelled else { return }
                 errorMessage = "The box answered unexpectedly."
                 return
             }

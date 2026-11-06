@@ -1560,3 +1560,10 @@ ADR 0076 is the governing decision.
 - ADR 0076; Spec Kit `01-prd.md` through `12-implementation-tasks.md`; the
   implementation plan remains the field matrix and execution inventory. Later
   work updates API/client guides and release documentation with implementation.
+
+## Session expiry and reauthentication (#164)
+
+Deliver Angular, existing-device iPhone, and companion expiry behavior with
+API, browser, simulator and paired-device acceptance. A client that depends on
+the new API ships with a shared contract bump, coordinated API/worker first
+under ADR 0074.

@@ -268,3 +268,10 @@ Events are idempotent across retries and scoped to the active destination
 generation. They distinguish coverage still building from coverage shortened by
 a known policy, capacity, or explicit-delete action; they do not certify an
 archive.
+
+## Authentication lifecycle (#164)
+
+A device identity outlives an auth session and retains its household and public
+key. An existing-device challenge proves possession of that key in combination
+with the account password. A client session generation identifies work and
+cached data from one installation of a bearer.

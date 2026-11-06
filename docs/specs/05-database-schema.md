@@ -210,3 +210,10 @@ historical settings/journal state must not resume pruning automatically.
 - Migrations must be reversible where practical.
 - Never include production data.
 - Fixtures must be synthetic.
+
+## Existing-device challenges (#164)
+
+Store the digest of the single-use challenge, its requested device ID and expiry.
+The challenge can be issued for an unknown device ID. Only completion under the
+device ownership transaction may consume the challenge and replace auth sessions.
+Bound issuance and prune expired challenge rows.

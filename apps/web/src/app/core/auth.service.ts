@@ -2,7 +2,13 @@ import { Injectable, computed, inject } from '@angular/core';
 import type { HouseholdCreateRequest } from '../api-client';
 import { apiErrorMessage } from '../shared/api-error';
 import { ApiService } from './api.service';
-import { authState, clearAuthState, setAuthState } from './token-store';
+import {
+  authGeneration,
+  authState,
+  clearAuthState,
+  setAuthState,
+  updateSessionRights,
+} from './token-store';
 
 export interface LoginResult {
   ok: boolean;
@@ -50,16 +56,15 @@ export class AuthService {
    *  best-effort — offline keeps the cached rights, and the server checks
    *  every request regardless. */
   async refreshRights(): Promise<void> {
-    const state = authState();
-    if (!state) {
+    const owner = authGeneration();
+    if (!authState()) {
       return;
     }
     const { data, error } = await this.api.getSessionInfo();
     if (error || !data) {
       return;
     }
-    setAuthState({
-      ...state,
+    updateSessionRights(owner, {
       role: data.role,
       roleName: data.role_name ?? undefined,
       rights: data.rights,
@@ -70,6 +75,7 @@ export class AuthService {
     // #92: `response` carries the brute-force lockout's `Retry-After`, which
     // the error body never mentions — without it a 429 says "try again later"
     // while the box means fifteen minutes.
+    const owner = authGeneration();
     const { data, error, response } = await this.api.login({ email, password });
 
     if (error || !data) {
@@ -83,18 +89,21 @@ export class AuthService {
       };
     }
 
-    setAuthState({
+    if (owner !== authGeneration()) return { ok: false };
+    const ok = setAuthState({
       accessToken: data.access_token,
+      expiresAt: data.expires_at,
       householdId: data.household_id,
       userId: data.user_id,
       role: data.role,
       roleName: data.role_name ?? undefined,
       rights: data.rights ?? undefined,
     });
-    return { ok: true };
+    return { ok };
   }
 
   async signup(payload: HouseholdCreateRequest): Promise<LoginResult> {
+    const owner = authGeneration();
     const { data, error } = await this.api.createHousehold(payload);
 
     if (error || !data) {
@@ -104,15 +113,17 @@ export class AuthService {
       };
     }
 
-    setAuthState({
+    if (owner !== authGeneration()) return { ok: false };
+    const ok = setAuthState({
       accessToken: data.access_token,
+      expiresAt: data.expires_at,
       householdId: data.household_id,
       userId: data.user_id,
       role: data.role,
       roleName: data.role_name ?? undefined,
       rights: data.rights ?? undefined,
     });
-    return { ok: true };
+    return { ok };
   }
 
   logout(): void {

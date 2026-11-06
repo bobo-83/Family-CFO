@@ -291,7 +291,7 @@ def get_session_context(engine: Engine, token_hash: str) -> SessionContext | Non
         if session_row is None or session_row["revoked_at"] is not None:
             return None
 
-        if _as_aware(session_row["expires_at"]) < utcnow():
+        if _as_aware(session_row["expires_at"]) <= utcnow():
             return None
 
         if session_row["device_id"] is not None:
@@ -5955,6 +5955,14 @@ def record_audit_event(
     connection: Connection | None = None,
 ) -> str:
     audit_id = new_id()
+    # Reauthentication must be possible while the key session is locked.
+    # This constant records only that the event happened. It cannot carry
+    # user, device, password, or proof text from the request.
+    stored_summary = (
+        "Signed in again on existing device"
+        if action == "pairing.reauthenticate"
+        else household_crypto.encrypt_text(engine, household_id, summary)
+    )
     statement = insert(models.audit_events).values(
         id=audit_id,
         household_id=household_id,
@@ -5965,7 +5973,7 @@ def record_audit_event(
         # Summaries name entities and undo tokens snapshot their values —
         # sealing them keeps the audit trail from leaking what the
         # content columns hide (ADR 0072).
-        summary=household_crypto.encrypt_text(engine, household_id, summary),
+        summary=stored_summary,
         created_at=utcnow(),
         undo_token=household_crypto.encrypt_text(engine, household_id, undo_token),
     )

@@ -21,6 +21,7 @@ export const routes: Routes = [
     path: '',
     component: Shell,
     canActivate: [authGuard],
+    canActivateChild: [authGuard],
     children: [
       { path: '', pathMatch: 'full', redirectTo: 'overview' },
       {

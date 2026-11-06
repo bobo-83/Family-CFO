@@ -8100,6 +8100,30 @@
 </source>
         <target state="translated">Mở ứng dụng Family CFO trên iPhone, nhập địa chỉ máy chủ, xác minh chứng chỉ và đăng nhập bằng tài khoản của riêng bạn. Nếu cần tài khoản, hãy xin lời mời từ quản trị viên gia đình. Mỗi thiết bị có thông tin xác thực riêng có thể thu hồi. Ứng dụng cũ phải được cập nhật để đăng nhập bằng tài khoản; các phiên hiện có vẫn hợp lệ.</target>
       </trans-unit>
+      <trans-unit id="3239589020047044075" datatype="html">
+        <source>Your session has expired. Please sign in again.</source>
+        <target state="translated">Phiên của bạn đã hết hạn. Vui lòng đăng nhập lại.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/login/login.ts</context>
+          <context context-type="linenumber">38</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="7283311528767488630" datatype="html">
+        <source>Please sign in again to continue.</source>
+        <target state="translated">Vui lòng đăng nhập lại để tiếp tục.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/login/login.ts</context>
+          <context context-type="linenumber">39</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="8092785966574664281" datatype="html">
+        <source> Your household data is still locked. Use Restore keys in <x id="START_LINK" ctype="x-a" equiv-text="&lt;a routerLink=&quot;/backups&quot;&gt;"/>Backups<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/>, or ask your household administrator to unlock it. </source>
+        <target state="translated"> Dữ liệu gia đình vẫn bị khóa. Dùng mục Khôi phục khóa trong <x id="START_LINK" ctype="x-a" equiv-text="&lt;a routerLink=&quot;/backups&quot;&gt;"/>Bản sao lưu<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/>, hoặc nhờ quản trị viên gia đình mở khóa. </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/shell/shell.html</context>
+          <context context-type="linenumber">99,102</context>
+        </context-group>
+      </trans-unit>
     </body>
   </file>
 </xliff>

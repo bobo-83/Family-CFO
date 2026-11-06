@@ -173,3 +173,10 @@ Acceptance requires the pure selector's interval/tie/cap/newest/anomaly matrix,
 upgrade and restore review gates, strict local and SMB inventory/capacity states,
 production lock and reconciliation tests, additive OpenAPI and generated-client
 compatibility, localized accessible web/iOS parity, and API/worker-first rollout.
+
+## Session expiry and sign-in (#164)
+
+Web and iPhone automatically remove authenticated content on expiry or current
+session rejection. Successful sign-in returns to Overview. An existing iPhone
+can reauthenticate the same device. Companion recovery remains phone-managed
+under this milestone. See [ADR 0080](../adr/0080-session-expiry-reauthentication.md).

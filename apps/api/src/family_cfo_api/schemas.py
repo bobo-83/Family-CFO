@@ -170,6 +170,21 @@ class PairingLoginRequest(BaseModel):
     device_public_key: str = Field(min_length=1)
 
 
+class DeviceReauthenticationChallengeRequest(BaseModel):
+    device_id: str = Field(min_length=1, max_length=36)
+
+
+class DeviceReauthenticationChallenge(BaseModel):
+    challenge: str
+
+
+class DeviceReauthenticationRequest(DeviceReauthenticationChallengeRequest):
+    challenge: str = Field(pattern=r"^[A-Za-z0-9_-]{43}$", min_length=43, max_length=43)
+    email: str = Field(min_length=3, max_length=255)
+    password: str = Field(min_length=1, repr=False)
+    signature: str = Field(pattern=r"^[A-Za-z0-9_-]{86}$", min_length=86, max_length=86, repr=False)
+
+
 class PairedDevice(BaseModel):
     id: str
     user_id: str | None = None

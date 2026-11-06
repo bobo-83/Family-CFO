@@ -137,3 +137,24 @@ struct WatchSharedStateTests {
         #expect(store.load()?.headline?.amountMinor == 90_000)
     }
 }
+
+struct WatchContextOrderTests {
+    @Test func rejectsEqualAndOlderGenerationsIncludingAfterRelaunch() throws {
+        let scope = UUID()
+        func order(_ sequence: Int, scope: UUID) throws -> WatchContextOrder {
+            try #require(WatchContextOrder([
+                "version": "1", "scope": scope.uuidString, "sequence": String(sequence),
+            ]))
+        }
+        let accepted = try order(3, scope: scope)
+        let restored = try JSONDecoder().decode(
+            WatchContextOrder.self, from: JSONEncoder().encode(accepted))
+        #expect(!restored.accepts(try order(2, scope: scope), allowNewScope: false))
+        #expect(!restored.accepts(accepted, allowNewScope: false))
+        #expect(restored.accepts(try order(4, scope: scope), allowNewScope: false))
+        let reset = try order(1, scope: UUID())
+        #expect(!restored.accepts(reset, allowNewScope: false))
+        #expect(restored.accepts(reset, allowNewScope: true))
+        #expect(WatchContextOrder(["token": "synthetic-legacy-bearer"]) == nil)
+    }
+}

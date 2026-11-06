@@ -13,6 +13,7 @@ struct HouseholdUnlockMiddleware: ClientMiddleware {
     /// The device's pairing private key (P256 rawRepresentation) from the
     /// Keychain — a closure so this shared type never touches the Keychain.
     let devicePrivateKey: @Sendable () -> Data?
+    var onLocked: (@Sendable () async -> Void)? = nil
 
     /// JSON bodies only in this app; anything larger than this is not a
     /// request worth replaying.
@@ -45,9 +46,12 @@ struct HouseholdUnlockMiddleware: ClientMiddleware {
             try await openKeySession(via: next, baseURL: baseURL)
         } catch {
             // Surface the original 423 through the normal error display.
+            await onLocked?()
             return (response, responseBody)
         }
-        return try await next(request, bufferedBody.map { HTTPBody($0) }, baseURL)
+        let replay = try await next(request, bufferedBody.map { HTTPBody($0) }, baseURL)
+        if replay.0.status.code == 423 { await onLocked?() }
+        return replay
     }
 
     /// GET the device's wrap, unwrap it locally, POST the key back. The

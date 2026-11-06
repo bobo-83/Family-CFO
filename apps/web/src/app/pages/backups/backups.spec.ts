@@ -173,7 +173,7 @@ async function flushUntil(predicate: () => boolean): Promise<void> {
 
 function setOwnerSession(suffix: string) {
   setAuthState({
-    accessToken: `token-${suffix}`,
+    accessToken: `token-${suffix}`, expiresAt: '2099-01-01T00:00:00Z',
     householdId: `household-${suffix}`,
     userId: `user-${suffix}`,
     role: 'owner',
@@ -1936,7 +1936,7 @@ describe('Backups', () => {
 
   it('rejects a late recovery completion from a previous authenticated session', async () => {
     setAuthState({
-      accessToken: 'token-a',
+      accessToken: 'token-a', expiresAt: '2099-01-01T00:00:00Z',
       householdId: 'household-a',
       userId: 'user-a',
       role: 'owner',
@@ -1962,7 +1962,7 @@ describe('Backups', () => {
     }
 
     setAuthState({
-      accessToken: 'token-b',
+      accessToken: 'token-b', expiresAt: '2099-01-01T00:00:00Z',
       householdId: 'household-b',
       userId: 'user-b',
       role: 'owner',
@@ -2014,7 +2014,7 @@ describe('Backups', () => {
 
   it('rejects a revealed backup key from a replaced authenticated session', async () => {
     setAuthState({
-      accessToken: 'key-token-a',
+      accessToken: 'key-token-a', expiresAt: '2099-01-01T00:00:00Z',
       householdId: 'key-household-a',
       userId: 'key-user-a',
       role: 'owner',
@@ -2037,7 +2037,7 @@ describe('Backups', () => {
     const reveal = fixture.componentInstance['revealKey']();
     await flushUntil(() => apiMock.getBackupEncryptionKey.mock.calls.length === 1);
     setAuthState({
-      accessToken: 'key-token-b',
+      accessToken: 'key-token-b', expiresAt: '2099-01-01T00:00:00Z',
       householdId: 'key-household-b',
       userId: 'key-user-b',
       role: 'owner',
@@ -2320,7 +2320,7 @@ describe('Backups', () => {
 
   it('rejects a reverse-order create completion from a replaced authenticated session', async () => {
     setAuthState({
-      accessToken: 'create-token-a',
+      accessToken: 'create-token-a', expiresAt: '2099-01-01T00:00:00Z',
       householdId: 'create-household-a',
       userId: 'create-user-a',
       role: 'owner',
@@ -2350,7 +2350,7 @@ describe('Backups', () => {
     const staleAction = component['createBackup']();
     await flushUntil(() => createBackup.mock.calls.length === 1);
     setAuthState({
-      accessToken: 'create-token-b',
+      accessToken: 'create-token-b', expiresAt: '2099-01-01T00:00:00Z',
       householdId: 'create-household-a',
       userId: 'create-user-a',
       role: 'owner',

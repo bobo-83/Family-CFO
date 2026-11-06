@@ -3,11 +3,26 @@ import SwiftUI
 /// The unauthenticated root: account-only device sign-in (ADR 0079).
 struct LoginView: View {
     @Environment(AppModel.self) private var model
-    @State private var viewModel = LoginViewModel()
+    @State private var viewModel: LoginViewModel
+    @State private var confirmingDeviceSetup = false
+
+    @MainActor init(viewModel: LoginViewModel? = nil) {
+        _viewModel = State(initialValue: viewModel ?? LoginViewModel())
+    }
 
     var body: some View {
         NavigationStack {
             Form {
+                if let notice = model.signInNotice {
+                    Section {
+                        if notice == .expired {
+                            Text("Your session has expired. Please sign in again.")
+                        } else {
+                            Text("Please sign in again to continue.")
+                        }
+                    }
+                    .accessibilityIdentifier("sign-in-notice")
+                }
                 switch viewModel.step {
                 case .enterServer, .checkingServer:
                     serverSection
@@ -29,6 +44,15 @@ struct LoginView: View {
                         Button("Try again") { viewModel.startOver() }
                     }
                 }
+            }
+            .confirmationDialog("Set up this device again?", isPresented: $confirmingDeviceSetup) {
+                Button("Set up again", role: .destructive) {
+                    model.chooseDeviceSetup()
+                    viewModel.startOver()
+                    viewModel.restoreServer(model.server)
+                }
+            } message: {
+                Text("This removes the saved device key. A sealed household may require its recovery key.")
             }
             .navigationTitle("Sign in")
             .navigationBarTitleDisplayMode(.inline)
@@ -96,8 +120,12 @@ struct LoginView: View {
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
             SecureField("Password", text: $viewModel.password)
-            TextField("Device name", text: $viewModel.deviceName)
-            Button("Change server") { viewModel.startOver() }
+            if model.phase == .reauthenticating {
+                Button("Set up this device again") { confirmingDeviceSetup = true }
+            } else {
+                TextField("Device name", text: $viewModel.deviceName)
+                Button("Change server") { viewModel.startOver() }
+            }
             if let error = viewModel.signInError {
                 Label(error, systemImage: "exclamationmark.triangle")
                     .foregroundStyle(.red)

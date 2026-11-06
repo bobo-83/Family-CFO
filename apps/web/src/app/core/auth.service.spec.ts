@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { vi } from 'vitest';
 import { ApiService } from './api.service';
 import { AuthService } from './auth.service';
-import { clearAuthState } from './token-store';
+import { authState, clearAuthState, setAuthState } from './token-store';
 
 function response(data: unknown, error?: unknown, raw = new Response()) {
   return {
@@ -28,11 +28,11 @@ function rateLimited(retryAfter?: string) {
 
 describe('AuthService', () => {
   let service: AuthService;
-  let apiMock: { login: ReturnType<typeof vi.fn> };
+  let apiMock: { login: ReturnType<typeof vi.fn>; getSessionInfo: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
     clearAuthState();
-    apiMock = { login: vi.fn() };
+    apiMock = { login: vi.fn(), getSessionInfo: vi.fn() };
     TestBed.configureTestingModule({
       providers: [{ provide: ApiService, useValue: apiMock }],
     });
@@ -48,7 +48,7 @@ describe('AuthService', () => {
     apiMock.login.mockResolvedValue(
       response({
         access_token: 'token-abc',
-        expires_at: '2026-01-01T00:00:00Z',
+        expires_at: new Date(Date.now() + 3_600_000).toISOString(),
         household_id: 'household-1',
         user_id: 'user-1',
         role: 'owner',
@@ -102,11 +102,27 @@ describe('AuthService', () => {
     expect(absent.errorMessage).not.toMatch(/\d/);
   });
 
+  it('discards a late rights response after same-token relogin', async () => {
+    const session = {
+      accessToken: 'same-synthetic-token', expiresAt: '2099-01-01T00:00:00Z',
+      householdId: 'household', userId: 'member', role: 'adult', rights: ['finances.view'],
+    };
+    let complete!: (value: unknown) => void;
+    apiMock.getSessionInfo.mockReturnValue(new Promise((resolve) => { complete = resolve; }));
+    setAuthState(session);
+    const refreshing = service.refreshRights();
+    service.logout();
+    setAuthState(session);
+    complete(response({ role: 'owner', rights: ['backups.manage'] }));
+    await refreshing;
+    expect(authState()?.rights).toEqual(['finances.view']);
+  });
+
   it('clears the session on logout', async () => {
     apiMock.login.mockResolvedValue(
       response({
         access_token: 'token-abc',
-        expires_at: '2026-01-01T00:00:00Z',
+        expires_at: new Date(Date.now() + 3_600_000).toISOString(),
         household_id: 'household-1',
         user_id: 'user-1',
         role: 'owner',

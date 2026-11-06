@@ -86,6 +86,28 @@ export type DeviceCredential = {
     household_name?: string | null;
 };
 
+export type DeviceReauthenticationChallengeRequest = {
+    device_id: string;
+};
+
+export type DeviceReauthenticationChallenge = {
+    /**
+     * Single-use, five-minute challenge encoded as unpadded base64url.
+     */
+    challenge: string;
+};
+
+export type DeviceReauthenticationRequest = {
+    device_id: string;
+    challenge: string;
+    email: string;
+    password: string;
+    /**
+     * Raw ECDSA P-256 signature (r followed by s), encoded as unpadded base64url. See ADR 0080.
+     */
+    signature: string;
+};
+
 /**
  * ADR 0079: account-only device sign-in with a device-bound session.
  */
@@ -3485,6 +3507,60 @@ export type CreateDeviceSessionWithPasswordResponses = {
 };
 
 export type CreateDeviceSessionWithPasswordResponse = CreateDeviceSessionWithPasswordResponses[keyof CreateDeviceSessionWithPasswordResponses];
+
+export type CreateDeviceReauthenticationChallengeData = {
+    body: DeviceReauthenticationChallengeRequest;
+    path?: never;
+    query?: never;
+    url: '/pairing/reauthentication/challenge';
+};
+
+export type CreateDeviceReauthenticationChallengeErrors = {
+    /**
+     * Rate limited. `Retry-After` carries the remaining wait in seconds, so a client can say how long instead of guessing — the auth lockout is minutes long, not the "wait a minute" clients used to print (#92). Treat the header as advisory: an older server or an intermediary that strips it leaves it absent, and a client must then say "later" rather than name a duration it does not know.
+     */
+    429: ErrorResponse;
+};
+
+export type CreateDeviceReauthenticationChallengeError = CreateDeviceReauthenticationChallengeErrors[keyof CreateDeviceReauthenticationChallengeErrors];
+
+export type CreateDeviceReauthenticationChallengeResponses = {
+    /**
+     * Short-lived challenge
+     */
+    201: DeviceReauthenticationChallenge;
+};
+
+export type CreateDeviceReauthenticationChallengeResponse = CreateDeviceReauthenticationChallengeResponses[keyof CreateDeviceReauthenticationChallengeResponses];
+
+export type ReauthenticateDeviceData = {
+    body: DeviceReauthenticationRequest;
+    path?: never;
+    query?: never;
+    url: '/pairing/reauthentication';
+};
+
+export type ReauthenticateDeviceErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Rate limited. `Retry-After` carries the remaining wait in seconds, so a client can say how long instead of guessing — the auth lockout is minutes long, not the "wait a minute" clients used to print (#92). Treat the header as advisory: an older server or an intermediary that strips it leaves it absent, and a client must then say "later" rather than name a duration it does not know.
+     */
+    429: ErrorResponse;
+};
+
+export type ReauthenticateDeviceError = ReauthenticateDeviceErrors[keyof ReauthenticateDeviceErrors];
+
+export type ReauthenticateDeviceResponses = {
+    /**
+     * Replacement device-bound session
+     */
+    201: DeviceCredential;
+};
+
+export type ReauthenticateDeviceResponse = ReauthenticateDeviceResponses[keyof ReauthenticateDeviceResponses];
 
 export type ListPairedDevicesData = {
     body?: never;

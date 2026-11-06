@@ -9,6 +9,10 @@
         <a routerLink="/signup">create a new household</a> if this is a fresh setup.
       </p>
 
+      @if (notice(); as message) {
+        <p class="login__error-banner" role="status">{{ message }}</p>
+      }
+
       <form [formGroup]="form" (ngSubmit)="submit()" novalidate class="login__form">
         <mat-form-field appearance="outline">
           <mat-label i18n="Form field label|Email address">Email</mat-label>

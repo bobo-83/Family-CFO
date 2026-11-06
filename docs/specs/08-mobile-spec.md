@@ -352,3 +352,11 @@ unavailable decisions, unaffected sibling survival, strict 409 versus locked
 423, stale-cache clearing, reverse completion/cancellation/session replacement,
 and parity across phone, Watch, and widgets. Localized catalog and accessibility
 assertions are required.
+
+## Reauthentication (#164)
+
+On auth expiry or current protected 401, show sign-in and preserve saved device
+identity, endpoint and trust. Check expiry before and after biometrics. Renew
+with the existing device's key and the member's password. Phone-managed Watch
+access uses ordered invalidation and local expiry. See
+[ADR 0080](../adr/0080-session-expiry-reauthentication.md).

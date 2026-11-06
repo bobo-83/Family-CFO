@@ -285,6 +285,14 @@ paired_devices = Table(
     Column("revoked_at", DateTime(timezone=True), nullable=True),
 )
 
+device_reauth_challenges = Table(
+    "device_reauth_challenges",
+    metadata,
+    Column("challenge_hash", String(64), primary_key=True),
+    Column("device_id", String(36), nullable=False),
+    Column("expires_at", DateTime(timezone=True), nullable=False, index=True),
+)
+
 auth_sessions = Table(
     "auth_sessions",
     metadata,

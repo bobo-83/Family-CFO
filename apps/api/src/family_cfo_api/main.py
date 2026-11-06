@@ -167,6 +167,13 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         request: Request,
         exc: RequestValidationError,
     ) -> JSONResponse:
+        errors = exc.errors()
+        if request.url.path.endswith((
+            "/pairing/reauthentication",
+            "/pairing/reauthentication/challenge",
+        )):
+            # For missing fields Pydantic's input can be the entire request.
+            errors = [{key: error[key] for key in ("type", "loc", "msg")} for error in errors]
         return JSONResponse(
             status_code=422,
             content=error_response(
@@ -176,7 +183,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
                 ),
                 # The per-field errors stay English: they name FIELDS, which are
                 # contract identifiers, not prose for a reader.
-                {"errors": exc.errors()},
+                {"errors": errors},
             ),
         )
 

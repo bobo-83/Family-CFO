@@ -20,24 +20,23 @@ final class WatchModel {
 
     var isPaired: Bool { apiBaseURL != nil && token != nil }
 
-    /// Request-start provenance for Watch loads and primitive snapshots. The
-    /// token stays in memory and is used only as an equality key.
-    var sessionIdentity: String? {
-        Self.sessionIdentity(apiBaseURL: apiBaseURL, token: token)
-    }
+    private(set) var sessionIdentity: String?
+    private(set) var expiresAt: Date?
+    @ObservationIgnored private var order: WatchContextOrder?
+    @ObservationIgnored private var deadline: SessionDeadline?
+    @ObservationIgnored private var expiryTask: Task<Void, Never>?
 
-    /// M95: the streamed chat response's advertised recovery horizon,
-    /// captured by the middleware and read back when a stream fails mid-turn.
     private let advisorRecoveryHorizon = AdvisorRecoveryHorizon()
 
     var client: Client? {
-        guard let apiBaseURL, let token else { return nil }
-        let captured = token
+        guard let apiBaseURL, let token, let identity = sessionIdentity else { return nil }
         return APIClientFactory.makeClient(
             baseURL: apiBaseURL,
             pinnedCertificateSHA256: certificateSHA256,
-            token: { captured },
-            advisorRecoveryHorizon: advisorRecoveryHorizon
+            token: { token },
+            advisorRecoveryHorizon: advisorRecoveryHorizon,
+            ownsSession: { [weak self] in await self?.owns(identity) ?? false },
+            onUnauthorized: { [weak self] in await self?.reject(identity) }
         )
     }
 
@@ -60,68 +59,123 @@ final class WatchModel {
 
     private func load() {
         guard let data = UserDefaults.standard.data(forKey: Self.defaultsKey),
-            let stored = try? JSONDecoder().decode([String: String].self, from: data)
-        else { return }
-        apply(stored, persist: false)
+            let stored = try? JSONDecoder().decode([String: String].self, from: data),
+            WatchContextOrder(stored) != nil
+        else {
+            UserDefaults.standard.removeObject(forKey: Self.defaultsKey)
+            updateSnapshotAccess(clear: true)
+            return
+        }
+        apply(stored, restoring: true)
     }
 
-    func apply(_ context: [String: String], persist: Bool = true) {
-        let previousIdentity = sessionIdentity
-        let nextBaseURL = context["apiBaseURL"].flatMap(URL.init(string:))
-        // #86: the phone relays "" when the box's certificate is CA-signed and
-        // nothing was pinned — application context carries strings, not
-        // optionals. An empty pin is no pin; keeping it as "" pinned the watch
-        // to a hash no certificate can have, so the watch alone refused every
-        // request while the phone was happily connected.
-        let nextCertificateSHA256 = CertificatePin.normalizedPin(context["certificateSHA256"])
-        let nextToken = context["token"].flatMap { $0.isEmpty ? nil : $0 }
-        let nextHouseholdName = context["householdName"]
-        let nextIdentity = Self.sessionIdentity(apiBaseURL: nextBaseURL, token: nextToken)
-
-        // Replace the component fields from one parsed context, then publish a
-        // single revision change for task ownership. Views key work to the
-        // revision rather than observing intermediate URL/token combinations.
-        apiBaseURL = nextBaseURL
-        certificateSHA256 = nextCertificateSHA256
-        token = nextToken
-        householdName = nextHouseholdName
-
-        let identityChanged = WatchSessionTransition.changed(
-            from: previousIdentity, to: nextIdentity)
-        if WatchSessionTransition.shouldClearSnapshot(
-            from: previousIdentity, to: nextIdentity, persist: persist)
-        {
-            // The primitive cache has no embedded session identity, so it must
-            // not remain visible across sign-out, token rotation, or re-pairing.
-            WatchFaceSnapshotStore().clear()
-            WidgetCenter.shared.reloadAllTimelines()
+    func apply(_ context: [String: String], restoring: Bool = false, allowNewScope: Bool = false) {
+        guard let incoming = WatchContextOrder(context),
+            order?.accepts(incoming, allowNewScope: allowNewScope) ?? true
+        else { return }
+        switch context["state"] {
+        case "active":
+            guard let seconds = context["expiresAt"].flatMap(Double.init), seconds.isFinite,
+                let url = context["apiBaseURL"].flatMap(URL.init(string:)),
+                url.scheme?.lowercased() == "https",
+                let token = context["token"], !token.isEmpty else { return }
+            order = incoming
+            let expiresAt = Date(timeIntervalSince1970: seconds)
+            if expiresAt <= Date() {
+                invalidate()
+                return
+            }
+            apiBaseURL = url
+            certificateSHA256 = CertificatePin.normalizedPin(context["certificateSHA256"])
+            self.token = token
+            householdName = context["householdName"]
+            self.expiresAt = expiresAt
+            deadline = SessionDeadline(
+                expiresAt: expiresAt, wallNow: Date(), monotonicNow: SessionDeadline.monotonicTime())
+            sessionIdentity = "\(incoming.scope.uuidString):\(incoming.sequence)"
+            sessionRevision &+= 1
+            persist(context)
+            updateSnapshotAccess(clear: !restoring)
+            checkExpiry()
+        case "invalidated":
+            order = incoming
+            invalidate()
+        default:
+            return
         }
-        if identityChanged { sessionRevision &+= 1 }
-        if persist, let data = try? JSONEncoder().encode(context) {
+    }
+
+    private func persist(_ context: [String: String]) {
+        if let data = try? JSONEncoder().encode(context) {
             UserDefaults.standard.set(data, forKey: Self.defaultsKey)
         }
     }
 
-    private static func sessionIdentity(apiBaseURL: URL?, token: String?) -> String? {
-        guard let apiBaseURL, let token else { return nil }
-        return "\(apiBaseURL.absoluteString):\(token)"
+    private func updateSnapshotAccess(clear: Bool) {
+        let store = WatchFaceSnapshotStore()
+        if clear { store.clear() }
+        store.sessionExpiry = expiresAt
+        WidgetCenter.shared.reloadAllTimelines()
     }
 
-    /// ADR 0067 v6: a 401 usually means the phone rotated the session while
-    /// our pushed copy lagged (user report 2026-07-25 — "the box answered
-    /// unexpectedly" right after an update, gone once the phone was opened).
-    /// Ask the phone for its CURRENT pairing over the live channel — waking
-    /// its app in the background if needed — and apply the reply. Returns
-    /// true when a different token landed, i.e. a retry is worth it.
-    func requestFreshCredential(expectedIdentity: String) async -> Bool {
-        guard sessionIdentity == expectedIdentity else { return false }
-        let stale = token
-        guard let context = await connectivity.requestContext(),
-            sessionIdentity == expectedIdentity, !Task.isCancelled
-        else { return false }
-        apply(context)
-        return token != nil && token != stale
+    private func invalidate() {
+        expiryTask?.cancel()
+        expiryTask = nil
+        token = nil
+        apiBaseURL = nil
+        certificateSHA256 = nil
+        householdName = nil
+        expiresAt = nil
+        deadline = nil
+        sessionIdentity = nil
+        sessionRevision &+= 1
+        if let order {
+            persist(["version": "1", "state": "invalidated", "scope": order.scope.uuidString,
+                "sequence": String(order.sequence)])
+        }
+        updateSnapshotAccess(clear: true)
     }
+
+    func checkExpiry() {
+        expiryTask?.cancel()
+        guard let deadline else { return }
+        let remaining = deadline.remaining(wallNow: Date(), monotonicNow: SessionDeadline.monotonicTime())
+        guard remaining > 0 else { invalidate(); return }
+        expiryTask = Task { [weak self] in
+            do { try await Task.sleep(for: .seconds(min(remaining, 30))) }
+            catch { return }
+            self?.checkExpiry()
+        }
+    }
+
+    private func owns(_ identity: String) -> Bool {
+        if let deadline,
+            deadline.remaining(wallNow: Date(), monotonicNow: SessionDeadline.monotonicTime()) <= 0
+        {
+            invalidate()
+        }
+        return sessionIdentity == identity
+    }
+
+    private func reject(_ identity: String) {
+        guard owns(identity) else { return }
+        invalidate()
+        let revision = sessionRevision
+        Task {
+            guard let context = await connectivity.requestContext(), revision == sessionRevision else { return }
+            apply(context)
+        }
+    }
+
+    func reconnectToPhone() async {
+        let revision = sessionRevision
+        guard !isPaired, let context = await connectivity.requestContext(),
+            revision == sessionRevision else { return }
+        // Only a deliberate live reconnect can establish a new phone scope.
+        // Delayed queued contexts from the previous phone are then ignored.
+        apply(context, allowNewScope: true)
+    }
+
 }
 
 /// WCSession plumbing kept out of the observable model: the delegate fires on
@@ -162,13 +216,31 @@ final class WatchConnectivityReceiver: NSObject, WCSessionDelegate, @unchecked S
             session.isReachable
         else { return nil }
         return await withCheckedContinuation { continuation in
+            let reply = BoundedContextReply(continuation)
             session.sendMessage(
                 ["want": "pairing"],
-                replyHandler: { reply in
-                    let typed = reply.compactMapValues { $0 as? String }
-                    continuation.resume(returning: typed.isEmpty ? nil : typed)
+                replyHandler: { response in
+                    let typed = response.compactMapValues { $0 as? String }
+                    reply.finish(typed.isEmpty ? nil : typed)
                 },
-                errorHandler: { _ in continuation.resume(returning: nil) })
+                errorHandler: { _ in reply.finish(nil) })
+            DispatchQueue.global().asyncAfter(deadline: .now() + 5) { reply.finish(nil) }
+        }
+    }
+}
+
+private final class BoundedContextReply: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<[String: String]?, Never>?
+
+    init(_ continuation: CheckedContinuation<[String: String]?, Never>) {
+        self.continuation = continuation
+    }
+
+    func finish(_ context: [String: String]?) {
+        lock.withLock {
+            continuation?.resume(returning: context)
+            continuation = nil
         }
     }
 }

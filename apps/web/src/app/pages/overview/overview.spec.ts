@@ -7,7 +7,7 @@ import { authMock } from '../../shared/testing-auth';
 import { Overview } from './overview';
 import { handleSessionResponse } from '../../core/api-client-setup';
 import { HouseholdCurrencyService } from '../../core/household-currency.service';
-import { authState, clearAuthState, setAuthState } from '../../core/token-store';
+import { authGeneration, authState, clearAuthState, setAuthState } from '../../core/token-store';
 import { TIMEZONE_BOX_DEFAULT } from '../../shared/timezones';
 import { qualifyApiFixture } from '../../shared/testing-qualified-fixtures';
 
@@ -88,7 +88,7 @@ describe('Overview', () => {
       getHouseholdKeyStatus: vi.fn().mockResolvedValue(response(null)),
     };
     localStorage.removeItem('family-cfo.hideSealedModeOffer');
-    setAuthState({ accessToken: 'token-a', householdId: 'hh-a', userId: 'u1', role: 'owner' });
+    setAuthState({ accessToken: 'token-a', expiresAt: '2099-01-01T00:00:00Z', householdId: 'hh-a', userId: 'u1', role: 'owner' });
     configure();
   });
 
@@ -1756,7 +1756,7 @@ describe('Overview #156: accounts outside the base currency', () => {
   }
 
   async function render(context: Record<string, unknown>) {
-    setAuthState({ accessToken: 'token-a', householdId: 'hh-a', userId: 'u1', role: 'owner' });
+    setAuthState({ accessToken: 'token-a', expiresAt: '2099-01-01T00:00:00Z', householdId: 'hh-a', userId: 'u1', role: 'owner' });
     apiMock = {
       getHouseholdContext: vi.fn().mockResolvedValue(response(context)),
       updateHousehold: vi.fn().mockResolvedValue(response({})),
@@ -1841,7 +1841,7 @@ describe('Overview qualified aggregate presentation', () => {
 
   function configureQualified(apiMock: Record<string, unknown>) {
     if (!authState()) {
-      setAuthState({ accessToken: 'token-a', householdId: 'hh-a', userId: 'u1', role: 'owner' });
+      setAuthState({ accessToken: 'token-a', expiresAt: '2099-01-01T00:00:00Z', householdId: 'hh-a', userId: 'u1', role: 'owner' });
     }
     TestBed.configureTestingModule({
       imports: [Overview],
@@ -2094,7 +2094,7 @@ describe('Overview qualified aggregate presentation', () => {
   });
 
   it('ignores a yearly response completed after the household session changes', async () => {
-    setAuthState({ accessToken: 'token-a', householdId: 'hh-a', userId: 'u1', role: 'owner' });
+    setAuthState({ accessToken: 'token-a', expiresAt: '2099-01-01T00:00:00Z', householdId: 'hh-a', userId: 'u1', role: 'owner' });
     let resolveYear!: (value: unknown) => void;
     const apiMock = {
       getYearlyOverview: vi.fn().mockReturnValue(new Promise((resolve) => (resolveYear = resolve))),
@@ -2104,7 +2104,7 @@ describe('Overview qualified aggregate presentation', () => {
 
     const loading = component['loadYear'](2025);
     clearAuthState();
-    setAuthState({ accessToken: 'token-b', householdId: 'hh-b', userId: 'u2', role: 'owner' });
+    setAuthState({ accessToken: 'token-b', expiresAt: '2099-01-01T00:00:00Z', householdId: 'hh-b', userId: 'u2', role: 'owner' });
     resolveYear(response(yearOverview(2025)));
     await loading;
 
@@ -2117,7 +2117,7 @@ describe('Overview #156: seeding the currency across a session switch', () => {
   afterEach(() => clearAuthState());
 
   it('does not seed household A\'s currency into household B\'s session', async () => {
-    setAuthState({ accessToken: 'token-a', householdId: 'hh-a', userId: 'u1', role: 'owner' });
+    setAuthState({ accessToken: 'token-a', expiresAt: '2099-01-01T00:00:00Z', householdId: 'hh-a', userId: 'u1', role: 'owner' });
     let release!: (value: unknown) => void;
     const apiMock = {
       getHouseholdContext: vi.fn().mockReturnValue(new Promise((r) => (release = r))),
@@ -2142,7 +2142,7 @@ describe('Overview #156: seeding the currency across a session switch', () => {
 
     // A's Overview request is still in flight when A logs out and B logs in.
     clearAuthState();
-    setAuthState({ accessToken: 'token-b', householdId: 'hh-b', userId: 'u2', role: 'owner' });
+    setAuthState({ accessToken: 'token-b', expiresAt: '2099-01-01T00:00:00Z', householdId: 'hh-b', userId: 'u2', role: 'owner' });
     release(
       response({
         household_id: 'hh-a',
@@ -2160,8 +2160,8 @@ describe('Overview #156: seeding the currency across a session switch', () => {
 });
 
 describe('Overview session ownership', () => {
-  const sessionA = { accessToken: 'token-a', householdId: 'hh-a', userId: 'user-a', role: 'owner' };
-  const sessionB = { accessToken: 'token-b', householdId: 'hh-b', userId: 'user-b', role: 'owner' };
+  const sessionA = { accessToken: 'token-a', expiresAt: '2099-01-01T00:00:00Z', householdId: 'hh-a', userId: 'user-a', role: 'owner' };
+  const sessionB = { accessToken: 'token-b', expiresAt: '2099-01-01T00:00:00Z', householdId: 'hh-b', userId: 'user-b', role: 'owner' };
 
   function deferred<T = unknown>() {
     let resolve!: (value: T) => void;
@@ -2264,7 +2264,7 @@ describe('Overview session ownership', () => {
     const component = fixture.componentInstance;
     component['yearData'].set(yearOverview(2025) as never);
 
-    const handling = handleSessionResponse(new Response('{}', { status: 401 }));
+    const handling = handleSessionResponse(new Response('{}', { status: 401 }), authGeneration());
 
     expect(component['household'].value()).toBeUndefined();
     expect(component['outlook'].value()).toBeUndefined();
@@ -2284,7 +2284,7 @@ describe('Overview session ownership', () => {
     });
 
     try {
-      const handling = handleSessionResponse(new Response('{}', { status: 401 }));
+      const handling = handleSessionResponse(new Response('{}', { status: 401 }), authGeneration());
       expect(component['household'].value()).toBeUndefined();
       expect(component['outlook'].value()).toBeUndefined();
       expect(component['plan'].value()).toBeUndefined();

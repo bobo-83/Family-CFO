@@ -148,6 +148,13 @@ final class LoginViewModel {
         }
         signInError = nil
         step = .signingIn
+        let owner = model.beginSignIn()
+        if model.phase == .reauthenticating, let server = model.server,
+            let deviceID = server.retainedDeviceID
+        {
+            await reauthenticate(model, owner: owner, server: server, deviceID: deviceID)
+            return
+        }
         // The private key stays on the device.
         let privateKey = P256.Signing.PrivateKey()
         let client = buildClient(baseURL, fingerprint)
@@ -171,6 +178,10 @@ final class LoginViewModel {
                 var privateKeySaved = false
                 let saved: Bool
                 do {
+                    guard model.sessionOwner == owner, !Task.isCancelled else {
+                        await revokeIssuedCredential(credential, baseURL: baseURL, fingerprint: fingerprint)
+                        return
+                    }
                     try savePrivateKey(privateKey.rawRepresentation)
                     privateKeySaved = true
                     saved = model.completePairing(
@@ -199,8 +210,7 @@ final class LoginViewModel {
                     // The server already issued this session. Never use an old
                     // model credential or change trust while compensating for
                     // a local save failure. Cleanup failure must not hide it.
-                    let cleanup = buildRevocationClient(baseURL, fingerprint, credential.accessToken)
-                    _ = try? await cleanup.deleteAuthSession(.init())
+                    await revokeIssuedCredential(credential, baseURL: baseURL, fingerprint: fingerprint)
                     step = .credentials(baseURL: baseURL, fingerprint: fingerprint)
                     signInError = String(localized: "Could not securely save this device’s sign-in. Try signing in again.")
                 }
@@ -226,6 +236,86 @@ final class LoginViewModel {
             step = .credentials(baseURL: baseURL, fingerprint: fingerprint)
             signInError = SignInErrorDescriber.describe(error)
         }
+    }
+
+    private func reauthenticate(_ model: AppModel, owner: UUID, server: ServerConfig, deviceID: String) async {
+        let baseURL = server.apiBaseURL
+        let fingerprint = server.certificateSHA256
+        let client = buildClient(baseURL, fingerprint)
+        let credentialsStep = Step.credentials(baseURL: baseURL, fingerprint: fingerprint)
+        defer {
+            password = ""
+            step = credentialsStep
+        }
+        guard let storedKey = model.reauthenticationKey(),
+            let key = try? P256.Signing.PrivateKey(rawRepresentation: storedKey)
+        else {
+            signInError = String(localized: "This device’s sign-in key is unavailable. Try again or set up this device again.")
+            return
+        }
+        do {
+            let challengeResult = try await client.createDeviceReauthenticationChallenge(
+                .init(body: .json(.init(deviceId: deviceID))))
+            let challenge: String
+            switch challengeResult {
+            case .created(let response):
+                challenge = try response.body.json.challenge
+            case .tooManyRequests(let response):
+                signInError = RetryAfter.tooManyAttemptsMessage(headerValue: response.headers.retryAfter)
+                return
+            case .undocumented(let status, _):
+                signInError = String(localized: "The server answered with an unexpected status (\(status)).")
+                return
+            }
+            guard model.sessionOwner == owner, !Task.isCancelled else { return }
+            let signature = try Self.signReauthenticationChallenge(challenge, deviceID: deviceID, signer: key)
+            let output = try await client.reauthenticateDevice(.init(body: .json(.init(
+                deviceId: deviceID, challenge: challenge,
+                email: email.trimmingCharacters(in: .whitespaces),
+                password: password, signature: signature
+            ))))
+            switch output {
+            case .created(let response):
+                let issued = try response.body.json
+                guard model.sessionOwner == owner, !Task.isCancelled,
+                    issued.deviceId == deviceID, issued.householdId == server.householdID,
+                    model.completePairing(server: server, credential: StoredCredential(
+                        deviceID: issued.deviceId, accessToken: issued.accessToken,
+                        expiresAt: issued.expiresAt, role: issued.role, roleName: issued.roleName,
+                        rights: issued.rights
+                    ))
+                else {
+                    await revokeIssuedCredential(issued, baseURL: baseURL, fingerprint: fingerprint)
+                    signInError = String(localized: "Could not securely save this device’s sign-in. Try signing in again.")
+                    return
+                }
+            case .unauthorized:
+                signInError = String(localized: "Could not sign in on this device. Check your account details or set up this device again.")
+            case .tooManyRequests(let response):
+                signInError = RetryAfter.tooManyAttemptsMessage(headerValue: response.headers.retryAfter)
+            case .undocumented(let status, _):
+                signInError = String(localized: "The server answered with an unexpected status (\(status)).")
+            }
+        } catch {
+            signInError = SignInErrorDescriber.describe(error)
+        }
+    }
+
+    static func signReauthenticationChallenge(
+        _ challenge: String, deviceID: String, signer: P256.Signing.PrivateKey
+    ) throws -> String {
+        let message = Data("family-cfo/device-reauth/v1\n\(deviceID)\n\(challenge)".utf8)
+        return try signer.signature(for: message).rawRepresentation.base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+    }
+
+    private func revokeIssuedCredential(
+        _ credential: Components.Schemas.DeviceCredential, baseURL: URL, fingerprint: String?
+    ) async {
+        let cleanup = buildRevocationClient(baseURL, fingerprint, credential.accessToken)
+        _ = try? await cleanup.deleteAuthSession(.init())
     }
 
     var signInError: String?

@@ -37,6 +37,8 @@ Architecture Decision Records live in `docs/adr`.
 - [0078: Use an opaque revision for backup-settings concurrency](../adr/0078-backup-settings-opaque-revision.md)
 - [0079: Account-only device sign-in; retire QR UI and protocol together](../adr/0079-account-only-device-sign-in.md)
 
+- [0080: Session expiry and reauthentication](../adr/0080-session-expiry-reauthentication.md)
+
 ## ADR Rules
 
 **Record the decision as part of the change that makes it — a decision that
