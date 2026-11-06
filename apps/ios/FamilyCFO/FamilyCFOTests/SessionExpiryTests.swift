@@ -12,6 +12,13 @@ struct SessionExpiryTests {
     private let deviceID = "synthetic-device"
     private let now = Date(timeIntervalSince1970: 2_000_000_000)
 
+    private func makeModel(_ harness: SessionTestHarness) -> AppModel {
+        // Freeze both clocks so a slow simulator cannot expire a session while
+        // a test is exercising rejection, relogin, or a transport failure.
+        AppModel(storage: harness.storage, effects: harness.effects,
+            wallNow: { now }, monotonicNow: { 0 }, transport: OfflineSessionTransport())
+    }
+
     private func server() -> ServerConfig {
         ServerConfig(apiBaseURL: endpoint, certificateSHA256: "saved-pin",
             householdID: "household", householdName: "Synthetic household", deviceName: "Phone")
@@ -33,7 +40,7 @@ struct SessionExpiryTests {
         defer { harness.cleanup() }
         let key = P256.Signing.PrivateKey().rawRepresentation
         try harness.credentials.write(key, account: "device-private-key")
-        let model = AppModel(storage: harness.storage, effects: harness.effects, wallNow: { now })
+        let model = makeModel(harness)
         try restore(model, expiry: now)
 
         #expect(model.phase == .reauthenticating)
@@ -45,7 +52,7 @@ struct SessionExpiryTests {
         #expect(model.reauthenticationKey() == key)
         #expect(harness.watchDeviceIDs == [nil])
 
-        let reopened = harness.makeModel()
+        let reopened = makeModel(harness)
         reopened.bootstrap()
         #expect(reopened.phase == .reauthenticating)
         #expect(reopened.signInNotice == nil)
@@ -73,7 +80,7 @@ struct SessionExpiryTests {
     @Test func staleUnauthorizedCannotRejectAReinstalledSameToken() throws {
         let harness = SessionTestHarness()
         defer { harness.cleanup() }
-        let model = AppModel(storage: harness.storage, effects: harness.effects, wallNow: { now })
+        let model = makeModel(harness)
         try restore(model, expiry: now.addingTimeInterval(60))
         let originalOwner = model.sessionOwner
         model.rejectSession(originalOwner)
@@ -90,7 +97,7 @@ struct SessionExpiryTests {
     @Test func nestedUnlockUnauthorizedEndsTheSessionWithoutReplayingTheWrite() async throws {
         let harness = SessionTestHarness()
         defer { harness.cleanup() }
-        let model = AppModel(storage: harness.storage, effects: harness.effects, wallNow: { now })
+        let model = makeModel(harness)
         try restore(model, expiry: now.addingTimeInterval(60))
         let owner = model.sessionOwner
         let bearer = BearerAuthMiddleware(token: { "synthetic-bearer" },
@@ -135,7 +142,7 @@ struct SessionExpiryTests {
     @Test func transportFailureDoesNotEndTheSession() async throws {
         let harness = SessionTestHarness()
         defer { harness.cleanup() }
-        let model = AppModel(storage: harness.storage, effects: harness.effects, wallNow: { now })
+        let model = makeModel(harness)
         try restore(model, expiry: now.addingTimeInterval(60))
         let owner = model.sessionOwner
         let bearer = BearerAuthMiddleware(token: { "synthetic-bearer" },
@@ -169,5 +176,13 @@ private actor LockedThenRejectedTransport {
     func respond(to request: HTTPRequest) -> (HTTPResponse, HTTPBody?) {
         paths.append(request.path ?? "")
         return (HTTPResponse(status: .init(code: paths.count == 1 ? 423 : 401)), nil)
+    }
+}
+
+private struct OfflineSessionTransport: ClientTransport {
+    func send(
+        _ request: HTTPRequest, body: HTTPBody?, baseURL: URL, operationID: String
+    ) async throws -> (HTTPResponse, HTTPBody?) {
+        throw URLError(.notConnectedToInternet)
     }
 }
