@@ -21,6 +21,10 @@ async def get_rate_limiter(request: Request):
     return request.app.state.auth_rate_limiter
 
 
+async def get_challenge_rate_limiter(request: Request):
+    return request.app.state.auth_challenge_rate_limiter
+
+
 def client_ip(request: Request) -> str:
     """The caller's IP, honouring the reverse proxy's X-Forwarded-For first hop."""
     forwarded = request.headers.get("x-forwarded-for", "")

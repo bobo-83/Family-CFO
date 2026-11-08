@@ -28,11 +28,16 @@ function rateLimited(retryAfter?: string) {
 
 describe('AuthService', () => {
   let service: AuthService;
-  let apiMock: { login: ReturnType<typeof vi.fn>; getSessionInfo: ReturnType<typeof vi.fn> };
+  let apiMock: {
+    login: ReturnType<typeof vi.fn>;
+    getSessionInfo: ReturnType<typeof vi.fn>;
+    createHousehold: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(() => {
     clearAuthState();
-    apiMock = { login: vi.fn(), getSessionInfo: vi.fn() };
+    localStorage.clear();
+    apiMock = { login: vi.fn(), getSessionInfo: vi.fn(), createHousehold: vi.fn() };
     TestBed.configureTestingModule({
       providers: [{ provide: ApiService, useValue: apiMock }],
     });
@@ -42,6 +47,9 @@ describe('AuthService', () => {
   it('starts unauthenticated', () => {
     expect(service.isAuthenticated()).toBe(false);
     expect(service.role()).toBeNull();
+    expect(service.userId()).toBeNull();
+    expect(service.householdId()).toBeNull();
+    expect(service.roleName()).toBeNull();
   });
 
   it('stores the session on successful login', async () => {
@@ -118,6 +126,58 @@ describe('AuthService', () => {
     expect(authState()?.rights).toEqual(['finances.view']);
   });
 
+  it('refuses an older login whose shared pointer moved while in flight (#164)', async () => {
+    let complete!: (value: unknown) => void;
+    apiMock.login.mockReturnValue(new Promise((resolve) => (complete = resolve)));
+    const signingIn = service.login('user@example.test', 'synthetic-password');
+
+    // Another tab installs a newer shared session while this request is in
+    // flight, and its storage event has not been delivered to this tab — the
+    // local generation check cannot see it. The pointer fence must.
+    const newerOwner = '00000000000000000000000000000164';
+    localStorage.setItem('family-cfo-auth-session:' + newerOwner, JSON.stringify({
+      accessToken: 'newer-bearer', expiresAt: '2099-01-01T00:00:00Z',
+      householdId: 'newer-household', userId: 'newer-user', role: 'owner',
+    }));
+    localStorage.setItem('family-cfo-auth-owner', newerOwner);
+
+    complete(response({
+      access_token: 'stale-bearer',
+      expires_at: new Date(Date.now() + 3_600_000).toISOString(),
+      household_id: 'stale-household',
+      user_id: 'stale-user',
+      role: 'owner',
+    }));
+    expect((await signingIn).ok).toBe(false);
+
+    expect(authState()).toBeNull();
+    expect(localStorage.getItem('family-cfo-auth-owner')).toBe(newerOwner);
+    expect(localStorage.getItem('family-cfo-auth-session:' + newerOwner)).toContain('newer-bearer');
+  });
+
+  it('refuses an older signup whose shared pointer moved while in flight (#164)', async () => {
+    let complete!: (value: unknown) => void;
+    apiMock.createHousehold.mockReturnValue(new Promise((resolve) => (complete = resolve)));
+    const signingUp = service.signup({} as never);
+    const newerOwner = '00000000000000000000000000000165';
+    localStorage.setItem('family-cfo-auth-session:' + newerOwner, JSON.stringify({
+      accessToken: 'newer-bearer', expiresAt: '2099-01-01T00:00:00Z',
+      householdId: 'newer-household', userId: 'newer-user', role: 'owner',
+    }));
+    localStorage.setItem('family-cfo-auth-owner', newerOwner);
+    complete(response({
+      access_token: 'stale-bearer',
+      expires_at: new Date(Date.now() + 3_600_000).toISOString(),
+      household_id: 'stale-household',
+      user_id: 'stale-user',
+      role: 'owner',
+    }));
+
+    expect((await signingUp).ok).toBe(false);
+    expect(authState()).toBeNull();
+    expect(localStorage.getItem('family-cfo-auth-session:' + newerOwner)).toContain('newer-bearer');
+  });
+
   it('clears the session on logout', async () => {
     apiMock.login.mockResolvedValue(
       response({
@@ -133,5 +193,88 @@ describe('AuthService', () => {
     service.logout();
 
     expect(service.isAuthenticated()).toBe(false);
+  });
+
+  it('exposes identity computeds and right-gates by the stored rights list', () => {
+    setAuthState({
+      accessToken: 't', expiresAt: '2099-01-01T00:00:00Z',
+      householdId: 'h', userId: 'member', role: 'owner',
+      roleName: 'Owner', rights: ['finances.view'],
+    });
+    expect(service.userId()).toBe('member');
+    expect(service.roleName()).toBe('Owner');
+    expect(service.hasRight('finances.view')).toBe(true);
+    expect(service.hasRight('backups.manage')).toBe(false);
+    clearAuthState();
+    expect(service.hasRight('finances.view')).toBe(false);
+  });
+
+  it('falls back to the legacy role tiers when a stored session carries no rights', () => {
+    setAuthState({
+      accessToken: 't', expiresAt: '2099-01-01T00:00:00Z',
+      householdId: 'h', userId: 'member', role: 'owner',
+    });
+    expect(service.hasRight('system.admin')).toBe(true);
+    setAuthState({
+      accessToken: 't2', expiresAt: '2099-01-01T00:00:00Z',
+      householdId: 'h', userId: 'member', role: 'adult',
+    });
+    expect(service.hasRight('finances.view')).toBe(true);
+    expect(service.hasRight('members.manage')).toBe(false);
+    setAuthState({
+      accessToken: 't3', expiresAt: '2099-01-01T00:00:00Z',
+      householdId: 'h', userId: 'member', role: 'viewer',
+    });
+    expect(service.hasRight('advisor.use')).toBe(true);
+    expect(service.hasRight('audit.view')).toBe(false);
+  });
+
+  it('refreshRights is inert without a session or on a failed fetch', async () => {
+    await service.refreshRights();
+    expect(apiMock.getSessionInfo).not.toHaveBeenCalled();
+
+    setAuthState({
+      accessToken: 't', expiresAt: '2099-01-01T00:00:00Z',
+      householdId: 'h', userId: 'member', role: 'adult', rights: ['finances.view'],
+    });
+    apiMock.getSessionInfo.mockResolvedValue(response(undefined, { code: 'network' }));
+    await service.refreshRights();
+    expect(authState()?.rights).toEqual(['finances.view']);
+  });
+
+  it('reports a failed signup without installing a session', async () => {
+    apiMock.createHousehold.mockResolvedValue(response(undefined, { code: 'email_taken' }));
+    const result = await service.signup({} as never);
+    expect(result.ok).toBe(false);
+    expect(result.errorMessage).toBeTruthy();
+    expect(authState()).toBeNull();
+  });
+
+  it('discards a login whose generation was superseded while in flight', async () => {
+    let complete!: (value: unknown) => void;
+    apiMock.login.mockReturnValue(new Promise((resolve) => (complete = resolve)));
+    const signingIn = service.login('user@example.test', 'synthetic-password');
+    clearAuthState(); // bumps this tab's generation — the response is now stale
+    complete(response({
+      access_token: 'late-bearer',
+      expires_at: new Date(Date.now() + 3_600_000).toISOString(),
+      household_id: 'h', user_id: 'u', role: 'owner',
+    }));
+    expect((await signingIn).ok).toBe(false);
+    expect(authState()).toBeNull();
+  });
+
+  it('discards a signup whose generation was superseded while in flight', async () => {
+    let complete!: (value: unknown) => void;
+    apiMock.createHousehold.mockReturnValue(new Promise((resolve) => (complete = resolve)));
+    const signingUp = service.signup({} as never);
+    clearAuthState();
+    complete(response({
+      access_token: 'late-bearer',
+      expires_at: new Date(Date.now() + 3_600_000).toISOString(),
+      household_id: 'h', user_id: 'u', role: 'owner',
+    }));
+    expect((await signingUp).ok).toBe(false);
+    expect(authState()).toBeNull();
   });
 });

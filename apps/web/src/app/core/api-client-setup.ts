@@ -62,7 +62,12 @@ export function configureApiClient(): void {
     const owner = requestOwners.get(request);
     if (owner === undefined) return response;
     if (!ownsSession(owner)) throw new DOMException('Session changed', 'AbortError');
-    if (response.ok && options.url === '/household') noteHouseholdReadable(owner);
+    if (response.ok && options.url === '/household' && options.method === 'GET') {
+      // Protected data just proved readable; the recovery alert is stale.
+      // GET only: '/household' is also the settings PATCH path, and the
+      // interceptor must not clear the alert on an unrelated method's 2xx.
+      noteHouseholdReadable(owner);
+    }
     return handleSessionResponse(response, owner);
   });
 }

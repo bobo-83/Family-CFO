@@ -433,7 +433,17 @@ final class AppModel {
             defer { restoringStoredLanguage = nil }
             phase = .locked
             if credential?.accessToken == restoredCredential.accessToken {
+                // Same token, possibly a different expiry. The deadline must
+                // track the supplied credential, not the one first installed —
+                // an earlier expiry must not be lived past (PR #169 review).
+                // replaceCredential would be wrong here: it drops the caches
+                // that same-token restoration intentionally preserves.
                 credential = restoredCredential
+                deadline = SessionDeadline(
+                    expiresAt: restoredCredential.expiresAt,
+                    wallNow: wallNow(), monotonicNow: monotonicNow()
+                )
+                checkSessionExpiry()
             } else {
                 replaceCredential(restoredCredential)
             }

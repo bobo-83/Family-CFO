@@ -290,7 +290,7 @@ async def test_renewed_session_can_unlock_with_the_original_device_wrap(
 async def test_challenge_throttling_is_separate_from_account_login(demo_client, demo_app):
     from family_cfo_api.ratelimit import AuthRateLimiter
 
-    demo_app.state.auth_rate_limiter = AuthRateLimiter(
+    demo_app.state.auth_challenge_rate_limiter = AuthRateLimiter(
         max_attempts=1, window_seconds=300, lockout_seconds=900
     )
     unknown_device = {"device_id": repository.new_id()}
@@ -300,3 +300,73 @@ async def test_challenge_throttling_is_separate_from_account_login(demo_client, 
     assert blocked.status_code == 429
     assert int(blocked.headers["Retry-After"]) > 0
     await _enroll(demo_client, ec.generate_private_key(ec.SECP256R1()))
+
+
+@pytest.mark.anyio
+async def test_login_lockout_cannot_gate_challenge_issuance(demo_client):
+    # The failed-password policy (5 attempts, then a 15-minute lockout) and the
+    # challenge-issuance policy are different limiters. Tripping the first must
+    # not stop a device from asking for a challenge — completing it will fail
+    # with 429 through the shared login throttle, which is the honest answer.
+    login = {
+        "device_name": "Synthetic iPhone",
+        "device_public_key": base64.b64encode(b"\x04" + b"\x01" * 64).decode(),
+        "email": fixtures.DEMO_USER_EMAIL,
+    }
+    for _ in range(5):
+        response = await demo_client.post(f"{ROOT}/login", json={**login, "password": "wrong"})
+        assert response.status_code == 401
+    locked = await demo_client.post(
+        f"{ROOT}/login", json={**login, "password": fixtures.DEMO_USER_PASSWORD}
+    )
+    assert locked.status_code == 429
+    challenge = await demo_client.post(
+        f"{ROOT}/reauthentication/challenge", json={"device_id": repository.new_id()}
+    )
+    assert challenge.status_code == 201
+
+
+@pytest.mark.anyio
+async def test_challenge_capacity_says_when_to_come_back(demo_client, monkeypatch):
+    from family_cfo_api import device_reauthentication
+
+    monkeypatch.setattr(device_reauthentication, "CHALLENGE_CAPACITY", 0)
+    blocked = await demo_client.post(
+        f"{ROOT}/reauthentication/challenge", json={"device_id": repository.new_id()}
+    )
+    assert blocked.status_code == 429
+    # Not the login lockout's 900: the queue's own TTL is the honest wait.
+    assert int(blocked.headers["Retry-After"]) == 300
+
+
+@pytest.mark.anyio
+async def test_challenge_burst_policy_answers_a_flood_with_a_short_pause(demo_client):
+    # The issuance policy's own shape (PR #169 review): a shared home IP gets a
+    # burst wide enough for every device in the household to renew, and a flood
+    # is answered with a one-minute pause — never the login lockout's 900.
+    device = {"device_id": repository.new_id()}
+    for _ in range(30):
+        issued = await demo_client.post(f"{ROOT}/reauthentication/challenge", json=device)
+        assert issued.status_code == 201
+    blocked = await demo_client.post(f"{ROOT}/reauthentication/challenge", json=device)
+    assert blocked.status_code == 429
+    assert int(blocked.headers["Retry-After"]) <= 60
+    # The password policy is untouched: a device sign-in still succeeds.
+    await _enroll(demo_client, ec.generate_private_key(ec.SECP256R1()))
+
+
+@pytest.mark.anyio
+async def test_shared_ip_renewals_never_eat_the_login_lockout(demo_client):
+    # A household renewing several phones from one IP pays one issuance each;
+    # successful renewals must not accumulate toward a brute-force lockout.
+    key = ec.generate_private_key(ec.SECP256R1())
+    original = await _enroll(demo_client, key)
+    for _ in range(6):
+        payload = await _payload(demo_client, original["device_id"], key)
+        renewed = await demo_client.post(f"{ROOT}/reauthentication", json=payload)
+        assert renewed.status_code == 201
+    assert (
+        await demo_client.post(
+            f"{ROOT}/reauthentication", json={**payload, "password": "synthetic-invalid"}
+        )
+    ).status_code == 401  # one failure charged, no lockout: the burst reset it

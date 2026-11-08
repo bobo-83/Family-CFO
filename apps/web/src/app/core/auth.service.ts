@@ -6,6 +6,7 @@ import {
   authGeneration,
   authState,
   clearAuthState,
+  sessionFence,
   setAuthState,
   updateSessionRights,
 } from './token-store';
@@ -76,6 +77,9 @@ export class AuthService {
     // the error body never mentions — without it a 429 says "try again later"
     // while the box means fifteen minutes.
     const owner = authGeneration();
+    // #164: shared-pointer fence — another tab may install a newer session
+    // while this request is in flight, and its storage event may not have run.
+    const fence = sessionFence();
     const { data, error, response } = await this.api.login({ email, password });
 
     if (error || !data) {
@@ -98,12 +102,15 @@ export class AuthService {
       role: data.role,
       roleName: data.role_name ?? undefined,
       rights: data.rights ?? undefined,
-    });
+    }, fence);
     return { ok };
   }
 
   async signup(payload: HouseholdCreateRequest): Promise<LoginResult> {
     const owner = authGeneration();
+    // #164: same shared-pointer fence as login — household creation writes the
+    // shared session too.
+    const fence = sessionFence();
     const { data, error } = await this.api.createHousehold(payload);
 
     if (error || !data) {
@@ -122,7 +129,7 @@ export class AuthService {
       role: data.role,
       roleName: data.role_name ?? undefined,
       rights: data.rights ?? undefined,
-    });
+    }, fence);
     return { ok };
   }
 

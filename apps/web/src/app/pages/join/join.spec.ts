@@ -274,3 +274,132 @@ describe('Join (ADR 0056)', () => {
     });
   });
 });
+
+describe('Join install guards (#164 review)', () => {
+  afterEach(() => {
+    clearAuthState();
+    localStorage.clear();
+    window.location.hash = '';
+  });
+
+  const preview = {
+    household_name: 'The Placeholder Household',
+    email: 'sister@example.com',
+    role_name: 'User',
+    expires_at: '2026-7-28T00:00:00Z',
+  };
+
+  // Same wiring as the main describe's helper, which is out of scope here.
+  function configure(apiMock: Record<string, unknown>) {
+    TestBed.configureTestingModule({
+      imports: [Join],
+      providers: [
+        { provide: ApiService, useValue: apiMock },
+        provideRouter([{ path: 'overview', children: [] }]),
+      ],
+    });
+  }
+
+  it('refuses to submit an incomplete form and never calls the API', async () => {
+    window.location.hash = '#token=guarded';
+    const apiMock = {
+      previewInvite: vi.fn().mockResolvedValue(response(preview)),
+      acceptInvite: vi.fn(),
+    };
+    configure(apiMock);
+    const fixture = TestBed.createComponent(Join);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const component = fixture.componentInstance;
+    await component['submit']();
+
+    expect(apiMock.acceptInvite).not.toHaveBeenCalled();
+    expect(component['submitting']()).toBe(false);
+    expect(component['form'].get('displayName')?.touched).toBe(true);
+  });
+
+  it('refuses an older acceptance whose shared pointer moved while in flight', async () => {
+    window.location.hash = '#token=raced';
+    let complete!: (value: unknown) => void;
+    const apiMock = {
+      previewInvite: vi.fn().mockResolvedValue(response(preview)),
+      acceptInvite: vi.fn().mockReturnValue(new Promise((resolve) => (complete = resolve))),
+    };
+    configure(apiMock);
+    const fixture = TestBed.createComponent(Join);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const component = fixture.componentInstance;
+    const navigate = vi.spyOn(component['router'], 'navigateByUrl');
+    component['form'].setValue({ displayName: 'Sis', password: 'a-strong-pass' });
+    const accepting = component['submit']();
+
+    // Another tab signs in while this acceptance is in flight.
+    const newerOwner = '00000000000000000000000000000164';
+    localStorage.setItem('family-cfo-auth-session:' + newerOwner, JSON.stringify({
+      accessToken: 'newer-bearer', expiresAt: '2099-01-01T00:00:00Z',
+      householdId: 'newer-household', userId: 'newer-user', role: 'owner',
+    }));
+    localStorage.setItem('family-cfo-auth-owner', newerOwner);
+    complete(response({
+      access_token: 'stale-bearer',
+      expires_at: new Date(Date.now() + 3_600_000).toISOString(),
+      household_id: 'stale-household',
+      user_id: 'stale-user',
+      role: 'adult',
+    }));
+    await accepting;
+
+    expect(getToken()).toBeNull();
+    expect(localStorage.getItem('family-cfo-auth-owner')).toBe(newerOwner);
+    expect(localStorage.getItem('family-cfo-auth-session:' + newerOwner)).toContain('newer-bearer');
+    expect(navigate).not.toHaveBeenCalled();
+  });
+});
+
+describe('Join generation fencing (#164)', () => {
+  afterEach(() => {
+    clearAuthState();
+    localStorage.clear();
+    window.location.hash = '';
+  });
+
+  it('discards an acceptance whose tab generation was superseded in flight', async () => {
+    window.location.hash = '#token/stale-generation';
+    let complete!: (value: unknown) => void;
+    const apiMock = {
+      previewInvite: vi.fn().mockResolvedValue(response({
+        household_name: 'The Placeholder Household', email: 'sister@example.com',
+        role_name: 'User', expires_at: '2026-7-28T00:00:00Z',
+      })),
+      acceptInvite: vi.fn().mockReturnValue(new Promise((resolve) => (complete = resolve))),
+    };
+    TestBed.configureTestingModule({
+      imports: [Join],
+      providers: [
+        { provide: ApiService, useValue: apiMock },
+        provideRouter([{ path: 'overview', children: [] }]),
+      ],
+    });
+    const fixture = TestBed.createComponent(Join);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const component = fixture.componentInstance;
+    const navigate = vi.spyOn(component['router'], 'navigateByUrl');
+    component['form'].setValue({ displayName: 'Sis', password: 'a-strong-pass' });
+    const accepting = component['submit']();
+    clearAuthState(); // bumps this tab's generation — the response is now stale
+    complete(response({
+      access_token: 'late-bearer',
+      expires_at: new Date(Date.now() + 3_600_000).toISOString(),
+      household_id: 'hh', user_id: 'u', role: 'adult',
+    }));
+    await accepting;
+
+    expect(getToken()).toBeNull();
+    expect(navigate).not.toHaveBeenCalled();
+  });
+});

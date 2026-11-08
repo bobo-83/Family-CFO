@@ -1,6 +1,18 @@
 import { vi } from 'vitest';
-import { fetchProtected, handleSessionResponse } from './api-client-setup';
-import { authGeneration, authState, clearAuthState, setAuthState } from './token-store';
+import { client } from '../api-client/client.gen';
+import {
+  configureApiClient,
+  fetchProtected,
+  handleSessionResponse,
+} from './api-client-setup';
+import {
+  authGeneration,
+  authState,
+  clearAuthState,
+  handleSealedHousehold,
+  needsKeyRecovery,
+  setAuthState,
+} from './token-store';
 
 function signIn() {
   setAuthState({
@@ -137,5 +149,135 @@ describe('direct protected fetch', () => {
     const init = fetchMock.mock.calls[0][1] as RequestInit;
     expect(new Headers(init.headers).get('Authorization')).toBe('Bearer token-123');
     expect(authState()).toBeNull();
+  });
+});
+
+describe('generated-client interceptors', () => {
+  afterEach(() => clearAuthState());
+
+  async function roundTrip(url: string, method: string, response: Response): Promise<Response> {
+    configureApiClient();
+    const requestFn = client.interceptors.request.fns.at(-1) as unknown as (
+      request: Request, options: unknown,
+    ) => Request | Promise<Request>;
+    const responseFn = client.interceptors.response.fns.at(-1) as unknown as (
+      response: Response, request: Request, options: unknown,
+    ) => Response | Promise<Response>;
+    const options = { url, method, security: [{ scheme: 'bearer', type: 'http' }] };
+    const request = new Request('http://localhost/api/v1' + url, { method });
+    const owned = await requestFn(request, options);
+    return responseFn(response, owned, options);
+  }
+
+  function enterKeyRecoveryWindow(): void {
+    // First sealed 423 signs the session out with no message; the second, in
+    // the same household after sign-in, opens the bounded recovery alert.
+    signIn();
+    handleSealedHousehold(authGeneration());
+    signIn();
+    handleSealedHousehold(authGeneration());
+    expect(needsKeyRecovery()).toBe(true);
+  }
+
+  it('ends the key-recovery window on a readable GET /household', async () => {
+    enterKeyRecoveryWindow();
+    await roundTrip('/household', 'GET', new Response('{}', { status: 200 }));
+    expect(needsKeyRecovery()).toBe(false);
+  });
+
+  it('keeps the key-recovery window open through an unrelated PATCH /household', async () => {
+    enterKeyRecoveryWindow();
+    await roundTrip('/household', 'PATCH', new Response('{}', { status: 200 }));
+    expect(needsKeyRecovery()).toBe(true);
+    expect(authState()).not.toBeNull();
+  });
+});
+
+describe('interceptor install guards (#164)', () => {
+  afterEach(() => {
+    clearAuthState();
+    document.documentElement.lang = '';
+    vi.unstubAllGlobals();
+  });
+
+  function interceptors() {
+    configureApiClient();
+    return {
+      request: client.interceptors.request.fns.at(-1) as unknown as (
+        request: Request, options: unknown,
+      ) => Request | Promise<Request>,
+      response: client.interceptors.response.fns.at(-1) as unknown as (
+        response: Response, request: Request, options: unknown,
+      ) => Response | Promise<Response>,
+    };
+  }
+
+  it('leaves public operations unsigned and returns their responses untouched', async () => {
+    const { request, response } = interceptors();
+    document.documentElement.lang = 'lt';
+    const forwarded = await request(new Request('http://localhost/api/v1/health'), {
+      url: '/health', method: 'GET',
+    });
+    expect(forwarded.headers.get('Authorization')).toBeNull();
+    expect(forwarded.headers.get('Accept-Language')).toBe('lt');
+    const result = await response(new Response('{}', { status: 401 }), forwarded, {
+      url: '/health', method: 'GET',
+    });
+    expect(result.status).toBe(401); // no owner, no session clearing
+    expect(authState()).toBeNull();
+  });
+
+  it('signs nothing on a secured operation while signed out', async () => {
+    const { request, response } = interceptors();
+    const options = { url: '/transactions', method: 'GET', security: [{ scheme: 'bearer', type: 'http' }] };
+    const unsigned = await request(new Request('http://localhost/api/v1/transactions'), options);
+    expect(unsigned.headers.get('Authorization')).toBeNull();
+    // No owner was registered, so the response passes through unwatched.
+    const result = await response(new Response('{}', { status: 200 }), unsigned, options);
+    expect(result.status).toBe(200);
+  });
+
+  it('adds the bearer and registers ownership for secured operations', async () => {
+    const { request } = interceptors();
+    signIn();
+    const secured = await request(new Request('http://localhost/api/v1/transactions', { method: 'GET' }), {
+      url: '/transactions', method: 'GET', security: [{ scheme: 'bearer', type: 'http' }],
+    });
+    expect(secured.headers.get('Authorization')).toBe('Bearer token-123');
+  });
+
+  it('throws when a watched request outlives its session', async () => {
+    const { request, response } = interceptors();
+    signIn();
+    const options = { url: '/transactions', method: 'GET', security: [{ scheme: 'bearer', type: 'http' }] };
+    const watched = await request(new Request('http://localhost/api/v1/transactions'), options);
+    clearAuthState();
+    await expect(response(new Response('{}', { status: 200 }), watched, options)).rejects.toThrow(
+      'Session changed',
+    );
+  });
+});
+
+describe('anonymous and superseded direct fetches (#164)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    clearAuthState();
+  });
+
+  it('passes an anonymous direct fetch through untouched', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('{}', { status: 423 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const response = await fetchProtected('/api/v1/household/export');
+    expect(response.status).toBe(423);
+    const init = fetchMock.mock.calls[0][1] as RequestInit;
+    expect(new Headers(init.headers).get('Authorization')).toBeNull();
+  });
+
+  it('throws when the session changes while a direct fetch is in flight', async () => {
+    signIn();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 200 })));
+    const pending = fetchProtected('/api/v1/household/export');
+    clearAuthState();
+    await expect(pending).rejects.toThrow('Session changed');
   });
 });

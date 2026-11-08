@@ -17,6 +17,25 @@ export interface StoredAuthState {
 
 export type SignInReason = 'expired' | 'rejected';
 
+/**
+ * The shared owner pointer captured when an authentication request starts
+ * (#164 PR review). The tab-local generation cannot see a newer session that
+ * another tab installed while this request was in flight — its storage event
+ * may still be queued — so installation is fenced on the pointer itself, the
+ * one value every tab reads synchronously before it writes.
+ */
+export interface SessionFence {
+  pointer: string | null;
+}
+
+export function sessionFence(): SessionFence {
+  try {
+    return { pointer: localStorage.getItem(ACTIVE_KEY) };
+  } catch {
+    return { pointer: null };
+  }
+}
+
 interface Session {
   owner: string;
   state: StoredAuthState;
@@ -98,7 +117,7 @@ function install(value: Session): boolean {
   return true;
 }
 
-export function setAuthState(state: StoredAuthState): boolean {
+export function setAuthState(state: StoredAuthState, fence?: SessionFence): boolean {
   // getRandomValues is available even in an insecure local development context.
   const owner = Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) =>
     byte.toString(16).padStart(2, '0'),
@@ -110,6 +129,10 @@ export function setAuthState(state: StoredAuthState): boolean {
   }
   try {
     const previous = localStorage.getItem(ACTIVE_KEY);
+    // The read and the pointer swap below share one synchronous block, so no
+    // tab can write between them. A pointer that moved since authentication
+    // started means a newer session won: its record must survive untouched.
+    if (fence && previous !== fence.pointer) return false;
     localStorage.setItem(SESSION_PREFIX + owner, JSON.stringify(state));
     localStorage.setItem(ACTIVE_KEY, owner);
     persistentOwner = owner;
@@ -121,7 +144,17 @@ export function setAuthState(state: StoredAuthState): boolean {
   return install({ owner, state });
 }
 
-/** Keep the stored login snapshot. A rights refresh updates only the live owner. */
+/**
+ * Keep the stored login snapshot. A rights refresh updates only the live owner.
+ *
+ * This is a deliberate web tradeoff (confirmed in the #164 review): persisting
+ * every rights refresh would rewrite the reload cache on each shell boot, and
+ * the snapshot only ever feeds UI gating until the next refresh. Consequences:
+ * a reload restores sign-in-time rights until the shell re-fetches them, and
+ * an offline reload keeps serving that stale snapshot. The server checks every
+ * request regardless. (iPhone differs: its rights refresh also persists, to
+ * the Keychain, and the next launch starts from those rights.)
+ */
 export function updateSessionRights(
   owner: number,
   rights: Pick<StoredAuthState, 'role' | 'roleName' | 'rights'>,
@@ -144,7 +177,9 @@ export function clearAuthState(reason: SignInReason | null = null, keepSealRetry
 }
 
 export function checkSessionExpiry(): void {
-  if (session()) scheduleClockCheck();
+  // scheduleClockCheck owns the no-session guard; getToken() runs this on
+  // every request, including while signed out.
+  scheduleClockCheck();
 }
 
 export function getToken(): string | null {

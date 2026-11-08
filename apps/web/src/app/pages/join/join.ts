@@ -8,7 +8,7 @@ import { MatInputModule } from '@angular/material/input';
 import { Router } from '@angular/router';
 import type { InvitePreview } from '../../api-client';
 import { ApiService } from '../../core/api.service';
-import { authGeneration, setAuthState } from '../../core/token-store';
+import { authGeneration, sessionFence, setAuthState } from '../../core/token-store';
 import { apiErrorMessage } from '../../shared/api-error';
 import { TimezonePicker } from '../../shared/timezone-picker/timezone-picker';
 import { TIMEZONE_BOX_DEFAULT, TIMEZONE_HINT, browserTimezone } from '../../shared/timezones';
@@ -109,6 +109,8 @@ export class Join {
     const { displayName, password } = this.form.getRawValue();
     const timezone = this.timezone();
     const owner = authGeneration();
+    // #164: acceptance installs a session like login does — fence it the same.
+    const fence = sessionFence();
     const { data, error, response } = await this.api.acceptInvite({
       token: this.token,
       password,
@@ -128,15 +130,18 @@ export class Join {
       return;
     }
     if (owner !== authGeneration()) return;
-    const installed = setAuthState({
-      accessToken: data.access_token,
-      expiresAt: data.expires_at,
-      householdId: data.household_id,
-      userId: data.user_id,
-      role: data.role,
-      roleName: data.role_name ?? undefined,
-      rights: data.rights ?? undefined,
-    });
+    const installed = setAuthState(
+      {
+        accessToken: data.access_token,
+        expiresAt: data.expires_at,
+        householdId: data.household_id,
+        userId: data.user_id,
+        role: data.role,
+        roleName: data.role_name ?? undefined,
+        rights: data.rights ?? undefined,
+      },
+      fence,
+    );
     if (installed) await this.router.navigateByUrl('/overview');
   }
 }

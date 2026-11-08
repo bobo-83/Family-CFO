@@ -16,6 +16,7 @@ from family_cfo_api import (
 )
 from family_cfo_api.deps import (
     client_ip,
+    get_challenge_rate_limiter,
     get_current_session,
     get_engine,
     get_rate_limiter,
@@ -147,12 +148,13 @@ async def create_device_reauthentication_challenge(
     payload: DeviceReauthenticationChallengeRequest,
     request: Request,
     engine: Engine = Depends(get_engine),
-    rate_limiter: AuthRateLimiter = Depends(get_rate_limiter),
+    challenge_limiter: AuthRateLimiter = Depends(get_challenge_rate_limiter),
 ) -> DeviceReauthenticationChallenge:
     keys = [f"device-reauth-challenge-ip:{client_ip(request)}"]
-    _check_reauthentication_rate_limit(rate_limiter, keys)
-    # Charge issuance regardless of whether the requested device exists.
-    rate_limiter.record_failure(keys)
+    _check_reauthentication_rate_limit(challenge_limiter, keys)
+    # Charge issuance — but against the challenge policy, whose counters reset
+    # after a short pause. Password guessing stays on the login limiter below.
+    challenge_limiter.record_failure(keys)
     challenge = device_reauthentication.issue_challenge(engine, payload.device_id)
     if challenge is None:
         raise HTTPException(

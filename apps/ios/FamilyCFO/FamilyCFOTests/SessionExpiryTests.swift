@@ -121,6 +121,28 @@ struct SessionExpiryTests {
         #expect(model.signInNotice == .rejected)
     }
 
+    @Test func sameTokenRestorationAdoptsTheNewlySuppliedExpiry() throws {
+        let harness = SessionTestHarness()
+        defer { harness.cleanup() }
+        let clock = TestClock(now: now)
+        let model = AppModel(storage: harness.storage, effects: harness.effects,
+            wallNow: { clock.now }, monotonicNow: { clock.elapsed },
+            transport: OfflineSessionTransport())
+        try restore(model, expiry: now.addingTimeInterval(60))
+        // Keychain restore of the SAME bearer with an earlier expiry (the
+        // server clamped it): the deadline must track the new credential.
+        try restore(model, expiry: now.addingTimeInterval(10))
+        #expect(model.phase == .locked)
+        #expect(model.credential?.expiresAt == now.addingTimeInterval(10))
+
+        clock.elapsed += 11
+        model.checkSessionExpiry()
+
+        #expect(model.phase == .reauthenticating)
+        #expect(model.signInNotice == .expired)
+        #expect(model.credential == nil)
+    }
+
     @Test func verifiesServerWireVectorAndSignsTheSameTranscript() throws {
         let device = "00000000-0000-4000-8000-000000000164"
         let challenge = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8"
