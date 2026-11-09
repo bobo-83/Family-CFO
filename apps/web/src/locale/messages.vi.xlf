@@ -7756,6 +7756,10 @@
         <note priority="1" from="description">Time-based retention mode for local backups</note>
         <note priority="1" from="meaning">Form field label</note>
       </trans-unit>
+      <trans-unit id="8701672854370536132" datatype="html">
+        <source>Another tab changed the session while this was in flight, so the invitation was not accepted here.</source>
+        <target state="needs-review-translation">Một thẻ khác đã thay đổi phiên trong khi thao tác này đang diễn ra, nên lời mời đã không được chấp nhận tại đây.</target>
+      </trans-unit>
       <trans-unit id="8757059683143506918" datatype="html">
         <source>Only a system administrator can manage whole-box backups.</source>
         <target state="translated">Chỉ quản trị viên hệ thống mới có thể quản lý sao lưu toàn bộ thiết bị.</target>

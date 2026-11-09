@@ -117,10 +117,10 @@ describe('AuthService', () => {
     };
     let complete!: (value: unknown) => void;
     apiMock.getSessionInfo.mockReturnValue(new Promise((resolve) => { complete = resolve; }));
-    setAuthState(session);
+    await setAuthState(session);
     const refreshing = service.refreshRights();
     service.logout();
-    setAuthState(session);
+    await setAuthState(session);
     complete(response({ role: 'owner', rights: ['backups.manage'] }));
     await refreshing;
     expect(authState()?.rights).toEqual(['finances.view']);
@@ -155,6 +155,28 @@ describe('AuthService', () => {
     expect(localStorage.getItem('family-cfo-auth-session:' + newerOwner)).toContain('newer-bearer');
   });
 
+  it('says another tab moved the session, not that the login failed (#164 review)', async () => {
+    let complete!: (value: unknown) => void;
+    apiMock.login.mockReturnValue(new Promise((resolve) => (complete = resolve)));
+    const signingIn = service.login('user@example.test', 'synthetic-password');
+
+    // Another tab signed out while this request was in flight: the record is
+    // gone and the pointer stayed, so the fence sees the sign-out and refuses.
+    localStorage.setItem('family-cfo-auth-owner', '00000000000000000000000000000166');
+    complete(response({
+      access_token: 'stale-bearer',
+      expires_at: new Date(Date.now() + 3_600_000).toISOString(),
+      household_id: 'stale-household',
+      user_id: 'stale-user',
+      role: 'owner',
+    }));
+
+    const result = await signingIn;
+    expect(result.ok).toBe(false);
+    expect(result.errorMessage).toContain('Another tab changed the session');
+    expect(result.errorMessage).not.toBe('Login failed.');
+  });
+
   it('refuses an older signup whose shared pointer moved while in flight (#164)', async () => {
     let complete!: (value: unknown) => void;
     apiMock.createHousehold.mockReturnValue(new Promise((resolve) => (complete = resolve)));
@@ -173,7 +195,9 @@ describe('AuthService', () => {
       role: 'owner',
     }));
 
-    expect((await signingUp).ok).toBe(false);
+    const result = await signingUp;
+    expect(result.ok).toBe(false);
+    expect(result.errorMessage).toContain('Another tab changed the session');
     expect(authState()).toBeNull();
     expect(localStorage.getItem('family-cfo-auth-session:' + newerOwner)).toContain('newer-bearer');
   });
@@ -195,8 +219,8 @@ describe('AuthService', () => {
     expect(service.isAuthenticated()).toBe(false);
   });
 
-  it('exposes identity computeds and right-gates by the stored rights list', () => {
-    setAuthState({
+  it('exposes identity computeds and right-gates by the stored rights list', async () => {
+    await setAuthState({
       accessToken: 't', expiresAt: '2099-01-01T00:00:00Z',
       householdId: 'h', userId: 'member', role: 'owner',
       roleName: 'Owner', rights: ['finances.view'],
@@ -209,19 +233,19 @@ describe('AuthService', () => {
     expect(service.hasRight('finances.view')).toBe(false);
   });
 
-  it('falls back to the legacy role tiers when a stored session carries no rights', () => {
-    setAuthState({
+  it('falls back to the legacy role tiers when a stored session carries no rights', async () => {
+    await setAuthState({
       accessToken: 't', expiresAt: '2099-01-01T00:00:00Z',
       householdId: 'h', userId: 'member', role: 'owner',
     });
     expect(service.hasRight('system.admin')).toBe(true);
-    setAuthState({
+    await setAuthState({
       accessToken: 't2', expiresAt: '2099-01-01T00:00:00Z',
       householdId: 'h', userId: 'member', role: 'adult',
     });
     expect(service.hasRight('finances.view')).toBe(true);
     expect(service.hasRight('members.manage')).toBe(false);
-    setAuthState({
+    await setAuthState({
       accessToken: 't3', expiresAt: '2099-01-01T00:00:00Z',
       householdId: 'h', userId: 'member', role: 'viewer',
     });
@@ -233,7 +257,7 @@ describe('AuthService', () => {
     await service.refreshRights();
     expect(apiMock.getSessionInfo).not.toHaveBeenCalled();
 
-    setAuthState({
+    await setAuthState({
       accessToken: 't', expiresAt: '2099-01-01T00:00:00Z',
       householdId: 'h', userId: 'member', role: 'adult', rights: ['finances.view'],
     });
@@ -248,6 +272,19 @@ describe('AuthService', () => {
     expect(result.ok).toBe(false);
     expect(result.errorMessage).toBeTruthy();
     expect(authState()).toBeNull();
+  });
+
+  it('installs the session a signup created', async () => {
+    apiMock.createHousehold.mockResolvedValue(response({
+      access_token: 'new-bearer',
+      expires_at: new Date(Date.now() + 3_600_000).toISOString(),
+      household_id: 'household-1',
+      user_id: 'user-1',
+      role: 'owner',
+    }));
+    const result = await service.signup({} as never);
+    expect(result.ok).toBe(true);
+    expect(authState()?.accessToken).toBe('new-bearer');
   });
 
   it('discards a login whose generation was superseded while in flight', async () => {

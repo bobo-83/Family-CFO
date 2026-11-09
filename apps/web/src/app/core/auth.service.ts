@@ -7,6 +7,7 @@ import {
   authState,
   clearAuthState,
   sessionFence,
+  sharedSessionMoved,
   setAuthState,
   updateSessionRights,
 } from './token-store';
@@ -94,7 +95,7 @@ export class AuthService {
     }
 
     if (owner !== authGeneration()) return { ok: false };
-    const ok = setAuthState({
+    const ok = await setAuthState({
       accessToken: data.access_token,
       expiresAt: data.expires_at,
       householdId: data.household_id,
@@ -103,6 +104,16 @@ export class AuthService {
       roleName: data.role_name ?? undefined,
       rights: data.rights ?? undefined,
     }, fence);
+    if (!ok && sharedSessionMoved(fence)) {
+      // The shared session moved while this request was in flight, so the
+      // install was refused. The credentials were fine — say so, instead of
+      // claiming a failed login.
+      return {
+        ok: false,
+        errorMessage:
+          'Another tab changed the session while this was in flight, so this sign-in was not applied.',
+      };
+    }
     return { ok };
   }
 
@@ -121,7 +132,7 @@ export class AuthService {
     }
 
     if (owner !== authGeneration()) return { ok: false };
-    const ok = setAuthState({
+    const ok = await setAuthState({
       accessToken: data.access_token,
       expiresAt: data.expires_at,
       householdId: data.household_id,
@@ -130,6 +141,13 @@ export class AuthService {
       roleName: data.role_name ?? undefined,
       rights: data.rights ?? undefined,
     }, fence);
+    if (!ok && sharedSessionMoved(fence)) {
+      return {
+        ok: false,
+        errorMessage:
+          'Another tab changed the session while this was in flight, so this sign-in was not applied.',
+      };
+    }
     return { ok };
   }
 

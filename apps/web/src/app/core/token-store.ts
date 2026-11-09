@@ -18,22 +18,40 @@ export interface StoredAuthState {
 export type SignInReason = 'expired' | 'rejected';
 
 /**
- * The shared owner pointer captured when an authentication request starts
+ * The shared session as it looked when an authentication request started
  * (#164 PR review). The tab-local generation cannot see a newer session that
  * another tab installed while this request was in flight — its storage event
- * may still be queued — so installation is fenced on the pointer itself, the
- * one value every tab reads synchronously before it writes.
+ * may still be queued — so installation is fenced on the shared session
+ * itself: the owner pointer *and* the record it names.
+ *
+ * The record matters as much as the pointer. Signing out removes the record
+ * and deliberately leaves the pointer alone (the restore path reads it), so a
+ * pointer-only fence cannot see a sign-out that happened in another tab.
  */
 export interface SessionFence {
   pointer: string | null;
+  record: string | null;
 }
 
-export function sessionFence(): SessionFence {
+/** The shared session right now, or null when storage cannot be read at all. */
+export function sessionFence(): SessionFence | null {
   try {
-    return { pointer: localStorage.getItem(ACTIVE_KEY) };
+    const pointer = localStorage.getItem(ACTIVE_KEY);
+    const record = pointer ? localStorage.getItem(SESSION_PREFIX + pointer) : null;
+    return { pointer, record };
   } catch {
-    return { pointer: null };
+    // Storage is only a reload cache. Without it there is no shared session to
+    // fence on, so the install runs unfenced instead of failing.
+    return null;
   }
+}
+
+/** True when the shared session moved since `fence` was captured. */
+export function sharedSessionMoved(fence: SessionFence | null): boolean {
+  if (!fence) return false;
+  const now = sessionFence();
+  if (!now) return false;
+  return now.pointer !== fence.pointer || now.record !== fence.record;
 }
 
 interface Session {
@@ -88,6 +106,30 @@ function remove(owner: string): void {
   }
 }
 
+/**
+ * Cross-tab serialization for the shared session (#164 PR review).
+ *
+ * The HTML storage standard gives no locking across browsing contexts, so a
+ * read and the write that follows it can be separated by another tab's write:
+ * a fence compared outside a lock is a read-then-write race, not a fence. The
+ * Web Locks API is the one primitive that serializes same-origin tabs, so the
+ * compare and the publication run inside it.
+ */
+const LOCK_NAME = 'family-cfo-auth-session';
+
+interface LockManager {
+  request?<T>(name: string, callback: () => T | Promise<T>): Promise<T>;
+}
+
+function withSessionLock<T>(critical: () => T): Promise<T> {
+  const scope = globalThis.navigator as unknown as { locks?: LockManager } | undefined;
+  const locks = scope?.locks;
+  if (locks?.request) return locks.request(LOCK_NAME, () => Promise.resolve(critical()));
+  // Without the API the section still runs in one go, but only against this
+  // tab: the fence narrows the window instead of closing it.
+  return Promise.resolve().then(critical);
+}
+
 function scheduleClockCheck(): void {
   clearTimeout(timer);
   timer = undefined;
@@ -117,7 +159,19 @@ function install(value: Session): boolean {
   return true;
 }
 
-export function setAuthState(state: StoredAuthState, fence?: SessionFence): boolean {
+/**
+ * Install a session as the shared one.
+ *
+ * The compare and the publication run inside the cross-tab lock: the fence is
+ * only a fence when nothing can write between the comparison and the write.
+ * A session that moved since the request started — a newer install, or a
+ * sign-out that removed the record — means this response is stale, so it is
+ * refused and the newer tab's record survives untouched.
+ */
+export async function setAuthState(
+  state: StoredAuthState,
+  fence?: SessionFence | null,
+): Promise<boolean> {
   // getRandomValues is available even in an insecure local development context.
   const owner = Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) =>
     byte.toString(16).padStart(2, '0'),
@@ -127,21 +181,38 @@ export function setAuthState(state: StoredAuthState, fence?: SessionFence): bool
     if (!session()) signInReason.set(Number.isFinite(deadline) ? 'expired' : 'rejected');
     return false;
   }
-  try {
-    const previous = localStorage.getItem(ACTIVE_KEY);
-    // The read and the pointer swap below share one synchronous block, so no
-    // tab can write between them. A pointer that moved since authentication
-    // started means a newer session won: its record must survive untouched.
-    if (fence && previous !== fence.pointer) return false;
-    localStorage.setItem(SESSION_PREFIX + owner, JSON.stringify(state));
-    localStorage.setItem(ACTIVE_KEY, owner);
-    persistentOwner = owner;
-    if (previous) remove(previous);
-  } catch {
-    remove(owner);
-    persistentOwner = null;
-  }
+  let refused = false;
+  await withSessionLock(() => {
+    try {
+      const pointer = localStorage.getItem(ACTIVE_KEY);
+      const record = pointer ? localStorage.getItem(SESSION_PREFIX + pointer) : null;
+      if (fence && (pointer !== fence.pointer || record !== fence.record)) {
+        refused = true;
+        return;
+      }
+      localStorage.setItem(SESSION_PREFIX + owner, JSON.stringify(state));
+      localStorage.setItem(ACTIVE_KEY, owner);
+      persistentOwner = owner;
+      if (pointer) remove(pointer);
+    } catch {
+      remove(owner);
+      persistentOwner = null;
+    }
+  });
+  if (refused) return false;
   return install({ owner, state });
+}
+
+/**
+ * Remove this tab's shared record under the lock, so a sign-out cannot be
+ * separated from the removal by a tab that is installing a session.
+ */
+async function removeSharedRecord(owner: string): Promise<void> {
+  try {
+    await withSessionLock(() => remove(owner));
+  } catch {
+    // Storage is a reload cache. The memory transition already happened.
+  }
 }
 
 /**
@@ -163,9 +234,8 @@ export function updateSessionRights(
   if (current && ownsSession(owner)) publish({ ...current, state: { ...current.state, ...rights } });
 }
 
-export function clearAuthState(reason: SignInReason | null = null, keepSealRetry = false): void {
+export function clearAuthState(reason: SignInReason | null = null, keepSealRetry = false): Promise<void> {
   const owner = session()?.owner;
-  if (owner) remove(owner);
   clearTimeout(timer);
   timer = undefined;
   persistentOwner = null;
@@ -174,6 +244,9 @@ export function clearAuthState(reason: SignInReason | null = null, keepSealRetry
   needsKeyRecovery.set(false);
   if (!owner) authGeneration.update((generation) => generation + 1);
   publish(null);
+  // The shared record goes under the lock: a tab that is installing a session
+  // must not be able to slip a write between this sign-out and the removal.
+  return owner ? removeSharedRecord(owner) : Promise.resolve();
 }
 
 export function checkSessionExpiry(): void {
@@ -239,10 +312,13 @@ function restoreSharedSession(initial = false): void {
         throw new Error('Invalid stored session');
       }
     } catch {
+      // Outside the lock, but fail-safe: a record that disappears makes another
+      // tab's fence refuse, never accept.
       remove(owner);
       clearAuthState('rejected');
       return;
     }
+    // This tab's own superseded record. No other tab's fence names it.
     if (persistentOwner && persistentOwner !== owner) remove(persistentOwner);
     if (install({ owner, state: value })) persistentOwner = owner;
   } catch {

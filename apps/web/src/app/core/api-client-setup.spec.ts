@@ -14,8 +14,8 @@ import {
   setAuthState,
 } from './token-store';
 
-function signIn() {
-  setAuthState({
+async function signIn() {
+  await setAuthState({
     accessToken: 'token-123', expiresAt: '2099-01-01T00:00:00Z',
     householdId: 'household-1',
     userId: 'user-1',
@@ -30,7 +30,7 @@ describe('handleSessionResponse', () => {
   });
 
   it('leaves an ok response and the session alone', async () => {
-    signIn();
+    await signIn();
 
     const response = new Response('{}', { status: 200 });
     expect(await handleSessionResponse(response, authGeneration())).toBe(response);
@@ -39,7 +39,7 @@ describe('handleSessionResponse', () => {
   });
 
   it('drops the session on a 401', async () => {
-    signIn();
+    await signIn();
 
     await handleSessionResponse(new Response('{}', { status: 401 }), authGeneration());
 
@@ -51,7 +51,7 @@ describe('handleSessionResponse', () => {
   // the password login IS the unlock. Announcing the lock on the login screen
   // read like rejected credentials.
   it('drops the session on a 423 without telling the user anything', async () => {
-    signIn();
+    await signIn();
 
     const body = JSON.stringify({
       error: { code: 'household_locked', message: 'locked' },
@@ -65,7 +65,7 @@ describe('handleSessionResponse', () => {
   });
 
   it('drops the session on a 423 with no body at all', async () => {
-    signIn();
+    await signIn();
 
     await handleSessionResponse(new Response(null, { status: 423 }), authGeneration());
 
@@ -77,7 +77,7 @@ describe('handleSessionResponse', () => {
   // is not readable. Ending the owner's session here would boot them off the
   // very form whose error message just told them to sign in.
   it('keeps the session on a 423 that refuses a new member', async () => {
-    signIn();
+    await signIn();
 
     const body = JSON.stringify({
       error: {
@@ -98,10 +98,10 @@ describe('dispatched session ownership', () => {
   afterEach(() => clearAuthState());
 
   it('ignores a delayed 401 after the same token is installed as a new session', async () => {
-    signIn();
+    await signIn();
     const outgoing = authGeneration();
     clearAuthState();
-    signIn();
+    await signIn();
 
     await handleSessionResponse(new Response(null, { status: 401 }), outgoing);
 
@@ -109,13 +109,13 @@ describe('dispatched session ownership', () => {
   });
 
   it('rechecks ownership when a 423 body resolves after sign-in', async () => {
-    signIn();
+    await signIn();
     let body!: ReadableStreamDefaultController<Uint8Array>;
     const response = new Response(new ReadableStream({ start: (controller) => { body = controller; } }), {
       status: 423,
     });
     const rejected = handleSessionResponse(response, authGeneration());
-    signIn();
+    await signIn();
 
     body.enqueue(new TextEncoder().encode('{"error":{"code":"household_locked"}}'));
     body.close();
@@ -126,7 +126,7 @@ describe('dispatched session ownership', () => {
   });
 
   it('ignores a failure dispatched without an authenticated owner', async () => {
-    signIn();
+    await signIn();
     await handleSessionResponse(new Response(null, { status: 401 }));
     expect(authState()).not.toBeNull();
   });
@@ -139,7 +139,7 @@ describe('direct protected fetch', () => {
   });
 
   it('applies owned 401 handling to a direct export request', async () => {
-    signIn();
+    await signIn();
     const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 401 }));
     vi.stubGlobal('fetch', fetchMock);
 
@@ -169,24 +169,24 @@ describe('generated-client interceptors', () => {
     return responseFn(response, owned, options);
   }
 
-  function enterKeyRecoveryWindow(): void {
+  async function enterKeyRecoveryWindow(): Promise<void> {
     // First sealed 423 signs the session out with no message; the second, in
     // the same household after sign-in, opens the bounded recovery alert.
-    signIn();
+    await signIn();
     handleSealedHousehold(authGeneration());
-    signIn();
+    await signIn();
     handleSealedHousehold(authGeneration());
     expect(needsKeyRecovery()).toBe(true);
   }
 
   it('ends the key-recovery window on a readable GET /household', async () => {
-    enterKeyRecoveryWindow();
+    await enterKeyRecoveryWindow();
     await roundTrip('/household', 'GET', new Response('{}', { status: 200 }));
     expect(needsKeyRecovery()).toBe(false);
   });
 
   it('keeps the key-recovery window open through an unrelated PATCH /household', async () => {
-    enterKeyRecoveryWindow();
+    await enterKeyRecoveryWindow();
     await roundTrip('/household', 'PATCH', new Response('{}', { status: 200 }));
     expect(needsKeyRecovery()).toBe(true);
     expect(authState()).not.toBeNull();
@@ -239,7 +239,7 @@ describe('interceptor install guards (#164)', () => {
 
   it('adds the bearer and registers ownership for secured operations', async () => {
     const { request } = interceptors();
-    signIn();
+    await signIn();
     const secured = await request(new Request('http://localhost/api/v1/transactions', { method: 'GET' }), {
       url: '/transactions', method: 'GET', security: [{ scheme: 'bearer', type: 'http' }],
     });
@@ -248,7 +248,7 @@ describe('interceptor install guards (#164)', () => {
 
   it('throws when a watched request outlives its session', async () => {
     const { request, response } = interceptors();
-    signIn();
+    await signIn();
     const options = { url: '/transactions', method: 'GET', security: [{ scheme: 'bearer', type: 'http' }] };
     const watched = await request(new Request('http://localhost/api/v1/transactions'), options);
     clearAuthState();
@@ -274,7 +274,7 @@ describe('anonymous and superseded direct fetches (#164)', () => {
   });
 
   it('throws when the session changes while a direct fetch is in flight', async () => {
-    signIn();
+    await signIn();
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 200 })));
     const pending = fetchProtected('/api/v1/household/export');
     clearAuthState();

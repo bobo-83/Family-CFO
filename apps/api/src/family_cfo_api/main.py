@@ -102,12 +102,13 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
     )
     # ADR 0080: challenge issuance counts against its own burst-tolerant
     # policy (see Settings), so the failed-password lockout can never gate a
-    # household's own devices renewing their sessions from one home IP.
+    # household's own devices renewing their sessions from one home IP. Its
+    # enabled flag is its own too: the two policies are turned off separately.
     app.state.auth_challenge_rate_limiter = AuthRateLimiter(
         max_attempts=settings.auth_challenge_rate_limit_max_issuances,
         window_seconds=settings.auth_challenge_rate_limit_window_seconds,
         lockout_seconds=settings.auth_challenge_rate_limit_lockout_seconds,
-        enabled=settings.auth_rate_limit_enabled,
+        enabled=settings.auth_challenge_rate_limit_enabled,
     )
     app.include_router(api_router)
 

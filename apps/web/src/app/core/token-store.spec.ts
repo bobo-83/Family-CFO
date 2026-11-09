@@ -6,6 +6,7 @@ import {
   getToken,
   noteHouseholdReadable,
   sessionFence,
+  sharedSessionMoved,
   setAuthState,
   signInReason,
   subscribeToAuthState,
@@ -23,8 +24,8 @@ describe('token-store', () => {
     expect(getToken()).toBeNull();
   });
 
-  it('stores and reads back the auth state', () => {
-    setAuthState({
+  it('stores and reads back the auth state', async () => {
+    await setAuthState({
       accessToken: 'token-123', expiresAt: '2099-01-01T00:00:00Z',
       householdId: 'household-1',
       userId: 'user-1',
@@ -37,7 +38,7 @@ describe('token-store', () => {
     expect(localStorage.getItem('family-cfo-auth-session:' + owner)).toContain('token-123');
   });
 
-  it('notifies auth replacements and logout synchronously until unsubscribed', () => {
+  it('notifies auth replacements and logout synchronously until unsubscribed', async () => {
     const listener = vi.fn();
     const unsubscribe = subscribeToAuthState(listener);
     const a = {
@@ -53,19 +54,19 @@ describe('token-store', () => {
       role: 'owner',
     };
 
-    setAuthState(a);
+    await setAuthState(a);
     expect(listener).toHaveBeenLastCalledWith(a);
-    setAuthState(b);
+    await setAuthState(b);
     expect(listener).toHaveBeenLastCalledWith(b);
     clearAuthState();
     expect(listener).toHaveBeenLastCalledWith(null);
 
     unsubscribe();
-    setAuthState(a);
+    await setAuthState(a);
     expect(listener).toHaveBeenCalledTimes(3);
   });
 
-  it('continues notifying listeners after one listener throws', () => {
+  it('continues notifying listeners after one listener throws', async () => {
     const unsubscribeFailing = subscribeToAuthState(() => {
       throw new Error('listener failed');
     });
@@ -78,14 +79,15 @@ describe('token-store', () => {
       role: 'owner',
     };
 
-    expect(() => setAuthState(state)).not.toThrow();
+    // The install resolves: a throwing listener must not reject it.
+    await expect(setAuthState(state)).resolves.toBe(true);
     expect(listener).toHaveBeenCalledWith(state);
 
     unsubscribeFailing();
     unsubscribe();
   });
 
-  it('updates auth and notifies when localStorage setItem throws', () => {
+  it('updates auth and notifies when localStorage setItem throws', async () => {
     const listener = vi.fn();
     const unsubscribe = subscribeToAuthState(listener);
     const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
@@ -99,7 +101,8 @@ describe('token-store', () => {
     };
 
     try {
-      expect(() => setAuthState(state)).not.toThrow();
+      // Storage is unavailable: the memory install still happens.
+      await expect(setAuthState(state)).resolves.toBe(true);
       expect(authState()).toEqual(state);
       expect(listener).toHaveBeenCalledWith(state);
     } finally {
@@ -108,8 +111,8 @@ describe('token-store', () => {
     }
   });
 
-  it('clears auth and notifies when localStorage removeItem throws', () => {
-    setAuthState({
+  it('clears auth and notifies when localStorage removeItem throws', async () => {
+    await setAuthState({
       accessToken: 'token-123', expiresAt: '2099-01-01T00:00:00Z',
       householdId: 'household-1',
       userId: 'user-1',
@@ -132,8 +135,8 @@ describe('token-store', () => {
     }
   });
 
-  it('clears the auth state and localStorage', () => {
-    setAuthState({
+  it('clears the auth state and localStorage', async () => {
+    await setAuthState({
       accessToken: 'token-123', expiresAt: '2099-01-01T00:00:00Z',
       householdId: 'household-1',
       userId: 'user-1',
@@ -141,7 +144,9 @@ describe('token-store', () => {
     });
 
     const owner = localStorage.getItem('family-cfo-auth-owner');
-    clearAuthState();
+    // The shared record goes under the cross-tab lock, so the removal lands
+    // after the sign-out, not before it.
+    await clearAuthState();
 
     expect(authState()).toBeNull();
     expect(getToken()).toBeNull();
@@ -155,9 +160,9 @@ describe('session deadlines', () => {
     vi.useRealTimers();
   });
 
-  it('expires on the monotonic deadline even after a wall clock rollback', () => {
+  it('expires on the monotonic deadline even after a wall clock rollback', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date', 'performance'] });
-    setAuthState({
+    await setAuthState({
       accessToken: 'synthetic-bearer',
       expiresAt: new Date(Date.now() + 1000).toISOString(),
       householdId: 'hh',
@@ -169,8 +174,8 @@ describe('session deadlines', () => {
     expect(authState()).toBeNull();
   });
 
-  it('fails closed for malformed expiry without reporting expiry', () => {
-    expect(setAuthState({
+  it('fails closed for malformed expiry without reporting expiry', async () => {
+    expect(await setAuthState({
       accessToken: 'synthetic-bearer',
       expiresAt: 'broken',
       householdId: 'hh',
@@ -182,9 +187,9 @@ describe('session deadlines', () => {
   });
 });
 
-it('does not erase a newer shared session before its storage event arrives', () => {
+it('does not erase a newer shared session before its storage event arrives', async () => {
   try {
-    setAuthState({
+    await setAuthState({
       accessToken: 'outgoing-bearer', expiresAt: '2099-01-01T00:00:00Z',
       householdId: 'a', userId: 'old-member', role: 'adult',
     });
@@ -207,13 +212,70 @@ it('does not erase a newer shared session before its storage event arrives', () 
   }
 });
 
+describe('shared-session comparison (#164 review)', () => {
+  afterEach(() => {
+    clearAuthState();
+    localStorage.clear();
+  });
+
+  it('reports no move when there was no fence to compare against', () => {
+    // No fence means no shared session was pinned down, so there is nothing
+    // to have moved.
+    expect(sharedSessionMoved(null)).toBe(false);
+  });
+
+  it('reports no move when the shared session cannot be read', async () => {
+    const fence = sessionFence();
+    const broken = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('storage unavailable');
+    });
+    try {
+      expect(sharedSessionMoved(fence)).toBe(false);
+    } finally {
+      broken.mockRestore();
+    }
+  });
+
+  it('reports a move when the shared session changed', async () => {
+    const fence = sessionFence();
+    expect(sharedSessionMoved(fence)).toBe(false);
+
+    await setAuthState({
+      accessToken: 'moved-bearer', expiresAt: '2099-01-01T00:00:00Z',
+      householdId: 'household', userId: 'member', role: 'owner',
+    });
+
+    expect(sharedSessionMoved(fence)).toBe(true);
+  });
+});
+
 describe('shared-pointer fencing (#164 review)', () => {
   afterEach(() => {
     clearAuthState();
     localStorage.clear();
   });
 
-  it('refuses an install whose pointer moved while the request was in flight', () => {
+  /**
+   * Run `body` with a stand-in for the Web Locks API, so the cross-tab
+   * section can be driven from a test. The stand-in is what another tab's
+   * lock-protected write looks like from the inside.
+   */
+  async function withFakeLocks(
+    locks: { request: <R>(name: string, callback: () => R | Promise<R>) => Promise<R> },
+    body: () => Promise<void>,
+  ): Promise<void> {
+    const scope = globalThis.navigator as unknown as { locks?: unknown };
+    const previous = Object.getOwnPropertyDescriptor(scope, 'locks');
+    Object.defineProperty(scope, 'locks', { value: locks, configurable: true });
+    try {
+      await body();
+    } finally {
+      if (previous) Object.defineProperty(scope, 'locks', previous);
+      else delete scope.locks;
+    }
+  }
+
+  it('refuses an install whose pointer moved while the request was in flight', async () => {
     const fence = sessionFence();
     const newerOwner = '00000000000000000000000000000164';
     localStorage.setItem('family-cfo-auth-session:' + newerOwner, JSON.stringify({
@@ -222,7 +284,7 @@ describe('shared-pointer fencing (#164 review)', () => {
     }));
     localStorage.setItem('family-cfo-auth-owner', newerOwner);
 
-    expect(setAuthState({
+    expect(await setAuthState({
       accessToken: 'stale-bearer', expiresAt: '2099-01-01T00:00:00Z',
       householdId: 'stale-household', userId: 'stale-user', role: 'owner',
     }, fence)).toBe(false);
@@ -232,22 +294,83 @@ describe('shared-pointer fencing (#164 review)', () => {
     expect(localStorage.getItem('family-cfo-auth-session:' + newerOwner)).toContain('newer-bearer');
   });
 
-  it('installs when the shared pointer never moved', () => {
+  it('installs when the shared pointer never moved', async () => {
     const fence = sessionFence();
-    expect(setAuthState({
+    expect(await setAuthState({
       accessToken: 'only-bearer', expiresAt: '2099-01-01T00:00:00Z',
       householdId: 'household', userId: 'member', role: 'owner',
     }, fence)).toBe(true);
     expect(getToken()).toBe('only-bearer');
   });
 
-  it('fences open to a memory-only install when storage is unreadable', () => {
+  it('compares the shared session under the cross-tab lock (#164 review)', async () => {
+    // Another tab held the lock first and published a newer session while this
+    // tab waited for it. The comparison runs inside the lock, so it sees that
+    // session and refuses the stale install — a fence compared before the
+    // lock would have read the older one and installed over it.
+    const newerOwner = '00000000000000000000000000000164';
+    const fence = sessionFence();
+    const requests: string[] = [];
+    const locks = {
+      request: async <R>(_name: string, callback: () => R | Promise<R>): Promise<R> => {
+        requests.push(_name);
+        localStorage.setItem('family-cfo-auth-session:' + newerOwner, JSON.stringify({
+          accessToken: 'newer-bearer', expiresAt: '2099-01-01T00:00:00Z',
+          householdId: 'newer-household', userId: 'newer-user', role: 'owner',
+        }));
+        localStorage.setItem('family-cfo-auth-owner', newerOwner);
+        return await callback();
+      },
+    };
+
+    await withFakeLocks(locks, async () => {
+      expect(await setAuthState({
+        accessToken: 'stale-bearer', expiresAt: '2099-01-01T00:00:00Z',
+        householdId: 'stale-household', userId: 'stale-user', role: 'owner',
+      }, fence)).toBe(false);
+    });
+
+    // The lock was taken: without it the comparison would have read the
+    // older session and installed over the newer one.
+    expect(requests.length).toBeGreaterThan(0);
+    expect(authState()).toBeNull();
+    expect(localStorage.getItem('family-cfo-auth-owner')).toBe(newerOwner);
+    expect(localStorage.getItem('family-cfo-auth-session:' + newerOwner)).toContain('newer-bearer');
+  });
+
+  it('refuses a pending install when another tab signed out in the meantime (#164 review)', async () => {
+    await setAuthState({
+      accessToken: 'first-bearer', expiresAt: '2099-01-01T00:00:00Z',
+      householdId: 'household', userId: 'member', role: 'owner',
+    });
+    const fence = sessionFence();
+    const owner = localStorage.getItem('family-cfo-auth-owner');
+    expect(fence?.pointer).toBe(owner);
+
+    // Another tab signs out: the record goes, the pointer stays (the restore
+    // path reads it), so only a fence that looks at the record can see it.
+    localStorage.removeItem('family-cfo-auth-session:' + owner);
+
+    expect(await setAuthState({
+      accessToken: 'stale-bearer', expiresAt: '2099-01-01T00:00:00Z',
+      householdId: 'household', userId: 'member', role: 'owner',
+    }, fence)).toBe(false);
+
+    // The sign-out stands: the refused install left no record of its own.
+    expect(localStorage.length).toBe(1);
+    expect(localStorage.key(0)).toBe('family-cfo-auth-owner');
+    expect(localStorage.getItem('family-cfo-auth-owner')).toBe(owner);
+  });
+
+  it('fences open to a memory-only install when storage is unreadable', async () => {
     const broken = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
       throw new Error('storage unavailable');
     });
     try {
-      expect(sessionFence()).toEqual({ pointer: null });
-      expect(setAuthState({
+      // Storage cannot be read, so there is no shared session to fence on:
+      // the fence is open and the install runs in memory only.
+      expect(sessionFence()).toBeNull();
+      expect(await setAuthState({
         accessToken: 'offline-bearer', expiresAt: '2099-01-01T00:00:00Z',
         householdId: 'household', userId: 'member', role: 'owner',
       }, sessionFence())).toBe(true);
@@ -296,8 +419,8 @@ describe('shared-session reconciliation (#164)', () => {
     expect(signInReason()).toBe('rejected');
   });
 
-  it('clears the session when another tab removes this tab\'s record', () => {
-    setAuthState({
+  it('clears the session when another tab removes this tab\'s record', async () => {
+    await setAuthState({
       accessToken: 'mine-bearer', expiresAt: '2099-01-01T00:00:00Z',
       householdId: 'hh', userId: 'member', role: 'owner',
     });
@@ -310,8 +433,8 @@ describe('shared-session reconciliation (#164)', () => {
     expect(signInReason()).toBeNull();
   });
 
-  it('treats a pointer event that still names this tab\'s owner as no change', () => {
-    setAuthState({
+  it('treats a pointer event that still names this tab\'s owner as no change', async () => {
+    await setAuthState({
       accessToken: 'mine-bearer', expiresAt: '2099-01-01T00:00:00Z',
       householdId: 'hh', userId: 'member', role: 'owner',
     });
@@ -338,8 +461,8 @@ describe('shared-session reconciliation (#164)', () => {
     expect(signInReason()).toBe('rejected');
   });
 
-  it('installs another tab\'s session and discards this tab\'s superseded record', () => {
-    setAuthState({
+  it('installs another tab\'s session and discards this tab\'s superseded record', async () => {
+    await setAuthState({
       accessToken: 'old-bearer', expiresAt: '2099-01-01T00:00:00Z',
       householdId: 'old', userId: 'old-user', role: 'owner',
     });
@@ -374,8 +497,8 @@ describe('shared-session reconciliation (#164)', () => {
     expect(getToken()).toBe('restored-bearer');
   });
 
-  it('updateSessionRights refreshes only the live owner and keeps the generation', () => {
-    setAuthState({
+  it('updateSessionRights refreshes only the live owner and keeps the generation', async () => {
+    await setAuthState({
       accessToken: 'live-bearer', expiresAt: '2099-01-01T00:00:00Z',
       householdId: 'hh', userId: 'member', role: 'adult',
     });
@@ -388,8 +511,8 @@ describe('shared-session reconciliation (#164)', () => {
     expect(authState()?.role).toBe('owner');
   });
 
-  it('noteHouseholdReadable ignores a stale owner', () => {
-    setAuthState({
+  it('noteHouseholdReadable ignores a stale owner', async () => {
+    await setAuthState({
       accessToken: 'live-bearer', expiresAt: '2099-01-01T00:00:00Z',
       householdId: 'hh', userId: 'member', role: 'owner',
     });
@@ -431,20 +554,20 @@ describe('branch-closing expiry paths (#164)', () => {
     expect(localStorage.getItem('family-cfo-auth-session:' + owner)).toBeNull();
   });
 
-  it('surfaces the expired reason when a signed-out install meets a past deadline', () => {
-    expect(setAuthState({
+  it('surfaces the expired reason when a signed-out install meets a past deadline', async () => {
+    expect(await setAuthState({
       accessToken: 'past-bearer', expiresAt: '2000-01-01T00:00:00Z',
       householdId: 'hh', userId: 'member', role: 'owner',
     })).toBe(false);
     expect(signInReason()).toBe('expired');
   });
 
-  it('leaves a live session and its reason untouched when a later install is already expired', () => {
-    setAuthState({
+  it('leaves a live session and its reason untouched when a later install is already expired', async () => {
+    await setAuthState({
       accessToken: 'live-bearer', expiresAt: '2099-01-01T00:00:00Z',
       householdId: 'hh', userId: 'member', role: 'owner',
     });
-    expect(setAuthState({
+    expect(await setAuthState({
       accessToken: 'late-bearer', expiresAt: '2000-01-01T00:00:00Z',
       householdId: 'hh', userId: 'member', role: 'owner',
     })).toBe(false);
@@ -464,9 +587,9 @@ describe('branch-closing expiry paths (#164)', () => {
     expect(localStorage.getItem('family-cfo-auth-session:' + owner)).toBeNull();
   });
 
-  it('expires the session with the expired reason when its record vanishes after the deadline', () => {
+  it('expires the session with the expired reason when its record vanishes after the deadline', async () => {
     const t0 = Date.now();
-    setAuthState({
+    await setAuthState({
       accessToken: 'short-bearer', expiresAt: new Date(t0 + 30).toISOString(),
       householdId: 'hh', userId: 'member', role: 'owner',
     });
@@ -480,8 +603,8 @@ describe('branch-closing expiry paths (#164)', () => {
     expect(signInReason()).toBe('expired');
   });
 
-  it('ignores storage events for keys outside the session namespace', () => {
-    setAuthState({
+  it('ignores storage events for keys outside the session namespace', async () => {
+    await setAuthState({
       accessToken: 'live-bearer', expiresAt: '2099-01-01T00:00:00Z',
       householdId: 'hh', userId: 'member', role: 'owner',
     });

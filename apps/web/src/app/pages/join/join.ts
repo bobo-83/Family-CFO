@@ -8,7 +8,7 @@ import { MatInputModule } from '@angular/material/input';
 import { Router } from '@angular/router';
 import type { InvitePreview } from '../../api-client';
 import { ApiService } from '../../core/api.service';
-import { authGeneration, sessionFence, setAuthState } from '../../core/token-store';
+import { authGeneration, sessionFence, sharedSessionMoved, setAuthState } from '../../core/token-store';
 import { apiErrorMessage } from '../../shared/api-error';
 import { TimezonePicker } from '../../shared/timezone-picker/timezone-picker';
 import { TIMEZONE_BOX_DEFAULT, TIMEZONE_HINT, browserTimezone } from '../../shared/timezones';
@@ -130,7 +130,7 @@ export class Join {
       return;
     }
     if (owner !== authGeneration()) return;
-    const installed = setAuthState(
+    const installed = await setAuthState(
       {
         accessToken: data.access_token,
         expiresAt: data.expires_at,
@@ -142,6 +142,16 @@ export class Join {
       },
       fence,
     );
-    if (installed) await this.router.navigateByUrl('/overview');
+    if (installed) {
+      await this.router.navigateByUrl('/overview');
+      return;
+    }
+    if (sharedSessionMoved(fence)) {
+      // The shared session moved while the invitation was in flight, so the
+      // acceptance was refused. Say that, instead of failing silently.
+      this.submitError.set(
+        $localize`Another tab changed the session while this was in flight, so the invitation was not accepted here.`,
+      );
+    }
   }
 }

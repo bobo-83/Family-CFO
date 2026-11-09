@@ -7,7 +7,7 @@ import { Shell } from './shell';
 
 describe('Shell', () => {
   beforeEach(async () => {
-    setAuthState({
+    await setAuthState({
       accessToken: 'test-token',
       expiresAt: '2099-01-01T00:00:00Z',
       householdId: 'household',

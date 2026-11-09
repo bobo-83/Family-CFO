@@ -356,6 +356,9 @@ describe('Join install guards (#164 review)', () => {
     expect(localStorage.getItem('family-cfo-auth-owner')).toBe(newerOwner);
     expect(localStorage.getItem('family-cfo-auth-session:' + newerOwner)).toContain('newer-bearer');
     expect(navigate).not.toHaveBeenCalled();
+    // The refusal says why: another tab moved the session, the invitation was
+    // not accepted here. A silent stay-on-page would look like a broken form.
+    expect(component['submitError']()).toContain('Another tab changed the session');
   });
 });
 

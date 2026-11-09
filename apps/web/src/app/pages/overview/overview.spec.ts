@@ -46,7 +46,7 @@ describe('Overview', () => {
     });
   }
 
-  beforeEach(() => {
+  beforeEach(async () => {
     apiMock = {
       getHouseholdContext: vi.fn(),
       updateHousehold: vi.fn().mockResolvedValue(response({})),
@@ -88,7 +88,7 @@ describe('Overview', () => {
       getHouseholdKeyStatus: vi.fn().mockResolvedValue(response(null)),
     };
     localStorage.removeItem('family-cfo.hideSealedModeOffer');
-    setAuthState({ accessToken: 'token-a', expiresAt: '2099-01-01T00:00:00Z', householdId: 'hh-a', userId: 'u1', role: 'owner' });
+    await setAuthState({ accessToken: 'token-a', expiresAt: '2099-01-01T00:00:00Z', householdId: 'hh-a', userId: 'u1', role: 'owner' });
     configure();
   });
 
@@ -1740,7 +1740,7 @@ describe('Overview', () => {
 // --- #156 (ADR 0075): what the base-currency total leaves out -------------------
 
 describe('Overview #156: accounts outside the base currency', () => {
-  afterEach(() => clearAuthState());
+  afterEach(async () => clearAuthState());
 
   let apiMock: Record<string, ReturnType<typeof vi.fn>>;
 
@@ -1756,7 +1756,7 @@ describe('Overview #156: accounts outside the base currency', () => {
   }
 
   async function render(context: Record<string, unknown>) {
-    setAuthState({ accessToken: 'token-a', expiresAt: '2099-01-01T00:00:00Z', householdId: 'hh-a', userId: 'u1', role: 'owner' });
+    await setAuthState({ accessToken: 'token-a', expiresAt: '2099-01-01T00:00:00Z', householdId: 'hh-a', userId: 'u1', role: 'owner' });
     apiMock = {
       getHouseholdContext: vi.fn().mockResolvedValue(response(context)),
       updateHousehold: vi.fn().mockResolvedValue(response({})),
@@ -1816,7 +1816,7 @@ describe('Overview #156: accounts outside the base currency', () => {
 // --- #158 review: a delayed Overview response must not cross a session switch ---
 
 describe('Overview qualified aggregate presentation', () => {
-  afterEach(() => clearAuthState());
+  afterEach(async () => clearAuthState());
 
   function yearOverview(year: number) {
     return {
@@ -1839,9 +1839,9 @@ describe('Overview qualified aggregate presentation', () => {
     };
   }
 
-  function configureQualified(apiMock: Record<string, unknown>) {
+  async function configureQualified(apiMock: Record<string, unknown>) {
     if (!authState()) {
-      setAuthState({ accessToken: 'token-a', expiresAt: '2099-01-01T00:00:00Z', householdId: 'hh-a', userId: 'u1', role: 'owner' });
+      await setAuthState({ accessToken: 'token-a', expiresAt: '2099-01-01T00:00:00Z', householdId: 'hh-a', userId: 'u1', role: 'owner' });
     }
     TestBed.configureTestingModule({
       imports: [Overview],
@@ -1956,7 +1956,7 @@ describe('Overview qualified aggregate presentation', () => {
       })),
       getHouseholdKeyStatus: vi.fn().mockResolvedValue(response(null)),
     };
-    configureQualified(apiMock);
+    await configureQualified(apiMock);
     const fixture = TestBed.createComponent(Overview);
     await stabilizeQualified(fixture);
 
@@ -2023,7 +2023,7 @@ describe('Overview qualified aggregate presentation', () => {
         review: null,
       })),
     };
-    configureQualified(apiMock);
+    await configureQualified(apiMock);
     const fixture = TestBed.createComponent(Overview);
     await stabilizeQualified(fixture);
     const buttons = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('button'));
@@ -2052,7 +2052,7 @@ describe('Overview qualified aggregate presentation', () => {
         else resolve2026 = resolve;
       })),
     };
-    configureQualified(apiMock);
+    await configureQualified(apiMock);
     const component = TestBed.createComponent(Overview).componentInstance;
 
     const older = component['loadYear'](2025);
@@ -2073,7 +2073,7 @@ describe('Overview qualified aggregate presentation', () => {
       getYearlyOverview: vi.fn((year: number) => Promise.resolve(response(yearOverview(year)))),
       generateYearlyReview: vi.fn().mockReturnValue(new Promise((resolve) => (resolveReview = resolve))),
     };
-    configureQualified(apiMock);
+    await configureQualified(apiMock);
     const component = TestBed.createComponent(Overview).componentInstance;
     component['yearData'].set(yearOverview(2025) as never);
 
@@ -2094,17 +2094,17 @@ describe('Overview qualified aggregate presentation', () => {
   });
 
   it('ignores a yearly response completed after the household session changes', async () => {
-    setAuthState({ accessToken: 'token-a', expiresAt: '2099-01-01T00:00:00Z', householdId: 'hh-a', userId: 'u1', role: 'owner' });
+    await setAuthState({ accessToken: 'token-a', expiresAt: '2099-01-01T00:00:00Z', householdId: 'hh-a', userId: 'u1', role: 'owner' });
     let resolveYear!: (value: unknown) => void;
     const apiMock = {
       getYearlyOverview: vi.fn().mockReturnValue(new Promise((resolve) => (resolveYear = resolve))),
     };
-    configureQualified(apiMock);
+    await configureQualified(apiMock);
     const component = TestBed.createComponent(Overview).componentInstance;
 
     const loading = component['loadYear'](2025);
     clearAuthState();
-    setAuthState({ accessToken: 'token-b', expiresAt: '2099-01-01T00:00:00Z', householdId: 'hh-b', userId: 'u2', role: 'owner' });
+    await setAuthState({ accessToken: 'token-b', expiresAt: '2099-01-01T00:00:00Z', householdId: 'hh-b', userId: 'u2', role: 'owner' });
     resolveYear(response(yearOverview(2025)));
     await loading;
 
@@ -2117,7 +2117,7 @@ describe('Overview #156: seeding the currency across a session switch', () => {
   afterEach(() => clearAuthState());
 
   it('does not seed household A\'s currency into household B\'s session', async () => {
-    setAuthState({ accessToken: 'token-a', expiresAt: '2099-01-01T00:00:00Z', householdId: 'hh-a', userId: 'u1', role: 'owner' });
+    await setAuthState({ accessToken: 'token-a', expiresAt: '2099-01-01T00:00:00Z', householdId: 'hh-a', userId: 'u1', role: 'owner' });
     let release!: (value: unknown) => void;
     const apiMock = {
       getHouseholdContext: vi.fn().mockReturnValue(new Promise((r) => (release = r))),
@@ -2142,7 +2142,7 @@ describe('Overview #156: seeding the currency across a session switch', () => {
 
     // A's Overview request is still in flight when A logs out and B logs in.
     clearAuthState();
-    setAuthState({ accessToken: 'token-b', expiresAt: '2099-01-01T00:00:00Z', householdId: 'hh-b', userId: 'u2', role: 'owner' });
+    await setAuthState({ accessToken: 'token-b', expiresAt: '2099-01-01T00:00:00Z', householdId: 'hh-b', userId: 'u2', role: 'owner' });
     release(
       response({
         household_id: 'hh-a',
@@ -2233,9 +2233,9 @@ describe('Overview session ownership', () => {
     }
   }
 
-  beforeEach(() => {
+  beforeEach(async () => {
     clearAuthState();
-    setAuthState(sessionA);
+    await setAuthState(sessionA);
     localStorage.removeItem('family-cfo.hideSealedModeOffer');
   });
 
@@ -2310,7 +2310,7 @@ describe('Overview session ownership', () => {
     const component = fixture.componentInstance;
     expect(component['household'].value()?.display_name).toBe('Household A');
 
-    setAuthState(sessionB);
+    await setAuthState(sessionB);
 
     expect(component['household'].value()).toBeUndefined();
     expect(component['outlook'].value()).toBeUndefined();
@@ -2331,7 +2331,7 @@ describe('Overview session ownership', () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(getHouseholdContext).toHaveBeenCalledTimes(1);
 
-    setAuthState(sessionB);
+    await setAuthState(sessionB);
     expect(fixture.componentInstance['household'].value()).toBeUndefined();
     fixture.detectChanges();
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -2349,7 +2349,7 @@ describe('Overview session ownership', () => {
     expect(TestBed.inject(HouseholdCurrencyService).currency()).toBe('EUR');
   });
 
-  it('resets the complete manual, lazy, edit, error, and loading inventory', () => {
+  it('resets the complete manual, lazy, edit, error, and loading inventory', async () => {
     configureSession(apiDefaults());
     const component = TestBed.createComponent(Overview).componentInstance;
     component['household'].set(context('hh-a', 'Household A') as never);
@@ -2387,7 +2387,7 @@ describe('Overview session ownership', () => {
     component['committedReserveError'].set('A reserve error');
     component['sealOfferDismissed'].set(true);
 
-    setAuthState(sessionB);
+    await setAuthState(sessionB);
 
     for (const resource of [
       component['household'], component['outlook'], component['plan'], component['keyStatus'],
@@ -2434,7 +2434,7 @@ describe('Overview session ownership', () => {
 
     const savingA = component['changeLanguage']('vi');
     expect(component['savingLanguage']()).toBe(true);
-    setAuthState(sessionB);
+    await setAuthState(sessionB);
     expect(component['savingLanguage']()).toBe(false);
     const savingB = component['changeLanguage']('lt');
     expect(component['savingLanguage']()).toBe(true);

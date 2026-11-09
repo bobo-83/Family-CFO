@@ -121,6 +121,10 @@ class Settings:
     # multi-device sign-ins trigger a brute-force lockout on the family's own
     # phones (PR #169 review). This dedicated policy tolerates a shared-IP
     # burst of pairings and answers an actual flood with a short pause.
+    # Its own enabled flag: an operator who turns the password policy off
+    # (a locked-out household behind a proxy) must not be forced to keep the
+    # challenge policy on, and vice versa (PR #169 review).
+    auth_challenge_rate_limit_enabled: bool = True
     auth_challenge_rate_limit_max_issuances: int = 30
     auth_challenge_rate_limit_window_seconds: int = 300
     auth_challenge_rate_limit_lockout_seconds: int = 60
@@ -238,6 +242,10 @@ class Settings:
                     "FAMILY_CFO_AUTH_RATE_LIMIT_LOCKOUT_SECONDS",
                     str(cls.auth_rate_limit_lockout_seconds),
                 )
+            ),
+            auth_challenge_rate_limit_enabled=_env_bool(
+                "FAMILY_CFO_AUTH_CHALLENGE_RATE_LIMIT_ENABLED",
+                cls.auth_challenge_rate_limit_enabled,
             ),
             auth_challenge_rate_limit_max_issuances=int(
                 os.getenv(

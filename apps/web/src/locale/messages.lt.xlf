@@ -7770,6 +7770,10 @@
         <note priority="1" from="description">Time-based retention mode for local backups</note>
         <note priority="1" from="meaning">Form field label</note>
       </trans-unit>
+      <trans-unit id="8701672854370536132" datatype="html">
+        <source>Another tab changed the session while this was in flight, so the invitation was not accepted here.</source>
+        <target state="needs-review-translation">Cits āra logs mainīja sesiju, kamēr šis tikaņš bija ieskaņš, tādēļ ielūgums netika pieņēmts.</target>
+      </trans-unit>
       <trans-unit id="8757059683143506918" datatype="html">
         <source>Only a system administrator can manage whole-box backups.</source>
         <target state="translated">Viso įrenginio atsargines kopijas gali tvarkyti tik sistemos administratorius.</target>

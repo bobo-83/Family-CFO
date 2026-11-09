@@ -370,3 +370,149 @@ async def test_shared_ip_renewals_never_eat_the_login_lockout(demo_client):
             f"{ROOT}/reauthentication", json={**payload, "password": "synthetic-invalid"}
         )
     ).status_code == 401  # one failure charged, no lockout: the burst reset it
+
+
+@pytest.mark.anyio
+async def test_a_failed_device_proof_never_charges_the_password_policy(demo_client):
+    # The password was right; the device proof was not. That is not password
+    # guessing, so it must not charge the household's password policy — a
+    # shared home IP renewing several phones would lock the family's own
+    # devices out of reauthentication (PR #169 review).
+    key = ec.generate_private_key(ec.SECP256R1())
+    original = await _enroll(demo_client, key)
+    payload = await _payload(demo_client, original["device_id"], key)
+    payload["signature"] = _proof(key, original["device_id"], payload["challenge"] + "x")
+
+    rejected = await demo_client.post(f"{ROOT}/reauthentication", json=payload)
+    assert rejected.status_code == 401
+
+    # The password policy locks the account out on its fifth failure. Four
+    # wrong passwords plus the proof failure would have reached it; only the
+    # four happened, so the next attempt is still answered.
+    login = {
+        "device_name": "Synthetic iPhone",
+        "device_public_key": base64.b64encode(b"\x04" + b"\x01" * 64).decode(),
+        "email": fixtures.DEMO_USER_EMAIL,
+    }
+    for _ in range(4):
+        wrong = await demo_client.post(f"{ROOT}/login", json={**login, "password": "wrong"})
+        assert wrong.status_code == 401
+    answered = await demo_client.post(
+        f"{ROOT}/login", json={**login, "password": fixtures.DEMO_USER_PASSWORD}
+    )
+    assert answered.status_code == 201
+
+
+@pytest.mark.anyio
+async def test_a_wrong_password_still_charges_the_password_policy(demo_client):
+    # The other half of the rule: a wrong password is what the password policy
+    # is for, and a completion must charge it like any other attempt.
+    key = ec.generate_private_key(ec.SECP256R1())
+    original = await _enroll(demo_client, key)
+    payload = await _payload(demo_client, original["device_id"], key)
+    payload["password"] = "wrong"
+
+    rejected = await demo_client.post(f"{ROOT}/reauthentication", json=payload)
+    assert rejected.status_code == 401
+
+    login = {
+        "device_name": "Synthetic iPhone",
+        "device_public_key": base64.b64encode(b"\x04" + b"\x01" * 64).decode(),
+        "email": fixtures.DEMO_USER_EMAIL,
+    }
+    for _ in range(4):
+        wrong = await demo_client.post(f"{ROOT}/login", json={**login, "password": "wrong"})
+        assert wrong.status_code == 401
+    locked = await demo_client.post(
+        f"{ROOT}/login", json={**login, "password": fixtures.DEMO_USER_PASSWORD}
+    )
+    assert locked.status_code == 429
+
+
+@pytest.mark.anyio
+async def test_a_successful_renewal_keeps_the_shared_ip_strikes(demo_client):
+    # The IP counter is shared with the household's other devices and their
+    # password guesses. One successful renewal clears this account's strikes
+    # only — it must not launder the IP's (PR #169 review).
+    key = ec.generate_private_key(ec.SECP256R1())
+    original = await _enroll(demo_client, key)
+    payload = await _payload(demo_client, original["device_id"], key)
+
+    login = {
+        "device_name": "Synthetic iPhone",
+        "device_public_key": base64.b64encode(b"\x04" + b"\x01" * 64).decode(),
+        "email": fixtures.DEMO_USER_EMAIL,
+    }
+    for _ in range(4):
+        wrong = await demo_client.post(f"{ROOT}/login", json={**login, "password": "wrong"})
+        assert wrong.status_code == 401
+
+    renewed = await demo_client.post(f"{ROOT}/reauthentication", json=payload)
+    assert renewed.status_code == 201
+
+    # The renewal above cleared the account's own strikes; the IP's four are
+    # still there, so one more wrong password reaches the lockout.
+    fifth = await demo_client.post(f"{ROOT}/login", json={**login, "password": "wrong"})
+    assert fifth.status_code == 401
+    locked = await demo_client.post(
+        f"{ROOT}/login", json={**login, "password": fixtures.DEMO_USER_PASSWORD}
+    )
+    assert locked.status_code == 429
+
+
+@pytest.mark.anyio
+async def test_a_failed_device_proof_counts_against_the_challenge_policy(demo_client, demo_app):
+    # The proof failure is counted somewhere, just not on the password policy:
+    # the challenge policy's own completion key (PR #169 review).
+    from family_cfo_api.ratelimit import AuthRateLimiter
+
+    demo_app.state.auth_challenge_rate_limiter = AuthRateLimiter(
+        max_attempts=1, window_seconds=300, lockout_seconds=60
+    )
+    key = ec.generate_private_key(ec.SECP256R1())
+    original = await _enroll(demo_client, key)
+    payload = await _payload(demo_client, original["device_id"], key)
+    payload["signature"] = _proof(key, original["device_id"], payload["challenge"] + "x")
+    # A known IP, so the policy's keys are known too.
+    headers = {"x-forwarded-for": "203.0.113.7"}
+
+    rejected = await demo_client.post(
+        f"{ROOT}/reauthentication", json=payload, headers=headers
+    )
+    assert rejected.status_code == 401
+
+    limiter = demo_app.state.auth_challenge_rate_limiter
+    # The failure landed on the completion key...
+    assert limiter.retry_after(["device-reauth-completion-ip:203.0.113.7"]) is not None
+    # ...and not on issuance's own key, which a different kind of flood uses.
+    assert limiter.retry_after(["device-reauth-challenge-ip:203.0.113.7"]) is None
+    # The next completion from that IP waits out the short pause.
+    blocked = await demo_client.post(
+        f"{ROOT}/reauthentication", json=payload, headers=headers
+    )
+    assert blocked.status_code == 429
+    assert int(blocked.headers["Retry-After"]) <= 60
+
+
+def test_the_two_auth_policies_are_turned_on_separately(demo_engine, monkeypatch):
+    # Turning the password policy off must not turn the challenge policy off
+    # with it, and the other way round (PR #169 review).
+    from family_cfo_api.config import get_settings
+    from family_cfo_api.main import create_app
+
+    monkeypatch.setenv("FAMILY_CFO_AUTH_RATE_LIMIT_ENABLED", "false")
+    get_settings.cache_clear()
+    try:
+        app = create_app(get_settings(), engine=demo_engine)
+        password_policy = app.state.auth_rate_limiter
+        challenge_policy = app.state.auth_challenge_rate_limiter
+        # The password policy is off: five failures never lock the account.
+        for _ in range(5):
+            password_policy.record_failure(["ip:127.0.0.1", "email:someone@example.test"])
+        assert password_policy.retry_after(["ip:127.0.0.1"]) is None
+        # The challenge policy is on: its own threshold still locks.
+        for _ in range(30):
+            challenge_policy.record_failure(["device-reauth-completion-ip:127.0.0.1"])
+        assert challenge_policy.retry_after(["device-reauth-completion-ip:127.0.0.1"]) is not None
+    finally:
+        get_settings.cache_clear()
