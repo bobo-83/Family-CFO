@@ -144,9 +144,9 @@ describe('token-store', () => {
     });
 
     const owner = localStorage.getItem('family-cfo-auth-owner');
-    // The shared record goes under the cross-tab lock, so the removal lands
-    // after the sign-out, not before it.
-    await clearAuthState();
+    // The sign-out clears the memory and the shared record in one step, so a
+    // reconciliation that lands right after it finds nothing to reinstall.
+    clearAuthState();
 
     expect(authState()).toBeNull();
     expect(getToken()).toBeNull();
@@ -292,6 +292,36 @@ describe('shared-pointer fencing (#164 review)', () => {
     expect(authState()).toBeNull();
     expect(localStorage.getItem('family-cfo-auth-owner')).toBe(newerOwner);
     expect(localStorage.getItem('family-cfo-auth-session:' + newerOwner)).toContain('newer-bearer');
+  });
+
+  it('does not reinstall a signed-out session when a focus lands right after (#164 review)', async () => {
+    // A sign-out that waits for the cross-tab lock leaves a window: a focus,
+    // pageshow or visibility reconciliation landing in it reads the outgoing
+    // record and reinstalls the session the sign-out just ended, and the later
+    // removal emits no storage event to this tab — so the tab stays
+    // authenticated after signing out. Holding the lock makes that window
+    // observable: anything that waits for it cannot land.
+    await setAuthState({
+      accessToken: 'live-bearer', expiresAt: '2099-01-01T00:00:00Z',
+      householdId: 'household', userId: 'member', role: 'owner',
+    });
+    const owner = localStorage.getItem('family-cfo-auth-owner');
+    const locks = {
+      request: async <R>(_name: string, callback: () => R | Promise<R>): Promise<R> => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        return await callback();
+      },
+    };
+
+    await withFakeLocks(locks, async () => {
+      clearAuthState();
+      // A reconciliation lands right after the sign-out.
+      window.dispatchEvent(new Event('focus'));
+
+      expect(authState()).toBeNull();
+      expect(getToken()).toBeNull();
+      expect(localStorage.getItem('family-cfo-auth-session:' + owner)).toBeNull();
+    });
   });
 
   it('installs when the shared pointer never moved', async () => {

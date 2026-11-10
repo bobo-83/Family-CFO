@@ -204,18 +204,6 @@ export async function setAuthState(
 }
 
 /**
- * Remove this tab's shared record under the lock, so a sign-out cannot be
- * separated from the removal by a tab that is installing a session.
- */
-async function removeSharedRecord(owner: string): Promise<void> {
-  try {
-    await withSessionLock(() => remove(owner));
-  } catch {
-    // Storage is a reload cache. The memory transition already happened.
-  }
-}
-
-/**
  * Keep the stored login snapshot. A rights refresh updates only the live owner.
  *
  * This is a deliberate web tradeoff (confirmed in the #164 review): persisting
@@ -234,8 +222,22 @@ export function updateSessionRights(
   if (current && ownsSession(owner)) publish({ ...current, state: { ...current.state, ...rights } });
 }
 
-export function clearAuthState(reason: SignInReason | null = null, keepSealRetry = false): Promise<void> {
+export function clearAuthState(reason: SignInReason | null = null, keepSealRetry = false): void {
   const owner = session()?.owner;
+  // The shared record goes now, in the same step as the memory transition.
+  //
+  // It must not wait for the cross-tab lock: a focus, pageshow or
+  // visibility reconciliation that lands in that window would read the
+  // outgoing record and reinstall the session this sign-out just ended, and
+  // the later removal would emit no storage event to this tab to undo it —
+  // the tab would stay authenticated after signing out (PR #169 review).
+  //
+  // Ordering against a tab that is installing a session does not need the
+  // lock either: that install compares and publishes in one synchronous
+  // block, so this removal either lands before its comparison — where the
+  // fence's record comparison refuses the stale install — or after its
+  // publication, which is a newer session that this sign-out does not end.
+  if (owner) remove(owner);
   clearTimeout(timer);
   timer = undefined;
   persistentOwner = null;
@@ -244,9 +246,6 @@ export function clearAuthState(reason: SignInReason | null = null, keepSealRetry
   needsKeyRecovery.set(false);
   if (!owner) authGeneration.update((generation) => generation + 1);
   publish(null);
-  // The shared record goes under the lock: a tab that is installing a session
-  // must not be able to slip a write between this sign-out and the removal.
-  return owner ? removeSharedRecord(owner) : Promise.resolve();
 }
 
 export function checkSessionExpiry(): void {
