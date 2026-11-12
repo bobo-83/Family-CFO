@@ -219,3 +219,10 @@ Tests cover count 0, partial nonzero, partial zero, pluralization, unavailable
 copy, sibling survival, absence of misleading classes/labels and local
 arithmetic, each affected page fixture, generated-client drift, localization,
 and accessibility.
+
+## Reauthentication (#164)
+
+A current expired or rejected session tears down the active protected outlet
+and replaces the protected URL with sign-in. The sign-in reason is separate
+from form errors. Check child activation and guard async work by session owner.
+See [ADR 0080](../adr/0080-session-expiry-reauthentication.md).

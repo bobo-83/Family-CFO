@@ -2199,7 +2199,7 @@
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/login/login.html</context>
-          <context context-type="linenumber">24,26</context>
+          <context context-type="linenumber">28,30</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/signup/signup.html</context>
@@ -5504,7 +5504,7 @@
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/login/login.html</context>
-          <context context-type="linenumber">32,34</context>
+          <context context-type="linenumber">36,38</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/signup/signup.html</context>
@@ -8475,7 +8475,14 @@
         <source>Could not join — the link may have expired. Ask for a new one.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/join/join.ts</context>
-          <context context-type="linenumber">123</context>
+          <context context-type="linenumber">126</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="8701672854370536132" datatype="html">
+        <source>Another tab changed the session while this was in flight, so the invitation was not accepted here.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/join/join.ts</context>
+          <context context-type="linenumber">153</context>
         </context-group>
       </trans-unit>
       <trans-unit id="6276744699093746777" datatype="html">
@@ -8828,7 +8835,7 @@
         <source>Email</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/login/login.html</context>
-          <context context-type="linenumber">14,15</context>
+          <context context-type="linenumber">18,19</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/signup/signup.html</context>
@@ -8853,7 +8860,7 @@
         <source>Email is required.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/login/login.html</context>
-          <context context-type="linenumber">17,18</context>
+          <context context-type="linenumber">21,22</context>
         </context-group>
         <note priority="1" from="description">Validation message</note>
       </trans-unit>
@@ -8861,7 +8868,7 @@
         <source>Enter a valid email address.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/login/login.html</context>
-          <context context-type="linenumber">19,21</context>
+          <context context-type="linenumber">23,25</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/signup/signup.html</context>
@@ -8873,7 +8880,7 @@
         <source> <x id="ICU" equiv-text="{submitting(), select, true {Signing in…} other {Sign in}}" xid="1656161040494514078"/> </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/login/login.html</context>
-          <context context-type="linenumber">47,49</context>
+          <context context-type="linenumber">51,53</context>
         </context-group>
         <note priority="1" from="description">Signs in, showing progress while the request is in flight</note>
         <note priority="1" from="meaning">Login submit button</note>
@@ -8882,14 +8889,28 @@
         <source>{VAR_SELECT, select, true {Signing in…} other {Sign in}}</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/login/login.html</context>
-          <context context-type="linenumber">47,48</context>
+          <context context-type="linenumber">51,52</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="3239589020047044075" datatype="html">
+        <source>Your session has expired. Please sign in again.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/login/login.ts</context>
+          <context context-type="linenumber">38</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="7283311528767488630" datatype="html">
+        <source>Please sign in again to continue.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/login/login.ts</context>
+          <context context-type="linenumber">39</context>
         </context-group>
       </trans-unit>
       <trans-unit id="612058855560391284" datatype="html">
         <source>Login failed.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/login/login.ts</context>
-          <context context-type="linenumber">53</context>
+          <context context-type="linenumber">92</context>
         </context-group>
       </trans-unit>
       <trans-unit id="5125909113933723003" datatype="html">
@@ -12406,7 +12427,7 @@
         <source>Toggle navigation menu</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.html</context>
-          <context context-type="linenumber">9,12</context>
+          <context context-type="linenumber">10,13</context>
         </context-group>
         <note priority="1" from="description">Screen-reader name for the hamburger button that opens the sidebar</note>
         <note priority="1" from="meaning">Mobile menu button</note>
@@ -12415,7 +12436,7 @@
         <source>System Health ↗</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.html</context>
-          <context context-type="linenumber">46,50</context>
+          <context context-type="linenumber">47,51</context>
         </context-group>
         <note priority="1" from="description">Link out to the Grafana ops dashboards</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
@@ -12424,7 +12445,7 @@
         <source>This dashboard&apos;s build, and the box it is talking to. They share a compatibility contract, so only the last number differing is normal.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.html</context>
-          <context context-type="linenumber">57,60</context>
+          <context context-type="linenumber">58,61</context>
         </context-group>
         <note priority="1" from="description">Tooltip explaining the two version numbers in the footer</note>
         <note priority="1" from="meaning">Sidebar version badge</note>
@@ -12433,7 +12454,7 @@
         <source>box v<x id="INTERPOLATION" equiv-text="{{ boxVersion }}"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.html</context>
-          <context context-type="linenumber">66,67</context>
+          <context context-type="linenumber">67,68</context>
         </context-group>
         <note priority="1" from="description">The API&apos;s version shown beside the dashboard&apos;s own. &apos;box&apos; is the machine running the backend.</note>
         <note priority="1" from="meaning">Sidebar version badge</note>
@@ -12442,7 +12463,7 @@
         <source> Log out </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.html</context>
-          <context context-type="linenumber">77,79</context>
+          <context context-type="linenumber">78,80</context>
         </context-group>
         <note priority="1" from="description">Button that signs the member out</note>
         <note priority="1" from="meaning">Sidebar footer action</note>
@@ -12451,16 +12472,23 @@
         <source>Dashboard and box are on different versions — some screens may not match the server.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.html</context>
-          <context context-type="linenumber">88,97</context>
+          <context context-type="linenumber">89,97</context>
         </context-group>
         <note priority="1" from="description">Shown when the dashboard and the API are on different compatibility contracts</note>
         <note priority="1" from="meaning">Sidebar version warning</note>
+      </trans-unit>
+      <trans-unit id="8092785966574664281" datatype="html">
+        <source> Your household data is still locked. Use Restore keys in <x id="START_LINK" ctype="x-a" equiv-text="&lt;a routerLink=&quot;/backups&quot;&gt;"/>Backups<x id="CLOSE_LINK" ctype="x-a" equiv-text="&lt;/a&gt;"/>, or ask your household administrator to unlock it. </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/shell/shell.html</context>
+          <context context-type="linenumber">99,102</context>
+        </context-group>
       </trans-unit>
       <trans-unit id="5536025403430922915" datatype="html">
         <source>Overview</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.ts</context>
-          <context context-type="linenumber">109</context>
+          <context context-type="linenumber">124</context>
         </context-group>
         <note priority="1" from="description">Link to the household overview page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
@@ -12469,7 +12497,7 @@
         <source>Advisor</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.ts</context>
-          <context context-type="linenumber">113</context>
+          <context context-type="linenumber">128</context>
         </context-group>
         <note priority="1" from="description">Link to the AI advisor chat page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
@@ -12478,7 +12506,7 @@
         <source>Money</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.ts</context>
-          <context context-type="linenumber">119</context>
+          <context context-type="linenumber">134</context>
         </context-group>
         <note priority="1" from="description">Heading over the money pages</note>
         <note priority="1" from="meaning">Sidebar nav group</note>
@@ -12487,7 +12515,7 @@
         <source>Accounts</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.ts</context>
-          <context context-type="linenumber">123</context>
+          <context context-type="linenumber">138</context>
         </context-group>
         <note priority="1" from="description">Link to the bank and asset accounts page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
@@ -12496,7 +12524,7 @@
         <source>Transactions</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.ts</context>
-          <context context-type="linenumber">127</context>
+          <context context-type="linenumber">142</context>
         </context-group>
         <note priority="1" from="description">Link to the transactions ledger page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
@@ -12505,7 +12533,7 @@
         <source>Bills</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.ts</context>
-          <context context-type="linenumber">131</context>
+          <context context-type="linenumber">146</context>
         </context-group>
         <note priority="1" from="description">Link to the recurring bills page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
@@ -12514,7 +12542,7 @@
         <source>Debts &amp; loans</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.ts</context>
-          <context context-type="linenumber">135</context>
+          <context context-type="linenumber">150</context>
         </context-group>
         <note priority="1" from="description">Link to the debts and loans page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
@@ -12523,7 +12551,7 @@
         <source>Income &amp; tax</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.ts</context>
-          <context context-type="linenumber">139</context>
+          <context context-type="linenumber">154</context>
         </context-group>
         <note priority="1" from="description">Link to the income and tax page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
@@ -12532,7 +12560,7 @@
         <source>Budgets</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.ts</context>
-          <context context-type="linenumber">143</context>
+          <context context-type="linenumber">158</context>
         </context-group>
         <note priority="1" from="description">Link to the budget envelopes page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
@@ -12541,7 +12569,7 @@
         <source>Categories</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.ts</context>
-          <context context-type="linenumber">147</context>
+          <context context-type="linenumber">162</context>
         </context-group>
         <note priority="1" from="description">Link to the spending categories page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
@@ -12550,7 +12578,7 @@
         <source>Goals</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.ts</context>
-          <context context-type="linenumber">151</context>
+          <context context-type="linenumber">166</context>
         </context-group>
         <note priority="1" from="description">Link to the savings goals page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
@@ -12559,7 +12587,7 @@
         <source>AI</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.ts</context>
-          <context context-type="linenumber">156</context>
+          <context context-type="linenumber">171</context>
         </context-group>
         <note priority="1" from="description">Heading over the AI advisor pages</note>
         <note priority="1" from="meaning">Sidebar nav group</note>
@@ -12568,7 +12596,7 @@
         <source>Advisor memory</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.ts</context>
-          <context context-type="linenumber">160</context>
+          <context context-type="linenumber">175</context>
         </context-group>
         <note priority="1" from="description">Link to what the advisor remembers</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
@@ -12577,7 +12605,7 @@
         <source>AI runtime</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.ts</context>
-          <context context-type="linenumber">165</context>
+          <context context-type="linenumber">180</context>
         </context-group>
         <note priority="1" from="description">Link to the AI model runtime settings</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
@@ -12586,7 +12614,7 @@
         <source>Admin</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.ts</context>
-          <context context-type="linenumber">171</context>
+          <context context-type="linenumber">186</context>
         </context-group>
         <note priority="1" from="description">Heading over the administration pages</note>
         <note priority="1" from="meaning">Sidebar nav group</note>
@@ -12595,7 +12623,7 @@
         <source>Imports</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.ts</context>
-          <context context-type="linenumber">175</context>
+          <context context-type="linenumber">190</context>
         </context-group>
         <note priority="1" from="description">Link to the statement imports page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
@@ -12604,7 +12632,7 @@
         <source>Reports</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.ts</context>
-          <context context-type="linenumber">180</context>
+          <context context-type="linenumber">195</context>
         </context-group>
         <note priority="1" from="description">Link to the reports page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
@@ -12613,7 +12641,7 @@
         <source>Backups</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.ts</context>
-          <context context-type="linenumber">185</context>
+          <context context-type="linenumber">200</context>
         </context-group>
         <note priority="1" from="description">Link to the backups page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
@@ -12622,7 +12650,7 @@
         <source>Users</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.ts</context>
-          <context context-type="linenumber">190</context>
+          <context context-type="linenumber">205</context>
         </context-group>
         <note priority="1" from="description">Link to the household members page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
@@ -12631,7 +12659,7 @@
         <source>Roles</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.ts</context>
-          <context context-type="linenumber">195</context>
+          <context context-type="linenumber">210</context>
         </context-group>
         <note priority="1" from="description">Link to the roles and rights page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
@@ -12640,7 +12668,7 @@
         <source>Devices</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.ts</context>
-          <context context-type="linenumber">200</context>
+          <context context-type="linenumber">215</context>
         </context-group>
         <note priority="1" from="description">Link to the paired devices page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
@@ -12649,7 +12677,7 @@
         <source>Change password</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.ts</context>
-          <context context-type="linenumber">205</context>
+          <context context-type="linenumber">220</context>
         </context-group>
         <note priority="1" from="description">Link to the change-your-password page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>
@@ -12658,7 +12686,7 @@
         <source>Households</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/shell/shell.ts</context>
-          <context context-type="linenumber">210</context>
+          <context context-type="linenumber">225</context>
         </context-group>
         <note priority="1" from="description">Link to the hosted households page</note>
         <note priority="1" from="meaning">Sidebar nav item</note>

@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import OpenAPIRuntime
 
 /// The paired server, persisted in UserDefaults (nothing secret lives here —
 /// the access token is in the Keychain).
@@ -9,6 +10,7 @@ struct ServerConfig: Codable, Equatable {
     var householdID: String
     var householdName: String
     var deviceName: String
+    var retainedDeviceID: String? = nil
 }
 
 /// The revocable device credential stored in the Keychain. Existing QR-issued
@@ -31,19 +33,43 @@ final class AppModel {
     @ObservationIgnored private let storage: AppSessionStorage
     @ObservationIgnored private let effects: AppSessionEffects
 
-    init(storage: AppSessionStorage = .live, effects: AppSessionEffects = .live) {
+    @ObservationIgnored private let wallNow: () -> Date
+    @ObservationIgnored private let monotonicNow: () -> TimeInterval
+    @ObservationIgnored private let transport: (any ClientTransport)?
+    @ObservationIgnored private let authenticate: () async -> Bool
+    @ObservationIgnored private var deadline: SessionDeadline?
+    @ObservationIgnored private var expiryTask: Task<Void, Never>?
+
+    init(
+        storage: AppSessionStorage = .live, effects: AppSessionEffects = .live,
+        wallNow: @escaping () -> Date = Date.init,
+        monotonicNow: @escaping () -> TimeInterval = SessionDeadline.monotonicTime,
+        transport: (any ClientTransport)? = nil,
+        authenticate: @escaping () async -> Bool = { await BiometricGate.authenticate() }
+    ) {
         self.storage = storage
         self.effects = effects
+        self.wallNow = wallNow
+        self.monotonicNow = monotonicNow
+        self.authenticate = authenticate
+        self.transport = transport
     }
 
     enum Phase: Equatable {
         case loading
         case unpaired
+        case reauthenticating
         case locked
         case ready
     }
 
+    enum SignInNotice: Equatable { case expired, rejected }
+
     private(set) var phase: Phase = .loading
+    private(set) var signInNotice: SignInNotice?
+    private(set) var sessionOwner = UUID()
+    private(set) var startsAtOverview = false
+    private(set) var needsHouseholdKeyRecovery = false
     private(set) var server: ServerConfig?
     /// A non-secret namespace for session-owned local reminders. Rotating it
     /// prevents an outgoing load from replacing or cancelling the new session's
@@ -52,28 +78,82 @@ final class AppModel {
     /// Set only during a cold, valid stored-session restoration. A fresh
     /// sign-in/account replacement must never inherit this language cache.
     @ObservationIgnored private var restoringStoredLanguage: String?
-    private(set) var credential: StoredCredential? {
-        didSet {
-            // #156: a new token is a new session — sign-in, pairing, sign-out —
-            // and possibly a different household. Rights refreshes keep the
-            // token and must not drop the cached currency.
-            if oldValue?.accessToken != credential?.accessToken {
-                householdCurrency.invalidate()
-                monthTransactions.invalidate()
-                advisorAsk = nil
-                householdLanguage = restoringStoredLanguage ?? "en"
-                syncStatus = storage.makeSyncStatus(credential.map {
-                    "\(server?.householdID ?? ""):\($0.deviceID)"
-                })
+    private(set) var credential: StoredCredential?
 
-                billNotificationScope = UUID().uuidString
-                let currentScope = billNotificationScope
-                // Production clears notifications and unscoped widget snapshots.
-                // Tests supply isolated/no-op collaborators, not the host services.
-                effects.clearArtifacts(currentScope)
-            }
+    private func replaceCredential(_ next: StoredCredential?) {
+        sessionOwner = UUID()
+        credential = next
+        needsHouseholdKeyRecovery = false
+        householdCurrency.invalidate()
+        monthTransactions.invalidate()
+        advisorAsk = nil
+        householdLanguage = restoringStoredLanguage ?? "en"
+        syncStatus = storage.makeSyncStatus(next.map { "\(server?.householdID ?? ""):\($0.deviceID)" })
+        billNotificationScope = UUID().uuidString
+        effects.clearArtifacts(billNotificationScope)
+        deadline = next.map {
+            SessionDeadline(expiresAt: $0.expiresAt, wallNow: wallNow(), monotonicNow: monotonicNow())
+        }
+        checkSessionExpiry()
+    }
+
+    func checkSessionExpiry() {
+        expiryTask?.cancel()
+        expiryTask = nil
+        guard let deadline else { return }
+        let remaining = deadline.remaining(wallNow: wallNow(), monotonicNow: monotonicNow())
+        guard remaining > 0 else {
+            requireSignIn(.expired)
+            return
+        }
+        expiryTask = Task { [weak self] in
+            do { try await Task.sleep(for: .seconds(min(remaining, 30))) }
+            catch { return }
+            self?.checkSessionExpiry()
         }
     }
+
+    func ownsSession(_ owner: UUID) -> Bool {
+        if let deadline,
+            deadline.remaining(wallNow: wallNow(), monotonicNow: monotonicNow()) <= 0
+        {
+            requireSignIn(.expired)
+        }
+        return credential != nil && sessionOwner == owner
+    }
+
+    private func requireSignIn(_ reason: SignInNotice) {
+        if let deviceID = credential?.deviceID { retainDevice(deviceID) }
+        storage.deleteCredential(Self.credentialAccount)
+        signInNotice = reason
+        phase = server?.retainedDeviceID == nil ? .unpaired : .reauthenticating
+        replaceCredential(nil)
+        effects.activateWatch()
+        effects.pushWatch(server, nil)
+    }
+
+    private func retainDevice(_ deviceID: String?) {
+        guard var current = server, current.retainedDeviceID != deviceID else { return }
+        current.retainedDeviceID = deviceID
+        storage.writeServer(try? JSONEncoder().encode(current))
+        server = current
+    }
+
+    func chooseDeviceSetup() {
+        guard phase == .reauthenticating else { return }
+        storage.deleteCredential("device-private-key")
+        retainDevice(nil)
+        signInNotice = nil
+        sessionOwner = UUID()
+        phase = .unpaired
+    }
+
+    func beginSignIn() -> UUID {
+        sessionOwner = UUID()
+        return sessionOwner
+    }
+
+    func reauthenticationKey() -> Data? { storage.readCredential("device-private-key") }
 
     /// #156 (ADR 0075): the household's base currency for the screens that must
     /// not guess it (Accounts and Goals forms). Seeded by every live context
@@ -89,8 +169,8 @@ final class AppModel {
     )
 
     private var currencySessionKey: String? {
-        guard let server, let credential else { return nil }
-        return "\(server.householdID):\(credential.deviceID):\(credential.accessToken)"
+        guard let server, credential != nil else { return nil }
+        return "\(server.householdID):\(sessionOwner.uuidString)"
     }
 
     /// Request-start provenance for Apple aggregate loads. It intentionally
@@ -157,6 +237,7 @@ final class AppModel {
     private var client: Client? {
         guard let server, let credential else { return nil }
         let token = credential.accessToken
+        let owner = sessionOwner
         let storage = storage
         return APIClientFactory.makeClient(
             baseURL: server.apiBaseURL,
@@ -169,8 +250,21 @@ final class AppModel {
             // language. Read live from the cached household setting, so a
             // mid-session change applies to the next request.
             language: { storage.readLanguage() },
-            advisorRecoveryHorizon: advisorRecoveryHorizon
+            advisorRecoveryHorizon: advisorRecoveryHorizon,
+            ownsSession: { [weak self] in await self?.ownsSession(owner) ?? false },
+            onUnauthorized: { [weak self] in await self?.rejectSession(owner) },
+            onHouseholdLocked: { [weak self] in await self?.reportHouseholdLocked(owner) },
+            transport: transport
         )
+    }
+
+    func rejectSession(_ owner: UUID) {
+        guard ownsSession(owner) else { return }
+        requireSignIn(.rejected)
+    }
+
+    private func reportHouseholdLocked(_ owner: UUID) {
+        if ownsSession(owner) { needsHouseholdKeyRecovery = true }
     }
 
     var api: AdvisorAPI? {
@@ -195,11 +289,13 @@ final class AppModel {
         // alive. The callback therefore carries the session and household it
         // was built for and is dropped for any other.
         let requestedIn = currencySessionKey
+        let owner = sessionOwner
         let householdID = server.householdID
         return LiveHouseholdAPI(client: client) { [weak self] context in
-            guard let self, self.currencySessionKey == requestedIn,
+            guard let self, self.ownsSession(owner), self.currencySessionKey == requestedIn,
                 context.householdId == householdID
             else { return }
+            self.needsHouseholdKeyRecovery = false
             self.householdLanguage = context.language ?? "en"
             // The same fetch carries the base currency.
             if let requestedIn {
@@ -302,6 +398,7 @@ final class AppModel {
     }
 
     func bootstrap() {
+        guard phase == .loading else { return }
         // Re-register the Siri App Shortcuts on every launch: rapid TestFlight
         // updates can silently drop the registration, breaking "Ask my CFO"
         // until a refresh (user report 2026-07-26). Cheap and idempotent.
@@ -323,40 +420,63 @@ final class AppModel {
         let restoredServer = serverData.flatMap {
             try? JSONDecoder().decode(ServerConfig.self, from: $0)
         }
-        let restoredCredential = restoredServer == nil ? nil : credentialData.flatMap {
+        struct DeviceIdentity: Decodable { let deviceID: String }
+        let restoredCredential = credentialData.flatMap {
             try? JSONDecoder().decode(StoredCredential.self, from: $0)
         }
-        if phase == .loading, credential == nil, restoredCredential != nil {
-            restoringStoredLanguage = storage.readLanguage() ?? "en"
-        }
-        defer { restoringStoredLanguage = nil }
         server = restoredServer
-        credential = restoredCredential
-        // nil -> nil does not cross the token boundary in didSet, but a
-        // signed-out/corrupt restoration must still clear stale persisted state.
-        if credential == nil { householdLanguage = "en" }
-        phase = credential == nil ? .unpaired : .locked
+        if let restoredCredential, restoredServer != nil,
+            restoredCredential.expiresAt.timeIntervalSinceReferenceDate.isFinite,
+            restoredCredential.expiresAt > wallNow()
+        {
+            if phase == .loading { restoringStoredLanguage = storage.readLanguage() ?? "en" }
+            defer { restoringStoredLanguage = nil }
+            phase = .locked
+            if credential?.accessToken == restoredCredential.accessToken {
+                // Same token, possibly a different expiry. The deadline must
+                // track the supplied credential, not the one first installed —
+                // an earlier expiry must not be lived past (PR #169 review).
+                // replaceCredential would be wrong here: it drops the caches
+                // that same-token restoration intentionally preserves.
+                credential = restoredCredential
+                deadline = SessionDeadline(
+                    expiresAt: restoredCredential.expiresAt,
+                    wallNow: wallNow(), monotonicNow: monotonicNow()
+                )
+                checkSessionExpiry()
+            } else {
+                replaceCredential(restoredCredential)
+            }
+            return
+        }
+        if restoredServer != nil, let credentialData {
+            if let identity = try? JSONDecoder().decode(DeviceIdentity.self, from: credentialData) {
+                retainDevice(identity.deviceID)
+            }
+            requireSignIn(restoredCredential == nil ? .rejected : .expired)
+            return
+        }
+        if credential != nil { replaceCredential(nil) }
+        householdLanguage = "en"
+        phase = server?.retainedDeviceID == nil ? .unpaired : .reauthenticating
     }
 
-    /// Latest-wins re-push whenever the app comes forward (ADR 0067 v6): the
-    /// watch's copy of the pairing can never lag more than one foregrounding.
+    /// Latest-wins re-push whenever the app comes forward (ADR 0067 v6).
     func pushWatchPairing() {
-        guard phase == .ready else { return }
+        guard phase == .ready, ownsSession(sessionOwner) else { return }
         effects.pushWatch(server, credential)
     }
 
     func unlock() async {
-        guard phase == .locked else { return }
-        let requestedSession = currencySessionKey
-        if await BiometricGate.authenticate(), phase == .locked,
-            currencySessionKey == requestedSession {
-            phase = .ready
-            await refreshSessionRights()
-            seedHouseholdLanguage()
-            // M-watch (ADR 0067): keep the watch's copy of the pairing fresh.
-            effects.activateWatch()
-            effects.pushWatch(server, credential)
-        }
+        let owner = sessionOwner
+        guard phase == .locked, ownsSession(owner), await authenticate(),
+            phase == .locked, ownsSession(owner) else { return }
+        phase = .ready
+        await refreshSessionRights()
+        guard ownsSession(owner) else { return }
+        seedHouseholdLanguage()
+        effects.activateWatch()
+        effects.pushWatch(server, credential)
     }
 
     /// ADR 0065: rights change server-side (role edits, system-admin grants)
@@ -365,12 +485,13 @@ final class AppModel {
     /// Best-effort: offline keeps the cached rights, and every server check
     /// is per-request anyway.
     func refreshSessionRights() async {
+        let owner = sessionOwner
         guard let client, var credential else { return }
         guard case .ok(let response) = try? await client.getSessionInfo(.init()),
             let info = try? response.body.json
         else { return }
         // A response to the old device must never resurrect it after sign-out.
-        guard self.credential?.accessToken == credential.accessToken else { return }
+        guard ownsSession(owner) else { return }
         guard credential.rights != info.rights || credential.roleName != info.roleName else {
             return
         }
@@ -384,7 +505,9 @@ final class AppModel {
 
     @discardableResult
     func completePairing(server: ServerConfig, credential: StoredCredential) -> Bool {
-        guard let data = try? JSONEncoder().encode(server),
+        var server = server
+        server.retainedDeviceID = credential.deviceID
+        guard credential.expiresAt > wallNow(), let data = try? JSONEncoder().encode(server),
             let credentialData = try? JSONEncoder().encode(credential),
             (try? storage.writeCredential(credentialData, Self.credentialAccount)) != nil
         else {
@@ -392,8 +515,10 @@ final class AppModel {
         }
         storage.writeServer(data)
         self.server = server
-        self.credential = credential
+        startsAtOverview = phase == .reauthenticating || signInNotice != nil
+        signInNotice = nil
         phase = .ready
+        replaceCredential(credential)
         effects.activateWatch()
         effects.pushWatch(server, credential)
         seedHouseholdLanguage()
@@ -421,20 +546,25 @@ final class AppModel {
         storage.deleteCredential("device-private-key")
         storage.writeServer(nil)
         server = nil
-        credential = nil
+        signInNotice = nil
+        replaceCredential(nil)
         phase = .unpaired
     }
 
     /// ADR 0079: sign out but preserve server address/trust across relaunch.
     /// Clear local access before awaiting best-effort server revocation.
     func signOut() async {
-        let outgoingClient = client
+        let outgoingClient: Client? = if let server, let token = credential?.accessToken {
+            APIClientFactory.makeClient(
+                baseURL: server.apiBaseURL, pinnedCertificateSHA256: server.certificateSHA256,
+                token: { token }, transport: transport)
+        } else { nil }
+        retainDevice(nil)
         effects.pushWatch(server, nil)
         storage.deleteCredential(Self.credentialAccount)
         storage.deleteCredential("device-private-key")
-        credential = nil
-        advisorAsk = nil
-        householdLanguage = "en"
+        signInNotice = nil
+        replaceCredential(nil)
         phase = .unpaired
         if let outgoingClient {
             await effects.revokeSession(outgoingClient)

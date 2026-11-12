@@ -1,3 +1,4 @@
+@for (generation of activeGenerations(); track generation) {
 <div class="shell">
   <!-- Mobile top bar: brand + hamburger. Hidden on desktop widths. -->
   <header class="shell__topbar">
@@ -93,6 +94,13 @@
   </aside>
 
   <main class="shell__content">
+    @if (needsKeyRecovery()) {
+      <p role="alert" i18n>
+        Your household data is still locked. Use Restore keys in
+        <a routerLink="/backups">Backups</a>, or ask your household administrator to unlock it.
+      </p>
+    }
     <router-outlet />
   </main>
 </div>
+}

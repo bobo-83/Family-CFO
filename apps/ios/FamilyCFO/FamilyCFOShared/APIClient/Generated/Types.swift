@@ -23,6 +23,16 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /pairing/login`.
     /// - Remark: Generated from `#/paths//pairing/login/post(createDeviceSessionWithPassword)`.
     func createDeviceSessionWithPassword(_ input: Operations.CreateDeviceSessionWithPassword.Input) async throws -> Operations.CreateDeviceSessionWithPassword.Output
+    /// Issue a single-use challenge for existing device sign-in
+    ///
+    /// - Remark: HTTP `POST /pairing/reauthentication/challenge`.
+    /// - Remark: Generated from `#/paths//pairing/reauthentication/challenge/post(createDeviceReauthenticationChallenge)`.
+    func createDeviceReauthenticationChallenge(_ input: Operations.CreateDeviceReauthenticationChallenge.Input) async throws -> Operations.CreateDeviceReauthenticationChallenge.Output
+    /// Sign in again on an existing device using a password and device proof
+    ///
+    /// - Remark: HTTP `POST /pairing/reauthentication`.
+    /// - Remark: Generated from `#/paths//pairing/reauthentication/post(reauthenticateDevice)`.
+    func reauthenticateDevice(_ input: Operations.ReauthenticateDevice.Input) async throws -> Operations.ReauthenticateDevice.Output
     /// List paired devices
     ///
     /// - Remark: HTTP `GET /pairing/devices`.
@@ -904,6 +914,32 @@ extension APIProtocol {
         body: Operations.CreateDeviceSessionWithPassword.Input.Body
     ) async throws -> Operations.CreateDeviceSessionWithPassword.Output {
         try await createDeviceSessionWithPassword(Operations.CreateDeviceSessionWithPassword.Input(
+            headers: headers,
+            body: body
+        ))
+    }
+    /// Issue a single-use challenge for existing device sign-in
+    ///
+    /// - Remark: HTTP `POST /pairing/reauthentication/challenge`.
+    /// - Remark: Generated from `#/paths//pairing/reauthentication/challenge/post(createDeviceReauthenticationChallenge)`.
+    public func createDeviceReauthenticationChallenge(
+        headers: Operations.CreateDeviceReauthenticationChallenge.Input.Headers = .init(),
+        body: Operations.CreateDeviceReauthenticationChallenge.Input.Body
+    ) async throws -> Operations.CreateDeviceReauthenticationChallenge.Output {
+        try await createDeviceReauthenticationChallenge(Operations.CreateDeviceReauthenticationChallenge.Input(
+            headers: headers,
+            body: body
+        ))
+    }
+    /// Sign in again on an existing device using a password and device proof
+    ///
+    /// - Remark: HTTP `POST /pairing/reauthentication`.
+    /// - Remark: Generated from `#/paths//pairing/reauthentication/post(reauthenticateDevice)`.
+    public func reauthenticateDevice(
+        headers: Operations.ReauthenticateDevice.Input.Headers = .init(),
+        body: Operations.ReauthenticateDevice.Input.Body
+    ) async throws -> Operations.ReauthenticateDevice.Output {
+        try await reauthenticateDevice(Operations.ReauthenticateDevice.Input(
             headers: headers,
             body: body
         ))
@@ -3097,6 +3133,81 @@ public enum Components {
                 case rights
                 case householdId = "household_id"
                 case householdName = "household_name"
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/DeviceReauthenticationChallengeRequest`.
+        public struct DeviceReauthenticationChallengeRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/DeviceReauthenticationChallengeRequest/device_id`.
+            public var deviceId: Swift.String
+            /// Creates a new `DeviceReauthenticationChallengeRequest`.
+            ///
+            /// - Parameters:
+            ///   - deviceId:
+            public init(deviceId: Swift.String) {
+                self.deviceId = deviceId
+            }
+            public enum CodingKeys: String, CodingKey {
+                case deviceId = "device_id"
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/DeviceReauthenticationChallenge`.
+        public struct DeviceReauthenticationChallenge: Codable, Hashable, Sendable {
+            /// Single-use, five-minute challenge encoded as unpadded base64url.
+            ///
+            /// - Remark: Generated from `#/components/schemas/DeviceReauthenticationChallenge/challenge`.
+            public var challenge: Swift.String
+            /// Creates a new `DeviceReauthenticationChallenge`.
+            ///
+            /// - Parameters:
+            ///   - challenge: Single-use, five-minute challenge encoded as unpadded base64url.
+            public init(challenge: Swift.String) {
+                self.challenge = challenge
+            }
+            public enum CodingKeys: String, CodingKey {
+                case challenge
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/DeviceReauthenticationRequest`.
+        public struct DeviceReauthenticationRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/DeviceReauthenticationRequest/device_id`.
+            public var deviceId: Swift.String
+            /// - Remark: Generated from `#/components/schemas/DeviceReauthenticationRequest/challenge`.
+            public var challenge: Swift.String
+            /// - Remark: Generated from `#/components/schemas/DeviceReauthenticationRequest/email`.
+            public var email: Swift.String
+            /// - Remark: Generated from `#/components/schemas/DeviceReauthenticationRequest/password`.
+            public var password: Swift.String
+            /// Raw ECDSA P-256 signature (r followed by s), encoded as unpadded base64url. See ADR 0080.
+            ///
+            /// - Remark: Generated from `#/components/schemas/DeviceReauthenticationRequest/signature`.
+            public var signature: Swift.String
+            /// Creates a new `DeviceReauthenticationRequest`.
+            ///
+            /// - Parameters:
+            ///   - deviceId:
+            ///   - challenge:
+            ///   - email:
+            ///   - password:
+            ///   - signature: Raw ECDSA P-256 signature (r followed by s), encoded as unpadded base64url. See ADR 0080.
+            public init(
+                deviceId: Swift.String,
+                challenge: Swift.String,
+                email: Swift.String,
+                password: Swift.String,
+                signature: Swift.String
+            ) {
+                self.deviceId = deviceId
+                self.challenge = challenge
+                self.email = email
+                self.password = password
+                self.signature = signature
+            }
+            public enum CodingKeys: String, CodingKey {
+                case deviceId = "device_id"
+                case challenge
+                case email
+                case password
+                case signature
             }
         }
         /// ADR 0079: account-only device sign-in with a device-bound session.
@@ -13009,6 +13120,317 @@ public enum Operations {
             /// Rate limited. `Retry-After` carries the remaining wait in seconds, so a client can say how long instead of guessing — the auth lockout is minutes long, not the "wait a minute" clients used to print (#92). Treat the header as advisory: an older server or an intermediary that strips it leaves it absent, and a client must then say "later" rather than name a duration it does not know.
             ///
             /// - Remark: Generated from `#/paths//pairing/login/post(createDeviceSessionWithPassword)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Components.Responses.RateLimited)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Components.Responses.RateLimited {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Issue a single-use challenge for existing device sign-in
+    ///
+    /// - Remark: HTTP `POST /pairing/reauthentication/challenge`.
+    /// - Remark: Generated from `#/paths//pairing/reauthentication/challenge/post(createDeviceReauthenticationChallenge)`.
+    public enum CreateDeviceReauthenticationChallenge {
+        public static let id: Swift.String = "createDeviceReauthenticationChallenge"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/pairing/reauthentication/challenge/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.CreateDeviceReauthenticationChallenge.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.CreateDeviceReauthenticationChallenge.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.CreateDeviceReauthenticationChallenge.Input.Headers
+            /// - Remark: Generated from `#/paths/pairing/reauthentication/challenge/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/pairing/reauthentication/challenge/POST/requestBody/content/application\/json`.
+                case json(Components.Schemas.DeviceReauthenticationChallengeRequest)
+            }
+            public var body: Operations.CreateDeviceReauthenticationChallenge.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            ///   - body:
+            public init(
+                headers: Operations.CreateDeviceReauthenticationChallenge.Input.Headers = .init(),
+                body: Operations.CreateDeviceReauthenticationChallenge.Input.Body
+            ) {
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Created: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/pairing/reauthentication/challenge/POST/responses/201/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/pairing/reauthentication/challenge/POST/responses/201/content/application\/json`.
+                    case json(Components.Schemas.DeviceReauthenticationChallenge)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.DeviceReauthenticationChallenge {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.CreateDeviceReauthenticationChallenge.Output.Created.Body
+                /// Creates a new `Created`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.CreateDeviceReauthenticationChallenge.Output.Created.Body) {
+                    self.body = body
+                }
+            }
+            /// Short-lived challenge
+            ///
+            /// - Remark: Generated from `#/paths//pairing/reauthentication/challenge/post(createDeviceReauthenticationChallenge)/responses/201`.
+            ///
+            /// HTTP response code: `201 created`.
+            case created(Operations.CreateDeviceReauthenticationChallenge.Output.Created)
+            /// The associated value of the enum case if `self` is `.created`.
+            ///
+            /// - Throws: An error if `self` is not `.created`.
+            /// - SeeAlso: `.created`.
+            public var created: Operations.CreateDeviceReauthenticationChallenge.Output.Created {
+                get throws {
+                    switch self {
+                    case let .created(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "created",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Rate limited. `Retry-After` carries the remaining wait in seconds, so a client can say how long instead of guessing — the auth lockout is minutes long, not the "wait a minute" clients used to print (#92). Treat the header as advisory: an older server or an intermediary that strips it leaves it absent, and a client must then say "later" rather than name a duration it does not know.
+            ///
+            /// - Remark: Generated from `#/paths//pairing/reauthentication/challenge/post(createDeviceReauthenticationChallenge)/responses/429`.
+            ///
+            /// HTTP response code: `429 tooManyRequests`.
+            case tooManyRequests(Components.Responses.RateLimited)
+            /// The associated value of the enum case if `self` is `.tooManyRequests`.
+            ///
+            /// - Throws: An error if `self` is not `.tooManyRequests`.
+            /// - SeeAlso: `.tooManyRequests`.
+            public var tooManyRequests: Components.Responses.RateLimited {
+                get throws {
+                    switch self {
+                    case let .tooManyRequests(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "tooManyRequests",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Sign in again on an existing device using a password and device proof
+    ///
+    /// - Remark: HTTP `POST /pairing/reauthentication`.
+    /// - Remark: Generated from `#/paths//pairing/reauthentication/post(reauthenticateDevice)`.
+    public enum ReauthenticateDevice {
+        public static let id: Swift.String = "reauthenticateDevice"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/pairing/reauthentication/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ReauthenticateDevice.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.ReauthenticateDevice.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.ReauthenticateDevice.Input.Headers
+            /// - Remark: Generated from `#/paths/pairing/reauthentication/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/pairing/reauthentication/POST/requestBody/content/application\/json`.
+                case json(Components.Schemas.DeviceReauthenticationRequest)
+            }
+            public var body: Operations.ReauthenticateDevice.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - headers:
+            ///   - body:
+            public init(
+                headers: Operations.ReauthenticateDevice.Input.Headers = .init(),
+                body: Operations.ReauthenticateDevice.Input.Body
+            ) {
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Created: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/pairing/reauthentication/POST/responses/201/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/pairing/reauthentication/POST/responses/201/content/application\/json`.
+                    case json(Components.Schemas.DeviceCredential)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.DeviceCredential {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.ReauthenticateDevice.Output.Created.Body
+                /// Creates a new `Created`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.ReauthenticateDevice.Output.Created.Body) {
+                    self.body = body
+                }
+            }
+            /// Replacement device-bound session
+            ///
+            /// - Remark: Generated from `#/paths//pairing/reauthentication/post(reauthenticateDevice)/responses/201`.
+            ///
+            /// HTTP response code: `201 created`.
+            case created(Operations.ReauthenticateDevice.Output.Created)
+            /// The associated value of the enum case if `self` is `.created`.
+            ///
+            /// - Throws: An error if `self` is not `.created`.
+            /// - SeeAlso: `.created`.
+            public var created: Operations.ReauthenticateDevice.Output.Created {
+                get throws {
+                    switch self {
+                    case let .created(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "created",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//pairing/reauthentication/post(reauthenticateDevice)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Rate limited. `Retry-After` carries the remaining wait in seconds, so a client can say how long instead of guessing — the auth lockout is minutes long, not the "wait a minute" clients used to print (#92). Treat the header as advisory: an older server or an intermediary that strips it leaves it absent, and a client must then say "later" rather than name a duration it does not know.
+            ///
+            /// - Remark: Generated from `#/paths//pairing/reauthentication/post(reauthenticateDevice)/responses/429`.
             ///
             /// HTTP response code: `429 tooManyRequests`.
             case tooManyRequests(Components.Responses.RateLimited)

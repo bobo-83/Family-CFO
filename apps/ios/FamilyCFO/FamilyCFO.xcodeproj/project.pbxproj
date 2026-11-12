@@ -98,6 +98,7 @@
 /* Begin PBXFileReference section */
 		FC0000000000000000000020 /* FamilyCFO.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FamilyCFO.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		FC0000000000000000000021 /* FamilyCFOTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FamilyCFOTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		FE0000000000000000000026 /* FamilyCFOUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FamilyCFOUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		FC0000000000000000000022 /* FamilyCFOShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = FamilyCFOShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		FC0000000000000000000023 /* FamilyCFOWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FamilyCFOWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		FC0000000000000000000024 /* FamilyCFOWatchWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = FamilyCFOWatchWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -138,6 +139,7 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		FC0000000000000000000030 /* FamilyCFO */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = FamilyCFO; sourceTree = "<group>"; };
 		FC0000000000000000000031 /* FamilyCFOTests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = FamilyCFOTests; sourceTree = "<group>"; };
+		FE0000000000000000000039 /* FamilyCFOUITests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = FamilyCFOUITests; sourceTree = "<group>"; };
 		FC0000000000000000000032 /* FamilyCFOShareExtension */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (FC00000000000000000000B0 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = FamilyCFOShareExtension; sourceTree = "<group>"; };
 		FC0000000000000000000033 /* FamilyCFOShared */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = FamilyCFOShared; sourceTree = "<group>"; };
 		FC0000000000000000000034 /* FamilyCFOWatch */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (FC00000000000000000000B3 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = FamilyCFOWatch; sourceTree = "<group>"; };
@@ -160,6 +162,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		FC0000000000000000000044 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		FE00000000000000000000A5 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -211,6 +220,7 @@
 				FC0000000000000000000037 /* FamilyCFOWidget */,
 				FC0000000000000000000038 /* FamilyCFOWidgetShared */,
 				FC0000000000000000000031 /* FamilyCFOTests */,
+				FE0000000000000000000039 /* FamilyCFOUITests */,
 				FC0000000000000000000032 /* FamilyCFOShareExtension */,
 				FC0000000000000000000003 /* Products */,
 			);
@@ -221,6 +231,7 @@
 			children = (
 				FC0000000000000000000020 /* FamilyCFO.app */,
 				FC0000000000000000000021 /* FamilyCFOTests.xctest */,
+				FE0000000000000000000026 /* FamilyCFOUITests.xctest */,
 				FC0000000000000000000022 /* FamilyCFOShareExtension.appex */,
 				FC0000000000000000000023 /* FamilyCFOWatch.app */,
 				FC0000000000000000000024 /* FamilyCFOWatchWidgets.appex */,
@@ -288,6 +299,29 @@
 			productName = FamilyCFOTests;
 			productReference = FC0000000000000000000021 /* FamilyCFOTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		FE0000000000000000000016 /* FamilyCFOUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = FE0000000000000000000057 /* Build configuration list for PBXNativeTarget "FamilyCFOUITests" */;
+			buildPhases = (
+				FE00000000000000000000A4 /* Sources */,
+				FE00000000000000000000A5 /* Frameworks */,
+				FE00000000000000000000A6 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				FE000000000000000000007B /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				FE0000000000000000000039 /* FamilyCFOUITests */,
+			);
+			name = FamilyCFOUITests;
+			packageProductDependencies = (
+			);
+			productName = FamilyCFOUITests;
+			productReference = FE0000000000000000000026 /* FamilyCFOUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 		FC0000000000000000000012 /* FamilyCFOShareExtension */ = {
 			isa = PBXNativeTarget;
@@ -404,6 +438,10 @@
 						CreatedOnToolsVersion = 16.0;
 						TestTargetID = FC0000000000000000000010;
 					};
+					FE0000000000000000000016 = {
+						CreatedOnToolsVersion = 16.0;
+						TestTargetID = FC0000000000000000000010;
+					};
 					FC0000000000000000000012 = {
 						CreatedOnToolsVersion = 16.0;
 					};
@@ -442,6 +480,7 @@
 			targets = (
 				FC0000000000000000000010 /* FamilyCFO */,
 				FC0000000000000000000011 /* FamilyCFOTests */,
+				FE0000000000000000000016 /* FamilyCFOUITests */,
 				FC0000000000000000000012 /* FamilyCFOShareExtension */,
 				FC0000000000000000000013 /* FamilyCFOWatch */,
 				FC0000000000000000000014 /* FamilyCFOWatchWidgets */,
@@ -459,6 +498,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		FC0000000000000000000045 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		FE00000000000000000000A6 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -510,6 +556,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		FE00000000000000000000A4 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		FC0000000000000000000048 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -542,6 +595,11 @@
 
 /* Begin PBXTargetDependency section */
 		FC0000000000000000000071 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = FC0000000000000000000010 /* FamilyCFO */;
+			targetProxy = FC0000000000000000000070 /* PBXContainerItemProxy */;
+		};
+		FE000000000000000000007B /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = FC0000000000000000000010 /* FamilyCFO */;
 			targetProxy = FC0000000000000000000070 /* PBXContainerItemProxy */;
@@ -759,6 +817,20 @@
 			};
 			name = Debug;
 		};
+		FE00000000000000000000AA /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 2;
+				GENERATE_INFOPLIST_FILE = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.familycfo.ios.ui-tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = FamilyCFO;
+			};
+			name = Debug;
+		};
 		FC0000000000000000000065 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -771,6 +843,20 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				TARGETED_DEVICE_FAMILY = 1;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/FamilyCFO.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/FamilyCFO";
+			};
+			name = Release;
+		};
+		FE00000000000000000000AB /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 2;
+				GENERATE_INFOPLIST_FILE = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.familycfo.ios.ui-tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = FamilyCFO;
 			};
 			name = Release;
 		};
@@ -1028,6 +1114,15 @@
 			buildConfigurations = (
 				FC0000000000000000000064 /* Debug */,
 				FC0000000000000000000065 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		FE0000000000000000000057 /* Build configuration list for PBXNativeTarget "FamilyCFOUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				FE00000000000000000000AA /* Debug */,
+				FE00000000000000000000AB /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

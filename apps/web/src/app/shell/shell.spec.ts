@@ -2,10 +2,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { AuthService } from '../core/auth.service';
+import { clearAuthState, setAuthState } from '../core/token-store';
 import { Shell } from './shell';
 
 describe('Shell', () => {
   beforeEach(async () => {
+    await setAuthState({
+      accessToken: 'test-token',
+      expiresAt: '2099-01-01T00:00:00Z',
+      householdId: 'household',
+      userId: 'member',
+      role: 'owner',
+    });
     await TestBed.configureTestingModule({
       imports: [Shell],
       providers: [
@@ -15,6 +23,8 @@ describe('Shell', () => {
       ],
     }).compileComponents();
   });
+
+  afterEach(() => clearAuthState());
 
   it('starts with the mobile menu closed and toggles it', () => {
     const component = TestBed.createComponent(Shell).componentInstance;

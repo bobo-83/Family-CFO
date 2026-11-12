@@ -100,6 +100,16 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         lockout_seconds=settings.auth_rate_limit_lockout_seconds,
         enabled=settings.auth_rate_limit_enabled,
     )
+    # ADR 0080: challenge issuance counts against its own burst-tolerant
+    # policy (see Settings), so the failed-password lockout can never gate a
+    # household's own devices renewing their sessions from one home IP. Its
+    # enabled flag is its own too: the two policies are turned off separately.
+    app.state.auth_challenge_rate_limiter = AuthRateLimiter(
+        max_attempts=settings.auth_challenge_rate_limit_max_issuances,
+        window_seconds=settings.auth_challenge_rate_limit_window_seconds,
+        lockout_seconds=settings.auth_challenge_rate_limit_lockout_seconds,
+        enabled=settings.auth_challenge_rate_limit_enabled,
+    )
     app.include_router(api_router)
 
     generated_openapi = app.openapi
@@ -167,6 +177,13 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         request: Request,
         exc: RequestValidationError,
     ) -> JSONResponse:
+        errors = exc.errors()
+        if request.url.path.endswith((
+            "/pairing/reauthentication",
+            "/pairing/reauthentication/challenge",
+        )):
+            # For missing fields Pydantic's input can be the entire request.
+            errors = [{key: error[key] for key in ("type", "loc", "msg")} for error in errors]
         return JSONResponse(
             status_code=422,
             content=error_response(
@@ -176,7 +193,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
                 ),
                 # The per-field errors stay English: they name FIELDS, which are
                 # contract identifiers, not prose for a reader.
-                {"errors": exc.errors()},
+                {"errors": errors},
             ),
         )
 

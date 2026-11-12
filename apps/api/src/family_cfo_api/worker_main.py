@@ -19,6 +19,7 @@ from family_cfo_api import (
     ai_memory,
     ai_study,
     backup_processing,
+    device_reauthentication,
     household_crypto,
     import_processing,
     net_worth_history,
@@ -180,6 +181,7 @@ def main() -> None:
         from datetime import datetime, timedelta
 
         now = datetime.now(UTC)
+        device_reauthentication.prune_expired_challenges(engine)
         sessions = devices = 0
         if settings.auth_session_retention_days > 0:
             sessions = repository.prune_dead_auth_sessions(

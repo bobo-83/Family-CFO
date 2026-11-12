@@ -490,7 +490,7 @@ def test_postgresql_17_backup_migrations_and_singleton_bootstrap() -> None:
             with schema_engine.connect() as connection:
                 assert connection.execute(
                     text("SELECT version_num FROM alembic_version")
-                ).scalar_one() == "0097_retire_qr_pairing"
+                ).scalar_one() == "0098_device_reauth_challenges"
                 assert (
                     connection.execute(text("SELECT count(*) FROM backup_settings")).scalar_one()
                     == 0

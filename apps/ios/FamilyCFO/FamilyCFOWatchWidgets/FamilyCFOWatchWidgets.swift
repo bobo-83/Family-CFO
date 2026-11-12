@@ -31,15 +31,19 @@ struct GlanceProvider: TimelineProvider {
     }
 
     func getSnapshot(in context: Context, completion: @escaping (GlanceEntry) -> Void) {
-        completion(GlanceEntry(date: Date(), snapshot: store.load()))
+        let now = Date()
+        completion(GlanceEntry(date: now, snapshot: store.loadActive(at: now)))
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<GlanceEntry>) -> Void) {
-        // One entry: the app reloads the timeline whenever it writes fresh
-        // values; a daily refresh keeps the relative age from going absurd.
-        let entry = GlanceEntry(date: Date(), snapshot: store.load())
-        let next = Calendar.current.date(byAdding: .day, value: 1, to: Date()) ?? Date()
-        completion(Timeline(entries: [entry], policy: .after(next)))
+        let now = Date()
+        let entry = GlanceEntry(date: now, snapshot: store.loadActive(at: now))
+        var entries = [entry]
+        if entry.snapshot != nil, let expiry = store.sessionExpiry, expiry > now {
+            entries.append(GlanceEntry(date: expiry, snapshot: nil))
+        }
+        let next = Calendar.current.date(byAdding: .day, value: 1, to: now) ?? now
+        completion(Timeline(entries: entries, policy: .after(next)))
     }
 }
 

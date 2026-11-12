@@ -286,11 +286,6 @@ struct WatchYearTrendView: View {
             let result = try await client.getYearlyOverview(.init())
             guard owns(owner), !Task.isCancelled else { return }
             guard case .ok(let response) = result else {
-                // Stale relayed token (ADR 0067 v6): refresh from the phone, retry once.
-                let refreshed = await model.requestFreshCredential(
-                    expectedIdentity: owner.identity)
-                if refreshed { return }  // the revision-keyed task restarts with the new credential
-                guard owns(owner), !Task.isCancelled else { return }
                 errorMessage = "The box answered unexpectedly."
                 return
             }

@@ -6,6 +6,8 @@ import OpenAPIURLSession
 /// Injects the device credential as a bearer token on every request.
 struct BearerAuthMiddleware: ClientMiddleware {
     let token: @Sendable () -> String?
+    var ownsSession: (@Sendable () async -> Bool)? = nil
+    var onUnauthorized: (@Sendable () async -> Void)? = nil
 
     func intercept(
         _ request: HTTPRequest,
@@ -14,11 +16,16 @@ struct BearerAuthMiddleware: ClientMiddleware {
         operationID: String,
         next: @Sendable (HTTPRequest, HTTPBody?, URL) async throws -> (HTTPResponse, HTTPBody?)
     ) async throws -> (HTTPResponse, HTTPBody?) {
+        if let ownsSession, !(await ownsSession()) { throw APIError.unauthorized }
         var request = request
-        if let token = token() {
-            request.headerFields[.authorization] = "Bearer \(token)"
+        let credential = token()
+        if let credential {
+            request.headerFields[.authorization] = "Bearer \(credential)"
         }
-        return try await next(request, body, baseURL)
+        let result = try await next(request, body, baseURL)
+        if let ownsSession, !(await ownsSession()) { throw APIError.unauthorized }
+        if credential != nil, result.0.status.code == 401 { await onUnauthorized?() }
+        return result
     }
 }
 
@@ -74,7 +81,11 @@ enum APIClientFactory {
         token: (@Sendable () -> String?)? = nil,
         devicePrivateKey: (@Sendable () -> Data?)? = nil,
         language: (@Sendable () -> String?)? = nil,
-        advisorRecoveryHorizon: AdvisorRecoveryHorizon? = nil
+        advisorRecoveryHorizon: AdvisorRecoveryHorizon? = nil,
+        ownsSession: (@Sendable () async -> Bool)? = nil,
+        onUnauthorized: (@Sendable () async -> Void)? = nil,
+        onHouseholdLocked: (@Sendable () async -> Void)? = nil,
+        transport: (any ClientTransport)? = nil
     ) -> Client {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.timeoutIntervalForRequest = 180  // grounded answers can take a while on home hardware
@@ -87,10 +98,12 @@ enum APIClientFactory {
         // Outermost, so its unlock sub-requests flow through the bearer
         // middleware below and authenticate like any other call.
         if let devicePrivateKey {
-            middlewares.append(HouseholdUnlockMiddleware(devicePrivateKey: devicePrivateKey))
+            middlewares.append(HouseholdUnlockMiddleware(
+                devicePrivateKey: devicePrivateKey, onLocked: onHouseholdLocked))
         }
         if let token {
-            middlewares.append(BearerAuthMiddleware(token: token))
+            middlewares.append(BearerAuthMiddleware(
+                token: token, ownsSession: ownsSession, onUnauthorized: onUnauthorized))
         }
         if let language {
             middlewares.append(AcceptLanguageMiddleware(language: language))
@@ -104,7 +117,7 @@ enum APIClientFactory {
         return Client(
             serverURL: baseURL,
             configuration: Configuration(dateTranscoder: LenientDateTranscoder()),
-            transport: URLSessionTransport(configuration: .init(session: session)),
+            transport: transport ?? URLSessionTransport(configuration: .init(session: session)),
             middlewares: middlewares
         )
     }

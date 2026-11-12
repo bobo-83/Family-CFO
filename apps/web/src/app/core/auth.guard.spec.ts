@@ -11,8 +11,8 @@ describe('authGuard', () => {
     });
   });
 
-  it('allows navigation when authenticated', () => {
-    setAuthState({ accessToken: 't', householdId: 'h', userId: 'u', role: 'owner' });
+  it('allows navigation when authenticated', async () => {
+    await setAuthState({ accessToken: 't', expiresAt: '2099-01-01T00:00:00Z', householdId: 'h', userId: 'u', role: 'owner' });
 
     const result = TestBed.runInInjectionContext(() =>
       authGuard({} as never, { url: '/overview' } as never),

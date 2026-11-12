@@ -171,9 +171,9 @@ async function flushUntil(predicate: () => boolean): Promise<void> {
   expect(predicate()).toBe(true);
 }
 
-function setOwnerSession(suffix: string) {
-  setAuthState({
-    accessToken: `token-${suffix}`,
+async function setOwnerSession(suffix: string) {
+  await setAuthState({
+    accessToken: `token-${suffix}`, expiresAt: '2099-01-01T00:00:00Z',
     householdId: `household-${suffix}`,
     userId: `user-${suffix}`,
     role: 'owner',
@@ -375,7 +375,7 @@ describe('Backups', () => {
   });
 
   it('publishes the owned recovery key before status refresh and clears it on A→B', async () => {
-    setOwnerSession('recovery-status-a');
+    await setOwnerSession('recovery-status-a');
     const oldStatus = deferred<ReturnType<typeof response>>();
     const getHouseholdKeyStatus = vi
       .fn()
@@ -409,7 +409,7 @@ describe('Backups', () => {
     expect(component['generatedRecoveryKey']()).toBe('owned-one-time-secret');
     expect(component['busy']()).toBe(true);
 
-    setOwnerSession('recovery-status-b');
+    await setOwnerSession('recovery-status-b');
     await flushUntil(() => getHouseholdKeyStatus.mock.calls.length === 3);
     expect(component['generatedRecoveryKey']()).toBeNull();
 
@@ -423,7 +423,7 @@ describe('Backups', () => {
   });
 
   it('rejects old-session recovery-key completion without clearing the current request', async () => {
-    setOwnerSession('recovery-a');
+    await setOwnerSession('recovery-a');
     const oldRequest = deferred<ReturnType<typeof response>>();
     const currentRequest = deferred<ReturnType<typeof response>>();
     const generateRecoveryKey = vi
@@ -451,7 +451,7 @@ describe('Backups', () => {
 
     const stale = component['generateRecoveryKey']();
     await flushUntil(() => generateRecoveryKey.mock.calls.length === 1);
-    setOwnerSession('recovery-b');
+    await setOwnerSession('recovery-b');
     await flushUntil(() => apiMock.getBackupConfig.mock.calls.length >= 2);
     const current = component['generateRecoveryKey']();
     await flushUntil(() => generateRecoveryKey.mock.calls.length === 2);
@@ -597,7 +597,7 @@ describe('Backups', () => {
   });
 
   it('rejects old-session unlock completion without clearing replacement-session input', async () => {
-    setOwnerSession('unlock-a');
+    await setOwnerSession('unlock-a');
     const oldRequest = deferred<ReturnType<typeof response>>();
     const currentRequest = deferred<ReturnType<typeof response>>();
     const unlockWithRecoveryKey = vi
@@ -627,7 +627,7 @@ describe('Backups', () => {
 
     const stale = component['unlockWithRecoveryKey']();
     await flushUntil(() => unlockWithRecoveryKey.mock.calls.length === 1);
-    setOwnerSession('unlock-b');
+    await setOwnerSession('unlock-b');
     await flushUntil(() => apiMock.getBackupConfig.mock.calls.length >= 2);
     component['showRecoveryUnlock'].set(true);
     component['recoveryUnlockInput'].set('current-session-key');
@@ -708,7 +708,7 @@ describe('Backups', () => {
   });
 
   it('rejects old-session seal completion without clearing the current request', async () => {
-    setOwnerSession('seal-a');
+    await setOwnerSession('seal-a');
     const oldRequest = deferred<ReturnType<typeof response>>();
     const currentRequest = deferred<ReturnType<typeof response>>();
     const setSealMode = vi
@@ -735,7 +735,7 @@ describe('Backups', () => {
 
     const stale = component['setSealMode']('sealed');
     await flushUntil(() => setSealMode.mock.calls.length === 1);
-    setOwnerSession('seal-b');
+    await setOwnerSession('seal-b');
     await flushUntil(() => apiMock.getBackupConfig.mock.calls.length >= 2);
     const current = component['setSealMode']('sealed');
     await flushUntil(() => setSealMode.mock.calls.length === 2);
@@ -828,7 +828,7 @@ describe('Backups', () => {
   });
 
   it('does not trigger a download after the component is destroyed', async () => {
-    setOwnerSession('export-destroy');
+    await setOwnerSession('export-destroy');
     const request = deferred<{ blob: Blob; filename: string }>();
     const downloadHouseholdExport = vi.fn().mockImplementation(() => request.promise);
     const apiMock = {
@@ -868,7 +868,7 @@ describe('Backups', () => {
   });
 
   it('does not download an old-session export or clear the current export slot', async () => {
-    setOwnerSession('export-a');
+    await setOwnerSession('export-a');
     const oldRequest = deferred<{ blob: Blob; filename: string }>();
     const currentRequest = deferred<{ blob: Blob; filename: string }>();
     const downloadHouseholdExport = vi
@@ -897,7 +897,7 @@ describe('Backups', () => {
 
     const stale = component['exportData']();
     await flushUntil(() => downloadHouseholdExport.mock.calls.length === 1);
-    setOwnerSession('export-b');
+    await setOwnerSession('export-b');
     await flushUntil(() => apiMock.getBackupConfig.mock.calls.length >= 2);
     const current = component['exportData']();
     await flushUntil(() => downloadHouseholdExport.mock.calls.length === 2);
@@ -1683,7 +1683,7 @@ describe('Backups', () => {
   });
 
   it('discards queued activation and late save effects across session A→B→A', async () => {
-    setOwnerSession('save-a');
+    await setOwnerSession('save-a');
     const oldSave = deferred<ReturnType<typeof response>>();
     const apiMock = {
       listBackups: vi.fn().mockResolvedValue(response({ backups: [] })),
@@ -1713,9 +1713,9 @@ describe('Backups', () => {
     const activation = component['saveAndActivateRetention']();
     expect(component['pendingActivation']).not.toBeNull();
 
-    setOwnerSession('save-b');
+    await setOwnerSession('save-b');
     await flushUntil(() => apiMock.getBackupConfig.mock.calls.length === 2);
-    setOwnerSession('save-a');
+    await setOwnerSession('save-a');
     await flushUntil(() => apiMock.getBackupConfig.mock.calls.length === 3);
     oldSave.resolve(response(backupConfig({ revision: 'revision-old-completion' })));
     await Promise.all([automatic, activation]);
@@ -1935,8 +1935,8 @@ describe('Backups', () => {
   });
 
   it('rejects a late recovery completion from a previous authenticated session', async () => {
-    setAuthState({
-      accessToken: 'token-a',
+    await setAuthState({
+      accessToken: 'token-a', expiresAt: '2099-01-01T00:00:00Z',
       householdId: 'household-a',
       userId: 'user-a',
       role: 'owner',
@@ -1961,8 +1961,8 @@ describe('Backups', () => {
       await Promise.resolve();
     }
 
-    setAuthState({
-      accessToken: 'token-b',
+    await setAuthState({
+      accessToken: 'token-b', expiresAt: '2099-01-01T00:00:00Z',
       householdId: 'household-b',
       userId: 'user-b',
       role: 'owner',
@@ -2013,8 +2013,8 @@ describe('Backups', () => {
   });
 
   it('rejects a revealed backup key from a replaced authenticated session', async () => {
-    setAuthState({
-      accessToken: 'key-token-a',
+    await setAuthState({
+      accessToken: 'key-token-a', expiresAt: '2099-01-01T00:00:00Z',
       householdId: 'key-household-a',
       userId: 'key-user-a',
       role: 'owner',
@@ -2036,8 +2036,8 @@ describe('Backups', () => {
 
     const reveal = fixture.componentInstance['revealKey']();
     await flushUntil(() => apiMock.getBackupEncryptionKey.mock.calls.length === 1);
-    setAuthState({
-      accessToken: 'key-token-b',
+    await setAuthState({
+      accessToken: 'key-token-b', expiresAt: '2099-01-01T00:00:00Z',
       householdId: 'key-household-b',
       userId: 'key-user-b',
       role: 'owner',
@@ -2319,8 +2319,8 @@ describe('Backups', () => {
   });
 
   it('rejects a reverse-order create completion from a replaced authenticated session', async () => {
-    setAuthState({
-      accessToken: 'create-token-a',
+    await setAuthState({
+      accessToken: 'create-token-a', expiresAt: '2099-01-01T00:00:00Z',
       householdId: 'create-household-a',
       userId: 'create-user-a',
       role: 'owner',
@@ -2349,8 +2349,8 @@ describe('Backups', () => {
 
     const staleAction = component['createBackup']();
     await flushUntil(() => createBackup.mock.calls.length === 1);
-    setAuthState({
-      accessToken: 'create-token-b',
+    await setAuthState({
+      accessToken: 'create-token-b', expiresAt: '2099-01-01T00:00:00Z',
       householdId: 'create-household-a',
       userId: 'create-user-a',
       role: 'owner',

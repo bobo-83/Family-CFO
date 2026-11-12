@@ -6,9 +6,17 @@ from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import audit, household_crypto, repository, rights, security
+from family_cfo_api import (
+    audit,
+    device_reauthentication,
+    household_crypto,
+    repository,
+    rights,
+    security,
+)
 from family_cfo_api.deps import (
     client_ip,
+    get_challenge_rate_limiter,
     get_current_session,
     get_engine,
     get_rate_limiter,
@@ -17,6 +25,9 @@ from family_cfo_api.deps import (
 from family_cfo_api.ratelimit import AuthRateLimiter
 from family_cfo_api.schemas import (
     DeviceCredential,
+    DeviceReauthenticationChallenge,
+    DeviceReauthenticationChallengeRequest,
+    DeviceReauthenticationRequest,
     ErrorResponse,
     PairedDevice,
     PairedDeviceListResponse,
@@ -122,6 +133,114 @@ async def create_device_session_with_password(
         credential.device_id,
         f"Signed in device '{payload.device_name}'",
     )
+    return _device_credential(engine, credential)
+
+
+@router.post(
+    "/pairing/reauthentication/challenge",
+    operation_id="createDeviceReauthenticationChallenge",
+    response_model=DeviceReauthenticationChallenge,
+    status_code=201,
+    responses={429: {"description": "Too many attempts", "model": ErrorResponse}},
+    summary="Issue a single-use challenge for existing device sign-in",
+)
+async def create_device_reauthentication_challenge(
+    payload: DeviceReauthenticationChallengeRequest,
+    request: Request,
+    engine: Engine = Depends(get_engine),
+    challenge_limiter: AuthRateLimiter = Depends(get_challenge_rate_limiter),
+) -> DeviceReauthenticationChallenge:
+    keys = [f"device-reauth-challenge-ip:{client_ip(request)}"]
+    _check_reauthentication_rate_limit(challenge_limiter, keys)
+    # Charge issuance — but against the challenge policy, whose counters reset
+    # after a short pause. Password guessing stays on the login limiter below.
+    challenge_limiter.record_failure(keys)
+    challenge = device_reauthentication.issue_challenge(engine, payload.device_id)
+    if challenge is None:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many sign-in requests. Try again later.",
+            headers={"Retry-After": str(int(device_reauthentication.CHALLENGE_TTL.total_seconds()))},
+        )
+    return DeviceReauthenticationChallenge(challenge=challenge)
+
+
+def _check_reauthentication_rate_limit(limiter: AuthRateLimiter, keys: list[str]) -> None:
+    retry_after = limiter.retry_after(keys)
+    if retry_after is not None:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many login attempts. Try again later.",
+            headers={"Retry-After": str(retry_after)},
+        )
+
+
+def _check_completion_rate_limit(limiter: AuthRateLimiter, keys: list[str]) -> None:
+    """The challenge policy's answer to a flood of failed completions."""
+    retry_after = limiter.retry_after(keys)
+    if retry_after is not None:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many reauthentication attempts. Try again later.",
+            headers={"Retry-After": str(retry_after)},
+        )
+
+
+@router.post(
+    "/pairing/reauthentication",
+    operation_id="reauthenticateDevice",
+    response_model=DeviceCredential,
+    status_code=201,
+    responses={
+        401: {"description": "Invalid credentials or device proof", "model": ErrorResponse},
+        429: {"description": "Too many attempts", "model": ErrorResponse},
+    },
+    summary="Sign in again on an existing device using a password and device proof",
+)
+async def reauthenticate_device(
+    payload: DeviceReauthenticationRequest,
+    request: Request,
+    engine: Engine = Depends(get_engine),
+    rate_limiter: AuthRateLimiter = Depends(get_rate_limiter),
+    challenge_limiter: AuthRateLimiter = Depends(get_challenge_rate_limiter),
+) -> DeviceCredential:
+    keys = [f"ip:{client_ip(request)}", f"email:{payload.email.lower()}"]
+    _check_reauthentication_rate_limit(rate_limiter, keys)
+    # A flood of failed device proofs is its own kind of abuse: it never
+    # touches the password policy, so the challenge policy answers it — on its
+    # own key, so issuance is not gated by it.
+    completion_keys = [f"device-reauth-completion-ip:{client_ip(request)}"]
+    _check_completion_rate_limit(challenge_limiter, completion_keys)
+    user = repository.get_user_by_email(engine, payload.email)
+    credential = None
+    password_proved = False
+    if user is not None and security.verify_password(payload.password, user.password_hash):
+        password_proved = True
+        credential = device_reauthentication.replace_device_session(
+            engine,
+            device_id=payload.device_id,
+            user_id=user.id,
+            challenge=payload.challenge,
+            signature=payload.signature,
+            ttl=DEVICE_SESSION_TTL,
+        )
+    if credential is None:
+        if password_proved:
+            # The password was right; the device proof or the challenge was
+            # not. That is not password guessing, so it must not charge the
+            # household's password policy — a shared home IP renewing several
+            # devices would lock the family's own phones out. It counts
+            # against the challenge policy instead, on its own key.
+            challenge_limiter.record_failure(completion_keys)
+        else:
+            # A wrong password is the brute-force the password policy exists
+            # for (ADR 0010): charge it per IP and per account.
+            rate_limiter.record_failure(keys)
+        raise HTTPException(status_code=401, detail="Unable to sign in with this device")
+    # A successful sign-in clears this account's own strikes. The IP counter is
+    # shared with the household's other devices and its password guesses, so
+    # one success here must not launder them.
+    rate_limiter.reset([f"email:{payload.email.lower()}"])
     return _device_credential(engine, credential)
 
 

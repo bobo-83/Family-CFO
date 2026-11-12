@@ -39,6 +39,16 @@
                ReferencedContainer = "container:FamilyCFO.xcodeproj">
             </BuildableReference>
          </TestableReference>
+         <TestableReference
+            skipped = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "FE0000000000000000000016"
+               BuildableName = "FamilyCFOUITests.xctest"
+               BlueprintName = "FamilyCFOUITests"
+               ReferencedContainer = "container:FamilyCFO.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction

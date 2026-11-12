@@ -230,3 +230,11 @@ required response field, immutable `0.161` fixture, regenerated clients, `VERSIO
 and component build resets is atomic under ADR 0074. API/worker deploy before
 web/iOS; a revision-dependent `0.161` client is unsupported against a `0.160`
 server. No ETag or If-Match authority is introduced.
+
+## Existing-device reauthentication (#164)
+
+Add public POST operations for issuing a challenge and completing it under
+`/pairing/reauthentication`. Completion returns the existing device credential
+shape. Follow [ADR 0080](../adr/0080-session-expiry-reauthentication.md) for proof
+encoding, authorization, and transaction boundaries. Regenerate Swift and
+TypeScript from the authoritative YAML before releasing a dependent client.

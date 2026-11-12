@@ -59,3 +59,19 @@ The historical QR incident is retired/superseded, **root cause unresolved**.
 Account-login diagnostics classify wrapped TLS/network/serialization errors
 without displaying raw exception/request/response content. Retiring QR is not
 proof that its operational trigger was diagnosed.
+
+## Expired or rejected sessions (contract 0.163)
+
+Web and iPhone show sign-in automatically when the current session ends.
+Sign in with your own account to return to Overview. The iPhone uses the saved
+server, certificate trust and device key to renew its existing device entry.
+If that key is unavailable, try again after unlocking the phone or explicitly
+choose device setup. Sealed household recovery still uses Restore keys.
+
+The Watch clears expired views and complications. Open Family CFO on the
+iPhone and sign in there. The Watch receives the new session once the devices
+can communicate. If the phone installation was replaced, use Reconnect to
+iPhone on the Watch. Direct Watch sign-in is tracked separately in #166.
+
+For the coordinated upgrade, publish the API and worker before the new web and
+iPhone/Watch builds. Older dashboard records without expiry require one sign-in.

@@ -2,7 +2,15 @@ import { Injectable, computed, inject } from '@angular/core';
 import type { HouseholdCreateRequest } from '../api-client';
 import { apiErrorMessage } from '../shared/api-error';
 import { ApiService } from './api.service';
-import { authState, clearAuthState, setAuthState } from './token-store';
+import {
+  authGeneration,
+  authState,
+  clearAuthState,
+  sessionFence,
+  sharedSessionMoved,
+  setAuthState,
+  updateSessionRights,
+} from './token-store';
 
 export interface LoginResult {
   ok: boolean;
@@ -50,16 +58,15 @@ export class AuthService {
    *  best-effort — offline keeps the cached rights, and the server checks
    *  every request regardless. */
   async refreshRights(): Promise<void> {
-    const state = authState();
-    if (!state) {
+    const owner = authGeneration();
+    if (!authState()) {
       return;
     }
     const { data, error } = await this.api.getSessionInfo();
     if (error || !data) {
       return;
     }
-    setAuthState({
-      ...state,
+    updateSessionRights(owner, {
       role: data.role,
       roleName: data.role_name ?? undefined,
       rights: data.rights,
@@ -70,6 +77,10 @@ export class AuthService {
     // #92: `response` carries the brute-force lockout's `Retry-After`, which
     // the error body never mentions — without it a 429 says "try again later"
     // while the box means fifteen minutes.
+    const owner = authGeneration();
+    // #164: shared-pointer fence — another tab may install a newer session
+    // while this request is in flight, and its storage event may not have run.
+    const fence = sessionFence();
     const { data, error, response } = await this.api.login({ email, password });
 
     if (error || !data) {
@@ -83,18 +94,34 @@ export class AuthService {
       };
     }
 
-    setAuthState({
+    if (owner !== authGeneration()) return { ok: false };
+    const ok = await setAuthState({
       accessToken: data.access_token,
+      expiresAt: data.expires_at,
       householdId: data.household_id,
       userId: data.user_id,
       role: data.role,
       roleName: data.role_name ?? undefined,
       rights: data.rights ?? undefined,
-    });
-    return { ok: true };
+    }, fence);
+    if (!ok && sharedSessionMoved(fence)) {
+      // The shared session moved while this request was in flight, so the
+      // install was refused. The credentials were fine — say so, instead of
+      // claiming a failed login.
+      return {
+        ok: false,
+        errorMessage:
+          'Another tab changed the session while this was in flight, so this sign-in was not applied.',
+      };
+    }
+    return { ok };
   }
 
   async signup(payload: HouseholdCreateRequest): Promise<LoginResult> {
+    const owner = authGeneration();
+    // #164: same shared-pointer fence as login — household creation writes the
+    // shared session too.
+    const fence = sessionFence();
     const { data, error } = await this.api.createHousehold(payload);
 
     if (error || !data) {
@@ -104,15 +131,24 @@ export class AuthService {
       };
     }
 
-    setAuthState({
+    if (owner !== authGeneration()) return { ok: false };
+    const ok = await setAuthState({
       accessToken: data.access_token,
+      expiresAt: data.expires_at,
       householdId: data.household_id,
       userId: data.user_id,
       role: data.role,
       roleName: data.role_name ?? undefined,
       rights: data.rights ?? undefined,
-    });
-    return { ok: true };
+    }, fence);
+    if (!ok && sharedSessionMoved(fence)) {
+      return {
+        ok: false,
+        errorMessage:
+          'Another tab changed the session while this was in flight, so this sign-in was not applied.',
+      };
+    }
+    return { ok };
   }
 
   logout(): void {

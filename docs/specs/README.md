@@ -29,7 +29,7 @@ dedupe, the SwiftUI app and Angular dashboard at parity ([ADR 0025](../adr/0025-
 the Bills payment timeline, cash outlook and month spending plan, budgets, goals,
 loans, income & tax, backups (local + off-box), and a full undo/audit framework
 ([ADR 0023](../adr/0023-every-mutation-is-undoable.md)). Decisions through
-**ADR 0079** are recorded in [02-adrs.md](./02-adrs.md); deferrals in
+**ADR 0080** are recorded in [02-adrs.md](./02-adrs.md); deferrals in
 `docs/RELEASE-CHECKLIST.md`. See the [guides](../guides/README.md).
 
 The per-milestone log below is historical (it starts at M0 and does not run to
@@ -268,3 +268,9 @@ Before coding a milestone, update the relevant documents with:
 - Security impact
 - Test expectations
 - Documentation impact
+
+## Issue #164 session expiry and reauthentication gate
+
+[ADR 0080](../adr/0080-session-expiry-reauthentication.md) covers the browser,
+iPhone and phone-managed Watch session transitions. Contract 0.163 provides
+same-device iPhone reauthentication. Direct Watch sign-in is tracked in #166.

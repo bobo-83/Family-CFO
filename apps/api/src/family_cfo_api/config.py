@@ -115,6 +115,19 @@ class Settings:
     auth_rate_limit_max_attempts: int = 5
     auth_rate_limit_window_seconds: int = 300
     auth_rate_limit_lockout_seconds: int = 900
+    # ADR 0080: issuing a reauthentication challenge is counted, never failed —
+    # every device's reauth pays one issuance. Sharing the password-failure
+    # policy (5 attempts, 15-minute lockout) let one home IP's ordinary
+    # multi-device sign-ins trigger a brute-force lockout on the family's own
+    # phones (PR #169 review). This dedicated policy tolerates a shared-IP
+    # burst of pairings and answers an actual flood with a short pause.
+    # Its own enabled flag: an operator who turns the password policy off
+    # (a locked-out household behind a proxy) must not be forced to keep the
+    # challenge policy on, and vice versa (PR #169 review).
+    auth_challenge_rate_limit_enabled: bool = True
+    auth_challenge_rate_limit_max_issuances: int = 30
+    auth_challenge_rate_limit_window_seconds: int = 300
+    auth_challenge_rate_limit_lockout_seconds: int = 60
     # Max accepted upload size (bytes) for imports/documents.
     max_upload_bytes: int = 10_000_000
     # One-click model apply (ADR 0013): the model-manager sidecar URL; empty
@@ -228,6 +241,28 @@ class Settings:
                 os.getenv(
                     "FAMILY_CFO_AUTH_RATE_LIMIT_LOCKOUT_SECONDS",
                     str(cls.auth_rate_limit_lockout_seconds),
+                )
+            ),
+            auth_challenge_rate_limit_enabled=_env_bool(
+                "FAMILY_CFO_AUTH_CHALLENGE_RATE_LIMIT_ENABLED",
+                cls.auth_challenge_rate_limit_enabled,
+            ),
+            auth_challenge_rate_limit_max_issuances=int(
+                os.getenv(
+                    "FAMILY_CFO_AUTH_CHALLENGE_RATE_LIMIT_MAX_ISSUANCES",
+                    str(cls.auth_challenge_rate_limit_max_issuances),
+                )
+            ),
+            auth_challenge_rate_limit_window_seconds=int(
+                os.getenv(
+                    "FAMILY_CFO_AUTH_CHALLENGE_RATE_LIMIT_WINDOW_SECONDS",
+                    str(cls.auth_challenge_rate_limit_window_seconds),
+                )
+            ),
+            auth_challenge_rate_limit_lockout_seconds=int(
+                os.getenv(
+                    "FAMILY_CFO_AUTH_CHALLENGE_RATE_LIMIT_LOCKOUT_SECONDS",
+                    str(cls.auth_challenge_rate_limit_lockout_seconds),
                 )
             ),
             max_upload_bytes=int(
