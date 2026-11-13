@@ -15,32 +15,61 @@
 # quietly defaulting to `local` and rebuilding containers on your laptop, while
 # a deliberate one-off override still works.
 #
-# 2 and 3 are both read, first value wins, so a checkout that has not moved its
-# file yet still gets the destination it has always used. DEPLOY_ENV_FILE points
-# the loader at one specific file and disables both.
+# 2 and 3 are ALTERNATIVES, not layers: the first file that exists is the whole
+# answer, so a half-migrated pair can never splice a new host onto the old box's
+# user, port and stack path. DEPLOY_ENV_FILE names one specific file and disables
+# both.
 #
-# Two rules this file keeps, because its exit status is load-bearing:
+# Three rules this file keeps, because its exit status is load-bearing:
 #   * a registry that cannot be written must NOT fail a deploy that already
 #     succeeded — record_deployment / _install_registry_file are deliberately
 #     non-fatal (see their comments);
-#   * every caller sources this at the top of a script running under `set -e`,
-#     where the status of the last statement in a function becomes the function's
-#     status. Keep the `return 0`s; the comments say what each one guards.
+#   * but it must never be REWRITTEN from an input that could not be read. An
+#     empty registry is a valid registry, so the writer cannot tell "nothing
+#     recorded" from "the read died" — the reader has to say so, and the writer
+#     has to listen (deploy_registry_rows returns non-zero, record_deployment
+#     then declines to write). forget_deployment is the exception: it reports
+#     failure rather than returning 0 unconditionally, because a `forget` that
+#     silently did nothing is a lie about the operator's own inventory.
+#   * every caller sources this at the top of a script running under
+#     `set -euo pipefail`, where the status of the last statement in a function
+#     becomes the function's status — and where a pipeline is non-zero if ANY of
+#     its stages is. So a producer that legitimately outputs nothing must still
+#     exit 0 (_print_rows). Keep the `return 0`s; the comments say what guards.
 
 # load_deploy_env <repo-root>
+#
+# ONE file answers for the destination — the first that EXISTS, in this order:
+# DEPLOY_ENV_FILE, ~/.family-cfo/.deploy.env, <repo-root>/.deploy.env. A real
+# environment variable still outranks whatever that file says.
+#
+# Deliberately not a per-key merge. Merging made a half-written shared file
+# inherit the stale checkout's SSH_USER/SSH_PORT/REMOTE_DIR around it, so a
+# `patch.sh web` could pair the new box with the old box's user, port and stack
+# path. A destination is one address; take it from one place. Both files may
+# legitimately hold different things (a checkout file is also where iOS and
+# TestFlight settings live), so the shadowed file is *reported*, never merged.
 load_deploy_env() {
-  local repo_root="$1"
+  local repo_root="$1" home shared checkout
+  home="$(deploy_home)"
+  shared="${home:+$home/.deploy.env}"
+  checkout="$repo_root/.deploy.env"
 
   if [ -n "${DEPLOY_ENV_FILE:-}" ]; then
     _load_deploy_env_file "$DEPLOY_ENV_FILE"
     return 0
   fi
 
-  # Machine-wide first: whoever moved the file to ~/.family-cfo means it to be
-  # the answer from any directory. The checkout's own file is read afterwards and
-  # only fills the gaps, so upgrading changes nobody's destination on its own.
-  _load_deploy_env_file "$(deploy_home)/.deploy.env"
-  _load_deploy_env_file "$repo_root/.deploy.env"
+  if [ -n "$shared" ] && [ -f "$shared" ]; then
+    _load_deploy_env_file "$shared"
+    # The other file is not consulted, so say so: silently ignoring a file the
+    # operator can see is how "my .deploy.env is being ignored" bug reports start.
+    [ -f "$checkout" ] && printf '\033[1;33m!!\033[0m %s\n' \
+      "Ignoring $checkout — $shared is the destination. Move anything you still want and delete it, or point DEPLOY_ENV_FILE at the file you mean." >&2
+    return 0
+  fi
+
+  _load_deploy_env_file "$checkout"
   return 0
 }
 
@@ -92,9 +121,15 @@ _load_deploy_env_file() {
 # `scripts/deploy.sh` and the entry lands in `apps/api/.deploy.history`).
 #
 # So both now live in ONE place per machine: `~/.family-cfo/`, overridable with
-# FAMILY_CFO_HOME (a test seam too). The old per-checkout files are still READ —
-# nobody loses the record of a stack they deployed before this moved — and the
-# first write folds them into the shared file.
+# FAMILY_CFO_HOME (a test seam too). The pre-move files under the checkout are
+# handled differently for the two, and the difference is deliberate:
+#
+#   * .deploy.history is INVENTORY — union it. Reads consult both files and the
+#     next write folds them together, so nobody loses the record of a stack they
+#     deployed before the move, and an entry can never quietly disappear.
+#   * .deploy.env is an ADDRESS — pick one file (see load_deploy_env). Merging
+#     two partial ones splices a new host onto the old box's user, port and
+#     stack path, which sends a patch somewhere nobody meant.
 #
 # Prints nothing when HOME is unset and FAMILY_CFO_HOME is not given: callers
 # must then fall back to the checkout, rather than try to write at `/.`.
@@ -130,29 +165,64 @@ deploy_history_file() { # deploy_history_file <repo-root>
   fi
 }
 
-# Every registry file this machine knows about, newest location first: the
-# shared one, then the pre-move per-checkout one. Deduplicated, and only the
-# ones that actually exist. This is what READERS must use — reading only the
-# shared file would make a pre-move checkout's entries vanish from `list`.
+# Every registry file READS consult, newest location first: the shared one, then
+# the pre-move per-checkout one. Deduplicated, and only the ones that exist.
+# Reading only the shared file would make a pre-move checkout's entries vanish
+# from `list`.
+#
+# An explicit DEPLOY_HISTORY_FILE selects ONE registry, exactly as it did before
+# the shared directory existed: it is the seam for "this is the whole file, and
+# nothing else". Unioning a legacy file into it would make a test or an operator
+# isolate one registry and get someone else's deployments in it — recording
+# would copy them in, forgetting would rewrite the other file. The migration
+# union belongs to the DEFAULT path only. (FAMILY_CFO_HOME is different: it
+# relocates the base directory, and the pre-move file is still worth folding in.)
 deploy_history_files() { # deploy_history_files <repo-root>
   local shared legacy
   shared="$(deploy_history_file "$1")"
+  if [ -n "${DEPLOY_HISTORY_FILE:-}" ]; then
+    [ -f "$shared" ] && printf '%s\n' "$shared"
+    return 0
+  fi
   legacy="$1/.deploy.history"
   [ -f "$shared" ] && printf '%s\n' "$shared"
   [ -f "$legacy" ] && [ "$legacy" != "$shared" ] && printf '%s\n' "$legacy"
   return 0
 }
 
+_deploy_registry_warn() { printf '\033[1;33m!!\033[0m %s\n' "$*" >&2; }
+
 # Registry rows across every file, newest-last-deployed winning when the same
 # place appears in more than one (it does, right after the move). Rows for
 # <exclude-key> are dropped. Keeps the file layout as the only source of truth:
 # no cache, nothing to go stale.
+#
+# STATUS IS PART OF THE CONTRACT. Rows from the readable files always print — a
+# listing should show what it knows — but a file that exists and cannot be read
+# makes this return non-zero and say which one. Callers that are about to REWRITE
+# the registry must treat that as "do not write": the writer cannot distinguish
+# "there was nothing there" from "the read died", because an empty registry is a
+# legal registry. Only an all-or-nothing read may be written back.
 deploy_registry_rows() { # deploy_registry_rows <repo-root> [exclude-key]
-  local file
-  deploy_history_files "$1" | while IFS= read -r file; do
+  local file readable="" incomplete=0
+  while IFS= read -r file; do
     [ -n "$file" ] || continue
-    cat -- "$file"
-  done |
+    if [ -r "$file" ]; then
+      readable="${readable}${readable:+$'\n'}${file}"
+    else
+      incomplete=1
+      _deploy_registry_warn "cannot read ${file}."
+    fi
+  done <<< "$(deploy_history_files "$1")"
+
+  # `if !` rather than a bare pipeline: this function's status is the answer to
+  # "is the registry whole?", and errexit belongs to the caller, not here. The
+  # -r test above can lie (root reads anything, and a chmod can race us), which
+  # is why the cat failure has to be caught too.
+  if ! printf '%s\n' "$readable" | while IFS= read -r file; do
+         [ -n "$file" ] || continue
+         cat -- "$file"
+       done |
     awk -F'\t' -v k="${2:-}" '
       $1 == k { next }
       # Same place recorded in two files: keep the fresher timestamp. Field 8 is
@@ -160,9 +230,21 @@ deploy_registry_rows() { # deploy_registry_rows <repo-root> [exclude-key]
       { if (!($1 in fresh) || $8 >= fresh[$1]) { row[$1] = $0; fresh[$1] = $8 } }
       END { for (key in row) print row[key] }
     '
+  then
+    incomplete=1
+  fi
+  return "$incomplete"
 }
 
-_deploy_registry_warn() { printf '\033[1;33m!!\033[0m %s\n' "$*" >&2; }
+# <rows-string> on stdout, and ALWAYS status 0 — including the zero-rows case,
+# which is a legitimate result (forgetting the last entry) rather than a failure.
+# Without the `return 0` the `[ -n ]` test is the last command, the pipeline is
+# non-zero under `pipefail`, and a successful rewrite is reported as a failed
+# one. That is not a cosmetic bug: the caller's whole answer is this status.
+_print_rows() { # _print_rows <rows-string>
+  [ -n "$1" ] && printf '%s\n' "$1"
+  return 0
+}
 
 # Installs stdin as <file>'s new contents, and does NOT take the old file down
 # with it if the write goes wrong.
@@ -205,13 +287,14 @@ record_deployment() { # record_deployment <repo-root> <kind> <host> <user> <port
   key="${kind}|${host}|${dir}"
   stamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-  # Read the existing rows FIRST, and check that read. Feeding the writer
-  # straight from the reader would silently install a registry with entries
-  # MISSING whenever the read failed — an empty file is a valid registry, so the
-  # writer alone cannot tell "nothing there" from "the read died".
+  # ALL the existing rows, or none of the write. Replacing the file with what we
+  # managed to read turns a permissions accident in one file into a MISSING
+  # deployment in the other — the exact data this registry exists to prevent
+  # (a stack nobody remembers running keeps holding ports, disk and a database
+  # of household finances). Not recording is recoverable; un-recording is not.
   if ! rows="$(deploy_registry_rows "$repo_root" "$key")"; then
-    _deploy_registry_warn "could not read the existing registry; recording ${key} on its own."
-    rows=""
+    _deploy_registry_warn "NOT recording ${key}: the registry could not be read in full (see above). This deploy is LIVE but UNLISTED — fix that file and deploy again, so the box is not forgotten."
+    return 0
   fi
 
   # A registry that cannot be written must never fail the deploy it is
@@ -222,7 +305,7 @@ record_deployment() { # record_deployment <repo-root> <kind> <host> <user> <port
     # timestamp — the registry is a set of places, not an append-only log.
     # Going through deploy_registry_rows also folds in the pre-move per-checkout
     # file, so entries made before the move survive into the shared one.
-    [ -n "$rows" ] && printf '%s\n' "$rows"
+    _print_rows "$rows"
     # Empty fields are written as "-": tab is an IFS *whitespace* character, so
     # a run of empty columns would collapse into one on read and silently shift
     # every later field left.
@@ -236,24 +319,27 @@ record_deployment() { # record_deployment <repo-root> <kind> <host> <user> <port
 # Removes an entry from EVERY registry file. All of them, deliberately: an entry
 # left behind in the pre-move per-checkout file would reappear on the next read,
 # because reads union the files. That is what makes `forget` mean forever.
+#
+# Returns non-zero when any file could not be read or rewritten. Unlike
+# record_deployment's write — where failure must not fail a deploy — this status
+# is the CLI's answer to "did you forget it?", and reporting success while the
+# row is still listed leaves the operator with a registry they cannot trust.
 forget_deployment() { # forget_deployment <repo-root> <key>
-  local repo_root="$1" key="$2" file left="" rows
+  local repo_root="$1" key="$2" file left="" rows rc=0
   while IFS= read -r file; do
     [ -n "$file" ] || continue
-    # Same reason as in record_deployment: capture the filter's status, because
-    # a failed filter piped into the writer would install an EMPTY registry and
-    # silently forget everything.
     if ! rows="$(awk -F'\t' -v k="$key" '$1 != k' "$file")"; then
+      _deploy_registry_warn "cannot read ${file}; its entry for ${key} is still there."
+      rc=1
+      continue
+    fi
+    if ! _print_rows "$rows" | _install_registry_file "$file"; then
       left="${left}${left:+, }${file}"
-      continue
+      rc=1
     fi
-    if { [ -n "$rows" ] && printf '%s\n' "$rows"; } | _install_registry_file "$file"; then
-      continue
-    fi
-    left="${left}${left:+, }${file}"
   done <<< "$(deploy_history_files "$repo_root")"
-  [ -n "$left" ] && _deploy_registry_warn "entry left in ${left} — remove it by hand if it reappears."
-  return 0
+  [ -n "$left" ] && _deploy_registry_warn "could not update ${left} — ${key} may still be listed there."
+  return "$rc"
 }
 
 # Is this host the machine named by <host>? Used to work out whether the box is

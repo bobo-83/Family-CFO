@@ -37,7 +37,13 @@ load_deploy_env "$REPO_ROOT"
 # ~/.family-cfo/.deploy.history plus any pre-move <checkout>/.deploy.history.
 # Reading only one of them is what made entries recorded elsewhere look as though
 # they had vanished (issue #173). See scripts/lib/deploy-env.sh.
-ROWS="$(deploy_registry_rows "$REPO_ROOT")"
+ROWS_INCOMPLETE=0
+ROWS="$(deploy_registry_rows "$REPO_ROOT")" || ROWS_INCOMPLETE=1
+# ^ The `||` matters twice over. Without it the assignment inherits the
+# reader's failure status and `set -e` kills the script here, silently — which
+# is how `list` came to print nothing at all when one registry file was
+# unreadable. Listing must degrade to "show what we can read, say it is
+# partial"; only the WRITE paths get to refuse.
 
 log()  { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m!!\033[0m %s\n' "$*" >&2; }
@@ -49,6 +55,7 @@ die()  { printf '\033[1;31mError:\033[0m %s\n' "$*" >&2; exit 1; }
   echo "  forgotten. Registry files looked for:"
   echo "    $(deploy_history_file "$REPO_ROOT")"
   [ "$(deploy_home)" ] && echo "    $REPO_ROOT/.deploy.history  (pre-move location, still read)"
+  [ "$ROWS_INCOMPLETE" = "1" ] && die "At least one of those exists but could not be read — the answer above is not trustworthy."
   exit 0
 }
 
@@ -66,6 +73,14 @@ done <<< "$ROWS"
 
 COUNT="${#KINDS[@]}"
 [ "$COUNT" -gt 0 ] || { log "No deployments recorded yet."; exit 0; }
+
+# A partial registry still gets listed — showing what IS recorded is more useful
+# than refusing to answer — but never silently. The actions below are numbered
+# into this listing, so an entry that could not be read is also an entry that
+# cannot be stopped or destroyed from here.
+if [ "$ROWS_INCOMPLETE" = "1" ]; then
+  warn "This listing is INCOMPLETE: a registry file could not be read (above). Whatever it holds is not numbered here, so it cannot be acted on until that file is readable."
+fi
 
 # Recorded user/port may be empty, meaning "ssh works it out from ~/.ssh/config".
 # Passing an empty -p or a bare `@host` would break exactly that.
@@ -209,7 +224,12 @@ do_forget() {
   # reads union them, so an entry left in the pre-move file would come back on
   # the next listing. The atomic-write rules live in the lib so they cannot drift
   # apart from record_deployment's.
-  forget_deployment "$REPO_ROOT" "$key"
+  #
+  # The status is the whole answer here. Saying "the registry entry is gone"
+  # after a file refused to be rewritten leaves the operator trusting a registry
+  # that still lists the box — the one thing this tool exists to get right.
+  forget_deployment "$REPO_ROOT" "$key" ||
+    die "Could not forget ${HOSTS[$i]} everywhere — see the warnings above; it may still be listed. Nothing was stopped or deleted."
   log "Forgot ${HOSTS[$i]} — the registry entry is gone. Nothing was stopped or deleted."
 }
 

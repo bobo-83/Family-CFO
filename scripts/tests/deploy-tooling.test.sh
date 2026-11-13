@@ -47,6 +47,22 @@ in_lib() { # shell-snippet
       '"$1"
 }
 
+# in_lib with the library's own overrides SET rather than cleared — for the
+# tests that are about those overrides.
+#
+# The assignments are passed IN rather than written as `VAR=x in_lib …`: an
+# assignment before a shell *function* call stays in the calling shell after it
+# returns (POSIX), so the `VAR=x func` form leaks a DEPLOY_HISTORY_FILE into
+# every test that follows and they fail for reasons nothing to do with them.
+in_lib_env() { # <assignments-run-in-the-subshell> <shell-snippet>
+  HOME="$WORK/home" SANDBOX_REPO="$WORK/repo" \
+    bash -c "
+      $1
+      . '$REPO_ROOT/scripts/lib/deploy-env.sh'
+      log()  { :; }; warn() { :; }; die() { exit 1; }
+      $2"
+}
+
 # ===========================================================================
 # 1. A skipped final step must not become a failed deploy
 # ===========================================================================
@@ -202,9 +218,150 @@ else
 fi
 chmod 700 "$WORK/home/.family-cfo"
 
+# --- integrity: a partial read may never be written back ---------------------
+# The registry exists to answer "what is still running out there". Recording
+# from a read that failed half-way turns a permissions accident in ONE file into
+# a MISSING deployment in the other — and an un-listed stack is precisely the
+# box that keeps holding ports, disk and a database of household finances.
+# Skipping the write is recoverable; un-recording is not.
+printf 'remote|precious|/srv/p\tremote\tprecious\tu\t22\t/srv/p\tc.yml\t2026-11-01T00:00:00Z\n' \
+  > "$WORK/home/.family-cfo/.deploy.history"
+printf 'local|opaque|/srv/o\tlocal\topaque\t-\t-\t/srv/o\tc.yml\t2026-01-01T00:00:00Z\n' \
+  > "$WORK/repo/.deploy.history"
+chmod 000 "$WORK/repo/.deploy.history"
+# The callers' real shell options, not a gentler imitation of them: `record_
+# deployment` is a plain command under `set -euo pipefail` after the stack is up.
+if in_lib 'set -euo pipefail; record_deployment "$SANDBOX_REPO" remote newbox me 22 /srv/n c.yml' 2>/dev/null; then
+  ok "an unreadable sibling does not fail the deploy"
+else
+  ko "an unreadable sibling failed the deploy"
+fi
+if grep -q precious "$WORK/home/.family-cfo/.deploy.history" &&
+   ! grep -q newbox "$WORK/home/.family-cfo/.deploy.history"; then
+  ok "…and the existing registry is NOT rewritten from an incomplete read"
+else
+  ko "an unreadable sibling silently replaced the shared registry with one row"
+fi
+# The operator has to be told: the deploy is live and un-listed.
+if in_lib 'set -euo pipefail; record_deployment "$SANDBOX_REPO" remote newbox me 22 /srv/n c.yml' 2>&1 >/dev/null |
+     grep -qi 'UNLISTED'; then
+  ok "a skipped record says the deploy is live but UNLISTED"
+else
+  ko "a skipped record was silent about the deploy being unlisted"
+fi
+chmod 600 "$WORK/repo/.deploy.history"
+
+# `deployments.sh list` is the other half: it must degrade to "show what can be
+# read, and say it is partial", rather than dying on the failed read — and the
+# numbers it prints are what `stop`/`destroy` act on, so silence is not an option.
+#
+# Entries are kind=local with a directory that does not exist: status_of then
+# answers "0 running" from a failed cd, so the test never shells out to ssh or
+# docker and costs nothing on a runner.
+mkdir -p "$WORK/cli/scripts/lib"
+cp "$REPO_ROOT/scripts/deployments.sh" "$WORK/cli/scripts/"
+cp "$REPO_ROOT/scripts/lib/deploy-env.sh" "$WORK/cli/scripts/lib/"
+printf 'local|listed|/nonexistent-fcfo-l\tlocal\tlisted\t-\t-\t/nonexistent-fcfo-l\tc.yml\t2026-11-01T00:00:00Z\n' \
+  > "$WORK/home/.family-cfo/.deploy.history"
+printf 'local|hidden|/nonexistent-fcfo-h\tlocal\thidden\t-\t-\t/nonexistent-fcfo-h\tc.yml\t2026-01-01T00:00:00Z\n' \
+  > "$WORK/cli/.deploy.history"
+chmod 000 "$WORK/cli/.deploy.history"
+# `cli_rc=0` then `|| cli_rc=$?`: a bare `var=$(cmd)` under `set -e` aborts the
+# whole suite when the command fails, and the status IS the assertion.
+cli_rc=0; cli_out=$(HOME="$WORK/home" bash "$WORK/cli/scripts/deployments.sh" list 2>&1) || cli_rc=$?
+chmod 600 "$WORK/cli/.deploy.history"
+if [ "$cli_rc" -eq 0 ] && printf '%s\n' "$cli_out" | grep -q listed &&
+   printf '%s\n' "$cli_out" | grep -qi 'INCOMPLETE'; then
+  ok "'list' still shows the readable entries and flags the listing as incomplete"
+else
+  ko "'list' lost the readable entries when one file was unreadable (rc=$cli_rc)"
+fi
+# An empty listing while something was unreadable must not claim "nothing here".
+printf 'local|hidden|/nonexistent-fcfo-h\tlocal\thidden\t-\t-\t/nonexistent-fcfo-h\tc.yml\t2026-01-01T00:00:00Z\n' \
+  > "$WORK/cli/.deploy.history"
+rm -f "$WORK/home/.family-cfo/.deploy.history"
+chmod 000 "$WORK/cli/.deploy.history"
+# `cli_rc=0` then `|| cli_rc=$?`: a bare `var=$(cmd)` under `set -e` aborts the
+# whole suite when the command fails, and the status IS the assertion.
+cli_rc=0; cli_out=$(HOME="$WORK/home" bash "$WORK/cli/scripts/deployments.sh" list 2>&1) || cli_rc=$?
+chmod 600 "$WORK/cli/.deploy.history"
+if [ "$cli_rc" -ne 0 ] && printf '%s\n' "$cli_out" | grep -qi 'not trustworthy'; then
+  ok "'list' refuses to report 'nothing recorded' when a file could not be read"
+else
+  ko "'list' answered 'no deployments' while a registry file was unreadable"
+fi
+
+# An explicit DEPLOY_HISTORY_FILE selects ONE registry — nothing else is read
+# into it and nothing else is rewritten. That is what makes it usable as a test
+# seam and as "put my registry over there", and it is what it did before the
+# shared directory existed; unioning the pre-move file into it would smuggle
+# someone else's deployments into an isolated file.
+printf 'remote|otherworld|/srv/ow\tremote\totherworld\tu\t22\t/srv/ow\tc.yml\t2026-01-01T00:00:00Z\n' \
+  > "$WORK/repo/.deploy.history"
+: > "$WORK/only.history"
+in_lib_env "DEPLOY_HISTORY_FILE=\"$WORK/only.history\"" '
+  set -euo pipefail
+  record_deployment "$SANDBOX_REPO" remote isolated me 22 /srv/i c.yml
+' || ko "record with DEPLOY_HISTORY_FILE failed"
+if grep -q isolated "$WORK/only.history" && ! grep -q otherworld "$WORK/only.history"; then
+  ok "DEPLOY_HISTORY_FILE records into that file alone (no legacy rows copied in)"
+else
+  ko "DEPLOY_HISTORY_FILE let the pre-move registry into the isolated file"
+fi
+in_lib_env "DEPLOY_HISTORY_FILE=\"$WORK/only.history\"" '
+  set -euo pipefail
+  forget_deployment "$SANDBOX_REPO" "remote|isolated|/srv/i"
+' || ko "forget with DEPLOY_HISTORY_FILE failed"
+if grep -q otherworld "$WORK/repo/.deploy.history"; then
+  ok "DEPLOY_HISTORY_FILE does not rewrite the pre-move registry either"
+else
+  ko "the override let a forget reach into the checkout's registry"
+fi
+
+# forget's status is the CLI's answer to "did you forget it?".
+printf 'remote|lastone|/srv/one\tremote\tlastone\tu\t22\t/srv/one\tc.yml\t2026-01-01T00:00:00Z\n' \
+  > "$WORK/home/.family-cfo/.deploy.history"
+rm -f "$WORK/repo/.deploy.history"
+if in_lib 'set -euo pipefail; forget_deployment "$SANDBOX_REPO" "remote|lastone|/srv/one"' 2>"$WORK/err"; then
+  if [ -s "$WORK/err" ]; then
+    ko "forgetting the LAST row warned, although the write succeeded: $(cat "$WORK/err")"
+  else
+    ok "forgetting the last row succeeds in silence (an empty registry is not an error)"
+  fi
+else
+  ko "forgetting the last row reported failure"
+fi
+[ -s "$WORK/home/.family-cfo/.deploy.history" ] && ko "the last row survived its own forget" \
+  || ok "the last row really is gone"
+# And the opposite: a file that cannot be rewritten must be REPORTED, not
+# glossed over with "the registry entry is gone".
+printf 'local|stuck|/nonexistent-fcfo-s\tlocal\tstuck\t-\t-\t/nonexistent-fcfo-s\tc.yml\t2026-01-01T00:00:00Z\n' \
+  > "$WORK/home/.family-cfo/.deploy.history"
+chmod 500 "$WORK/home/.family-cfo"
+if in_lib 'set -euo pipefail; forget_deployment "$SANDBOX_REPO" "local|stuck|/nonexistent-fcfo-s"' 2>/dev/null; then
+  ko "a forget that could not rewrite any file reported success"
+else
+  ok "a forget that could not rewrite a file reports failure"
+fi
+chmod 700 "$WORK/home/.family-cfo"
+printf 'local|stuck|/nonexistent-fcfo-s\tlocal\tstuck\t-\t-\t/nonexistent-fcfo-s\tc.yml\t2026-01-01T00:00:00Z\n' \
+  > "$WORK/home/.family-cfo/.deploy.history"
+chmod 500 "$WORK/home/.family-cfo"
+cli_rc=0; cli_out=$(HOME="$WORK/home" bash "$WORK/cli/scripts/deployments.sh" forget 1 2>&1) || cli_rc=$?
+chmod 700 "$WORK/home/.family-cfo"
+if [ "$cli_rc" -ne 0 ] && ! printf '%s\n' "$cli_out" | grep -q "entry is gone"; then
+  ok "the CLI does not claim 'the registry entry is gone' when a file was unwritable"
+else
+  ko "the CLI promised the entry was gone while it was still listed"
+fi
+
 # Owner-only, like the .deploy.env beside it: hostnames, users and paths.
-# `ls -l`'s first field is portable; `stat`'s format flags are not. Strip the
-# macOS '@'/'+' suffix that flags extended attributes or an ACL.
+# Recorded through the lib, not printf'd in — the mode is the point, and it comes
+# from mktemp surviving the mv. `ls -l`'s first field is portable; `stat`'s
+# format flags are not. Strip the macOS '@'/'+' suffix for xattrs and ACLs.
+rm -f "$WORK/home/.family-cfo/.deploy.history" "$WORK/repo/.deploy.history"
+in_lib 'set -euo pipefail; record_deployment "$SANDBOX_REPO" remote modecheck me 22 /srv/m c.yml' \
+  >/dev/null 2>&1
 if [ -f "$WORK/home/.family-cfo/.deploy.history" ] &&
    [ "$(ls -l "$WORK/home/.family-cfo/.deploy.history" | awk '{print $1}' | tr -d '@+.' )" = "-rw-------" ]; then
   ok "the registry is written 0600"
@@ -249,40 +406,66 @@ else
 fi
 
 # --- .deploy.env -------------------------------------------------------------
-# Read from BOTH locations, shared winning, a real environment variable winning
-# over both. A checkout-local file that has not moved yet must keep working:
-# silently losing it would send `patch.sh web` at the laptop instead of the box.
+# ONE file answers for the destination — the first that exists — and a real
+# environment variable outranks it. Not a per-key merge: a shared file that
+# names only a host must not pick up the stale checkout's user, port and stack
+# path and send a patch at a Frankenstein box. And a checkout-local file that
+# has not moved yet must keep working on its own.
 mkdir -p "$WORK/home/.family-cfo" "$WORK/both"
 printf 'SSH_HOST=from-checkout\nSSH_USER=u1\nSSH_KEY=\n' > "$WORK/both/.deploy.env"
 printf 'SSH_HOST=from-shared\nSSH_PORT=2222\n' > "$WORK/home/.family-cfo/.deploy.env"
-env_probe() { # expected-var=value pairs on stdout
+env_probe() { # shell-prelude → var=value lines on stdout
   HOME="$WORK/home" bash -c "
     unset FAMILY_CFO_HOME DEPLOY_ENV_FILE DEPLOY_HISTORY_FILE
     . '$REPO_ROOT/scripts/lib/deploy-env.sh'
     $1
     load_deploy_env '$WORK/both' >/dev/null 2>&1 || exit 1
-    printf 'SSH_HOST=%s\nSSH_USER=%s\nSSH_PORT=%s\nSSH_KEY_SET=%s\n' \
-      \"\${SSH_HOST-}\" \"\${SSH_USER-}\" \"\${SSH_PORT-}\" \"\${SSH_KEY+yes}\"
+    printf 'SSH_HOST=%s\nSSH_USER=%s\nSSH_PORT=%s\nREMOTE_DIR=%s\nSSH_KEY_SET=%s\n' \
+      \"\${SSH_HOST-}\" \"\${SSH_USER-}\" \"\${SSH_PORT-}\" \"\${REMOTE_DIR-}\" \"\${SSH_KEY+yes}\"
   "
 }
 got="$(env_probe 'export SSH_USER=from-env')"
 [ "$(printf '%s\n' "$got" | grep '^SSH_HOST=')" = "SSH_HOST=from-shared" ] \
-  && ok "the machine-wide .deploy.env outranks the checkout's" \
+  && ok "the machine-wide .deploy.env is the destination when it exists" \
   || ko "the checkout's .deploy.env still wins (got: $(printf '%s\n' "$got" | grep '^SSH_HOST='))"
 [ "$(printf '%s\n' "$got" | grep '^SSH_USER=')" = "SSH_USER=from-env" ] \
-  && ok "a real environment variable still outranks both files" \
+  && ok "a real environment variable still outranks the file" \
   || ko "a file value overrode an explicit environment variable"
-[ "$(printf '%s\n' "$got" | grep '^SSH_PORT=')" = "SSH_PORT=2222" ] \
-  && ok "values are merged across the two locations" \
-  || ko "the shared file's unique key was not loaded"
+# The whole point of picking one file: keys that exist ONLY in the shadowed
+# checkout file stay unset rather than riding along with the new host.
+printf 'SSH_HOST=new-box\n' > "$WORK/home/.family-cfo/.deploy.env"
+printf 'SSH_HOST=old-box\nSSH_USER=old-user\nSSH_PORT=2222\nREMOTE_DIR=/srv/old-stack\n' \
+  > "$WORK/both/.deploy.env"
+got="$(env_probe 'unset SSH_USER')"
+[ "$(printf '%s\n' "$got" | grep '^SSH_HOST=')" = "SSH_HOST=new-box" ] &&
+  [ "$(printf '%s\n' "$got" | grep '^SSH_USER=')" = "SSH_USER=" ] &&
+  [ "$(printf '%s\n' "$got" | grep '^SSH_PORT=')" = "SSH_PORT=" ] &&
+  [ "$(printf '%s\n' "$got" | grep '^REMOTE_DIR=')" = "REMOTE_DIR=" ] \
+  && ok "a half-migrated shared file does not inherit the old checkout's user, port and path" \
+  || ko "the destination was merged across both files: $(printf '%s\n' "$got" | tr '\n' ' ')"
+# Two files on disk, one of them ignored, must be SAID — not silently shadowed.
+if HOME="$WORK/home" bash -c "
+     unset FAMILY_CFO_HOME DEPLOY_ENV_FILE DEPLOY_HISTORY_FILE
+     . '$REPO_ROOT/scripts/lib/deploy-env.sh'
+     unset SSH_USER SSH_PORT REMOTE_DIR
+     load_deploy_env '$WORK/both' 2>&1 >/dev/null
+   " | grep -q 'Ignoring'; then
+  ok "the shadowed checkout .deploy.env is reported, not quietly ignored"
+else
+  ko "the shadowed checkout .deploy.env was ignored in silence"
+fi
 
+# With no shared file at all, the pre-move checkout file is the whole answer —
+# upgrading must not lose a destination nobody moved. Including a blank value:
+# SSH_KEY may be deliberately empty, so "set" is not "non-empty".
 rm -f "$WORK/home/.family-cfo/.deploy.env"
-[ "$(env_probe '' | grep '^SSH_HOST=')" = "SSH_HOST=from-checkout" ] \
-  && ok "a pre-move checkout-local .deploy.env still sets the destination" \
-  || ko "upgrading silently lost a checkout-local destination"
-
-# A blank value is a value (SSH_KEY may be deliberately empty — see the lib).
-[ "$(env_probe '' | grep '^SSH_KEY_SET=')" = "SSH_KEY_SET=yes" ] \
+printf 'SSH_HOST=only-checkout\nSSH_USER=u1\nSSH_KEY=\n' > "$WORK/both/.deploy.env"
+got="$(env_probe 'unset SSH_USER')"
+[ "$(printf '%s\n' "$got" | grep '^SSH_HOST=')" = "SSH_HOST=only-checkout" ] &&
+  [ "$(printf '%s\n' "$got" | grep '^SSH_USER=')" = "SSH_USER=u1" ] \
+  && ok "a pre-move checkout-local .deploy.env still sets the destination on its own" \
+  || ko "upgrading silently lost a checkout-local destination: $(printf '%s\n' "$got" | tr '\n' ' ')"
+[ "$(printf '%s\n' "$got" | grep '^SSH_KEY_SET=')" = "SSH_KEY_SET=yes" ] \
   && ok "a blank value in .deploy.env still counts as set" \
   || ko "a blank SSH_KEY was treated as unset"
 

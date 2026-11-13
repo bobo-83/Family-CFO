@@ -249,16 +249,30 @@ right place without retyping anything. A real environment variable still wins
 
 **Why `~/.family-cfo/` and not the checkout.** This file describes *your fleet*,
 not this clone, so it must not depend on which directory you happened to run the
-script from, and a fresh clone should not leave you without a destination. Both
-places are read, first value wins, in this order:
+script from, and a fresh clone should not leave you without a destination.
 
-1. a real environment variable
-2. `~/.family-cfo/.deploy.env`
-3. `<checkout>/.deploy.env`
+**One file answers — not both.** The first of these that exists is the whole
+answer:
 
-so a checkout that still has its own `.deploy.env` keeps working exactly as
-before. `FAMILY_CFO_HOME` moves the whole directory elsewhere; `DEPLOY_ENV_FILE`
-names one specific file and disables the other.
+1. a real environment variable (always wins, per key)
+2. `DEPLOY_ENV_FILE`, if you set it
+3. `~/.family-cfo/.deploy.env`
+4. `<checkout>/.deploy.env`
+
+The two files are alternatives, deliberately not merged key-by-key. A destination
+is one address: merging a shared file that names only `SSH_HOST=new-box` with a
+stale checkout file would splice on the OLD box's `SSH_USER`, `SSH_PORT` and
+`REMOTE_DIR`, and a `scripts/patch.sh web` would arrive at the new box as the
+wrong user, on the wrong port, updating the wrong stack. When both files exist
+the scripts say which one they used and that the other is being ignored — move
+anything you still want, then delete it. A checkout that still has its own
+`.deploy.env` and no shared file keeps working exactly as before.
+
+`FAMILY_CFO_HOME` moves the whole directory elsewhere; `DEPLOY_ENV_FILE` names
+one specific file and disables the search. (`FAMILY_CFO_HOME` relocates the base
+directory and still folds in the pre-move registry; `DEPLOY_HISTORY_FILE` selects
+*exactly one* registry file and consults nothing else — it is the seam for tests
+and for "my registry lives over there".)
 
 **There is deliberately no `TARGET` in it.** Local-vs-remote is derived from
 *where you are*: if `SSH_HOST` is this machine you're on the box, so the stack is
@@ -274,6 +288,15 @@ still read, and its entries are folded into the shared file on the next deploy).
 One registry per machine, because that is the question it answers — *what is
 still running out there* — and a registry that depended on the current
 directory could not answer it.
+
+Unlike `.deploy.env`, the two registry files **are** merged: this is inventory,
+and an entry that goes un-listed is a box nobody can shut down. Which is exactly
+why a *partial* read is never written back. If one of the files cannot be read,
+recording declines to run — you get a warning that the deploy is live but
+UNLISTED rather than a registry quietly missing the other file's boxes. `list`
+does show what it can read, flagged `INCOMPLETE`, because a partial answer beats
+no answer as long as it says so; `forget` fails loudly rather than promising an
+entry is gone when a file refused to be rewritten.
 
 ```sh
 scripts/deployments.sh            # list everything, then offer to act on one
