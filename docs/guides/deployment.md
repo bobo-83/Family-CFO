@@ -204,7 +204,10 @@ Host family-cfo-box
 chmod 700 ~/.ssh && chmod 600 ~/.ssh/config
 ```
 
-**4. Point the deploy config at the alias.** Create `.deploy.env` (gitignored):
+**4. Point the deploy config at the alias.** Create `~/.family-cfo/.deploy.env`,
+the per-machine config the scripts read from any directory. A `.deploy.env` in
+the checkout works too — see
+[Remembering the destination](#remembering-the-destination-deployenv):
 
 ```sh
 SSH_HOST=family-cfo-box
@@ -228,9 +231,13 @@ for.
 
 ## Remembering the destination (`.deploy.env`)
 
-Copy `.deploy.env.example` to `.deploy.env` (gitignored) and set the box once:
+Copy `.deploy.env.example` into place and set the box once:
 
 ```sh
+mkdir -p ~/.family-cfo
+cp .deploy.env.example ~/.family-cfo/.deploy.env
+
+# ~/.family-cfo/.deploy.env
 SSH_HOST=192.168.1.10
 SSH_USER=you
 REMOTE_DIR=~/family-cfo
@@ -240,6 +247,19 @@ Both `deploy.sh` and `patch.sh` load it, so `scripts/patch.sh web` goes to the
 right place without retyping anything. A real environment variable still wins
 (`SSH_HOST=other-box scripts/patch.sh web`), so the file is a memory, not a cage.
 
+**Why `~/.family-cfo/` and not the checkout.** This file describes *your fleet*,
+not this clone, so it must not depend on which directory you happened to run the
+script from, and a fresh clone should not leave you without a destination. Both
+places are read, first value wins, in this order:
+
+1. a real environment variable
+2. `~/.family-cfo/.deploy.env`
+3. `<checkout>/.deploy.env`
+
+so a checkout that still has its own `.deploy.env` keeps working exactly as
+before. `FAMILY_CFO_HOME` moves the whole directory elsewhere; `DEPLOY_ENV_FILE`
+names one specific file and disables the other.
+
 **There is deliberately no `TARGET` in it.** Local-vs-remote is derived from
 *where you are*: if `SSH_HOST` is this machine you're on the box, so the stack is
 patched locally; if it isn't, you're on the MacBook, so it goes over SSH. The
@@ -248,7 +268,12 @@ somewhere you didn't mean.
 
 ## What have I deployed, and is it still running?
 
-Every successful deploy/patch records where it went (`.deploy.history`).
+Every successful deploy/patch records where it went, in
+`~/.family-cfo/.deploy.history` (the pre-move `<checkout>/.deploy.history` is
+still read, and its entries are folded into the shared file on the next deploy).
+One registry per machine, because that is the question it answers — *what is
+still running out there* — and a registry that depended on the current
+directory could not answer it.
 
 ```sh
 scripts/deployments.sh            # list everything, then offer to act on one

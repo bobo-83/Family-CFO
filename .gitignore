@@ -60,7 +60,12 @@ generated/
 tmp/
 uv.lock
 
-# Persisted deploy destination (scripts/deploy.sh, scripts/patch.sh)
+# Persisted deploy destination and deployment registry
+# (scripts/deploy.sh, scripts/patch.sh, scripts/deployments.sh).
+# The live copies now live OUTSIDE the checkout, in ~/.family-cfo/ (#173), so
+# they survive a fresh clone and are the same from any working directory; these
+# entries still cover the pre-move checkout-relative files, which are read as a
+# fallback and must never be committed either.
 .deploy.env
 .deploy.history
 

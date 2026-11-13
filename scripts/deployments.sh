@@ -26,15 +26,29 @@ cd "$REPO_ROOT"
 # shellcheck source=lib/deploy-env.sh
 . "$REPO_ROOT/scripts/lib/deploy-env.sh"
 
-HISTORY="$(deploy_history_file "$REPO_ROOT")"
+# Loads .deploy.env first so an explicit DEPLOY_HISTORY_FILE/DEPLOY_ENV_FILE is
+# honoured here exactly as it is by deploy.sh and patch.sh. Without this the
+# writer and the reader can disagree about which file the registry IS — the
+# scripts would record to one place and list another. Nothing in this script
+# reads SSH_*/TARGET, so loading the destination has no other effect here.
+load_deploy_env "$REPO_ROOT"
+
+# Every registry file this machine knows about, unioned: the machine-wide
+# ~/.family-cfo/.deploy.history plus any pre-move <checkout>/.deploy.history.
+# Reading only one of them is what made entries recorded elsewhere look as though
+# they had vanished (issue #173). See scripts/lib/deploy-env.sh.
+ROWS="$(deploy_registry_rows "$REPO_ROOT")"
 
 log()  { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m!!\033[0m %s\n' "$*" >&2; }
 die()  { printf '\033[1;31mError:\033[0m %s\n' "$*" >&2; exit 1; }
 
-[ -f "$HISTORY" ] || {
+[ -n "$ROWS" ] || {
   log "No deployments recorded yet."
-  echo "  Nothing has been deployed from this checkout (or .deploy.history was removed)."
+  echo "  Nothing has been deployed from this machine, or every entry has been"
+  echo "  forgotten. Registry files looked for:"
+  echo "    $(deploy_history_file "$REPO_ROOT")"
+  [ "$(deploy_home)" ] && echo "    $REPO_ROOT/.deploy.history  (pre-move location, still read)"
   exit 0
 }
 
@@ -48,7 +62,7 @@ while IFS=$'\t' read -r _key kind host user port dir compose stamp; do
   USERS+=("$(undash "$user")"); PORTS+=("$(undash "$port")")
   DIRS+=("$(undash "$dir")"); COMPOSES+=("$(undash "$compose")")
   STAMPS+=("$stamp")
-done < "$HISTORY"
+done <<< "$ROWS"
 
 COUNT="${#KINDS[@]}"
 [ "$COUNT" -gt 0 ] || { log "No deployments recorded yet."; exit 0; }
@@ -191,9 +205,11 @@ do_uninstall() {
 do_forget() {
   local i; i="$(resolve_index "$1")"
   local key="${KINDS[$i]}|${HOSTS[$i]}|${DIRS[$i]}"
-  local tmp; tmp="$(mktemp)"
-  awk -F'\t' -v k="$key" '$1 != k' "$HISTORY" > "$tmp"
-  mv "$tmp" "$HISTORY"
+  # Every registry file, not just the one this run happened to read first:
+  # reads union them, so an entry left in the pre-move file would come back on
+  # the next listing. The atomic-write rules live in the lib so they cannot drift
+  # apart from record_deployment's.
+  forget_deployment "$REPO_ROOT" "$key"
   log "Forgot ${HOSTS[$i]} — the registry entry is gone. Nothing was stopped or deleted."
 }
 
