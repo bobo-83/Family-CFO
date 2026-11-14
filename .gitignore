@@ -68,6 +68,7 @@ uv.lock
 # fallback and must never be committed either.
 .deploy.env
 .deploy.history
+.deploy.history.migrated
 
 # M121 (ADR 0030): local list of your own literal identifiers to block (never committed).
 .repo-hygiene-deny

@@ -159,7 +159,10 @@ _load_deploy_env_file() {
 
     # An explicit environment variable outranks the file. Note SSH_KEY may be
     # intentionally blank, so test whether it is SET rather than non-empty.
-    if [ -z "${!key+x}" ]; then
+    # eval, not ${!key+x}: the indirect form is a bashism, and this lib is
+    # sourced under dash too. Safe to eval — deploy_env_is_key has already
+    # restricted <key> to a shell identifier.
+    if eval "[ -z \"\${$key+x}\" ]"; then
       export "$key=$value"
       loaded="${loaded}${loaded:+ }${key}"
     fi
@@ -215,6 +218,10 @@ deploy_home() {
 # and a database full of household financial data.
 #
 # Format is TSV: key, kind, host, user, port, dir, compose-files, last-deployed.
+# A row whose kind is "forgotten" is a TOMBSTONE: not a deployment, but the
+# record that a place was forgotten. It suppresses its key in every file a read
+# consults — a pre-move checkout file elsewhere on this machine cannot resurrect
+# it — and record_deployment removes it when the place is deployed again.
 
 # The file NEW entries are written to. DEPLOY_HISTORY_FILE overrides it outright
 # (tests, or an operator who wants the registry somewhere else).
@@ -271,7 +278,7 @@ _deploy_registry_warn() { printf '\033[1;33m!!\033[0m %s\n' "$*" >&2; }
 # "there was nothing there" from "the read died", because an empty registry is a
 # legal registry. Only an all-or-nothing read may be written back.
 #
-# Hence the shape of the loop below, which is not incidental:
+# Hence the shape of the read below, which is not incidental:
 #   * It is NOT inside a pipeline. A `while` loop's exit status is the LAST
 #     command executed in its body, so with files A and B, `cat A` failing and
 #     `cat B` succeeding leaves the loop — and therefore the pipeline — reporting
@@ -280,8 +287,26 @@ _deploy_registry_warn() { printf '\033[1;33m!!\033[0m %s\n' "$*" >&2; }
 #     happens, in the current shell, into `incomplete`.
 #   * `-r` alone is not enough either: it is a snapshot (a chmod can race it) and
 #     it lies for root, so the `cat` status is what actually decides.
-deploy_registry_rows() { # deploy_registry_rows <repo-root> [exclude-key]
+_deploy_registry_read() { # _deploy_registry_read <repo-root> → rows on stdout, 0 iff whole
   local file one raw="" incomplete=0
+  # A literal newline: the join below needs one BETWEEN files, and the two
+  # obvious spellings are both wrong here — `$(printf '\n')` is stripped to
+  # nothing by command substitution, and $'\n' is a bashism that dash expands
+  # to the five literal characters `$'\n'`, gluing two files' rows into one
+  # corrupted line mid-inventory.
+  local nl="
+"
+  local list tmp
+  # The file list feeds the `while read` below from a TEMP FILE — not a pipe
+  # and not a `<<<` herestring. A pipe would run the loop in a subshell and the
+  # `incomplete` status would be lost (the exact trap described above); a
+  # herestring is a bashism, and this lib is sourced under dash too.
+  list="$(deploy_history_files "$1")"
+  tmp="$(mktemp "${TMPDIR:-/tmp}/deploy-history-files.XXXXXX" 2>/dev/null)" || {
+    _deploy_registry_warn "cannot enumerate the registry files."
+    return 1
+  }
+  printf '%s\n' "$list" > "$tmp"
   while IFS= read -r file; do
     [ -n "$file" ] || continue
     if [ ! -r "$file" ]; then
@@ -297,9 +322,18 @@ deploy_registry_rows() { # deploy_registry_rows <repo-root> [exclude-key]
       incomplete=1
       continue
     fi
-    raw="${raw}${raw:+$'\n'}${one}"
-  done <<< "$(deploy_history_files "$1")"
+    raw="${raw}${raw:+${nl}}${one}"
+  done < "$tmp"
+  rm -f -- "$tmp"
+  _print_rows "$raw"
+  return "$incomplete"
+}
 
+deploy_registry_rows() { # deploy_registry_rows <repo-root> [exclude-key]
+  local raw incomplete=0
+  if ! raw="$(_deploy_registry_read "$1")"; then
+    incomplete=1
+  fi
   # `if !` rather than a bare pipeline: this function's status is the answer to
   # "is the registry whole?", and errexit belongs to the caller. _print_rows
   # guarantees status 0 for the legitimate empty case, so a non-zero here is the
@@ -318,12 +352,56 @@ deploy_registry_rows() { # deploy_registry_rows <repo-root> [exclude-key]
   # number an operator read still means the same box a minute later. LC_ALL=C so
   # collation cannot shift it either. Recency stays available where it belongs:
   # as the listing's own LAST DEPLOYED column.
+  #
+  # A tombstone (field 2 "forgotten") is not a deployment: it records that a
+  # place was forgotten, and suppresses every row for that key in EVERY file a
+  # read consults — including pre-move checkout files this process cannot
+  # rewrite. Without it, a forget made from one checkout would be undone by the
+  # next fold-in from another. The tombstone rows themselves never print.
   if ! _print_rows "$raw" | awk -F'\t' -v k="${2:-}" '
+      $2 == "forgotten" { forgotten[$1] = 1; next }
       $1 == k { next }
+      $1 in forgotten { next }
       # Same place recorded in two files: keep the fresher timestamp. Field 8 is
       # an ISO-8601 UTC stamp, so it orders correctly as a plain string.
       { if (!($1 in fresh) || $8 >= fresh[$1]) { row[$1] = $0; fresh[$1] = $8 } }
       END { for (key in row) print row[key] }
+    ' | LC_ALL=C sort -t"$(printf '\t')" -k1,1
+  then
+    incomplete=1
+  fi
+  return "$incomplete"
+}
+
+# The WRITE-side projection — what a rewrite of the shared registry installs.
+# Same union and dedup as the inventory, two differences, both load-bearing:
+#   * tombstone rows are KEPT. A rewrite that dropped them would un-forget a
+#     key the next time a pre-move file was folded in — the resurrection this
+#     round is about.
+#   * a live row for a tombstoned key is dropped REGARDLESS of stamps. A forget
+#     is a decision, not a row with a timestamp; a legacy copy stamped later
+#     than the forget must not outvote it — and the rewrite must not install
+#     that stale copy beside the tombstone for a later, tombstone-blind reader
+#     to act on.
+# Rows for <exclude-key> are dropped outright: recording that key supersedes
+# both its live row and its tombstone (re-deploying a place un-forgets it).
+_deploy_registry_rows_for_write() { # _deploy_registry_rows_for_write <repo-root> <exclude-key>
+  local raw incomplete=0
+  if ! raw="$(_deploy_registry_read "$1")"; then
+    incomplete=1
+  fi
+  if ! _print_rows "$raw" | awk -F'\t' -v k="$2" '
+      $1 == k { next }
+      $2 == "forgotten" {
+        # Several tombstones for one key can exist during the move; keep the
+        # freshest so the rewrite is deterministic (an UNSPECIFIED last-one
+        # here would make the installed file depend on awk iteration order).
+        if (!($1 in tfresh) || $8 >= tfresh[$1]) { tomb[$1] = $0; tfresh[$1] = $8 }
+        next
+      }
+      $1 in tomb { next }
+      { if (!($1 in fresh) || $8 >= fresh[$1]) { row[$1] = $0; fresh[$1] = $8 } }
+      END { for (key in row) print row[key]; for (key in tomb) print tomb[key] }
     ' | LC_ALL=C sort -t"$(printf '\t')" -k1,1
   then
     incomplete=1
@@ -375,19 +453,81 @@ _install_registry_file() { # _install_registry_file <file>   (new contents on st
   return 0
 }
 
+# The lock that makes a registry update a read-modify-write ATOMIC, not just the
+# rename: two writers that both read the same inventory and both install their
+# version would EACH report success, and the first one's row would be gone —
+# sharing one file across checkouts turned a within-checkout race into a
+# cross-checkout one. A directory is the one lock primitive POSIX guarantees to
+# be atomic on every filesystem these scripts touch (flock(1) does not exist on
+# the Mac); it is held across the read, the merge and the install, so a write is
+# serialized against the state it was computed from.
+#
+# A writer that dies holding it blocks the next writes for 5s (50 × 0.1s), which
+# then refuse loudly and name the directory to remove — an honest failure beats
+# a stale lock nobody can see. _DEPLOY_REGISTRY_LOCK_TRIES is a test seam.
+_deploy_registry_lock() { # _deploy_registry_lock <registry-file> → 0 iff held
+  local lock="$1.lock" i=0
+  mkdir -p -- "$(dirname -- "$lock")" 2>/dev/null || return 1
+  while :; do
+    if mkdir -- "$lock" 2>/dev/null; then
+      return 0
+    fi
+    i=$((i + 1))
+    if [ "$i" -ge "${_DEPLOY_REGISTRY_LOCK_TRIES:-50}" ]; then
+      return 1
+    fi
+    sleep 0.1
+  done
+}
+
+_deploy_registry_unlock() { # _deploy_registry_unlock <registry-file>
+  rmdir -- "$1.lock" 2>/dev/null || :
+}
+
+# The fold is one-way, and this is what makes it one-way: once a successful
+# write has folded the pre-move file's rows into the shared registry, that file
+# stops being read. Left in place it resurrects entries forever — including
+# ones forgotten from ANOTHER checkout, which cannot rewrite this file. Renamed,
+# not deleted: nothing is destroyed, it just stops feeding the inventory.
+# Only the DEFAULT path retires: an explicit DEPLOY_HISTORY_FILE is the "this
+# one file is the whole registry" seam, and its file was never consulted here,
+# so its sibling must not be moved.
+_deploy_retire_legacy_registry() { # _deploy_retire_legacy_registry <repo-root> <shared-file>
+  [ -n "${DEPLOY_HISTORY_FILE:-}" ] && return 0
+  local legacy="$1/.deploy.history"
+  [ -f "$legacy" ] || return 0
+  [ "$legacy" != "$2" ] || return 0
+  if mv -f -- "$legacy" "$legacy.migrated" 2>/dev/null; then
+    _deploy_registry_warn "retired ${legacy} — its rows are now in ${2}."
+  else
+    _deploy_registry_warn "could not retire ${legacy} — its rows are already in ${2}, but the file will keep being consulted."
+  fi
+  return 0
+}
+
 record_deployment() { # record_deployment <repo-root> <kind> <host> <user> <port> <dir> <compose>
   local repo_root="$1" kind="$2" host="$3" user="$4" port="$5" dir="$6" compose="$7"
-  local file key stamp rows
+  local file key stamp rows installed=0
   file="$(deploy_history_file "$repo_root")"
   key="${kind}|${host}|${dir}"
   stamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+  # The lock spans the read AND the write: the rename alone does not make a
+  # read-modify-write safe (see _deploy_registry_lock).
+  if ! _deploy_registry_lock "$file"; then
+    _deploy_registry_warn "NOT recording ${key}: another registry write is in progress (${file}.lock) — this deploy is LIVE but UNLISTED. If no deploy is running, remove ${file}.lock."
+    return 0
+  fi
 
   # ALL the existing rows, or none of the write. Replacing the file with what we
   # managed to read turns a permissions accident in one file into a MISSING
   # deployment in the other — the exact data this registry exists to prevent
   # (a stack nobody remembers running keeps holding ports, disk and a database
   # of household finances). Not recording is recoverable; un-recording is not.
-  if ! rows="$(deploy_registry_rows "$repo_root" "$key")"; then
+  # The write-side projection, not the inventory: it keeps other keys'
+  # tombstones alive and drops this key's (a re-deploy supersedes a forget).
+  if ! rows="$(_deploy_registry_rows_for_write "$repo_root" "$key")"; then
+    _deploy_registry_unlock "$file"
     _deploy_registry_warn "NOT recording ${key}: the registry could not be read in full (see above). This deploy is LIVE but UNLISTED — fix that file and deploy again, so the box is not forgotten."
     return 0
   fi
@@ -398,7 +538,7 @@ record_deployment() { # record_deployment <repo-root> <kind> <host> <user> <port
   {
     # Drop any previous entry for the same place, then re-add it with a fresh
     # timestamp — the registry is a set of places, not an append-only log.
-    # Going through deploy_registry_rows also folds in the pre-move per-checkout
+    # Going through the projection also folds in the pre-move per-checkout
     # file, so entries made before the move survive into the shared one.
     _print_rows "$rows"
     # Empty fields are written as "-": tab is an IFS *whitespace* character, so
@@ -406,34 +546,65 @@ record_deployment() { # record_deployment <repo-root> <kind> <host> <user> <port
     # every later field left.
     printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
       "$key" "$kind" "$host" "${user:--}" "${port:--}" "${dir:--}" "${compose:--}" "$stamp"
-  } | _install_registry_file "$file" ||
+  } | _install_registry_file "$file"
+  installed=$?
+  if [ "$installed" -eq 0 ]; then
+    # The fold just moved every pre-move row into the shared file; retire the
+    # source so it cannot be folded — and resurrect forgotten keys — again.
+    _deploy_retire_legacy_registry "$repo_root" "$file"
+  else
     _deploy_registry_warn "deployment NOT recorded in ${file} — run \`bash scripts/deployments.sh\` to check what this machine already knows about."
+  fi
+  _deploy_registry_unlock "$file"
   return 0
 }
 
-# Removes an entry from EVERY registry file. All of them, deliberately: an entry
-# left behind in the pre-move per-checkout file would reappear on the next read,
-# because reads union the files. That is what makes `forget` mean forever.
+# Forgets a place — permanently, from every file a future read could consult.
 #
-# Returns non-zero when any file could not be read or rewritten. Unlike
-# record_deployment's write — where failure must not fail a deploy — this status
-# is the CLI's answer to "did you forget it?", and reporting success while the
-# row is still listed leaves the operator with a registry they cannot trust.
+# The decision is RECORDED in the shared registry as a tombstone row (field 2
+# "forgotten"), not merely implemented by deleting rows. The pre-move
+# per-checkout files of OTHER checkouts cannot be rewritten from here, and a
+# delete-only forget came back the next time one of them was folded in — the
+# resurrection this round is about. A tombstone follows the key wherever its
+# rows still sit, in any file; recording the place again removes it, because a
+# re-deploy supersedes a forget.
+#
+# Returns non-zero when the shared registry could not be read in full or
+# rewritten. Unlike record_deployment's write — where failure must not fail a
+# deploy — this status is the CLI's answer to "did you forget it?", and
+# reporting success while the row is still listed leaves the operator with a
+# registry they cannot trust.
 forget_deployment() { # forget_deployment <repo-root> <key>
-  local repo_root="$1" key="$2" file left="" rows rc=0
-  while IFS= read -r file; do
-    [ -n "$file" ] || continue
-    if ! rows="$(awk -F'\t' -v k="$key" '$1 != k' "$file")"; then
-      _deploy_registry_warn "cannot read ${file}; its entry for ${key} is still there."
-      rc=1
-      continue
-    fi
-    if ! _print_rows "$rows" | _install_registry_file "$file"; then
-      left="${left}${left:+, }${file}"
-      rc=1
-    fi
-  done <<< "$(deploy_history_files "$repo_root")"
-  [ -n "$left" ] && _deploy_registry_warn "could not update ${left} — ${key} may still be listed there."
+  local repo_root="$1" key="$2" file rows stamp installed=0 rc=0
+  file="$(deploy_history_file "$repo_root")"
+  stamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+  if ! _deploy_registry_lock "$file"; then
+    _deploy_registry_warn "could not lock ${file}.lock — the entry for ${key} is still listed. If no deploy is running, remove ${file}.lock."
+    return 1
+  fi
+
+  if ! rows="$(_deploy_registry_rows_for_write "$repo_root" "$key")"; then
+    _deploy_registry_unlock "$file"
+    _deploy_registry_warn "cannot read the registry in full; the entry for ${key} is still there."
+    return 1
+  fi
+
+  {
+    _print_rows "$rows"
+    # The tombstone. Same "-" convention as records: empty fields must not
+    # collapse, or every later field shifts left on read.
+    printf '%s\tforgotten\t-\t-\t-\t-\t-\t%s\n' "$key" "$stamp"
+  } | _install_registry_file "$file"
+  installed=$?
+  if [ "$installed" -ne 0 ]; then
+    _deploy_registry_warn "could not update ${file} — ${key} may still be listed there."
+    rc=1
+  else
+    # The fold moved every pre-move row into the shared file; retire the source.
+    _deploy_retire_legacy_registry "$repo_root" "$file"
+  fi
+  _deploy_registry_unlock "$file"
   return "$rc"
 }
 

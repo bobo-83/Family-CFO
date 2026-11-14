@@ -316,6 +316,26 @@ does show what it can read, flagged `INCOMPLETE`, because a partial answer beats
 no answer as long as it says so; `forget` fails loudly rather than promising an
 entry is gone when a file refused to be rewritten.
 
+The fold is one-way: the first write that has folded a checkout's pre-move file
+into the shared registry renames that file to `.deploy.history.migrated` —
+nothing is deleted, but it stops feeding the inventory. Left in place it would
+resurrect entries forever, including ones forgotten from a *different* checkout,
+which cannot rewrite this file.
+
+And a forget is recorded, not merely performed: the shared registry keeps a
+tombstone row for the forgotten key, which suppresses every copy of it in every
+file a read consults — so a deployment forgotten from one checkout stays
+forgotten no matter which checkout's pre-move file still holds a copy. Deploying
+that place again removes the tombstone: a re-deploy supersedes a forget.
+
+Because every checkout now writes the ONE shared file, record and forget hold a
+lock across the whole read-merge-write (a directory next to the registry — the
+one lock primitive POSIX guarantees on every filesystem here). Two deployments
+finishing at the same moment both land, instead of the last writer's file
+silently dropping the first one's row. A writer that died holding the lock
+blocks the next writes for five seconds, which then refuse loudly and name the
+lock directory to remove.
+
 Listing degrades; **acting does not.** Whatever the unreadable file holds is
 simply *absent* from the listing, so every row after the gap points at a
 different box than the table you just read, and ssh is handed a host you never

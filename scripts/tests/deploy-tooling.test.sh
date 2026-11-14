@@ -191,22 +191,26 @@ else
   ko "the same place appears twice, or with a stale timestamp"
 fi
 
-# forget must clear EVERY file, because reads union them: an entry left in the
-# pre-move file would simply come back.
-in_lib '
-  forget_deployment "'"$WORK"'/old-checkout" "remote|dup|/srv/dup"
-  deploy_registry_rows "'"$WORK"'/old-checkout" | grep -q "remote|dup" && exit 1
-  grep -q "remote|dup" "$HOME/.family-cfo/.deploy.history" && exit 1
-  grep -q "remote|dup" "'"$WORK"'/old-checkout/.deploy.history" && exit 1
-  exit 0
-' && ok "forget removes the entry from every registry file" \
+# forget must clear EVERY file a read consults, because reads union them: an
+# entry left in the pre-move file would simply come back. What remains in the
+# shared file is the TOMBSTONE — the record of the forget, not the deployment —
+# and the pre-move file is retired outright once its rows are folded in.
+HOME="$WORK/home" bash -c "
+  set -euo pipefail
+  unset FAMILY_CFO_HOME DEPLOY_ENV_FILE DEPLOY_HISTORY_FILE
+  . '$REPO_ROOT/scripts/lib/deploy-env.sh'
+  forget_deployment '$WORK/old-checkout' 'remote|dup|/srv/dup'
+  deploy_registry_rows '$WORK/old-checkout' | grep -qF 'remote|dup' && exit 1
+  grep -qF \"\$(printf 'remote|dup|/srv/dup\tremote\t')\" '$WORK/home/.family-cfo/.deploy.history' && exit 1
+  [ ! -f '$WORK/old-checkout/.deploy.history' ]
+" && ok "forget removes the entry from every registry file (only its tombstone remains)" \
   || ko "forget left the entry somewhere it can be read back"
 
 # An unwritable registry must cost the operator a warning, not a deploy: the
 # call sites are plain commands under `set -e`, after the stack is up.
 chmod 500 "$WORK/home/.family-cfo"
 # The warning on stderr is the point of this case; it is not test noise.
-if in_lib 'set -euo pipefail; record_deployment "$SANDBOX_REPO" remote doomed me 22 /srv/x a.yml' 2>/dev/null; then
+if in_lib '_DEPLOY_REGISTRY_LOCK_TRIES=2; export _DEPLOY_REGISTRY_LOCK_TRIES; set -euo pipefail; record_deployment "$SANDBOX_REPO" remote doomed me 22 /srv/x a.yml' 2>/dev/null; then
   ok "a failed registry write does NOT fail the deploy"
 else
   ko "an unwritable registry aborted the deploy (set -e)"
@@ -516,14 +520,26 @@ if in_lib 'set -euo pipefail; forget_deployment "$SANDBOX_REPO" "remote|lastone|
 else
   ko "forgetting the last row reported failure"
 fi
-[ -s "$WORK/home/.family-cfo/.deploy.history" ] && ko "the last row survived its own forget" \
-  || ok "the last row really is gone"
+# The row's DATA is gone from the inventory; what remains in the file is the
+# tombstone that keeps it forgotten no matter which checkout's pre-move file
+# still holds a copy. (The file being non-empty is the fix, not a regression:
+# a bare delete could not survive other checkouts' legacy files.)
+if in_lib 'set -euo pipefail; [ -z "$(deploy_registry_rows "$SANDBOX_REPO")" ]' 2>/dev/null; then
+  ok "the last row really is gone from the inventory"
+else
+  ko "the last row survived its own forget"
+fi
+if [ "$(awk -F'\t' '$2 == "forgotten" && $1 == "remote|lastone|/srv/one"' "$WORK/home/.family-cfo/.deploy.history" | wc -l | tr -d ' ')" = "1" ]; then
+  ok "…and what remains in the file is its tombstone"
+else
+  ko "the forget left something other than the tombstone behind"
+fi
 # And the opposite: a file that cannot be rewritten must be REPORTED, not
 # glossed over with "the registry entry is gone".
 printf 'local|stuck|/nonexistent-fcfo-s\tlocal\tstuck\t-\t-\t/nonexistent-fcfo-s\tc.yml\t2026-01-01T00:00:00Z\n' \
   > "$WORK/home/.family-cfo/.deploy.history"
 chmod 500 "$WORK/home/.family-cfo"
-if in_lib 'set -euo pipefail; forget_deployment "$SANDBOX_REPO" "local|stuck|/nonexistent-fcfo-s"' 2>/dev/null; then
+if in_lib '_DEPLOY_REGISTRY_LOCK_TRIES=2; export _DEPLOY_REGISTRY_LOCK_TRIES; set -euo pipefail; forget_deployment "$SANDBOX_REPO" "local|stuck|/nonexistent-fcfo-s"' 2>/dev/null; then
   ko "a forget that could not rewrite any file reported success"
 else
   ok "a forget that could not rewrite a file reports failure"
@@ -534,13 +550,213 @@ printf 'local|stuck|/nonexistent-fcfo-s\tlocal\tstuck\t-\t-\t/nonexistent-fcfo-s
 chmod 500 "$WORK/home/.family-cfo"
 # Host selector, not a number: a numeric one is refused on its own terms now, and
 # this assertion is about a file refusing to be rewritten.
-cli_rc=0; cli_out=$(HOME="$WORK/home" bash "$WORK/cli/scripts/deployments.sh" forget stuck 2>&1) || cli_rc=$?
+cli_rc=0; cli_out=$(_DEPLOY_REGISTRY_LOCK_TRIES=2 HOME="$WORK/home" bash "$WORK/cli/scripts/deployments.sh" forget stuck 2>&1) || cli_rc=$?
 chmod 700 "$WORK/home/.family-cfo"
 if [ "$cli_rc" -ne 0 ] && ! printf '%s\n' "$cli_out" | grep -q "entry is gone"; then
   ok "the CLI does not claim 'the registry entry is gone' when a file was unwritable"
 else
   ko "the CLI promised the entry was gone while it was still listed"
 fi
+
+# --- Round 4: a forget must survive OTHER checkouts' pre-move files ----------
+# Both bugs reproduced before the fix:
+#   1. Reads union the pre-move <checkout>/.deploy.history, but a forget could
+#      only rewrite the CURRENT checkout's — a deployment forgotten from one
+#      checkout came back the moment another fold-in re-read a stale copy. The
+#      forget is now a TOMBSTONE row (kind "forgotten") in the shared registry:
+#      suppression follows the key into every file a read consults.
+#   2. record/forget read and rewrote the shared registry without holding a
+#      lock across BOTH steps: two writers each read the same inventory, both
+#      reported success, and the last install dropped the other's row. A
+#      directory lock — the one atomic primitive POSIX gives on every
+#      filesystem here — now spans each read-modify-write.
+in_ck() { # <home> <code> — the lib under set -e, against an explicit HOME
+  HOME="$1" bash -c "
+    set -euo pipefail
+    unset FAMILY_CFO_HOME DEPLOY_ENV_FILE DEPLOY_HISTORY_FILE
+    . '$REPO_ROOT/scripts/lib/deploy-env.sh'
+    $2
+  " 2>&1
+}
+ck_hidden() { # <home> <checkout> <key> → 0 iff a COMPLETE read does not list key
+  HOME="$1" bash -c "
+    set -euo pipefail
+    unset FAMILY_CFO_HOME DEPLOY_ENV_FILE DEPLOY_HISTORY_FILE
+    . '$REPO_ROOT/scripts/lib/deploy-env.sh'
+    rows=\$(deploy_registry_rows '$2') || exit 9
+    printf '%s' \"\$rows\" | grep -qF '$3' && exit 1
+    exit 0
+  " 2>/dev/null
+}
+ck_lists() { # <home> <checkout> <key> → 0 iff a COMPLETE read lists key
+  HOME="$1" bash -c "
+    set -euo pipefail
+    unset FAMILY_CFO_HOME DEPLOY_ENV_FILE DEPLOY_HISTORY_FILE
+    . '$REPO_ROOT/scripts/lib/deploy-env.sh'
+    rows=\$(deploy_registry_rows '$2') || exit 9
+    printf '%s' \"\$rows\" | grep -qF '$3'
+  " 2>/dev/null
+}
+mkdir -p "$WORK/ck/home/.family-cfo" "$WORK/ck/a" "$WORK/ck/b" "$WORK/ck/c" \
+         "$WORK/ck/c2" "$WORK/ck/d" "$WORK/ck/e"
+rm -f "$WORK/ck/home/.family-cfo/.deploy.history" "$WORK/ck"/*/.deploy.history*
+# Checkout c NEVER writes, so its pre-move file is never retired — the file a
+# forget from another checkout cannot reach, which is the whole point.
+printf 'local|x|/dirA\tlocal\tx\t-\t-\t/dirA\tc.yml\t2026-01-01T00:00:00Z\n' > "$WORK/ck/c/.deploy.history"
+in_ck "$WORK/ck/home" "record_deployment '$WORK/ck/a' local x - - /dirA c.yml" >/dev/null
+in_ck "$WORK/ck/home" "forget_deployment '$WORK/ck/b' 'local|x|/dirA'" >/dev/null
+if ck_hidden "$WORK/ck/home" "$WORK/ck/c" 'local|x|/dirA'; then
+  ok "a forgotten deployment stays forgotten even where a pre-move copy still sits"
+else
+  ko "a forget was undone by another checkout's pre-move file"
+fi
+if grep -qF "$(printf 'local|x|/dirA\tforgotten\t')" "$WORK/ck/home/.family-cfo/.deploy.history"; then
+  ok "the tombstone is in the shared file, and never in the listing"
+else
+  ko "the forget did not record its decision in the shared registry"
+fi
+# A rewrite must PRESERVE other keys' tombstones — recording y must not
+# un-forget x.
+in_ck "$WORK/ck/home" "record_deployment '$WORK/ck/b' local y - - /dirY c.yml" >/dev/null
+if ck_hidden "$WORK/ck/home" "$WORK/ck/c" 'local|x|/dirA'; then
+  ok "a later record keeps other keys' tombstones intact"
+else
+  ko "recording one deployment resurrected a forgotten one"
+fi
+# …and recording the FORGOTTEN place again un-forgets it: tombstone gone, row
+# back. A tombstone that outlived its own re-deploy would make the place
+# un-recordable.
+in_ck "$WORK/ck/home" "record_deployment '$WORK/ck/a' local x - - /dirA c.yml" >/dev/null
+if ck_lists "$WORK/ck/home" "$WORK/ck/c" 'local|x|/dirA' &&
+   ! grep -qF "$(printf 'local|x|/dirA\tforgotten\t')" "$WORK/ck/home/.family-cfo/.deploy.history"; then
+  ok "re-deploying a forgotten place removes its tombstone and lists it again"
+else
+  ko "a place stayed forgotten after being deployed again"
+fi
+# A forget is a DECISION, not a row with a timestamp: a pre-move copy stamped
+# later than the forget must not outvote it.
+printf 'local|z|/dirZ\tlocal\tz\t-\t-\t/dirZ\tc.yml\t2099-01-01T00:00:00Z\n' > "$WORK/ck/c2/.deploy.history"
+in_ck "$WORK/ck/home" "record_deployment '$WORK/ck/a' local z - - /dirZ c.yml" >/dev/null
+in_ck "$WORK/ck/home" "forget_deployment '$WORK/ck/b' 'local|z|/dirZ'" >/dev/null
+# A later record — from the checkout that HOLDS the stale copy — rewrites the
+# shared file; the rewrite must not let the 2099 legacy copy outvote the forget.
+in_ck "$WORK/ck/home" "record_deployment '$WORK/ck/c2' local w3 - - /dirW3 c.yml" >/dev/null
+if ck_hidden "$WORK/ck/home" "$WORK/ck/c2" 'local|z|/dirZ'; then
+  ok "a tombstone suppresses a legacy row even when that row is stamped later"
+else
+  ko "the fresher stamp outvoted the forget"
+fi
+# The rewrite itself must not INSTALL the stale copy beside the tombstone: the
+# file is read by other checkouts' scripts too, and a live row sitting next to
+# the forget is one tombstone-blind reader away from acting on it.
+if grep -qF "$(printf 'local|z|/dirZ\tlocal\t')" "$WORK/ck/home/.family-cfo/.deploy.history"; then
+  ko "a rewrite installed a live row for a forgotten place, beside its tombstone"
+else
+  ok "…and the rewrite left no live copy of the forgotten place in the file"
+fi
+# The reviewer's exact repro: a row migrated from a checkout's OWN pre-move
+# file, forgotten elsewhere, then the checkout writes again. The fold is
+# one-way — the first write retires the file, so there is nothing to re-fold.
+printf 'local|x2|/old\tlocal\tx2\t-\t-\t/old\tc.yml\t2026-01-01T00:00:00Z\n' > "$WORK/ck/d/.deploy.history"
+in_ck "$WORK/ck/home" "record_deployment '$WORK/ck/d' local w - - /dirW c.yml" >/dev/null
+if [ ! -f "$WORK/ck/d/.deploy.history" ] && [ -f "$WORK/ck/d/.deploy.history.migrated" ] &&
+   grep -qF 'local|x2|/old' "$WORK/ck/d/.deploy.history.migrated" &&
+   ck_lists "$WORK/ck/home" "$WORK/ck/d" 'local|x2|/old'; then
+  ok "a folded pre-move file is retired (renamed, rows preserved and folded in)"
+else
+  ko "the pre-move file was not retired, or its rows were lost"
+fi
+in_ck "$WORK/ck/home" "forget_deployment '$WORK/ck/b' 'local|x2|/old'" >/dev/null
+in_ck "$WORK/ck/home" "record_deployment '$WORK/ck/d' local w2 - - /dirW2 c.yml" >/dev/null
+if ck_hidden "$WORK/ck/home" "$WORK/ck/d" 'local|x2|/old'; then
+  ok "…and a forgotten row cannot come back from the checkout that owned it"
+else
+  ko "forgetting was undone by the same checkout writing again"
+fi
+# An explicit DEPLOY_HISTORY_FILE never retires: its file was never consulted.
+printf 'local|k|/keep\tlocal\tk\t-\t-\t/keep\tc.yml\t2026-01-01T00:00:00Z\n' > "$WORK/ck/e/.deploy.history"
+HOME="$WORK/ck/home" bash -c "
+  set -euo pipefail
+  unset FAMILY_CFO_HOME DEPLOY_ENV_FILE DEPLOY_HISTORY_FILE
+  export DEPLOY_HISTORY_FILE='$WORK/ck/home/.family-cfo/.deploy.history'
+  . '$REPO_ROOT/scripts/lib/deploy-env.sh'
+  record_deployment '$WORK/ck/e' local e1 - - /dirE c.yml
+" >/dev/null 2>&1
+if [ -f "$WORK/ck/e/.deploy.history" ] && [ ! -f "$WORK/ck/e/.deploy.history.migrated" ]; then
+  ok "an explicit DEPLOY_HISTORY_FILE never retires the sibling it never read"
+else
+  ko "the one-file seam retired a pre-move file it never consulted"
+fi
+
+# The lock spans the read AND the write. While it is held, a writer waits —
+# and then lands BOTH rows, not just its own.
+shared="$WORK/ck/home/.family-cfo/.deploy.history"
+rm -f "$WORK/ck"/*/.deploy.history*
+printf 'local|base|/base\tlocal\tbase\t-\t-\t/base\tc.yml\t2026-01-01T00:00:00Z\n' > "$shared"
+mkdir "$shared.lock"
+in_ck "$WORK/ck/home" "record_deployment '$WORK/ck/a' local slow - - /slow c.yml" >/dev/null &
+waiter=$!
+sleep 0.5
+if grep -qF 'local|slow|/slow' "$shared"; then
+  ko "a record wrote while another write held the lock"
+else
+  ok "a record waits while the lock is held"
+fi
+rmdir "$shared.lock"
+wait "$waiter" 2>/dev/null || true
+if grep -qF 'local|base|/base' "$shared" && grep -qF 'local|slow|/slow' "$shared" &&
+   [ ! -d "$shared.lock" ]; then
+  ok "…then lands both rows and releases the lock"
+else
+  ko "the waiting record lost a row or left the lock behind"
+fi
+# A lock that is never released must be refused loudly, not waited on forever:
+# a record stays non-fatal (LIVE but UNLISTED, like a partial read), a forget
+# reports failure — its whole answer is whether the entry is gone.
+mkdir "$shared.lock"
+lock_rc=0; lock_out=$(in_ck "$WORK/ck/home" \
+  "_DEPLOY_REGISTRY_LOCK_TRIES=2; export _DEPLOY_REGISTRY_LOCK_TRIES; set -euo pipefail; record_deployment '$WORK/ck/a' local late - - /late c.yml") || lock_rc=$?
+if [ "$lock_rc" -eq 0 ] && ! grep -qF 'local|late|/late' "$shared" &&
+   printf '%s\n' "$lock_out" | grep -q "LIVE but UNLISTED"; then
+  ok "a record under a stuck lock is refused loudly, without failing the deploy"
+else
+  ko "a stuck lock was ignored (rc=$lock_rc) or misreported: $lock_out"
+fi
+lock_rc=0; lock_out=$(in_ck "$WORK/ck/home" \
+  "_DEPLOY_REGISTRY_LOCK_TRIES=2; export _DEPLOY_REGISTRY_LOCK_TRIES; set -euo pipefail; forget_deployment '$WORK/ck/a' 'local|base|/base'") || lock_rc=$?
+if [ "$lock_rc" -ne 0 ] && grep -qF 'local|base|/base' "$shared"; then
+  ok "a forget under a stuck lock reports failure and leaves the entry listed"
+else
+  ko "a stuck lock let a forget claim success: rc=$lock_rc"
+fi
+rmdir "$shared.lock"
+rm -rf "$WORK/ck"
+
+# …and the union itself must survive every shell that sources this lib: the
+# two-file join used a bashism ($'\n') that dash expands to five literal
+# characters, gluing the files' last and first rows into one corrupted line.
+# Every lib-level test above runs under bash, so this runs the lib under dash
+# with BOTH files populated — exactly the shape that was broken.
+mkdir -p "$WORK/dashhome/.family-cfo"
+printf 'remote|pp|/srv/pp\tremote\tpp\t-\t-\t/srv/pp\tc.yml\t2026-01-01T00:00:00Z\n' \
+  > "$WORK/dashhome/.family-cfo/.deploy.history"
+rm -f "$WORK/cli/.deploy.history"
+printf 'remote|qq|/srv/qq\tremote\tqq\t-\t-\t/srv/qq\tc.yml\t2026-02-02T00:00:00Z\n' \
+  > "$WORK/cli/.deploy.history"
+dash_rows=$(HOME="$WORK/dashhome" dash -c "
+  unset FAMILY_CFO_HOME DEPLOY_ENV_FILE DEPLOY_HISTORY_FILE
+  . '$REPO_ROOT/scripts/lib/deploy-env.sh'
+  deploy_registry_rows '$WORK/cli'
+" 2>/dev/null)
+if [ "$(printf '%s\n' "$dash_rows" | grep -c .)" = "2" ] &&
+   printf '%s\n' "$dash_rows" | awk -F'\t' 'NF != 8 { bad = 1 } END { exit bad }' &&
+   printf '%s\n' "$dash_rows" | grep -qF 'remote|pp|/srv/pp' &&
+   printf '%s\n' "$dash_rows" | grep -qF 'remote|qq|/srv/qq'; then
+  ok "the two-file union reads correctly under dash: two rows, all fields intact"
+else
+  ko "the union is corrupted under dash: $(printf '%s' "$dash_rows" | head -c 120)"
+fi
+rm -f "$WORK/cli/.deploy.history" "$WORK/dashhome/.family-cfo/.deploy.history"
 
 # Owner-only, like the .deploy.env beside it: hostnames, users and paths.
 # Recorded through the lib, not printf'd in — the mode is the point, and it comes
