@@ -251,6 +251,41 @@ else
 fi
 chmod 600 "$WORK/repo/.deploy.history"
 
+# -r is a snapshot and it lies for root, so the read itself is what decides.
+# This is the case that survives a `-r` check: the FIRST file passes it and fails
+# at the `cat`, the second reads fine. A loop inside a pipeline cannot see that —
+# a `while` loop's status is the last command run in its body, so the successful
+# second read makes the whole loop (and the pipeline, and `pipefail`) report
+# success, the first file's rows vanish, and the writer installs a registry that
+# quietly lost them. So each read is checked where it happens. The seam is
+# patched rather than faked with permissions, per the repo's test rule: select
+# the fallback explicitly, don't hope the host behaves.
+printf 'remote|first|/srv/f\tremote\tfirst\tu\t22\t/srv/f\tc.yml\t2026-11-01T00:00:00Z\n' \
+  > "$WORK/home/.family-cfo/.deploy.history"
+printf 'local|second|/srv/s\tlocal\tsecond\t-\t-\t/srv/s\tc.yml\t2026-01-01T00:00:00Z\n' \
+  > "$WORK/repo/.deploy.history"
+if in_lib '
+  set -euo pipefail
+  cat() { case "$*" in *family-cfo*) return 1 ;; *) command cat "$@" ;; esac; }
+  deploy_registry_rows "$SANDBOX_REPO" >/dev/null 2>&1
+' ; then
+  ko "a first file that passes -r and fails at cat was reported as a complete read"
+else
+  ok "a first file that passes -r and fails at cat is still an incomplete read"
+fi
+before_shared="$(cat "$WORK/home/.family-cfo/.deploy.history")"
+in_lib '
+  set -euo pipefail
+  cat() { case "$*" in *family-cfo*) return 1 ;; *) command cat "$@" ;; esac; }
+  record_deployment "$SANDBOX_REPO" remote third me 22 /srv/t c.yml
+' 2>/dev/null || true
+if [ "$(cat "$WORK/home/.family-cfo/.deploy.history")" = "$before_shared" ] &&
+   ! grep -q third "$WORK/home/.family-cfo/.deploy.history"; then
+  ok "…and the writer refused to rebuild the shared file from the half it could read"
+else
+  ko "the shared registry lost its rows to a read that failed after the -r check"
+fi
+
 # `deployments.sh list` is the other half: it must degrade to "show what can be
 # read, and say it is partial", rather than dying on the failed read — and the
 # numbers it prints are what `stop`/`destroy` act on, so silence is not an option.
@@ -290,6 +325,59 @@ if [ "$cli_rc" -ne 0 ] && printf '%s\n' "$cli_out" | grep -qi 'not trustworthy';
 else
   ko "'list' answered 'no deployments' while a registry file was unreadable"
 fi
+
+# The dangerous half of a partial listing. Rows from the unreadable file are
+# simply absent, so every number below it shifts: the operator reads a table
+# where #1 is boxA, types `stop 1`, and ssh is handed boxB. Listing stays
+# available for diagnosis; acting on a short inventory is refused BEFORE ssh or
+# docker is invoked. Refused by host name too — the missing file can hold a
+# second entry for the same host at a different directory, which is the case
+# where the wrong stack gets torn down.
+mkdir -p "$WORK/act/scripts/lib"
+cp "$REPO_ROOT/scripts/deployments.sh" "$WORK/act/scripts/"
+cp "$REPO_ROOT/scripts/lib/deploy-env.sh" "$WORK/act/scripts/lib/"
+printf 'local|boxA|/nonexistent-fcfo-a\tlocal\tboxA\t-\t-\t/nonexistent-fcfo-a\tc.yml\t2026-11-02T00:00:00Z\n' \
+  > "$WORK/home/.family-cfo/.deploy.history"
+printf 'local|boxB|/nonexistent-fcfo-b\tlocal\tboxB\t-\t-\t/nonexistent-fcfo-b\tc.yml\t2026-01-01T00:00:00Z\n' \
+  > "$WORK/act/.deploy.history"
+cli_rc=0; cli_out=$(HOME="$WORK/home" bash "$WORK/act/scripts/deployments.sh" list 2>&1) || cli_rc=$?
+if [ "$cli_rc" -eq 0 ] && printf '%s\n' "$cli_out" | grep -q boxA && printf '%s\n' "$cli_out" | grep -q boxB; then
+  ok "the complete inventory lists both boxes for acting on"
+else
+  ko "the complete inventory did not list both boxes"
+fi
+chmod 000 "$WORK/home/.family-cfo/.deploy.history"
+for sel in 1 boxB; do
+  cli_rc=0; cli_out=$(HOME="$WORK/home" bash "$WORK/act/scripts/deployments.sh" stop "$sel" 2>&1) || cli_rc=$?
+  if [ "$cli_rc" -ne 0 ] && printf '%s\n' "$cli_out" | grep -qi 'Refusing' &&
+     ! printf '%s\n' "$cli_out" | grep -q 'Stopping containers'; then
+    ok "a numbered/host action on a partial inventory is refused before touching a host (selector '$sel')"
+  else
+    ko "a partial inventory let selector '$sel' reach a host: $(printf '%s\n' "$cli_out" | grep -c 'Stopping containers') action(s)"
+  fi
+done
+cli_rc=0; cli_out=$(HOME="$WORK/home" bash "$WORK/act/scripts/deployments.sh" destroy 1 2>&1) || cli_rc=$?
+if printf '%s\n' "$cli_out" | grep -qi 'Refusing' && ! printf '%s\n' "$cli_out" | grep -q 'Type the host name'; then
+  ok "destroy — the one that deletes the database — is refused too"
+else
+  ko "destroy proceeded on a partial inventory"
+fi
+chmod 600 "$WORK/home/.family-cfo/.deploy.history"
+
+# And the numbers themselves must be deterministic. These rows become what
+# `stop 2` means, so they cannot depend on awk's hash iteration (unspecified by
+# POSIX, and different between awk builds): newest first, key as tiebreak.
+printf 'local|aa|/nonexistent-fcfo-aa\tlocal\taa\t-\t-\t/nonexistent-fcfo-aa\tc.yml\t2026-05-05T00:00:00Z\n' \
+  > "$WORK/home/.family-cfo/.deploy.history"
+printf 'local|zz|/nonexistent-fcfo-zz\tlocal\tzz\t-\t-\t/nonexistent-fcfo-zz\tc.yml\t2026-05-05T00:00:00Z\n' \
+  >> "$WORK/home/.family-cfo/.deploy.history"
+printf 'local|mm|/nonexistent-fcfo-mm\tlocal\tmm\t-\t-\t/nonexistent-fcfo-mm\tc.yml\t2020-01-01T00:00:00Z\n' \
+  >> "$WORK/home/.family-cfo/.deploy.history"
+order="$(in_lib 'deploy_registry_rows "$SANDBOX_REPO" | cut -f1' 2>/dev/null)"
+[ "$(printf '%s\n' "$order" | head -1)" = "local|aa|/nonexistent-fcfo-aa" ] &&
+  [ "$(printf '%s\n' "$order" | tail -1)" = "local|mm|/nonexistent-fcfo-mm" ] \
+  && ok "rows come back newest-first and tie-broken, so a number means the same thing twice" \
+  || ko "row order is not deterministic: $(printf '%s\n' "$order" | tr '\n' ' ')"
 
 # An explicit DEPLOY_HISTORY_FILE selects ONE registry — nothing else is read
 # into it and nothing else is rewritten. That is what makes it usable as a test
@@ -468,6 +556,164 @@ got="$(env_probe 'unset SSH_USER')"
 [ "$(printf '%s\n' "$got" | grep '^SSH_KEY_SET=')" = "SSH_KEY_SET=yes" ] \
   && ok "a blank value in .deploy.env still counts as set" \
   || ko "a blank SSH_KEY was treated as unset"
+
+# --- Where the destination file IS -------------------------------------------
+# setup-ssh.sh WRITES the destination and load_deploy_env READS it. If the two
+# disagree, onboarding produces a file nothing loads and the first patch goes
+# somewhere else — so both ask the same function, and this pins its answers.
+env_where() { # <prelude setting up the files> → the chosen path
+  HOME="$WORK/home" bash -c "
+    unset FAMILY_CFO_HOME DEPLOY_ENV_FILE DEPLOY_HISTORY_FILE
+    . '$REPO_ROOT/scripts/lib/deploy-env.sh'
+    $1
+    deploy_env_file '$WORK/both'
+  "
+}
+rm -rf "$WORK/home/.family-cfo" "$WORK/both"; mkdir -p "$WORK/home/.family-cfo" "$WORK/both"
+[ "$(env_where '')" = "$WORK/home/.family-cfo/.deploy.env" ] \
+  && ok "with neither file present, the destination to create is the machine-wide one" \
+  || ko "a fresh machine would be pointed at $(env_where '')"
+printf 'SSH_HOST=c\n' > "$WORK/both/.deploy.env"
+[ "$(env_where '')" = "$WORK/both/.deploy.env" ] \
+  && ok "with only the checkout file, that file is the destination" \
+  || ko "a pre-move checkout file is not recognised as the destination"
+printf 'SSH_HOST=s\n' > "$WORK/home/.family-cfo/.deploy.env"
+[ "$(env_where '')" = "$WORK/home/.family-cfo/.deploy.env" ] \
+  && ok "with both, the shared file is the destination (one source, no merge)" \
+  || ko "both files exist and the shared one did not win"
+[ "$(env_where 'DEPLOY_ENV_FILE=/tmp/explicit.env')" = "/tmp/explicit.env" ] \
+  && ok "DEPLOY_ENV_FILE outranks both conventions" \
+  || ko "DEPLOY_ENV_FILE was not honoured"
+
+# Structural, in the same spirit as the doctor.sh checks: if setup-ssh.sh ever
+# goes back to a hardcoded checkout path, onboarding silently writes a file the
+# loader ignores.
+if grep -q 'deploy_env_file' "$REPO_ROOT/scripts/setup-ssh.sh" &&
+   ! grep -qE '^DEPLOY_ENV="\$REPO_ROOT/\.deploy\.env"' "$REPO_ROOT/scripts/setup-ssh.sh"; then
+  ok "setup-ssh.sh asks the library where the destination lives"
+else
+  ko "setup-ssh.sh has a hardcoded destination again — it can write a file nothing reads"
+fi
+# And it must not clobber the rest of a shared config (Apple team ids, ASC key
+# ids, IOS_DEVICE) when it updates the two lines it owns.
+if grep -qE 'awk -F= .*SSH_HOST.*REMOTE_DIR' "$REPO_ROOT/scripts/setup-ssh.sh"; then
+  ok "setup-ssh.sh updates its own keys instead of rewriting the whole file"
+else
+  ko "setup-ssh.sh rewrites the destination file wholesale — it can erase unrelated settings"
+fi
+
+# Run that block for real, against a shared config holding settings it must not
+# touch. Extracted rather than imitated: a test that re-implements the script's
+# logic proves nothing about the script.
+#
+# Values go in as positional parameters, not `VAR=x func`: an assignment before a
+# shell *function* stays in the calling shell after it returns (POSIX), so
+# `HOME=… func` would leak HOME into every assertion that follows this one.
+setup_block=$(awk '/^# --- 6\. \.deploy\.env/{on=1} on{print} on && /^# --- 7\./{exit}' \
+  "$REPO_ROOT/scripts/setup-ssh.sh" | sed '$d')
+run_setup_block() { # <home> <repo-root> <alias> <remote-dir> <deploy-env-file> [prelude]
+  # `chmod 000` cannot express "the read fails": CI runners are root, and root
+  # reads anything, so a permission-based version of this test would pass on a
+  # laptop and fail on the runner. Patch the seam instead — the repo's rule for
+  # selecting a fallback path explicitly. The <prelude> is injected verbatim into
+  # the subshell, so a caller can replace `awk` or `printf` with a failing one.
+  HOME="$1" REPO_ROOT="$2" ALIAS="$3" REMOTE_DIR="$4" DEPLOY_ENV="$5" bash -c "
+    set -euo pipefail
+    ${6:-}
+    ok(){ :; }; warn(){ printf 'W|%s\n' \"\$*\"; }; die(){ printf 'E|%s\n' \"\$*\" >&2; exit 1; }; step(){ :; }
+    $setup_block
+  " 2>&1
+}
+awk_fails='awk() { case "$*" in *.deploy.env*) return 1 ;; *) command awk "$@" ;; esac; };'
+printf_fails='printf() { case "$1" in REMOTE_DIR=*) return 1 ;; *) command printf "$@" ;; esac; };'
+if [ -z "$setup_block" ]; then
+  ko "could not find setup-ssh.sh's destination block to test it"
+else
+  # A checkout that still has its own .deploy.env, so the shadow notice is on a
+  # real path rather than an imagined one.
+  mkdir -p "$WORK/setup/.family-cfo" "$WORK/setup-repo"
+  printf 'SSH_HOST=old-checkout-box\n' > "$WORK/setup-repo/.deploy.env"
+  cat > "$WORK/setup/.family-cfo/.deploy.env" <<'FIXTURE'
+# my own notes, keep these
+IOS_TEAM_ID=ABCDE12345
+SSH_HOST=stale-box
+ASC_KEY_ID=KEEPME
+SSH_USER=whoever
+FIXTURE
+  out=$(run_setup_block "$WORK/setup" "$WORK/setup-repo" boxC '~/srv/c' \
+                       "$WORK/setup/.family-cfo/.deploy.env") || true
+  sed -n '1,20p' "$WORK/setup/.family-cfo/.deploy.env" > "$WORK/setup/after"
+  if printf '%s\n' "$out" | grep -q '^E|'; then
+    ko "setup-ssh.sh's destination block failed to run: $out"
+  elif grep -q '^SSH_HOST=boxC$' "$WORK/setup/after" &&
+     grep -q '^REMOTE_DIR=~/srv/c$' "$WORK/setup/after" &&
+     grep -q '^IOS_TEAM_ID=ABCDE12345$' "$WORK/setup/after" &&
+     grep -q '^ASC_KEY_ID=KEEPME$' "$WORK/setup/after" &&
+     grep -q '^SSH_USER=whoever$' "$WORK/setup/after" &&
+     grep -q 'my own notes' "$WORK/setup/after" &&
+     ! grep -q 'stale-box' "$WORK/setup/after"; then
+    ok "setup-ssh.sh repoints SSH_HOST/REMOTE_DIR and leaves every other setting alone"
+  else
+    ko "setup-ssh.sh damaged the shared destination file: $(tr '\n' '|' < "$WORK/setup/after")"
+  fi
+  # The whole point of the fix: the operator must be able to tell WHICH file the
+  # scripts will read, and that a second one is being ignored.
+  if printf '%s\n' "$out" | grep -q 'NOT read while' &&
+     printf '%s\n' "$out" | grep -q "$WORK/setup-repo/.deploy.env"; then
+    ok "setup-ssh.sh names the file it wrote and flags the shadowed checkout one"
+  else
+    ko "setup-ssh.sh wrote one file in silence while another .deploy.env sat unread"
+  fi
+  # Running it twice must be a no-op, not a duplicate-append.
+  n_before=$(grep -c '^SSH_HOST=' "$WORK/setup/.family-cfo/.deploy.env")
+  run_setup_block "$WORK/setup" "$WORK/setup-repo" boxC '~/srv/c' \
+                  "$WORK/setup/.family-cfo/.deploy.env" >/dev/null || true
+  n_after=$(grep -c '^SSH_HOST=' "$WORK/setup/.family-cfo/.deploy.env")
+  [ "$n_before" = "$n_after" ] && [ "$n_after" = "1" ] \
+    && ok "running setup-ssh.sh again leaves one SSH_HOST, not a stack of them" \
+    || ko "re-running setup-ssh.sh duplicated SSH_HOST ($n_before → $n_after)"
+  # A fresh machine has neither file: this is the onboarding path, and it is the
+  # one the first draft of this block aborted — `[ -f "$DEPLOY_ENV" ] && awk …` as
+  # a standalone statement is a failing command under `set -e` when the file does
+  # not exist yet, so the script died before writing anything.
+  rm -rf "$WORK/setup/.family-cfo" "$WORK/setup-repo"; mkdir -p "$WORK/setup-repo"
+  out=$(run_setup_block "$WORK/setup" "$WORK/setup-repo" boxD '~/srv/d' \
+                       "$WORK/setup/.family-cfo/.deploy.env") || true
+  if printf '%s\n' "$out" | grep -q '^E|'; then
+    ko "setup-ssh.sh could not create the destination on a fresh machine: $out"
+  elif [ "$(ls -l "$WORK/setup/.family-cfo/.deploy.env" | awk '{print $1}' | tr -d '@+.')" = "-rw-------" ] &&
+       grep -q '^SSH_HOST=boxD$' "$WORK/setup/.family-cfo/.deploy.env" &&
+       grep -q '^REMOTE_DIR=~/srv/d$' "$WORK/setup/.family-cfo/.deploy.env" &&
+       grep -q 'No TARGET on purpose' "$WORK/setup/.family-cfo/.deploy.env"; then
+    ok "the destination it creates is 0600, documented, and holds the full address"
+  else
+    ko "the destination setup-ssh.sh creates is wrong or world-readable"
+  fi
+  # And a file it cannot READ must not be replaced by just the two lines this
+  # script owns — the same rule as the registry's, because a writer cannot tell
+  # "nothing in there" from "the read died". The failure is injected at the seam.
+  out=$(run_setup_block "$WORK/setup" "$WORK/setup-repo" boxE '~/srv/e' \
+                       "$WORK/setup/.family-cfo/.deploy.env" "$awk_fails") || true
+  dest="$WORK/setup/.family-cfo/.deploy.env"
+  if printf '%s\n' "$out" | grep -q '^E|' && grep -q '^SSH_HOST=boxD$' "$dest" &&
+     ! grep -q 'boxE' "$dest"; then
+    ok "setup-ssh.sh refuses to rewrite a destination it could not read, and leaves it intact"
+  else
+    ko "setup-ssh.sh flattened a destination file whose read failed (out: $(printf '%s' "$out" | head -c 120))"
+  fi
+  # A destination must never be installed half-written. Failing the LAST line of
+  # the write is the case a brace group can hide: the group's status is the last
+  # command's, so without the check on it a truncated file would be moved into
+  # place and reported as success.
+  out=$(run_setup_block "$WORK/setup" "$WORK/setup-repo" boxF '~/srv/f' "$dest" \
+                       "$printf_fails") || true
+  if printf '%s\n' "$out" | grep -q '^E|' && grep -q '^SSH_HOST=boxD$' "$dest" &&
+     ! grep -q 'boxF' "$dest" && ! ls "$dest".?????? >/dev/null 2>&1; then
+    ok "a destination whose write fails halfway is not installed, and no temp file is left behind"
+  else
+    ko "a half-failed destination write was installed anyway (out: $(printf '%s' "$out" | head -c 120))"
+  fi
+fi
 
 # ===========================================================================
 # 3. doctor.sh asks the container, not the host

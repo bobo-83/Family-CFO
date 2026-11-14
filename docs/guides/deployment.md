@@ -274,6 +274,13 @@ directory and still folds in the pre-move registry; `DEPLOY_HISTORY_FILE` select
 *exactly one* registry file and consults nothing else — it is the seam for tests
 and for "my registry lives over there".)
 
+**`scripts/setup-ssh.sh` writes whichever of these the scripts will actually
+read.** It asks the same function the loader uses rather than guessing, and it
+updates only the two lines it owns (`SSH_HOST`, `REMOTE_DIR`) — an Apple team id,
+an App Store Connect key id or an `IOS_DEVICE` in that file survive onboarding.
+Run it after moving the file, not instead of moving it: if both conventions
+exist, onboarding says which file it wrote and which one is being ignored.
+
 **There is deliberately no `TARGET` in it.** Local-vs-remote is derived from
 *where you are*: if `SSH_HOST` is this machine you're on the box, so the stack is
 patched locally; if it isn't, you're on the MacBook, so it goes over SSH. The
@@ -297,6 +304,19 @@ UNLISTED rather than a registry quietly missing the other file's boxes. `list`
 does show what it can read, flagged `INCOMPLETE`, because a partial answer beats
 no answer as long as it says so; `forget` fails loudly rather than promising an
 entry is gone when a file refused to be rewritten.
+
+Listing degrades; **acting does not.** Those rows become the numbers `stop 2` and
+`destroy 1` resolve against, and whatever the unreadable file holds is simply
+*absent* — so every number after the gap points at a different box than the table
+you just read, and ssh is handed a host you never saw. So `stop`, `remove`,
+`destroy`, `uninstall` and `forget` (and the interactive menu) refuse to run on a
+partial inventory, before any ssh or docker command is built, whether you named a
+number or a host name: the missing file can hold a second entry for the same host
+at a different directory, which is the case where the wrong stack gets torn down.
+`list` stays available, because reading is how you find the file to fix. The
+ordering is fixed too — newest first, then by key, `LC_ALL=C` — rather than
+whatever order awk's hash happens to iterate in, since a number that means
+something different on the next run is the other way to reach the wrong box.
 
 ```sh
 scripts/deployments.sh            # list everything, then offer to act on one

@@ -37,11 +37,34 @@
 #     its stages is. So a producer that legitimately outputs nothing must still
 #     exit 0 (_print_rows). Keep the `return 0`s; the comments say what guards.
 
+# deploy_env_file <repo-root> — the ONE file that answers for the destination,
+# in the order load_deploy_env consults them. When none exists yet, the file to
+# CREATE (the machine-wide one, which is the recommended home).
+#
+# This is public because scripts/setup-ssh.sh asks it where to write. Onboarding
+# and loading must agree on which file IS the destination, or the setup script
+# writes a file nothing reads and the operator's first patch goes somewhere else.
+deploy_env_file() { # deploy_env_file <repo-root>
+  local repo_root="$1" home shared
+  if [ -n "${DEPLOY_ENV_FILE:-}" ]; then
+    printf '%s' "$DEPLOY_ENV_FILE"
+    return
+  fi
+  home="$(deploy_home)"
+  shared="${home:+$home/.deploy.env}"
+  if [ -n "$shared" ] && [ -f "$shared" ]; then
+    printf '%s' "$shared"
+  elif [ -f "$repo_root/.deploy.env" ]; then
+    printf '%s' "$repo_root/.deploy.env"
+  else
+    printf '%s' "${shared:-$repo_root/.deploy.env}"
+  fi
+}
+
 # load_deploy_env <repo-root>
 #
-# ONE file answers for the destination — the first that EXISTS, in this order:
-# DEPLOY_ENV_FILE, ~/.family-cfo/.deploy.env, <repo-root>/.deploy.env. A real
-# environment variable still outranks whatever that file says.
+# ONE file answers for the destination — whatever deploy_env_file names. A real
+# environment variable still outranks it, per key.
 #
 # Deliberately not a per-key merge. Merging made a half-written shared file
 # inherit the stale checkout's SSH_USER/SSH_PORT/REMOTE_DIR around it, so a
@@ -50,26 +73,20 @@
 # legitimately hold different things (a checkout file is also where iOS and
 # TestFlight settings live), so the shadowed file is *reported*, never merged.
 load_deploy_env() {
-  local repo_root="$1" home shared checkout
+  local repo_root="$1" chosen home shared checkout
+  chosen="$(deploy_env_file "$repo_root")"
+  _load_deploy_env_file "$chosen"
+
+  # The other conventional file is not consulted, so say so: silently ignoring a
+  # file the operator can see is how "my .deploy.env is being ignored" reports
+  # start. stderr, because the "Loaded from" line on stdout is the answer.
   home="$(deploy_home)"
   shared="${home:+$home/.deploy.env}"
   checkout="$repo_root/.deploy.env"
-
-  if [ -n "${DEPLOY_ENV_FILE:-}" ]; then
-    _load_deploy_env_file "$DEPLOY_ENV_FILE"
-    return 0
+  if [ "$chosen" != "$checkout" ] && [ -f "$checkout" ]; then
+    printf '\033[1;33m!!\033[0m %s\n' \
+      "Ignoring $checkout — $chosen is the destination. Move anything you still want and delete it, or point DEPLOY_ENV_FILE at the file you mean." >&2
   fi
-
-  if [ -n "$shared" ] && [ -f "$shared" ]; then
-    _load_deploy_env_file "$shared"
-    # The other file is not consulted, so say so: silently ignoring a file the
-    # operator can see is how "my .deploy.env is being ignored" bug reports start.
-    [ -f "$checkout" ] && printf '\033[1;33m!!\033[0m %s\n' \
-      "Ignoring $checkout — $shared is the destination. Move anything you still want and delete it, or point DEPLOY_ENV_FILE at the file you mean." >&2
-    return 0
-  fi
-
-  _load_deploy_env_file "$checkout"
   return 0
 }
 
@@ -203,33 +220,55 @@ _deploy_registry_warn() { printf '\033[1;33m!!\033[0m %s\n' "$*" >&2; }
 # the registry must treat that as "do not write": the writer cannot distinguish
 # "there was nothing there" from "the read died", because an empty registry is a
 # legal registry. Only an all-or-nothing read may be written back.
+#
+# Hence the shape of the loop below, which is not incidental:
+#   * It is NOT inside a pipeline. A `while` loop's exit status is the LAST
+#     command executed in its body, so with files A and B, `cat A` failing and
+#     `cat B` succeeding leaves the loop — and therefore the pipeline — reporting
+#     success even under `pipefail`, because no PIPELINE element ever failed. The
+#     rows of A are gone and nothing said so. So each read is checked where it
+#     happens, in the current shell, into `incomplete`.
+#   * `-r` alone is not enough either: it is a snapshot (a chmod can race it) and
+#     it lies for root, so the `cat` status is what actually decides.
 deploy_registry_rows() { # deploy_registry_rows <repo-root> [exclude-key]
-  local file readable="" incomplete=0
+  local file one raw="" incomplete=0
   while IFS= read -r file; do
     [ -n "$file" ] || continue
-    if [ -r "$file" ]; then
-      readable="${readable}${readable:+$'\n'}${file}"
-    else
-      incomplete=1
+    if [ ! -r "$file" ]; then
       _deploy_registry_warn "cannot read ${file}."
+      incomplete=1
+      continue
     fi
+    # Command substitution strips trailing newlines; every registry row is a
+    # single line, so re-joining with one below reconstructs the file exactly
+    # (and normalises a missing final newline).
+    if ! one="$(cat -- "$file")"; then
+      _deploy_registry_warn "failed while reading ${file}."
+      incomplete=1
+      continue
+    fi
+    raw="${raw}${raw:+$'\n'}${one}"
   done <<< "$(deploy_history_files "$1")"
 
   # `if !` rather than a bare pipeline: this function's status is the answer to
-  # "is the registry whole?", and errexit belongs to the caller, not here. The
-  # -r test above can lie (root reads anything, and a chmod can race us), which
-  # is why the cat failure has to be caught too.
-  if ! printf '%s\n' "$readable" | while IFS= read -r file; do
-         [ -n "$file" ] || continue
-         cat -- "$file"
-       done |
-    awk -F'\t' -v k="${2:-}" '
+  # "is the registry whole?", and errexit belongs to the caller. _print_rows
+  # guarantees status 0 for the legitimate empty case, so a non-zero here is the
+  # filter or the sort genuinely failing — which is also an incomplete read.
+  #
+  # The sort is not decoration. POSIX leaves `for (key in row)` in awk
+  # UNSPECIFIED, and these rows become the NUMBERS an operator acts on
+  # (`deployments.sh stop 2`); an order that differs between awk builds, or
+  # between a laptop and a runner, is how a numbered command lands on the wrong
+  # box. Newest first, matching the listing's LAST DEPLOYED column, with the key
+  # as tiebreak so two identical stamps order identically. LC_ALL=C so collation
+  # cannot shift it either.
+  if ! _print_rows "$raw" | awk -F'\t' -v k="${2:-}" '
       $1 == k { next }
       # Same place recorded in two files: keep the fresher timestamp. Field 8 is
       # an ISO-8601 UTC stamp, so it orders correctly as a plain string.
       { if (!($1 in fresh) || $8 >= fresh[$1]) { row[$1] = $0; fresh[$1] = $8 } }
       END { for (key in row) print row[key] }
-    '
+    ' | LC_ALL=C sort -t"$(printf '\t')" -k8,8r -k1,1
   then
     incomplete=1
   fi

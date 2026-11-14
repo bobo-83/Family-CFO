@@ -79,7 +79,7 @@ COUNT="${#KINDS[@]}"
 # into this listing, so an entry that could not be read is also an entry that
 # cannot be stopped or destroyed from here.
 if [ "$ROWS_INCOMPLETE" = "1" ]; then
-  warn "This listing is INCOMPLETE: a registry file could not be read (above). Whatever it holds is not numbered here, so it cannot be acted on until that file is readable."
+  warn "This listing is INCOMPLETE: a registry file could not be read (above). Whatever it holds is missing from these numbers, so every entry after it is numbered wrong — 'list' is safe to read, and the actions are refused until that file is readable."
 fi
 
 # Recorded user/port may be empty, meaning "ssh works it out from ~/.ssh/config".
@@ -233,15 +233,35 @@ do_forget() {
   log "Forgot ${HOSTS[$i]} — the registry entry is gone. Nothing was stopped or deleted."
 }
 
+# --- Actions need the WHOLE inventory ---------------------------------------
+#
+# A partial listing is fine for diagnosis and dangerous for actions. Rows from an
+# unreadable file are simply absent, so every number below it shifts: with
+# [boxA, boxB] and boxA's file unreadable, boxB is #1 — and `stop 1`, which the
+# operator just watched print a table naming boxA, sends the command to boxB.
+# ssh/docker is invoked with a resolved host, so nothing warns them. Naming the
+# host is not much safer: the unreadable file can hold a second entry for the
+# same host with a different directory, which is the case where the wrong stack
+# gets torn down.
+#
+# So read freely, act only on a complete inventory. The message says how to fix
+# it, because "refused" without a repair is just a new kind of confusion.
+require_complete_inventory() { # require_complete_inventory <action being refused>
+  [ "$ROWS_INCOMPLETE" != "1" ] && return 0
+  # The unreadable file is named by the reader's warning above; naming one here
+  # too would be a guess, because either of the two (or both) can be the culprit.
+  die "Refusing to '${1}': the inventory is incomplete — the file named above could not be read, so these numbers do not match what was listed and this host may not be the one you saw. Make that file readable (chmod u+r — it is your own), run 'list' again, then act on that."
+}
+
 # --- Dispatch ----------------------------------------------------------------
 ACTION="${1:-}"
 case "$ACTION" in
   list)      print_list; exit 0 ;;
-  stop)      [ $# -ge 2 ] || die "Usage: scripts/deployments.sh stop <#|host>";      print_list; do_stop "$2";      exit 0 ;;
-  remove)    [ $# -ge 2 ] || die "Usage: scripts/deployments.sh remove <#|host>";    print_list; do_remove "$2";    exit 0 ;;
-  destroy)   [ $# -ge 2 ] || die "Usage: scripts/deployments.sh destroy <#|host>";   print_list; do_destroy "$2";   exit 0 ;;
-  uninstall) [ $# -ge 2 ] || die "Usage: scripts/deployments.sh uninstall <#|host>"; print_list; do_uninstall "$2"; exit 0 ;;
-  forget)    [ $# -ge 2 ] || die "Usage: scripts/deployments.sh forget <#|host>";    print_list; do_forget "$2";    exit 0 ;;
+  stop)      [ $# -ge 2 ] || die "Usage: scripts/deployments.sh stop <#|host>";      print_list; require_complete_inventory stop;      do_stop "$2";      exit 0 ;;
+  remove)    [ $# -ge 2 ] || die "Usage: scripts/deployments.sh remove <#|host>";    print_list; require_complete_inventory remove;    do_remove "$2";    exit 0 ;;
+  destroy)   [ $# -ge 2 ] || die "Usage: scripts/deployments.sh destroy <#|host>";   print_list; require_complete_inventory destroy;   do_destroy "$2";   exit 0 ;;
+  uninstall) [ $# -ge 2 ] || die "Usage: scripts/deployments.sh uninstall <#|host>"; print_list; require_complete_inventory uninstall; do_uninstall "$2"; exit 0 ;;
+  forget)    [ $# -ge 2 ] || die "Usage: scripts/deployments.sh forget <#|host>";    print_list; require_complete_inventory forget;    do_forget "$2";    exit 0 ;;
   ""|menu)   ;;
   *)         die "Unknown action '$ACTION'. Try: list | stop | remove | destroy | uninstall | forget" ;;
 esac
@@ -249,6 +269,8 @@ esac
 # --- Interactive -------------------------------------------------------------
 log "Recorded deployments (${COUNT}):"
 print_list
+# Same rule as the CLI: the menu resolves a number into this same short list.
+require_complete_inventory "act interactively"
 
 # Only offer destructive actions on a terminal — piped into something, just list.
 [ -t 0 ] || exit 0
