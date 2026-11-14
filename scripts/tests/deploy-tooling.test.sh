@@ -347,36 +347,133 @@ else
   ko "the complete inventory did not list both boxes"
 fi
 chmod 000 "$WORK/home/.family-cfo/.deploy.history"
-for sel in 1 boxB; do
+# Selectors here are HOSTS on purpose. A numeric selector is now refused for its
+# own reason (numbers belong to the listing printed by the same run), so using
+# '1' here would pass on the refusal message alone and say nothing about the
+# inventory guard — the exact vacuity mutation-checking would have missed.
+for sel in boxA boxB; do
   cli_rc=0; cli_out=$(HOME="$WORK/home" bash "$WORK/act/scripts/deployments.sh" stop "$sel" 2>&1) || cli_rc=$?
-  if [ "$cli_rc" -ne 0 ] && printf '%s\n' "$cli_out" | grep -qi 'Refusing' &&
+  if [ "$cli_rc" -ne 0 ] && printf '%s\n' "$cli_out" | grep -qi 'inventory is incomplete' &&
      ! printf '%s\n' "$cli_out" | grep -q 'Stopping containers'; then
-    ok "a numbered/host action on a partial inventory is refused before touching a host (selector '$sel')"
+    ok "acting on a partial inventory is refused before touching a host (selector '$sel')"
   else
     ko "a partial inventory let selector '$sel' reach a host: $(printf '%s\n' "$cli_out" | grep -c 'Stopping containers') action(s)"
   fi
 done
-cli_rc=0; cli_out=$(HOME="$WORK/home" bash "$WORK/act/scripts/deployments.sh" destroy 1 2>&1) || cli_rc=$?
-if printf '%s\n' "$cli_out" | grep -qi 'Refusing' && ! printf '%s\n' "$cli_out" | grep -q 'Type the host name'; then
-  ok "destroy — the one that deletes the database — is refused too"
+cli_rc=0; cli_out=$(HOME="$WORK/home" bash "$WORK/act/scripts/deployments.sh" destroy boxA 2>&1) || cli_rc=$?
+if printf '%s\n' "$cli_out" | grep -qi 'inventory is incomplete' && ! printf '%s\n' "$cli_out" | grep -q 'Type the host name'; then
+  ok "destroy — the one that deletes the database — is refused on a partial inventory too"
 else
   ko "destroy proceeded on a partial inventory"
 fi
 chmod 600 "$WORK/home/.family-cfo/.deploy.history"
 
-# And the numbers themselves must be deterministic. These rows become what
-# `stop 2` means, so they cannot depend on awk's hash iteration (unspecified by
-# POSIX, and different between awk builds): newest first, key as tiebreak.
-printf 'local|aa|/nonexistent-fcfo-aa\tlocal\taa\t-\t-\t/nonexistent-fcfo-aa\tc.yml\t2026-05-05T00:00:00Z\n' \
-  > "$WORK/home/.family-cfo/.deploy.history"
+# --- The inventory is now STABLE, and selectors NAME a place -------------------
+# Two rules, both about the same failure: an action reaching a box nobody
+# pointed at.
+#
+# 1. Ordering comes from the KEY (kind|host|dir), not the last-deployed stamp.
+#    Every patch rewrites that stamp, so a stamp sort renumbers the inventory
+#    underneath the operator — list shows boxA as 1, patching boxB moves boxB to
+#    1, and `stop 1` then means boxB. The key changes only when a place is added
+#    or forgotten. (This ordering is also what `stop boxA`'s landing dir asserts:
+#    the fake docker reports the directory it was run in.)
+# 2. A row position is accepted ONLY in the interactive menu, by the process that
+#    printed the table. On the command line a number is refused with the reason,
+#    BEFORE anything is run against a host.
+# Real stack roots, so `cd <dir> && docker compose …` runs and the fake docker
+# can say which directory — which box — an action actually reached.
+# Earlier blocks left rows in every file this sandbox can see (home, repo, and
+# the act checkout above). This block asserts an exact numbering, so it starts
+# from an empty one — otherwise it is testing the leftovers, not the sort.
+rm -f "$WORK/home/.family-cfo/.deploy.history" "$WORK/repo/.deploy.history" \
+      "$WORK/act/.deploy.history"
+mkdir -p "$WORK/boxes/a" "$WORK/boxes/b" "$WORK/boxes/a2" "$WORK/bin"
+cat > "$WORK/bin/docker" <<'FAKE'
+#!/bin/sh
+echo "ACTION LANDED ON: $(pwd)"
+FAKE
+chmod +x "$WORK/bin/docker"
+printf 'local|boxA|%s\tlocal\tboxA\t-\t-\t%s\tc.yml\t2026-11-02T00:00:00Z\n' \
+  "$WORK/boxes/a" "$WORK/boxes/a" > "$WORK/home/.family-cfo/.deploy.history"
+printf 'local|boxB|%s\tlocal\tboxB\t-\t-\t%s\tc.yml\t2026-01-01T00:00:00Z\n' \
+  "$WORK/boxes/b" "$WORK/boxes/b" >> "$WORK/home/.family-cfo/.deploy.history"
+numbers() { HOME="$WORK/home" bash "$WORK/act/scripts/deployments.sh" list 2>/dev/null |
+  awk '/^  [0-9]+ /{printf "%s=%s ", $1, $3}'; }
+landed() { # <action> <selector> → what the fake docker reports, or the refusal
+  cli_rc=0; cli_out=$(HOME="$WORK/home" PATH="$WORK/bin:$PATH" \
+    bash "$WORK/act/scripts/deployments.sh" "$1" "$2" 2>&1) || cli_rc=$?
+  printf '%s\n' "$cli_out" | grep -E 'ACTION LANDED ON|Refusing to act|is recorded|Forgot' |
+    sed "s|$WORK/boxes|boxes|g"
+}
+before="$(numbers)"
+in_lib 'set -euo pipefail; record_deployment "$SANDBOX_REPO" local boxB - - '"$WORK"'/boxes/b c.yml' \
+  >/dev/null 2>&1
+after="$(numbers)"
+if [ "$before" = "$after" ] && [ "$before" = "1=boxA 2=boxB " ]; then
+  ok "a successful patch does not renumber the inventory (key order, not stamp order)"
+else
+  ko "the numbering moved under the operator: '$before' → '$after'"
+fi
+[ "$(landed stop boxA)" = "ACTION LANDED ON: boxes/a" ] \
+  && ok "a host selector acts on the box it names" \
+  || ko "a host selector reached the wrong place: $(landed stop boxA)"
+[ "$(landed stop boxB)" = "ACTION LANDED ON: boxes/b" ] \
+  && ok "…and so does the other host" \
+  || ko "the second host selector reached the wrong place: $(landed stop boxB)"
+printf 'local|boxA|%s\tlocal\tboxA\t-\t-\t%s\tc.yml\t2026-10-01T00:00:00Z\n' \
+  "$WORK/boxes/a2" "$WORK/boxes/a2" >> "$WORK/home/.family-cfo/.deploy.history"
+if printf '%s\n' "$(landed stop boxA)" | grep -q 'is recorded 2 times' &&
+   printf '%s\n' "$(landed stop boxA)" | grep -q 'local|boxA|boxes/a2'; then
+  ok "a host that runs two stacks is refused, and the keys it could mean are printed"
+else
+  ko "an ambiguous host was resolved by luck: $(landed stop boxA)"
+fi
+if printf '%s\n' "$(landed forget "local|boxA|$WORK/boxes/a2")" | grep -q 'Forgot boxA'; then
+  ok "the exact key resolves the ambiguous case"
+else
+  ko "the full key was not accepted: $(landed forget "local|boxA|$WORK/boxes/a2")"
+fi
+if printf '%s\n' "$(landed stop 1)" | grep -q 'Refusing to act' &&
+   ! printf '%s\n' "$(landed stop 1)" | grep -q 'ACTION LANDED'; then
+  ok "a row position on the command line is refused before anything runs"
+else
+  ko "a numeric selector reached a host: $(landed stop 1)"
+fi
+rm -rf "$WORK/boxes" "$WORK/bin"
+
+# The interactive menu is the one place a row position is honoured — by the
+# process that printed the table. Its safety rests on two shapes, so pin them:
+# the number is resolved by resolve_display_index (not the general resolver), the
+# inventory is declared complete BEFORE the prompt is shown, and the action is
+# handed the resolved KEY rather than the position — so a concurrent change can
+# at worst produce an honest "no recorded deployment", never an action on
+# whatever now occupies that row.
+menu_block=$(sed -n '/^# --- Interactive/,$p' "$REPO_ROOT/scripts/deployments.sh")
+if [ -n "$menu_block" ] &&
+   printf '%s\n' "$menu_block" | grep -q 'resolve_display_index "$choice"' &&
+   printf '%s\n' "$menu_block" | grep -q 'chosen_key="${KINDS\[$idx\]}|\${HOSTS\[$idx\]}|\${DIRS\[$idx\]}"' &&
+   printf '%s\n' "$menu_block" | grep -q 'require_complete_inventory "act interactively"' &&
+   ! printf '%s\n' "$menu_block" | grep -qE 'do_(stop|remove|destroy|uninstall|forget) +"\$\(\(idx'; then
+  ok "the menu resolves its number in-process and acts by key, not by row position"
+else
+  ko "the menu lost the shape that makes its numbers safe: $(printf '%s' "$menu_block" | grep -cE 'do_[a-z]+ +"\$\(\(idx') numeric pass-through(s)"
+fi
+
+# --- and the ORDER itself is fully determined ---------------------------------
+# These rows become what the menu's numbers mean, so they cannot depend on awk's
+# hash iteration (unspecified by POSIX, different between awk builds): key order,
+# LC_ALL=C.
 printf 'local|zz|/nonexistent-fcfo-zz\tlocal\tzz\t-\t-\t/nonexistent-fcfo-zz\tc.yml\t2026-05-05T00:00:00Z\n' \
+  > "$WORK/home/.family-cfo/.deploy.history"
+printf 'local|aa|/nonexistent-fcfo-aa\tlocal\taa\t-\t-\t/nonexistent-fcfo-aa\tc.yml\t2026-05-05T00:00:00Z\n' \
   >> "$WORK/home/.family-cfo/.deploy.history"
 printf 'local|mm|/nonexistent-fcfo-mm\tlocal\tmm\t-\t-\t/nonexistent-fcfo-mm\tc.yml\t2020-01-01T00:00:00Z\n' \
   >> "$WORK/home/.family-cfo/.deploy.history"
 order="$(in_lib 'deploy_registry_rows "$SANDBOX_REPO" | cut -f1' 2>/dev/null)"
 [ "$(printf '%s\n' "$order" | head -1)" = "local|aa|/nonexistent-fcfo-aa" ] &&
-  [ "$(printf '%s\n' "$order" | tail -1)" = "local|mm|/nonexistent-fcfo-mm" ] \
-  && ok "rows come back newest-first and tie-broken, so a number means the same thing twice" \
+  [ "$(printf '%s\n' "$order" | tail -1)" = "local|zz|/nonexistent-fcfo-zz" ] \
+  && ok "rows come back in KEY order, so a number means the same thing every run" \
   || ko "row order is not deterministic: $(printf '%s\n' "$order" | tr '\n' ' ')"
 
 # An explicit DEPLOY_HISTORY_FILE selects ONE registry — nothing else is read
@@ -435,7 +532,9 @@ chmod 700 "$WORK/home/.family-cfo"
 printf 'local|stuck|/nonexistent-fcfo-s\tlocal\tstuck\t-\t-\t/nonexistent-fcfo-s\tc.yml\t2026-01-01T00:00:00Z\n' \
   > "$WORK/home/.family-cfo/.deploy.history"
 chmod 500 "$WORK/home/.family-cfo"
-cli_rc=0; cli_out=$(HOME="$WORK/home" bash "$WORK/cli/scripts/deployments.sh" forget 1 2>&1) || cli_rc=$?
+# Host selector, not a number: a numeric one is refused on its own terms now, and
+# this assertion is about a file refusing to be rewritten.
+cli_rc=0; cli_out=$(HOME="$WORK/home" bash "$WORK/cli/scripts/deployments.sh" forget stuck 2>&1) || cli_rc=$?
 chmod 700 "$WORK/home/.family-cfo"
 if [ "$cli_rc" -ne 0 ] && ! printf '%s\n' "$cli_out" | grep -q "entry is gone"; then
   ok "the CLI does not claim 'the registry entry is gone' when a file was unwritable"
@@ -595,11 +694,18 @@ else
   ko "setup-ssh.sh has a hardcoded destination again — it can write a file nothing reads"
 fi
 # And it must not clobber the rest of a shared config (Apple team ids, ASC key
-# ids, IOS_DEVICE) when it updates the two lines it owns.
-if grep -qE 'awk -F= .*SSH_HOST.*REMOTE_DIR' "$REPO_ROOT/scripts/setup-ssh.sh"; then
-  ok "setup-ssh.sh updates its own keys instead of rewriting the whole file"
+# ids, IOS_DEVICE) when it updates the keys it owns. Two shapes are pinned:
+# the OWNED_KEYS list is what says which keys are an address, and the key
+# comparison goes through the loader's rule (deploy_env_key_of_line), not a
+# literal grep — the loader strips comments and all whitespace from a key and
+# keeps the FIRST value, so a padded ` SSH_HOST = old ` left in place would keep
+# winning over the line setup appends.
+if grep -q 'OWNED_KEYS="SSH_HOST SSH_USER SSH_PORT SSH_KEY REMOTE_DIR"' "$REPO_ROOT/scripts/setup-ssh.sh" &&
+   grep -q 'deploy_env_key_of_line "$line"' "$REPO_ROOT/scripts/setup-ssh.sh" &&
+   ! grep -qE "awk -F= .*SSH_HOST|grep -qE \"\\^SSH_HOST=" "$REPO_ROOT/scripts/setup-ssh.sh"; then
+  ok "setup-ssh.sh replaces exactly its OWNED_KEYS, matched by the loader's key rule"
 else
-  ko "setup-ssh.sh rewrites the destination file wholesale — it can erase unrelated settings"
+  ko "setup-ssh.sh is matching keys by literal text again — padded ' SSH_HOST = old ' would survive and keep winning"
 fi
 
 # Run that block for real, against a shared config holding settings it must not
@@ -617,14 +723,20 @@ run_setup_block() { # <home> <repo-root> <alias> <remote-dir> <deploy-env-file> 
   # laptop and fail on the runner. Patch the seam instead — the repo's rule for
   # selecting a fallback path explicitly. The <prelude> is injected verbatim into
   # the subshell, so a caller can replace `awk` or `printf` with a failing one.
+  #
+  # The lib is sourced because the block now asks the LOADER for the effective
+  # destination (effective_value → load_deploy_env) and normalises keys with
+  # deploy_env_key_of_line — both of which are the point of this round's fix.
   HOME="$1" REPO_ROOT="$2" ALIAS="$3" REMOTE_DIR="$4" DEPLOY_ENV="$5" bash -c "
     set -euo pipefail
+    unset FAMILY_CFO_HOME DEPLOY_ENV_FILE DEPLOY_HISTORY_FILE
+    . '$REPO_ROOT/scripts/lib/deploy-env.sh'
     ${6:-}
     ok(){ :; }; warn(){ printf 'W|%s\n' \"\$*\"; }; die(){ printf 'E|%s\n' \"\$*\" >&2; exit 1; }; step(){ :; }
     $setup_block
   " 2>&1
 }
-awk_fails='awk() { case "$*" in *.deploy.env*) return 1 ;; *) command awk "$@" ;; esac; };'
+cat_fails='cat() { case "$*" in *.deploy.env*) return 1 ;; *) command cat "$@" ;; esac; };'
 printf_fails='printf() { case "$1" in REMOTE_DIR=*) return 1 ;; *) command printf "$@" ;; esac; };'
 if [ -z "$setup_block" ]; then
   ko "could not find setup-ssh.sh's destination block to test it"
@@ -649,7 +761,7 @@ FIXTURE
      grep -q '^REMOTE_DIR=~/srv/c$' "$WORK/setup/after" &&
      grep -q '^IOS_TEAM_ID=ABCDE12345$' "$WORK/setup/after" &&
      grep -q '^ASC_KEY_ID=KEEPME$' "$WORK/setup/after" &&
-     grep -q '^SSH_USER=whoever$' "$WORK/setup/after" &&
+     ! grep -q '^SSH_USER=' "$WORK/setup/after" &&
      grep -q 'my own notes' "$WORK/setup/after" &&
      ! grep -q 'stale-box' "$WORK/setup/after"; then
     ok "setup-ssh.sh repoints SSH_HOST/REMOTE_DIR and leaves every other setting alone"
@@ -693,7 +805,7 @@ FIXTURE
   # script owns — the same rule as the registry's, because a writer cannot tell
   # "nothing in there" from "the read died". The failure is injected at the seam.
   out=$(run_setup_block "$WORK/setup" "$WORK/setup-repo" boxE '~/srv/e' \
-                       "$WORK/setup/.family-cfo/.deploy.env" "$awk_fails") || true
+                       "$WORK/setup/.family-cfo/.deploy.env" "$cat_fails") || true
   dest="$WORK/setup/.family-cfo/.deploy.env"
   if printf '%s\n' "$out" | grep -q '^E|' && grep -q '^SSH_HOST=boxD$' "$dest" &&
      ! grep -q 'boxE' "$dest"; then
@@ -713,7 +825,121 @@ FIXTURE
   else
     ko "a half-failed destination write was installed anyway (out: $(printf '%s' "$out" | head -c 120))"
   fi
+
+  # …and what it WROTE is not taken on trust either: after the write the script
+  # asks the LOADER what it now resolves, and refuses to claim success if the
+  # answer is not the box it was told. The seam makes the loader answer nothing —
+  # patching `effective_value` itself would not work: the script's own definition
+  # is inside the extracted block and would overwrite the stub.
+  out=$(run_setup_block "$WORK/setup" "$WORK/setup-repo" boxG '~/srv/g' "$dest" \
+                       'load_deploy_env() { return 0; };') || true
+  if printf '%s\n' "$out" | grep -q '^E|' && grep -q '^SSH_HOST=boxG$' "$dest"; then
+    ok "setup refuses to claim success when the loader resolves something other than what it wrote"
+  else
+    ko "setup reported a destination the loader does not actually resolve (out: $(printf '%s' "$out" | head -c 120))"
+  fi
+
+  # --- Repointing must not carry the OLD box's login onto the new host ---------
+  # SSH_USER/SSH_PORT/SSH_KEY describe how ssh reached the previous box. Keeping
+  # them while replacing SSH_HOST produces, BY SETUP, the `old-user@new-box:2222`
+  # destination that one-source loading exists to prevent — the worst kind of
+  # bug, the one the onboarding script itself installs. What is NOT an address
+  # (Apple team ids, App Store Connect key ids, IOS_DEVICE) must survive.
+  effective_of() { # <home> <repo-root> <KEY> → what load_deploy_env resolves for it
+    HOME="$1" bash -c "
+      unset FAMILY_CFO_HOME DEPLOY_ENV_FILE DEPLOY_HISTORY_FILE SSH_HOST SSH_USER SSH_PORT SSH_KEY REMOTE_DIR
+      . '$REPO_ROOT/scripts/lib/deploy-env.sh'
+      load_deploy_env '$2' >/dev/null 2>&1
+      printf '%s' \"\${$3-}\"
+    "
+  }
+  printf 'SSH_HOST=old-box\nSSH_USER=old-user\nSSH_PORT=2222\nSSH_KEY=/keys/old\nREMOTE_DIR=/srv/old\nIOS_TEAM_ID=ABCDE12345\nASC_KEY_ID=KEEPME\n' \
+    > "$dest"
+  out=$(run_setup_block "$WORK/setup" "$WORK/setup-repo" new-box '~/family-cfo' "$dest") || true
+  if printf '%s\n' "$out" | grep -q 'Cleared the previous box' &&
+     printf '%s\n' "$out" | grep -q 'SSH_USER=old-user' &&
+     printf '%s\n' "$out" | grep -q 'SSH_PORT=2222' &&
+     printf '%s\n' "$out" | grep -q 'SSH_KEY=/keys/old'; then
+    ok "repointing says which old-box login settings it cleared"
+  else
+    ko "setup dropped the old box's ssh overrides in silence (out: $(printf '%s' "$out" | head -c 120))"
+  fi
+  [ "$(effective_of "$WORK/setup" "$WORK/setup-repo" SSH_HOST)" = "new-box" ] &&
+    [ -z "$(effective_of "$WORK/setup" "$WORK/setup-repo" SSH_USER)" ] &&
+    [ -z "$(effective_of "$WORK/setup" "$WORK/setup-repo" SSH_PORT)" ] &&
+    [ -z "$(effective_of "$WORK/setup" "$WORK/setup-repo" SSH_KEY)" ] &&
+    [ "$(effective_of "$WORK/setup" "$WORK/setup-repo" REMOTE_DIR)" = "~/family-cfo" ] &&
+    grep -q '^IOS_TEAM_ID=ABCDE12345$' "$dest" && grep -q '^ASC_KEY_ID=KEEPME$' "$dest" &&
+    ! grep -q 'keys/old' "$dest" &&
+    ! grep -q 'old-box' "$dest" \
+    && ok "…and the new destination loads clean, with the iOS/ASC settings intact" \
+    || ko "repointing produced: host=$(effective_of "$WORK/setup" "$WORK/setup-repo" SSH_HOST) user=$(effective_of "$WORK/setup" "$WORK/setup-repo" SSH_USER) port=$(effective_of "$WORK/setup" "$WORK/setup-repo" SSH_PORT) key=$(effective_of "$WORK/setup" "$WORK/setup-repo" SSH_KEY) dir=$(effective_of "$WORK/setup" "$WORK/setup-repo" REMOTE_DIR)"
+
+  # --- Padded, commented and duplicate keys are matched by the loader's rule ---
+  # The loader strips a trailing comment and ALL whitespace from a key and keeps
+  # the first value it sees. A writer that greps literal `^SSH_HOST=` leaves
+  # ` SSH_HOST = old ` in place — and it keeps winning, so setup reports
+  # `new-box` while the next patch goes to `old-box`. A bare `SSH_KEY` with no
+  # '=' is owned too: the loader reads it as an empty value.
+  printf ' SSH_HOST = old-box \n\tREMOTE_DIR = /srv/old\nSSH_KEY # a key, no =\n# a comment\nIOS_TEAM_ID=ABCDE12345\n' \
+    > "$dest"
+  out=$(run_setup_block "$WORK/setup" "$WORK/setup-repo" new-box '~/family-cfo' "$dest") || true
+  if printf '%s\n' "$out" | grep -q '^E|'; then
+    ko "setup could not rewrite a file with padded keys: $out"
+  elif [ "$(effective_of "$WORK/setup" "$WORK/setup-repo" SSH_HOST)" = "new-box" ] &&
+       [ "$(effective_of "$WORK/setup" "$WORK/setup-repo" REMOTE_DIR)" = "~/family-cfo" ] &&
+       [ -z "$(effective_of "$WORK/setup" "$WORK/setup-repo" SSH_KEY)" ] &&
+       grep -q '^IOS_TEAM_ID=ABCDE12345$' "$dest" &&
+       grep -q '^# a comment$' "$dest" &&
+       ! grep -q 'SSH_HOST =' "$dest" && ! grep -q 'REMOTE_DIR =' "$dest"; then
+    ok "padded/commented/duplicate keys are replaced, not left to keep winning — and the loaded answer is the new box"
+  else
+    ko "setup left a key the loader reads differently than it writes (host=$(effective_of "$WORK/setup" "$WORK/setup-repo" SSH_HOST) dir=$(effective_of "$WORK/setup" "$WORK/setup-repo" REMOTE_DIR) file: $(tr '\n' '|' < "$dest"))"
+  fi
 fi
+
+# --- The key rule is SHARED, not re-implemented -------------------------------
+# One function answers "which key does this line set", used by both the loader
+# and setup-ssh.sh. Pinned on the shapes that already caused a bug: padding, an
+# inline comment, no '=', a comment-only line.
+key_of() { # <line> → the key the loader sees for it
+  in_lib "printf '%s' \"\$(deploy_env_key_of_line '$1')\"" 2>/dev/null
+}
+if [ "$(key_of ' SSH_HOST = x ')" = "SSH_HOST" ] &&
+   [ "$(key_of 'SSH_KEY#note=v')" = "SSH_KEY" ] &&
+   [ "$(key_of 'SSH_HOST')" = "SSH_HOST" ] &&
+   [ -z "$(key_of '# just a comment')" ] &&
+   [ "$(key_of 'IOS_TEAM_ID=1')" = "IOS_TEAM_ID" ]; then
+  ok "the loader's key rule handles padding, comments and key-less lines"
+else
+  ko "deploy_env_key_of_line disagrees with the loader: [$(key_of ' SSH_HOST = x ')] [$(key_of 'SSH_KEY#note=v')] [$(key_of 'SSH_HOST')] [$(key_of '# just a comment')] [$(key_of 'IOS_TEAM_ID=1')]"
+fi
+if in_lib 'deploy_env_is_key SSH_HOST && deploy_env_is_key X && ! deploy_env_is_key foo-bar &&
+           ! deploy_env_is_key 1BAD && ! deploy_env_is_key ""' 2>/dev/null; then
+  ok "non-identifier keys are recognisable as unusable"
+else
+  ko "deploy_env_is_key accepts a key `export` will reject"
+fi
+# A `.deploy.env` holding a stray `foo-bar=1` — quite possibly pasted in from an
+# iOS guide — used to abort the deploy: `export` rejects that key, the caller
+# runs under `set -e`, and a config typo killed a deploy that had nothing to do
+# with it. Now it is reported and skipped.
+mkdir -p "$WORK/junk"
+printf 'foo-bar=1\nSSH_HOST=good-box\n' > "$WORK/junk/.deploy.env"
+if in_lib_env "DEPLOY_ENV_FILE='$WORK/junk/.deploy.env'" '
+    unset SSH_HOST
+    set -euo pipefail
+    load_deploy_env "$SANDBOX_REPO" >/dev/null
+    [ "$SSH_HOST" = "good-box" ] || exit 1
+  ' 2>"$WORK/junk/err"; then
+  ok "a stray unusable line is skipped, not a deploy-killing export failure"
+else
+  ko "a malformed key in .deploy.env aborted the load under set -e"
+fi
+grep -q 'foo-bar' "$WORK/junk/err" \
+  && ok "…and the skipped line is named, not swallowed" \
+  || ko "the unusable key was skipped in silence"
+rm -rf "$WORK/junk"
 
 # ===========================================================================
 # 3. doctor.sh asks the container, not the host

@@ -199,29 +199,81 @@ fi
 
 # --- 6. .deploy.env ----------------------------------------------------------
 step "4/4  .deploy.env"
-if [ -f "$DEPLOY_ENV" ] && grep -qE "^SSH_HOST=${ALIAS}$" "$DEPLOY_ENV"; then
+
+# Everything in the file that says WHICH BOX. These are replaced together, as one
+# address, because they describe one login: SSH_USER, SSH_PORT and SSH_KEY are the
+# OLD box's user, port and private key. Carrying them onto a new host would
+# reproduce, by way of setup, the very destination this library exists to prevent
+# — `old-user@new-box:2222` with the old box's key, which is not a box anyone
+# meant to reach. Leaving them unset is the design working: ssh resolves user,
+# port and key from ~/.ssh/config + ssh-agent (AGENTS.md), and the alias this
+# script just installed is what makes that enough.
+#
+# Anything else in the file — IOS_TEAM_ID, ASC_KEY_ID, IOS_DEVICE, whatever the
+# iOS and TestFlight scripts read — is not an address and is left exactly as is.
+OWNED_KEYS="SSH_HOST SSH_USER SSH_PORT SSH_KEY REMOTE_DIR"
+
+# Ask the LOADER what the scripts would actually use, rather than grepping the
+# file for a literal key. Only the loader knows which of the two files wins, that
+# the FIRST value of a key is the one it keeps, and how it normalises spacing — a
+# `grep '^SSH_HOST='` can happily report the box we just wrote while the loader
+# still resolves the padded ` SSH_HOST = old ` above it. Unset first, so an
+# environment variable (which legitimately outranks the file) cannot mask what the
+# FILE says, which is the thing being verified here.
+effective_value() { # effective_value <KEY> → what load_deploy_env would give for it
+  local key="$1"
+  ( unset "$key"
+    load_deploy_env "$REPO_ROOT" >/dev/null 2>&1
+    printf '%s' "${!key-}" )
+}
+
+want_dir="${REMOTE_DIR:-~/family-cfo}"
+if [ -f "$DEPLOY_ENV" ] && [ "$(effective_value SSH_HOST)" = "$ALIAS" ]; then
   ok "Already points at '${ALIAS}'  ($DEPLOY_ENV)"
 else
   mkdir -p -- "$(dirname -- "$DEPLOY_ENV")"
   # UPDATE, never rewrite. This file is now the machine-wide config, so it can
   # hold an Apple team id, TestFlight key ids, an IOS_DEVICE — facts that are
   # expensive to recreate and have nothing to do with which box is targeted.
-  # Only the two lines this script owns are replaced; everything else survives.
+  # Only the keys in OWNED_KEYS are replaced; everything else survives verbatim.
   #
   # The read is checked, for the same reason the registry's is (see
   # lib/deploy-env.sh): an unreadable file here would otherwise leave the writer
   # holding nothing, and the rewrite would install a two-line file over whatever
   # the operator had. Empty and unreadable look identical to a writer.
-  kept=""
-  fresh=1
+  #
+  # Which lines are "ours" is decided by deploy_env_key_of_line — the loader's own
+  # rule, not a `grep '^SSH_HOST='` — because the loader strips comments and ALL
+  # whitespace from a key and keeps its first value. Match literal text instead
+  # and ` SSH_HOST = old ` survives above the line appended below, keeps winning,
+  # and setup reports a destination the deploy never uses.
+  kept="" cleared="" fresh=1
   if [ -f "$DEPLOY_ENV" ]; then
     fresh=0
-    # Command substitution drops trailing newlines; every entry is one line, so
-    # re-printing the block below with one newline reconstructs the file (and
-    # normalises a missing final newline).
-    if ! kept="$(awk -F= '$1 != "SSH_HOST" && $1 != "REMOTE_DIR"' "$DEPLOY_ENV")"; then
+    if ! lines="$(cat -- "$DEPLOY_ENV")"; then
       die "Could not read $DEPLOY_ENV — refusing to rewrite it, because everything in it besides the destination would be lost. Fix its permissions and run this again."
     fi
+    while IFS= read -r line || [ -n "$line" ]; do
+      key="$(deploy_env_key_of_line "$line")"
+      is_owned=0
+      for owned in $OWNED_KEYS; do
+        # Explicit comparison, not `case` on a pattern: a key can contain '*' or
+        # '?', and a glob there would drop lines that are not ours.
+        [ "$key" = "$owned" ] && { is_owned=1; break; }
+      done
+      if [ "$is_owned" = 1 ]; then
+        # Say what was dropped: silently changing how ssh authenticates to a box
+        # is the sort of surprise an operator should not have to discover by
+        # debugging. SSH_HOST/REMOTE_DIR are being replaced with stated values.
+        case "$key" in
+          SSH_HOST|REMOTE_DIR) : ;;
+          *) value="$(deploy_env_value_of_line "$line")"
+             [ -n "$value" ] && cleared="${cleared}${cleared:+ }${key}=${value}" ;;
+        esac
+        continue
+      fi
+      kept="${kept}${kept:+$'\n'}${line}"
+    done <<< "$lines"
   fi
   tmp="$(mktemp "${DEPLOY_ENV}.XXXXXX")" ||
     die "Could not create a temporary file beside $DEPLOY_ENV — check its directory's permissions."
@@ -243,7 +295,7 @@ else
       printf '# On the box itself this patches locally; from the Mac it goes over SSH.\n'
     fi
     printf 'SSH_HOST=%s\n' "$ALIAS"
-    printf 'REMOTE_DIR=%s\n' "${REMOTE_DIR:-~/family-cfo}"
+    printf 'REMOTE_DIR=%s\n' "$want_dir"
   } > "$tmp" || { rm -f -- "$tmp"; die "Could not write the new $DEPLOY_ENV."; }
   mv -f -- "$tmp" "$DEPLOY_ENV"
   # mktemp creates 0600 and mv preserves it, so the mode does not depend on this
@@ -251,7 +303,24 @@ else
   # No `--`: BSD chmod rejects it ("chmod: --: No such file or directory"). Same
   # form as the ~/.ssh/config write above.
   chmod 600 "$DEPLOY_ENV"
-  ok "Wrote $DEPLOY_ENV → SSH_HOST=${ALIAS}  (this is the file deploy/patch load)"
+
+  # BELIEVE NOTHING BUT THE LOADER. The file is written; what matters is the
+  # destination the next `scripts/patch.sh` will resolve, and only the loader
+  # gets to say. If it disagrees, something else is in charge (a stale checkout
+  # file, a duplicated key the operator added by hand) and saying "wrote
+  # new-box" would be the lie that wastes the operator's afternoon.
+  got_host="$(effective_value SSH_HOST)"
+  got_dir="$(effective_value REMOTE_DIR)"
+  if [ "$got_host" != "$ALIAS" ] || [ "$got_dir" != "$want_dir" ]; then
+    die "Wrote $DEPLOY_ENV but the scripts still resolve '${got_host:-<unset>}' / '${got_dir:-<unset>}'. Something else is setting the destination — check for a second .deploy.env ('$REPO_ROOT/.deploy.env' is ignored only while $DEPLOY_ENV exists) and for duplicated SSH_HOST/REMOTE_DIR lines in it."
+  fi
+  ok "Wrote $DEPLOY_ENV → SSH_HOST=${ALIAS} REMOTE_DIR=${want_dir}  (verified: this is what deploy/patch load)"
+  if [ -n "$cleared" ]; then
+    warn "Cleared the previous box's login settings from it: ${cleared}"
+    warn "They described the OLD host; ssh resolves user, port and key from"
+    warn "~/.ssh/config + ssh-agent now. Put them back by hand only if the new box"
+    warn "genuinely uses the same ones."
+  fi
   if [ "$DEPLOY_ENV" != "$REPO_ROOT/.deploy.env" ] && [ -f "$REPO_ROOT/.deploy.env" ]; then
     warn "$REPO_ROOT/.deploy.env also exists but is NOT read while $DEPLOY_ENV is."
     warn "Move anything you still need into it and delete the other, or deploys will"

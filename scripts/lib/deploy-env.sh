@@ -90,26 +90,72 @@ load_deploy_env() {
   return 0
 }
 
+# --- The one key rule ---------------------------------------------------------
+#
+# The reader and the WRITER (scripts/setup-ssh.sh, which replaces keys in place)
+# must agree on what "the line that sets SSH_HOST" means, or setup appends
+# SSH_HOST=new-box under a padded ` SSH_HOST = old ` and the reader — which
+# keeps the FIRST value of a key — hands deploy the old box while setup reported
+# the new one. So both go through these two functions and nothing else.
+#
+# The shape mirrors what a `KEY=VALUE` line means to `IFS='=' read -r key value`:
+# the key is everything before the FIRST '=', a '#' starts a comment, and every
+# whitespace character inside the key is ignored.
+deploy_env_key_of_line() { # deploy_env_key_of_line <line> → the key, or empty
+  local key
+  key="${1%%=*}"
+  key="${key%%#*}"
+  # tr, not ${key//…}: this lib is sourced by scripts run under sh and dash too.
+  key="$(printf '%s' "$key" | tr -d '[:space:]')"
+  printf '%s' "$key"
+}
+
+# A key that is not a shell identifier must never reach `export`: `export` fails
+# on it, the caller runs under `set -e`, and a stray line in a config file —
+# quite possibly pasted in from an iOS guide — aborts a deploy that had nothing
+# to do with that key.
+deploy_env_is_key() { # deploy_env_is_key <normalized-key>
+  case "$1" in
+    "") return 1 ;;
+    *[!A-Za-z0-9_]*) return 1 ;;   # any character outside the identifier set
+    [0-9]*) return 1 ;;             # …and it may not start with a digit
+    *) return 0 ;;
+  esac
+}
+
+deploy_env_value_of_line() { # deploy_env_value_of_line <line> → the value
+  local value
+  case "$1" in
+    *=*) value="${1#*=}" ;;
+    *)   value="" ;;      # `KEY` with no '=' sets an empty value, as `read` does
+  esac
+  # Trim whitespace and one layer of matching quotes.
+  value="${value#"${value%%[![:space:]]*}"}"
+  value="${value%"${value##*[![:space:]]}"}"
+  case "$value" in
+    \"*\") value="${value#\"}"; value="${value%\"}" ;;
+    \'*\') value="${value#\'}"; value="${value%\'}" ;;
+  esac
+  printf '%s' "$value"
+}
+
 # _load_deploy_env_file <file> — one file's worth of the above. Silent when the
 # file does not exist: having no persisted destination is the normal first run.
 _load_deploy_env_file() {
   local file="$1"
   [ -f "$file" ] || return 0
 
-  local key value loaded=""
-  while IFS='=' read -r key value || [ -n "$key" ]; do
-    # Strip comments, blank lines, and surrounding whitespace.
-    key="${key%%#*}"
-    key="$(printf '%s' "$key" | tr -d '[:space:]')"
+  local line key value loaded="" skipped=""
+  while IFS= read -r line || [ -n "$line" ]; do
+    key="$(deploy_env_key_of_line "$line")"
     [ -n "$key" ] || continue
 
-    # Trim whitespace and one layer of matching quotes from the value.
-    value="${value#"${value%%[![:space:]]*}"}"
-    value="${value%"${value##*[![:space:]]}"}"
-    case "$value" in
-      \"*\") value="${value#\"}"; value="${value%\"}" ;;
-      \'*\') value="${value#\'}"; value="${value%\'}" ;;
-    esac
+    if ! deploy_env_is_key "$key"; then
+      # Reported, never fatal: see deploy_env_is_key.
+      skipped="${skipped}${skipped:+, }${key}"
+      continue
+    fi
+    value="$(deploy_env_value_of_line "$line")"
 
     # An explicit environment variable outranks the file. Note SSH_KEY may be
     # intentionally blank, so test whether it is SET rather than non-empty.
@@ -119,6 +165,10 @@ _load_deploy_env_file() {
     fi
   done < "$file"
 
+  if [ -n "$skipped" ]; then
+    printf '\033[1;33m!!\033[0m %s\n' \
+      "Ignoring unusable line(s) in $file: $skipped — keys must be LETTERS_OR_NUMBERS=values." >&2
+  fi
   if [ -n "$loaded" ]; then
     # The FULL path, not the basename: two files can now be named .deploy.env,
     # and "which one won" is exactly the question an operator debugging a patch
@@ -255,20 +305,26 @@ deploy_registry_rows() { # deploy_registry_rows <repo-root> [exclude-key]
   # guarantees status 0 for the legitimate empty case, so a non-zero here is the
   # filter or the sort genuinely failing — which is also an incomplete read.
   #
-  # The sort is not decoration. POSIX leaves `for (key in row)` in awk
-  # UNSPECIFIED, and these rows become the NUMBERS an operator acts on
-  # (`deployments.sh stop 2`); an order that differs between awk builds, or
-  # between a laptop and a runner, is how a numbered command lands on the wrong
-  # box. Newest first, matching the listing's LAST DEPLOYED column, with the key
-  # as tiebreak so two identical stamps order identically. LC_ALL=C so collation
-  # cannot shift it either.
+  # The sort is load-bearing, and the KEY is what makes it safe. POSIX leaves
+  # `for (key in row)` in awk UNSPECIFIED, and these rows become the NUMBERS an
+  # operator acts on (`deployments.sh stop boxA`, the menu's `2`) — an order that
+  # varies between awk builds, machines or runs is how a numbered command lands
+  # on the wrong box.
+  #
+  # Deliberately NOT by the last-deployed stamp: every successful patch rewrites
+  # that stamp, so a sort on it renumbers the inventory underneath the operator —
+  # list shows A as 1, patching B moves B to 1, and `stop 1` now means B. The key
+  # (kind|host|dir) only changes when a place is added or forgotten, so the
+  # number an operator read still means the same box a minute later. LC_ALL=C so
+  # collation cannot shift it either. Recency stays available where it belongs:
+  # as the listing's own LAST DEPLOYED column.
   if ! _print_rows "$raw" | awk -F'\t' -v k="${2:-}" '
       $1 == k { next }
       # Same place recorded in two files: keep the fresher timestamp. Field 8 is
       # an ISO-8601 UTC stamp, so it orders correctly as a plain string.
       { if (!($1 in fresh) || $8 >= fresh[$1]) { row[$1] = $0; fresh[$1] = $8 } }
       END { for (key in row) print row[key] }
-    ' | LC_ALL=C sort -t"$(printf '\t')" -k8,8r -k1,1
+    ' | LC_ALL=C sort -t"$(printf '\t')" -k1,1
   then
     incomplete=1
   fi
