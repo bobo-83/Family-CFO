@@ -204,7 +204,10 @@ Host family-cfo-box
 chmod 700 ~/.ssh && chmod 600 ~/.ssh/config
 ```
 
-**4. Point the deploy config at the alias.** Create `.deploy.env` (gitignored):
+**4. Point the deploy config at the alias.** Create `~/.family-cfo/.deploy.env`,
+the per-machine config the scripts read from any directory. A `.deploy.env` in
+the checkout works too — see
+[Remembering the destination](#remembering-the-destination-deployenv):
 
 ```sh
 SSH_HOST=family-cfo-box
@@ -228,9 +231,13 @@ for.
 
 ## Remembering the destination (`.deploy.env`)
 
-Copy `.deploy.env.example` to `.deploy.env` (gitignored) and set the box once:
+Copy `.deploy.env.example` into place and set the box once:
 
 ```sh
+mkdir -p ~/.family-cfo
+cp .deploy.env.example ~/.family-cfo/.deploy.env
+
+# ~/.family-cfo/.deploy.env
 SSH_HOST=192.168.1.10
 SSH_USER=you
 REMOTE_DIR=~/family-cfo
@@ -240,6 +247,40 @@ Both `deploy.sh` and `patch.sh` load it, so `scripts/patch.sh web` goes to the
 right place without retyping anything. A real environment variable still wins
 (`SSH_HOST=other-box scripts/patch.sh web`), so the file is a memory, not a cage.
 
+**Why `~/.family-cfo/` and not the checkout.** This file describes *your fleet*,
+not this clone, so it must not depend on which directory you happened to run the
+script from, and a fresh clone should not leave you without a destination.
+
+**One file answers — not both.** The first of these that exists is the whole
+answer:
+
+1. a real environment variable (always wins, per key)
+2. `DEPLOY_ENV_FILE`, if you set it
+3. `~/.family-cfo/.deploy.env`
+4. `<checkout>/.deploy.env`
+
+The two files are alternatives, deliberately not merged key-by-key. A destination
+is one address: merging a shared file that names only `SSH_HOST=new-box` with a
+stale checkout file would splice on the OLD box's `SSH_USER`, `SSH_PORT` and
+`REMOTE_DIR`, and a `scripts/patch.sh web` would arrive at the new box as the
+wrong user, on the wrong port, updating the wrong stack. When both files exist
+the scripts say which one they used and that the other is being ignored — move
+anything you still want, then delete it. A checkout that still has its own
+`.deploy.env` and no shared file keeps working exactly as before.
+
+`FAMILY_CFO_HOME` moves the whole directory elsewhere; `DEPLOY_ENV_FILE` names
+one specific file and disables the search. (`FAMILY_CFO_HOME` relocates the base
+directory and still folds in the pre-move registry; `DEPLOY_HISTORY_FILE` selects
+*exactly one* registry file and consults nothing else — it is the seam for tests
+and for "my registry lives over there".)
+
+**`scripts/setup-ssh.sh` writes whichever of these the scripts will actually
+read.** It asks the same function the loader uses rather than guessing, and it
+updates only the two lines it owns (`SSH_HOST`, `REMOTE_DIR`) — an Apple team id,
+an App Store Connect key id or an `IOS_DEVICE` in that file survive onboarding.
+Run it after moving the file, not instead of moving it: if both conventions
+exist, onboarding says which file it wrote and which one is being ignored.
+
 **There is deliberately no `TARGET` in it.** Local-vs-remote is derived from
 *where you are*: if `SSH_HOST` is this machine you're on the box, so the stack is
 patched locally; if it isn't, you're on the MacBook, so it goes over SSH. The
@@ -248,7 +289,34 @@ somewhere you didn't mean.
 
 ## What have I deployed, and is it still running?
 
-Every successful deploy/patch records where it went (`.deploy.history`).
+Every successful deploy/patch records where it went, in
+`~/.family-cfo/.deploy.history` (the pre-move `<checkout>/.deploy.history` is
+still read, and its entries are folded into the shared file on the next deploy).
+One registry per machine, because that is the question it answers — *what is
+still running out there* — and a registry that depended on the current
+directory could not answer it.
+
+Unlike `.deploy.env`, the two registry files **are** merged: this is inventory,
+and an entry that goes un-listed is a box nobody can shut down. Which is exactly
+why a *partial* read is never written back. If one of the files cannot be read,
+recording declines to run — you get a warning that the deploy is live but
+UNLISTED rather than a registry quietly missing the other file's boxes. `list`
+does show what it can read, flagged `INCOMPLETE`, because a partial answer beats
+no answer as long as it says so; `forget` fails loudly rather than promising an
+entry is gone when a file refused to be rewritten.
+
+Listing degrades; **acting does not.** Those rows become the numbers `stop 2` and
+`destroy 1` resolve against, and whatever the unreadable file holds is simply
+*absent* — so every number after the gap points at a different box than the table
+you just read, and ssh is handed a host you never saw. So `stop`, `remove`,
+`destroy`, `uninstall` and `forget` (and the interactive menu) refuse to run on a
+partial inventory, before any ssh or docker command is built, whether you named a
+number or a host name: the missing file can hold a second entry for the same host
+at a different directory, which is the case where the wrong stack gets torn down.
+`list` stays available, because reading is how you find the file to fix. The
+ordering is fixed too — newest first, then by key, `LC_ALL=C` — rather than
+whatever order awk's hash happens to iterate in, since a number that means
+something different on the next run is the other way to reach the wrong box.
 
 ```sh
 scripts/deployments.sh            # list everything, then offer to act on one

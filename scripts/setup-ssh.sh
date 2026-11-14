@@ -31,10 +31,20 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
+# shellcheck source=lib/deploy-env.sh
+. "$REPO_ROOT/scripts/lib/deploy-env.sh"
+
 ALIAS="${SSH_ALIAS:-family-cfo-box}"
 KEY="${SSH_KEY:-$HOME/.ssh/id_ed25519}"
 SSH_CONFIG="$HOME/.ssh/config"
-DEPLOY_ENV="$REPO_ROOT/.deploy.env"
+# Where the destination lives is NOT this script's decision — it asks the library
+# that will later READ the file, so what setup writes is what deploy/patch load.
+# Writing a fixed checkout path while the loader prefers ~/.family-cfo/ would
+# produce a file nothing reads, and a patch at whatever the shared file says.
+DEPLOY_ENV="$(deploy_env_file "$REPO_ROOT")"
+# A fresh machine has neither file yet: create the machine-wide one, which is the
+# documented home and correct from any directory and any clone.
+[ -f "$DEPLOY_ENV" ] || DEPLOY_ENV="${DEPLOY_ENV:-$HOME/.family-cfo/.deploy.env}"
 
 log()  { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
 ok()   { printf '\033[1;32m ✓\033[0m %s\n' "$*"; }
@@ -78,9 +88,9 @@ if [ "${1:-}" = "--check" ]; then
     warn "no '${ALIAS}' block in ~/.ssh/config"
   fi
   if [ -f "$DEPLOY_ENV" ] && grep -q "^SSH_HOST=" "$DEPLOY_ENV"; then
-    ok ".deploy.env → $(grep '^SSH_HOST=' "$DEPLOY_ENV")"
+    ok "$(basename "$DEPLOY_ENV") → $(grep '^SSH_HOST=' "$DEPLOY_ENV")  ($DEPLOY_ENV)"
   else
-    warn "no .deploy.env (deploys won't know which box to go to)"
+    warn "no $(basename "$DEPLOY_ENV") at $DEPLOY_ENV (deploys won't know which box to go to)"
   fi
   exit 0
 fi
@@ -190,19 +200,63 @@ fi
 # --- 6. .deploy.env ----------------------------------------------------------
 step "4/4  .deploy.env"
 if [ -f "$DEPLOY_ENV" ] && grep -qE "^SSH_HOST=${ALIAS}$" "$DEPLOY_ENV"; then
-  ok "Already points at '${ALIAS}'."
+  ok "Already points at '${ALIAS}'  ($DEPLOY_ENV)"
 else
+  mkdir -p -- "$(dirname -- "$DEPLOY_ENV")"
+  # UPDATE, never rewrite. This file is now the machine-wide config, so it can
+  # hold an Apple team id, TestFlight key ids, an IOS_DEVICE — facts that are
+  # expensive to recreate and have nothing to do with which box is targeted.
+  # Only the two lines this script owns are replaced; everything else survives.
+  #
+  # The read is checked, for the same reason the registry's is (see
+  # lib/deploy-env.sh): an unreadable file here would otherwise leave the writer
+  # holding nothing, and the rewrite would install a two-line file over whatever
+  # the operator had. Empty and unreadable look identical to a writer.
+  kept=""
+  fresh=1
+  if [ -f "$DEPLOY_ENV" ]; then
+    fresh=0
+    # Command substitution drops trailing newlines; every entry is one line, so
+    # re-printing the block below with one newline reconstructs the file (and
+    # normalises a missing final newline).
+    if ! kept="$(awk -F= '$1 != "SSH_HOST" && $1 != "REMOTE_DIR"' "$DEPLOY_ENV")"; then
+      die "Could not read $DEPLOY_ENV — refusing to rewrite it, because everything in it besides the destination would be lost. Fix its permissions and run this again."
+    fi
+  fi
+  tmp="$(mktemp "${DEPLOY_ENV}.XXXXXX")" ||
+    die "Could not create a temporary file beside $DEPLOY_ENV — check its directory's permissions."
   {
-    printf '# Family CFO deploy destination — written by scripts/setup-ssh.sh\n'
-    printf '# Holds a DESTINATION, never a credential. Authentication lives in\n'
-    printf '# ~/.ssh/config + ssh-agent (see AGENTS.md).\n'
-    printf '#\n'
-    printf '# No TARGET on purpose: local-vs-remote is derived from where you are.\n'
-    printf '# On the box itself this patches locally; from the Mac it goes over SSH.\n'
+    # `if` rather than `[ -n "$kept" ] && printf` for symmetry with the branch
+    # below, not because the short form could abort anything: the group's status
+    # is tested by the `||` under it, which puts the whole group in a condition
+    # context where errexit is off. What that means in practice is written down
+    # because it is the load-bearing part: the two destination lines are the LAST
+    # commands here, so if they fail the group is non-zero and the `||` removes
+    # the temp file instead of installing a truncated destination.
+    if [ -n "$kept" ]; then printf '%s\n' "$kept"; fi
+    if [ "$fresh" = 1 ]; then
+      printf '# Family CFO deploy destination — written by scripts/setup-ssh.sh\n'
+      printf '# Holds a DESTINATION, never a credential. Authentication lives in\n'
+      printf '# ~/.ssh/config + ssh-agent (see AGENTS.md).\n'
+      printf '#\n'
+      printf '# No TARGET on purpose: local-vs-remote is derived from where you are.\n'
+      printf '# On the box itself this patches locally; from the Mac it goes over SSH.\n'
+    fi
     printf 'SSH_HOST=%s\n' "$ALIAS"
     printf 'REMOTE_DIR=%s\n' "${REMOTE_DIR:-~/family-cfo}"
-  } > "$DEPLOY_ENV"
-  ok "Wrote .deploy.env → SSH_HOST=${ALIAS}  (gitignored)"
+  } > "$tmp" || { rm -f -- "$tmp"; die "Could not write the new $DEPLOY_ENV."; }
+  mv -f -- "$tmp" "$DEPLOY_ENV"
+  # mktemp creates 0600 and mv preserves it, so the mode does not depend on this
+  # line — it is here so the intent survives someone swapping the temp strategy.
+  # No `--`: BSD chmod rejects it ("chmod: --: No such file or directory"). Same
+  # form as the ~/.ssh/config write above.
+  chmod 600 "$DEPLOY_ENV"
+  ok "Wrote $DEPLOY_ENV → SSH_HOST=${ALIAS}  (this is the file deploy/patch load)"
+  if [ "$DEPLOY_ENV" != "$REPO_ROOT/.deploy.env" ] && [ -f "$REPO_ROOT/.deploy.env" ]; then
+    warn "$REPO_ROOT/.deploy.env also exists but is NOT read while $DEPLOY_ENV is."
+    warn "Move anything you still need into it and delete the other, or deploys will"
+    warn "use a file you are not editing."
+  fi
 fi
 
 # --- 7. Prove it ------------------------------------------------------------

@@ -325,6 +325,15 @@ report_setup_drift() { # report_setup_drift <runner-taking-a-shell-string> <dir>
    The deploy STANDS: the code shipped correctly and a rollback would not fix
    any of this. Something about the box's setup needs a human.
    Full report:  bash scripts/doctor.sh"
+  # Explicit success, and part of the contract: this function is ADVISORY and
+  # must never reach the caller with a non-zero status. Its whole body is built
+  # on commands that fail (the doctor run above is expected to), and it is called
+  # at the end of the local branch and at the tail of patch_remote_host, under
+  # `set -e`. Today the last command is a plain `warn`, which happens to succeed
+  # — but relying on that means any future edit to this block could turn a soft
+  # warning into a hard deploy failure. The status of "the box's setup needs a
+  # human" is NOT "the deploy failed".
+  return 0
 }
 
 # run_local runs an argv; report_setup_drift hands its runner a shell command
@@ -627,3 +636,21 @@ done
 # has no Xcode. It is built ONCE regardless of how many servers were patched;
 # the phone talks to whichever box it was paired with.
 [ "$PATCH_IOS" = "1" ] && patch_ios
+
+# An explicit success exit, and load-bearing on the default path.
+#
+# This is the exit-status trap in `set -e` scripts: the LAST statement of this
+# file is the `&&` list above, and a script exits with the status of the last
+# command it ran. With PATCH_IOS=0 — the default, no --ios — the `[ … ]` test
+# fails, which short-circuits the list to status 1. errexit itself does not fire
+# there (a failing command on the left of `&&` is exempt), so the script runs to
+# the end, prints its success line, and then exits 1 because that failed test was
+# the final thing executed. Everything worked; the exit code said otherwise.
+#
+# Invisible at a keyboard, because `bash scripts/patch.sh` looks correct on
+# screen. It bites whatever reads `$?`: CI, a Makefile target, a wrapper that
+# rolls back on a non-zero exit.
+#
+# Do not "simplify" this into the list above as `… || true` — that would swallow
+# a genuine `patch_ios` failure too.
+exit 0
