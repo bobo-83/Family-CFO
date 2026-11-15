@@ -301,12 +301,25 @@ _deploy_registry_read() { # _deploy_registry_read <repo-root> → rows on stdout
   # and not a `<<<` herestring. A pipe would run the loop in a subshell and the
   # `incomplete` status would be lost (the exact trap described above); a
   # herestring is a bashism, and this lib is sourced under dash too.
-  list="$(deploy_history_files "$1")"
+  #
+  # EVERY step that materialises the list is checked HERE, not left to errexit:
+  # this function only ever runs inside a conditional in its callers, and
+  # errexit is OFF in a conditional — an unguarded failure would silently
+  # continue with an empty list, read zero paths, report SUCCESS, and the
+  # writer would then replace the whole registry with just its new row.
+  if ! list="$(deploy_history_files "$1")"; then
+    _deploy_registry_warn "cannot enumerate the registry files."
+    return 1
+  fi
   tmp="$(mktemp "${TMPDIR:-/tmp}/deploy-history-files.XXXXXX" 2>/dev/null)" || {
     _deploy_registry_warn "cannot enumerate the registry files."
     return 1
   }
-  printf '%s\n' "$list" > "$tmp"
+  if ! printf '%s\n' "$list" > "$tmp"; then
+    rm -f -- "$tmp" || :
+    _deploy_registry_warn "cannot enumerate the registry files."
+    return 1
+  fi
   while IFS= read -r file; do
     [ -n "$file" ] || continue
     if [ ! -r "$file" ]; then
@@ -324,7 +337,7 @@ _deploy_registry_read() { # _deploy_registry_read <repo-root> → rows on stdout
     fi
     raw="${raw}${raw:+${nl}}${one}"
   done < "$tmp"
-  rm -f -- "$tmp"
+  rm -f -- "$tmp" || :
   _print_rows "$raw"
   return "$incomplete"
 }
@@ -361,11 +374,15 @@ deploy_registry_rows() { # deploy_registry_rows <repo-root> [exclude-key]
   if ! _print_rows "$raw" | awk -F'\t' -v k="${2:-}" '
       $2 == "forgotten" { forgotten[$1] = 1; next }
       $1 == k { next }
-      $1 in forgotten { next }
       # Same place recorded in two files: keep the fresher timestamp. Field 8 is
       # an ISO-8601 UTC stamp, so it orders correctly as a plain string.
       { if (!($1 in fresh) || $8 >= fresh[$1]) { row[$1] = $0; fresh[$1] = $8 } }
-      END { for (key in row) print row[key] }
+      # Suppression happens at EMIT time, not as rows stream: a marker must
+      # suppress its key no matter whether the live row was read BEFORE it
+      # (the shared registry is read first, a checkout fallback second — and
+      # either file may hold either row). A `$1 in forgotten { next }` rule
+      # kept every live row that happened to precede its marker.
+      END { for (key in row) if (!(key in forgotten)) print row[key] }
     ' | LC_ALL=C sort -t"$(printf '\t')" -k1,1
   then
     incomplete=1
@@ -399,9 +416,13 @@ _deploy_registry_rows_for_write() { # _deploy_registry_rows_for_write <repo-root
         if (!($1 in tfresh) || $8 >= tfresh[$1]) { tomb[$1] = $0; tfresh[$1] = $8 }
         next
       }
-      $1 in tomb { next }
       { if (!($1 in fresh) || $8 >= fresh[$1]) { row[$1] = $0; fresh[$1] = $8 } }
-      END { for (key in row) print row[key]; for (key in tomb) print tomb[key] }
+      # Same emit-time rule as the inventory: a marker suppresses its key
+      # regardless of which file held the live row, or which came first.
+      END {
+        for (key in row) if (!(key in tomb)) print row[key]
+        for (key in tomb) print tomb[key]
+      }
     ' | LC_ALL=C sort -t"$(printf '\t')" -k1,1
   then
     incomplete=1
@@ -546,8 +567,14 @@ record_deployment() { # record_deployment <repo-root> <kind> <host> <user> <port
     # every later field left.
     printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
       "$key" "$kind" "$host" "${user:--}" "${port:--}" "${dir:--}" "${compose:--}" "$stamp"
-  } | _install_registry_file "$file"
-  installed=$?
+  # `|| installed=$?`, not a bare pipeline: this function runs under the
+  # callers' `set -euo pipefail`, and a bare failing pipeline would exit the
+  # shell BEFORE the warning, before `installed=$?` and before the unlock —
+  # aborting a deploy that already succeeded and leaving the registry locked.
+  # In a conditional, errexit stands down and the status lands in `installed`.
+  # (No second `installed=$?` here: that would capture the OR-LIST's status —
+  # always 0 — and clobber the failure right back out of `installed`.)
+  } | _install_registry_file "$file" || installed=$?
   if [ "$installed" -eq 0 ]; then
     # The fold just moved every pre-move row into the shared file; retire the
     # source so it cannot be folded — and resurrect forgotten keys — again.
@@ -595,8 +622,10 @@ forget_deployment() { # forget_deployment <repo-root> <key>
     # The tombstone. Same "-" convention as records: empty fields must not
     # collapse, or every later field shifts left on read.
     printf '%s\tforgotten\t-\t-\t-\t-\t-\t%s\n' "$key" "$stamp"
-  } | _install_registry_file "$file"
-  installed=$?
+  # Same as record: a bare failing pipeline would exit before the warning and
+  # the unlock, reporting neither the failure nor releasing the lock. And no
+  # second `installed=$?` — same clobber as record.
+  } | _install_registry_file "$file" || installed=$?
   if [ "$installed" -ne 0 ]; then
     _deploy_registry_warn "could not update ${file} — ${key} may still be listed there."
     rc=1

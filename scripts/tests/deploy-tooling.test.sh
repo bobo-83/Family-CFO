@@ -758,6 +758,197 @@ else
 fi
 rm -f "$WORK/cli/.deploy.history" "$WORK/dashhome/.family-cfo/.deploy.history"
 
+# --- Round 5: failures after the lock, and order-independent suppression -----
+# Three bugs found by review on a744a18, all reproduced first:
+#   1. [P1] The install pipeline ran as a BARE command. This lib only ever runs
+#      under callers' `set -euo pipefail`, so a failed install exited the shell
+#      before the warning, before `installed=$?` and before the unlock —
+#      aborting a deploy that had already succeeded and leaving
+#      `.deploy.history.lock` behind, which blocked every later write.
+#   2. [P1] The reader checks mktemp but ran the write that POPULATES the file
+#      list unguarded — and since the reader only ever runs inside a
+#      conditional, errexit is OFF there: the failure continued with an empty
+#      list, read zero paths, reported SUCCESS, and the writer replaced the
+#      whole registry with just its new row.
+#   3. [P2] Both projections applied `$1 in forgotten` as rows STREAMED, so a
+#      live row read before its marker was collected and emitted anyway. The
+#      supported checkout-local fallback hits this for real: forget with HOME
+#      unset writes the marker to the checkout file, and the shared registry —
+#      read FIRST — holds the live row.
+#
+# The failures are injected at the exact step (a stubbed installer that fails
+# after a real lock acquisition; a stubbed mktemp / printf / deploy_history_files
+# with the filesystem left writable), never via permissions. Each assertion
+# covers the exit status, the registry contents, and whether the lock survived.
+# `plain_shell` runs its snippet verbatim in a fresh `set -euo pipefail` shell —
+# record is invoked as a PLAIN COMMAND there, because calling it from `if` or
+# `||` stands errexit down and hides the bare-pipeline bug.
+plain_shell() { # <home> <snippet> → output; the snippet's shell status is the rc
+  HOME="$1" bash -c "
+    set -euo pipefail
+    unset FAMILY_CFO_HOME DEPLOY_ENV_FILE DEPLOY_HISTORY_FILE
+    . '$REPO_ROOT/scripts/lib/deploy-env.sh'
+    $2
+  " 2>&1
+}
+reg_row() { # <file> <key> <kind> — one synthetic registry row
+  printf '%s\t%s\t%s\t-\t-\t/dir\tc.yml\t2026-01-01T00:00:00Z\n' "$2" "$3" "$(printf '%s' "$2" | cut -d'|' -f2)"
+}
+
+# 1. Install failure AFTER the lock: record warns, returns success (the deploy
+#    is already live), the previous file is intact, the lock is released.
+rm -rf "$WORK/r5"; mkdir -p "$WORK/r5/home/.family-cfo" "$WORK/r5/repo"
+reg_row x 'local|keep|/keep' local > "$WORK/r5/home/.family-cfo/.deploy.history"
+t1_rc=0; t1_out=$(plain_shell "$WORK/r5/home" "
+  _install_registry_file() { return 1; }
+  record_deployment '$WORK/r5/repo' local fresh - - /fresh c.yml
+  echo RECORD-RETURNED
+") || t1_rc=$?
+if [ "$t1_rc" -eq 0 ] && printf '%s\n' "$t1_out" | grep -q RECORD-RETURNED &&
+   grep -qF 'local|keep|/keep' "$WORK/r5/home/.family-cfo/.deploy.history" &&
+   ! grep -qF 'local|fresh|/fresh' "$WORK/r5/home/.family-cfo/.deploy.history" &&
+   [ ! -d "$WORK/r5/home/.family-cfo/.deploy.history.lock" ] &&
+   printf '%s\n' "$t1_out" | grep -q "deployment NOT recorded"; then
+  ok "an install failure after the lock warns, keeps the old file, returns success, releases the lock"
+else
+  ko "an install failure aborted the deploy, replaced the file, or leaked the lock (rc=$t1_rc): $t1_out"
+fi
+# …and forget under the same failure reports FAILURE — its whole answer is
+# whether the entry is gone — and still releases the lock.
+t1f_rc=0; t1f_out=$(plain_shell "$WORK/r5/home" "
+  _install_registry_file() { return 1; }
+  forget_deployment '$WORK/r5/repo' 'local|keep|/keep'
+") || t1f_rc=$?
+if [ "$t1f_rc" -ne 0 ] &&
+   grep -qF 'local|keep|/keep' "$WORK/r5/home/.family-cfo/.deploy.history" &&
+   [ ! -d "$WORK/r5/home/.family-cfo/.deploy.history.lock" ] &&
+   printf '%s\n' "$t1f_out" | grep -q "could not update"; then
+  ok "a forget whose install fails reports failure and releases the lock"
+else
+  ko "a failing forget claimed success, lost the file, or leaked the lock (rc=$t1f_rc): $t1f_out"
+fi
+
+# 2. A failure while building the file list is an INCOMPLETE read: record
+#    refuses (LIVE but UNLISTED), forget reports failure, the registry is never
+#    replaced with empty or partial data, the lock is released. Injected at all
+#    three steps — mktemp (creating), printf (populating), deploy_history_files
+#    (capturing) — with the filesystem left writable throughout.
+for inj in 'mktemp() { return 1; }' \
+           "printf() { case \"\$1\" in '%s\\n') return 1 ;; *) command printf \"\$@\" ;; esac; }" \
+           'deploy_history_files() { return 1; }'; do
+  case "$inj" in
+    mktemp*)               inj_name=mktemp ;;
+    printf*)               inj_name=printf ;;
+    deploy_history_files*) inj_name=deploy_history_files ;;
+  esac
+  reg_row x 'local|keep|/keep' local > "$WORK/r5/home/.family-cfo/.deploy.history"
+  t2_rc=0; t2_out=$(plain_shell "$WORK/r5/home" "
+    $inj
+    record_deployment '$WORK/r5/repo' local fresh - - /fresh c.yml
+  ") || t2_rc=$?
+  if [ "$t2_rc" -eq 0 ] &&
+     grep -qF 'local|keep|/keep' "$WORK/r5/home/.family-cfo/.deploy.history" &&
+     ! grep -qF 'local|fresh|/fresh' "$WORK/r5/home/.family-cfo/.deploy.history" &&
+     [ ! -d "$WORK/r5/home/.family-cfo/.deploy.history.lock" ] &&
+     printf '%s\n' "$t2_out" | grep -q "could not be read in full"; then
+    ok "a registry-file-list failure ($inj_name): record refuses, file intact, lock released"
+  else
+    ko "a list failure let record replace the registry or leak the lock (rc=$t2_rc): $t2_out"
+  fi
+  t2f_rc=0; t2f_out=$(plain_shell "$WORK/r5/home" "
+    $inj
+    forget_deployment '$WORK/r5/repo' 'local|keep|/keep'
+  ") || t2f_rc=$?
+  if [ "$t2f_rc" -ne 0 ] &&
+     grep -qF 'local|keep|/keep' "$WORK/r5/home/.family-cfo/.deploy.history" &&
+     [ ! -d "$WORK/r5/home/.family-cfo/.deploy.history.lock" ]; then
+    ok "…and forget reports failure, file intact, lock released"
+  else
+    ko "a list failure let forget claim success or leak the lock (rc=$t2f_rc): $t2f_out"
+  fi
+done
+# A GENUINELY empty inventory is not a failure: with no registry files at all,
+# the read succeeds, the record writes, and the row is there.
+rm -f "$WORK/r5/home/.family-cfo/.deploy.history"
+t2e_rc=0; t2e_out=$(plain_shell "$WORK/r5/home" "
+  rows=\$(deploy_registry_rows '$WORK/r5/repo') || exit 9
+  [ -z \"\$rows\" ] || exit 1
+  record_deployment '$WORK/r5/repo' local fresh - - /fresh c.yml
+  grep -qF 'local|fresh|/fresh' '$WORK/r5/home/.family-cfo/.deploy.history'
+") || t2e_rc=$?
+if [ "$t2e_rc" -eq 0 ]; then
+  ok "an empty inventory reads as complete, and recording into it works"
+else
+  ko "an empty inventory was treated as incomplete or failed to record (rc=$t2e_rc): $t2e_out"
+fi
+
+# 3. A marker suppresses its key regardless of ORDER — live row first or marker
+#    first, in one file or across the shared/checkout pair — in list output AND
+#    in the next rewrite; re-recording the place makes it visible again.
+# 3a. The reviewer's flow through the supported checkout-local fallback:
+#     record with HOME set (shared), forget with HOME unset (marker lands in
+#     the checkout file, read SECOND), then list with HOME restored.
+mkdir -p "$WORK/r5/fb/home/.family-cfo" "$WORK/r5/fb/ck"
+in_fallback() { # <home> <unset-home?> <snippet>
+  if [ "$2" = no-home ]; then
+    env -u HOME -u FAMILY_CFO_HOME bash -c "
+      set -euo pipefail
+      unset FAMILY_CFO_HOME DEPLOY_ENV_FILE DEPLOY_HISTORY_FILE
+      . '$REPO_ROOT/scripts/lib/deploy-env.sh'
+      $3
+    " 2>&1
+  else
+    plain_shell "$1" "$3"
+  fi
+}
+in_fallback "$WORK/r5/fb/home" home "record_deployment '$WORK/r5/fb/ck' local gone - - /gone c.yml" >/dev/null
+in_fallback "$WORK/r5/fb/home" no-home "forget_deployment '$WORK/r5/fb/ck' 'local|gone|/gone'" >/dev/null
+if grep -qF "$(printf 'local|gone|/gone\tforgotten\t')" "$WORK/r5/fb/ck/.deploy.history" &&
+   ! plain_shell "$WORK/r5/fb/home" "deploy_registry_rows '$WORK/r5/fb/ck'" | grep -qF 'local|gone|/gone'; then
+  ok "a marker in the checkout file suppresses the shared row read before it"
+else
+  ko "suppression depends on row order: the marker came too late for the live row"
+fi
+# The NEXT rewrite (recording y from that checkout) must keep the suppression.
+in_fallback "$WORK/r5/fb/home" home "record_deployment '$WORK/r5/fb/ck' local y - - /y c.yml" >/dev/null
+if ! plain_shell "$WORK/r5/fb/home" "deploy_registry_rows '$WORK/r5/fb/ck'" | grep -qF 'local|gone|/gone'; then
+  ok "…and the next rewrite keeps the forgotten key suppressed"
+else
+  ko "a rewrite resurrected the forgotten key"
+fi
+# Re-recording the place makes it visible again, in both files' terms.
+in_fallback "$WORK/r5/fb/home" home "record_deployment '$WORK/r5/fb/ck' local gone - - /gone c.yml" >/dev/null
+if plain_shell "$WORK/r5/fb/home" "deploy_registry_rows '$WORK/r5/fb/ck'" | grep -qF 'local|gone|/gone' &&
+   ! grep -qF "$(printf 'local|gone|/gone\tforgotten\t')" "$WORK/r5/fb/ck/.deploy.history"; then
+  ok "re-recording the forgotten place removes the marker and lists it again"
+else
+  ko "the place stayed forgotten after being deployed again"
+fi
+# 3b. Both orders WITHIN one file, and the rewrite's contents: no live copy of
+#     a marked key may survive a rewrite, whichever order it was read in.
+for order in live-first marker-first; do
+  rm -f "$WORK/r5/fb/ck/.deploy.history" "$WORK/r5/fb/home/.family-cfo/.deploy.history"
+  if [ "$order" = live-first ]; then
+    reg_row x 'local|x|/d' local > "$WORK/r5/fb/home/.family-cfo/.deploy.history"
+    printf 'local|x|/d\tforgotten\t-\t-\t-\t-\t-\t2026-02-02T00:00:00Z\n' >> "$WORK/r5/fb/home/.family-cfo/.deploy.history"
+  else
+    printf 'local|x|/d\tforgotten\t-\t-\t-\t-\t-\t2026-02-02T00:00:00Z\n' > "$WORK/r5/fb/home/.family-cfo/.deploy.history"
+    reg_row x 'local|x|/d' local >> "$WORK/r5/fb/home/.family-cfo/.deploy.history"
+  fi
+  if plain_shell "$WORK/r5/fb/home" "deploy_registry_rows '$WORK/r5/fb/ck'" | grep -qF 'local|x|/d'; then
+    ko "suppression failed with the $order layout"
+  else
+    ok "the marker suppresses its live row in the $order layout"
+  fi
+  plain_shell "$WORK/r5/fb/home" "record_deployment '$WORK/r5/fb/ck' local y - - /y c.yml" >/dev/null
+  if grep -qF "$(printf 'local|x|/d\tlocal\t')" "$WORK/r5/fb/home/.family-cfo/.deploy.history"; then
+    ko "the $order rewrite installed a live copy of the marked key"
+  else
+    ok "…and the rewrite installs no live copy of it ($order)"
+  fi
+done
+rm -rf "$WORK/r5"
+
 # Owner-only, like the .deploy.env beside it: hostnames, users and paths.
 # Recorded through the lib, not printf'd in — the mode is the point, and it comes
 # from mktemp surviving the mv. `ls -l`'s first field is portable; `stat`'s
