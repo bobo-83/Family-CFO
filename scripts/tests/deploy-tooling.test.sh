@@ -882,6 +882,102 @@ else
   ko "an empty inventory was treated as incomplete or failed to record (rc=$t2e_rc): $t2e_out"
 fi
 
+# The real enumerator must carry failures from its dependencies and emissions;
+# replacing the whole helper above only checks the reader's outer guard. Run
+# these under dash too: errexit is not the contract for a conditional caller.
+registry_shell() { # <snippet> — reg_shell selects the shell under test
+  HOME="$WORK/r5/home" "$reg_shell" -c "
+    set -eu
+    [ '$reg_shell' != bash ] || set -o pipefail
+    unset FAMILY_CFO_HOME DEPLOY_ENV_FILE DEPLOY_HISTORY_FILE
+    . '$REPO_ROOT/scripts/lib/deploy-env.sh'
+    $1
+  " 2>&1
+}
+for reg_shell in bash dash; do
+  dep_rc=0; dep_out=$(registry_shell "
+    deploy_history_file() { return 1; }
+    if deploy_history_files '$WORK/r5/repo'; then exit 9; fi
+    if _deploy_registry_read '$WORK/r5/repo'; then exit 9; fi
+  ") || dep_rc=$?
+  if [ "$dep_rc" -eq 0 ] && printf '%s\n' "$dep_out" | grep -q 'cannot enumerate'; then
+    ok "a failed path resolution propagates through the real enumerator ($reg_shell)"
+  else
+    ko "a failed path resolution became a complete read ($reg_shell, rc=$dep_rc): $dep_out"
+  fi
+  for failure in emission-shared emission-legacy emission-explicit reopen; do
+    shared="$WORK/r5/home/.family-cfo/.deploy.history"
+    legacy="$WORK/r5/repo/.deploy.history"
+    list_file="$WORK/r5/file-list"
+    write_seen="$WORK/r5/write-succeeded"
+    reg_row x 'local|keep|/keep' local > "$shared"
+    reg_row x 'local|legacy|/legacy' local > "$legacy"
+    cp "$shared" "$WORK/r5/shared-before"
+    cp "$legacy" "$WORK/r5/legacy-before"
+    fail_path="$shared"; select_file=""
+    case "$failure" in
+      emission-legacy) fail_path="$legacy" ;;
+      emission-explicit) select_file="export DEPLOY_HISTORY_FILE='$shared'" ;;
+    esac
+    inj="
+      $select_file
+      printf() {
+        if [ \"\$1\" = '%s\n' ] && [ \"\${2:-}\" = '$fail_path' ]; then return 1; fi
+        command printf \"\$@\"
+      }
+    "
+    if [ "$failure" = reopen ]; then
+      # The write really succeeds before unlinking its still-open output.
+      # No permissions assumption or production hook is needed to hit the gap
+      # between that successful write and the loop opening the same pathname.
+      inj="
+        mktemp() {
+          case \"\$1\" in
+            */deploy-history-files.XXXXXX)
+              : > '$list_file'
+              command printf '%s\n' '$list_file'
+              ;;
+            *) command mktemp \"\$@\" ;;
+          esac
+        }
+        printf() {
+          command printf \"\$@\" || return 1
+          if [ \"\$1\" = '%s\n' ] && [ -f '$list_file' ]; then
+            rm -f '$list_file' || return 1
+            : > '$write_seen'
+          fi
+          return 0
+        }
+      "
+    fi
+    # Check the reader's status itself as well as both rewriting callers:
+    # record is deliberately non-fatal, so its status alone cannot prove safety.
+    for operation in read record forget; do
+      cp "$WORK/r5/shared-before" "$shared"
+      cp "$WORK/r5/legacy-before" "$legacy"
+      rm -f "$legacy.migrated" "$list_file" "$write_seen"
+      case "$operation" in
+        read) action="if _deploy_registry_read '$WORK/r5/repo'; then exit 9; fi" ;;
+        record) action="record_deployment '$WORK/r5/repo' local fresh - - /fresh c.yml" ;;
+        forget) action="if forget_deployment '$WORK/r5/repo' 'local|keep|/keep'; then exit 9; fi" ;;
+      esac
+      fail_rc=0; fail_out=$(registry_shell "$inj
+        $action") || fail_rc=$?
+      if [ "$fail_rc" -eq 0 ] &&
+         cmp -s "$shared" "$WORK/r5/shared-before" &&
+         cmp -s "$legacy" "$WORK/r5/legacy-before" &&
+         [ ! -d "$shared.lock" ] &&
+         { [ "$failure" != reopen ] || [ -f "$write_seen" ]; } &&
+         { [ "$operation" != record ] || printf '%s\n' "$fail_out" | grep -q 'could not be read in full'; }; then
+        ok "$failure: $operation refuses an incomplete read, preserves both files, releases the lock ($reg_shell)"
+      else
+        ko "$failure: $operation accepted an incomplete read or changed inventory ($reg_shell, rc=$fail_rc): $fail_out"
+      fi
+    done
+  done
+done
+rm -f "$WORK/r5/repo/.deploy.history"
+
 # 3. A marker suppresses its key regardless of ORDER — live row first or marker
 #    first, in one file or across the shared/checkout pair — in list output AND
 #    in the next rewrite; re-recording the place makes it visible again.

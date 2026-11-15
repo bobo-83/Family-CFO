@@ -253,14 +253,22 @@ deploy_history_file() { # deploy_history_file <repo-root>
 # relocates the base directory, and the pre-move file is still worth folding in.)
 deploy_history_files() { # deploy_history_files <repo-root>
   local shared legacy
-  shared="$(deploy_history_file "$1")"
+  # A missing file is an empty inventory; a failed path lookup or emission is
+  # not. Callers may rewrite from this list, so neither failure may look empty.
+  shared="$(deploy_history_file "$1")" || return 1
   if [ -n "${DEPLOY_HISTORY_FILE:-}" ]; then
-    [ -f "$shared" ] && printf '%s\n' "$shared"
+    if [ -f "$shared" ]; then
+      printf '%s\n' "$shared" || return 1
+    fi
     return 0
   fi
   legacy="$1/.deploy.history"
-  [ -f "$shared" ] && printf '%s\n' "$shared"
-  [ -f "$legacy" ] && [ "$legacy" != "$shared" ] && printf '%s\n' "$legacy"
+  if [ -f "$shared" ]; then
+    printf '%s\n' "$shared" || return 1
+  fi
+  if [ -f "$legacy" ] && [ "$legacy" != "$shared" ]; then
+    printf '%s\n' "$legacy" || return 1
+  fi
   return 0
 }
 
@@ -320,6 +328,12 @@ _deploy_registry_read() { # _deploy_registry_read <repo-root> → rows on stdout
     _deploy_registry_warn "cannot enumerate the registry files."
     return 1
   fi
+  # The list can disappear after the write: a failed input open skips the
+  # entire loop without setting `incomplete`. Its status catches that failure
+  # only because every body path ends successfully (continue or assignment);
+  # per-registry failures still accumulate in `incomplete`, not loop status.
+  # Use `||`, not `if ! while`: Bash 3.2 loses the failed redirection's status
+  # when negating that compound command, letting a missing list look complete.
   while IFS= read -r file; do
     [ -n "$file" ] || continue
     if [ ! -r "$file" ]; then
@@ -336,7 +350,10 @@ _deploy_registry_read() { # _deploy_registry_read <repo-root> → rows on stdout
       continue
     fi
     raw="${raw}${raw:+${nl}}${one}"
-  done < "$tmp"
+  done < "$tmp" || {
+    _deploy_registry_warn "cannot open the registry file list."
+    incomplete=1
+  }
   rm -f -- "$tmp" || :
   _print_rows "$raw"
   return "$incomplete"
