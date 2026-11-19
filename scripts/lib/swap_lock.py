@@ -33,14 +33,16 @@ def terminate(process: subprocess.Popen) -> None:
     if process.returncode is None:
         try:
             os.killpg(process.pid, signal.SIGTERM)
-        except ProcessLookupError:
+        except (ProcessLookupError, PermissionError):
+            # macOS can report EPERM, not ESRCH, for an already-gone group.
+            # Always continue to reap our child, even in that case.
             pass
         else:
             # Never reap the shell before our last group signal. Its PID pins
             # the group identity, and every descendant gets the full grace
             # even if the shell exits immediately on TERM.
             time.sleep(TERMINATE_GRACE_SECONDS)
-            with suppress(ProcessLookupError):
+            with suppress(ProcessLookupError, PermissionError):
                 os.killpg(process.pid, signal.SIGKILL)
     process.wait()
 
@@ -69,6 +71,8 @@ def supervise(directory: str, args: list[str], fd: int) -> int:
     try:
         process = subprocess.Popen(
             ["bash", os.path.join(directory, "scripts/swap-model.sh"), *args],
+            # terminate() only signals this supervisor-created session's
+            # process group, never the caller's inherited process group.
             start_new_session=True,
             pass_fds=(fd,),
             env={**os.environ, "FAMILY_CFO_SWAP_LOCK_FD": str(fd)},

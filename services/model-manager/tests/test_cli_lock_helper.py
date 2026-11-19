@@ -117,11 +117,12 @@ def test_standalone_contention_never_launches(locked_directory):
     popen.assert_not_called()
 
 
+@pytest.mark.parametrize("gone_error", [ProcessLookupError, PermissionError])
 @pytest.mark.parametrize("group_survives_grace", [True, False])
 @pytest.mark.parametrize("during_spawn", [True, False])
 @pytest.mark.parametrize("interrupt", [signal.SIGINT, signal.SIGTERM, signal.SIGHUP])
 def test_main_interrupt_keeps_lock_through_full_grace_and_reap_then_admits_retry(
-    tmp_path, group_survives_grace, during_spawn, interrupt
+    tmp_path, group_survives_grace, during_spawn, interrupt, gone_error
 ):
     process = Mock(pid=1234, returncode=None)
     events = []
@@ -148,6 +149,7 @@ def test_main_interrupt_keeps_lock_through_full_grace_and_reap_then_admits_retry
         return signal.SIG_DFL
 
     def spawn(*args, **kwargs):
+        assert kwargs["start_new_session"] is True
         owned.extend(kwargs["pass_fds"])
         assert_contended()
         if during_spawn:
@@ -168,7 +170,7 @@ def test_main_interrupt_keeps_lock_through_full_grace_and_reap_then_admits_retry
         assert pid == process.pid
         events.append(("signal", sig))
         if sig == signal.SIGKILL and not group_survives_grace:
-            raise ProcessLookupError
+            raise gone_error
 
     def grace(seconds):
         assert_contended()
@@ -211,10 +213,11 @@ def test_standalone_launch_error_releases_and_returns_nonzero(tmp_path):
         os.close(fd)
 
 
-def test_termination_reaps_even_if_group_is_already_gone():
+@pytest.mark.parametrize("gone_error", [ProcessLookupError, PermissionError])
+def test_termination_reaps_even_if_group_is_already_gone(gone_error):
     process = Mock(pid=1234, returncode=None)
     with (
-        patch.object(helper.os, "killpg", side_effect=ProcessLookupError) as killpg,
+        patch.object(helper.os, "killpg", side_effect=gone_error) as killpg,
         patch.object(helper.time, "sleep") as sleep,
     ):
         helper.terminate(process)
