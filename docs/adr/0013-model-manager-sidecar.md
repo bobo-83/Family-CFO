@@ -65,7 +65,12 @@ Replace that probe with one OS-level protocol, not a manager-only bypass.
 
 - Open the deployment directory with `O_RDONLY | O_DIRECTORY`, then acquire
   exclusive non-blocking `fcntl.flock` (`LOCK_EX | LOCK_NB`). The host path and
-  sidecar `/project` bind mount must identify the same directory inode. Lock
+  sidecar `/project` bind mount must identify the same directory inode. The
+  production guarantee requires the native Linux host/container shared kernel.
+  macOS Docker Desktop virtiofs does not propagate host/VM flock: this dev-only
+  topology must not run host CLI and container manager swaps concurrently
+  expecting exclusion. Its explicit platform test skip does not replace the
+  required Linux CI contention gate. Lock
   neither `.env` (rewritten during apply) nor a lock file; nothing is unlinked.
   The deployment directory must not be replaced during a swap. Verify directory
   flock on supported hosts; if portability makes this impossible, report back

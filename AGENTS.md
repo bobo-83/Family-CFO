@@ -70,6 +70,17 @@ CI. Operator directive (2026-09-04):
   connection-loss tests. CI provisions a synthetic service and sets
   `FAMILY_CFO_REQUIRE_POSTGRESQL=1`, so an unavailable server or driver fails
   instead of silently skipping.
+- Docker Engine (Linux CI) or Docker Desktop (macOS contributors) — the real
+  host/container directory-flock test in `scripts/tests/test_swap_model.py`.
+  CI installs/starts Docker and preloads `python:3.12-slim`, then sets
+  `FAMILY_CFO_REQUIRE_DOCKER=1`. Locally, preload that image with
+  `docker pull python:3.12-slim`; tests never pull images or download models.
+  An absent Docker binary with REQUIRE unset skips; an unavailable daemon
+  or missing image fails. The explicit macOS Docker Desktop skip documents
+  that virtiofs does not propagate flock across the host/VM boundary: do not
+  run a container manager and host CLI concurrently there expecting exclusion.
+  Linux CI must pass real contention with REQUIRE=1; this exception never
+  applies to Linux. Portable script tests need no Docker.
 - Xcode with the iOS and watchOS platforms — Apple targets.
 
 ## One Input, Not Two — Minimize Duplicate User Entry
