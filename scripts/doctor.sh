@@ -484,11 +484,47 @@ if command -v curl >/dev/null 2>&1; then
 else warn "curl not on host — skipped dashboard check"; fi
 
 # vLLM model endpoint (only meaningful when AI is on).
+#
+# The URL comes from the API CONTAINER's environment, not from this shell's
+# environment files, and the probe runs INSIDE the api container. Both halves
+# matter on a cluster box:
+#
+#   * docker-compose.cluster.yml overrides this very variable to
+#     http://127.0.0.1:8001 (vllm binds 127.0.0.1:8001 on the master), and that
+#     value exists only in the compose file — never in the host's .env. Reading
+#     .env here would always miss it.
+#   * that same overlay puts the api on the HOST's network namespace
+#     (`network_mode: host` with `!reset []` dropping the internal network), so
+#     from the host the compose service name `vllm` resolves to nothing at all.
+#     Probing `http://vllm:8000` from here reports a dead AI on a box whose AI is
+#     serving fine.
+#
+# `printenv` is used rather than a python one-liner for the read: the image ships
+# coreutils printenv, and this keeps the check honest even on an image without
+# curl. The URL is normalised and appended exactly as the app does it — see
+# api/ai_runtime.py, `f"{base_url.rstrip('/')}/v1/models"` — so doctor and the
+# product agree about what "reachable" means. The URL is passed to python as an
+# ARGUMENT, not interpolated into the source, so a value with a quote in it is a
+# failed probe rather than a syntax accident inside the container.
 if svc_running vllm; then
-  if in_api python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://vllm:8000/v1/models').status==200 else 1)"; then
-    model="$(in_api python -c "import urllib.request,json; print(json.load(urllib.request.urlopen('http://vllm:8000/v1/models'))['data'][0]['id'])" 2>/dev/null)"
-    pass "vLLM serving${model:+ (model: $model)}"
-  else warn "vLLM up but /v1/models not ready yet (model still loading?) — see: $DC logs -f vllm"; fi
+  ai_base="$(in_api printenv FAMILY_CFO_AI_BASE_URL)"
+  ai_base="$(printf '%s' "$ai_base" | sed 's:/*$::')"
+  if [ -z "$ai_base" ]; then
+    # The compose default (docker-compose.yml), and the settings default in
+    # apps/api/src/family_cfo_api/config.py. Used when the container has no
+    # explicit value, which also covers an api container we could not exec into.
+    ai_base="http://vllm:8000"
+  fi
+  # 5s, not the app's 2s: this runs on a box that may be mid-model-load with the
+  # CPU pegged, and a spurious "not ready" that a rerun contradicts teaches
+  # people to ignore the report.
+  if in_api python -c 'import sys,urllib.request; sys.exit(0 if urllib.request.urlopen(sys.argv[1]+"/v1/models",timeout=5).status==200 else 1)' "$ai_base"; then
+    model="$(in_api python -c 'import sys,urllib.request,json; print(json.load(urllib.request.urlopen(sys.argv[1]+"/v1/models",timeout=5))["data"][0]["id"])' "$ai_base" 2>/dev/null)"
+    pass "vLLM serving at ${ai_base}${model:+ (model: $model)}"
+  else warn "vLLM up but ${ai_base}/v1/models not ready yet (model still loading?) — see: $DC logs -f vllm"; fi
+  # This checks the DEPLOYMENT default. A household can point its runtime at a
+  # different allowlisted endpoint (households.ai_base_url, ADR 0010); that is
+  # the admin surface's job to validate, not this one's.
 fi
 
 section "Resources"

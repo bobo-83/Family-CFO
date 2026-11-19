@@ -50,6 +50,14 @@ jobs:
       - name: Test the deny-list shape expansion
         run: scripts/tests/deny-term-shapes.test.sh
 
+      # The deploy scripts' own failure modes (#173): a skipped final step must
+      # not read as a failed deploy, the deployment registry must survive a
+      # machine where its directory does not exist yet, and doctor.sh must ask
+      # the api container what the AI endpoint is. Runs in plain bash — no
+      # docker, no network.
+      - name: Test the deployment tooling
+        run: scripts/tests/deploy-tooling.test.sh
+
   dependency-audit:
     runs-on: ubuntu-latest
     defaults:

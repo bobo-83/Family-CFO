@@ -9,15 +9,19 @@
 # sitting on a database full of your household's financial data.
 #
 # Usage:
-#   scripts/deployments.sh              # list, then offer to act (interactive)
-#   scripts/deployments.sh list         # just list; never prompts
-#   scripts/deployments.sh stop    <n>  # stop containers        (data kept, restartable)
-#   scripts/deployments.sh remove  <n>  # remove containers      (VOLUMES KEPT: db + model safe)
-#   scripts/deployments.sh destroy <n>  # remove containers AND VOLUMES — deletes the database
-#   scripts/deployments.sh uninstall <n># iOS entries: remove the app from the phone
-#   scripts/deployments.sh forget  <n>  # drop from the registry only; touches nothing
+#   scripts/deployments.sh                    # list, then offer to act (interactive)
+#   scripts/deployments.sh list               # just list; never prompts
+#   scripts/deployments.sh stop    <place>    # stop containers        (data kept, restartable)
+#   scripts/deployments.sh remove  <place>    # remove containers      (VOLUMES KEPT: db + model safe)
+#   scripts/deployments.sh destroy <place>    # remove containers AND VOLUMES — deletes the database
+#   scripts/deployments.sh uninstall <place>  # iOS entries: remove the app from the phone
+#   scripts/deployments.sh forget  <place>    # drop from the registry only; touches nothing
 #
-# <n> is the number from the listing, or a host name.
+# <place> names WHERE, not which row: a host name (when only one stack runs there),
+# or its full key `kind|host|dir` — both are in the listing. Row numbers are
+# accepted only in the interactive menu, by the process that printed them: a
+# number typed into a fresh command refers to a table that may no longer be the
+# one on screen. See resolve_index.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -26,15 +30,36 @@ cd "$REPO_ROOT"
 # shellcheck source=lib/deploy-env.sh
 . "$REPO_ROOT/scripts/lib/deploy-env.sh"
 
-HISTORY="$(deploy_history_file "$REPO_ROOT")"
+# Loads .deploy.env first so an explicit DEPLOY_HISTORY_FILE/DEPLOY_ENV_FILE is
+# honoured here exactly as it is by deploy.sh and patch.sh. Without this the
+# writer and the reader can disagree about which file the registry IS — the
+# scripts would record to one place and list another. Nothing in this script
+# reads SSH_*/TARGET, so loading the destination has no other effect here.
+load_deploy_env "$REPO_ROOT"
+
+# Every registry file this machine knows about, unioned: the machine-wide
+# ~/.family-cfo/.deploy.history plus any pre-move <checkout>/.deploy.history.
+# Reading only one of them is what made entries recorded elsewhere look as though
+# they had vanished (issue #173). See scripts/lib/deploy-env.sh.
+ROWS_INCOMPLETE=0
+ROWS="$(deploy_registry_rows "$REPO_ROOT")" || ROWS_INCOMPLETE=1
+# ^ The `||` matters twice over. Without it the assignment inherits the
+# reader's failure status and `set -e` kills the script here, silently — which
+# is how `list` came to print nothing at all when one registry file was
+# unreadable. Listing must degrade to "show what we can read, say it is
+# partial"; only the WRITE paths get to refuse.
 
 log()  { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m!!\033[0m %s\n' "$*" >&2; }
 die()  { printf '\033[1;31mError:\033[0m %s\n' "$*" >&2; exit 1; }
 
-[ -f "$HISTORY" ] || {
+[ -n "$ROWS" ] || {
   log "No deployments recorded yet."
-  echo "  Nothing has been deployed from this checkout (or .deploy.history was removed)."
+  echo "  Nothing has been deployed from this machine, or every entry has been"
+  echo "  forgotten. Registry files looked for:"
+  echo "    $(deploy_history_file "$REPO_ROOT")"
+  [ "$(deploy_home)" ] && echo "    $REPO_ROOT/.deploy.history  (pre-move location, still read)"
+  [ "$ROWS_INCOMPLETE" = "1" ] && die "At least one of those exists but could not be read — the answer above is not trustworthy."
   exit 0
 }
 
@@ -48,10 +73,18 @@ while IFS=$'\t' read -r _key kind host user port dir compose stamp; do
   USERS+=("$(undash "$user")"); PORTS+=("$(undash "$port")")
   DIRS+=("$(undash "$dir")"); COMPOSES+=("$(undash "$compose")")
   STAMPS+=("$stamp")
-done < "$HISTORY"
+done <<< "$ROWS"
 
 COUNT="${#KINDS[@]}"
 [ "$COUNT" -gt 0 ] || { log "No deployments recorded yet."; exit 0; }
+
+# A partial registry still gets listed — showing what IS recorded is more useful
+# than refusing to answer — but never silently. The actions below are numbered
+# into this listing, so an entry that could not be read is also an entry that
+# cannot be stopped or destroyed from here.
+if [ "$ROWS_INCOMPLETE" = "1" ]; then
+  warn "This listing is INCOMPLETE: a registry file could not be read (above). Whatever it holds is missing from these numbers, so every entry after it is numbered wrong — 'list' is safe to read, and the actions are refused until that file is readable."
+fi
 
 # Recorded user/port may be empty, meaning "ssh works it out from ~/.ssh/config".
 # Passing an empty -p or a bare `@host` would break exactly that.
@@ -118,17 +151,65 @@ print_list() {
 }
 
 # Resolve "3" or "192.168.1.10" to an index.
+# --- Selecting a deployment ---------------------------------------------------
+#
+# resolve_index takes a selector that NAMES A PLACE: the full key (kind|host|dir),
+# or a host name that appears exactly once. Numbers are deliberately not accepted
+# here — see resolve_display_index for the single place they are.
+#
+# Why not numbers on the command line: a number is the row of a listing printed by
+# a DIFFERENT process, possibly an hour earlier, and the inventory is not frozen
+# in between. Entries get added, forgotten, or dropped by a file that could not be
+# read; the key sort keeps that from happening routinely, but a second terminal
+# running `patch.sh` still moves rows if the sort is on anything mutable. `stop 1`
+# then tears at a box nobody pointed at, and the operator has no way to notice. A
+# host name is no longer to type, says what is meant, and fails loudly when wrong.
 resolve_index() { # resolve_index <selector>
-  local sel="$1" i
+  local sel="$1" i found="" matches=0 key keys=""
+  case "$sel" in
+    *\|*)
+      # The exact key: unambiguous even when one host runs two stacks.
+      for i in $(seq 0 $((COUNT - 1))); do
+        key="${KINDS[$i]}|${HOSTS[$i]}|${DIRS[$i]}"
+        [ "$key" = "$sel" ] && { printf '%s' "$i"; return; }
+      done
+      die "No recorded deployment has the key '${sel}'. 'scripts/deployments.sh list' shows every key."
+      ;;
+  esac
+
   if printf '%s' "$sel" | grep -qE '^[0-9]+$'; then
-    [ "$sel" -ge 1 ] && [ "$sel" -le "$COUNT" ] || die "No deployment #${sel} (there are ${COUNT})."
-    printf '%s' "$((sel - 1))"
-    return
+    die "Refusing to act on '#${sel}': those numbers belong to the listing printed by this run, and the inventory is not frozen between runs — a deploy, a forget, or one unreadable registry file moves the rows. Name the box ('scripts/deployments.sh <action> <host>'), give its full key ('kind|host|dir'), or run 'scripts/deployments.sh' with no argument and pick from the list on screen."
   fi
+
   for i in $(seq 0 $((COUNT - 1))); do
-    if [ "${HOSTS[$i]}" = "$sel" ]; then printf '%s' "$i"; return; fi
+    if [ "${HOSTS[$i]}" = "$sel" ]; then
+      matches=$((matches + 1)); found="$i"
+      keys="${keys}${keys:+ }${KINDS[$i]}|${HOSTS[$i]}|${DIRS[$i]}"
+    fi
   done
-  die "No recorded deployment for '${sel}'."
+  case "$matches" in
+    1) printf '%s' "$found" ;;
+    0) die "No recorded deployment for '${sel}'. Recorded hosts: $(
+         for i in $(seq 0 $((COUNT - 1))); do printf '%s ' "${HOSTS[$i]}"; done)
+         — 'scripts/deployments.sh list' shows them all." ;;
+    *) die "'${sel}' is recorded ${matches} times (one host can run more than one stack), so it does not say which one to act on. Use its key: ${keys}" ;;
+  esac
+}
+
+# The ONE numeric lookup. The interactive menu resolves a number against the table
+# printed by this same process from these same arrays, and nothing has rewritten
+# the registry since — which is the only context in which a row position means
+# what the operator just read. Even then the menu hands the action the resolved
+# KEY rather than the number, so if another terminal did change the inventory
+# while the prompt was open, the worst case is an honest "no recorded
+# deployment", not an action on whatever now occupies that row.
+resolve_display_index() { # resolve_display_index <number>
+  local sel="$1"
+  printf '%s' "$sel" | grep -qE '^[0-9]+$' \
+    || die "'${sel}' is not a number in this listing. Type the number shown, or Ctrl-D to leave everything alone."
+  [ "$sel" -ge 1 ] && [ "$sel" -le "$COUNT" ] \
+    || die "No deployment #${sel} (there are ${COUNT})."
+  printf '%s' "$((sel - 1))"
 }
 
 compose_at() { # compose_at <index> <compose-args...>
@@ -147,7 +228,7 @@ compose_at() { # compose_at <index> <compose-args...>
         "cd ${DIRS[$i]} && docker compose ${COMPOSES[$i]} $*"
       ;;
     ios)
-      die "'${HOSTS[$i]}' is an iPhone, not a container stack — use: scripts/deployments.sh uninstall $((i + 1))"
+      die "'${HOSTS[$i]}' is an iPhone, not a container stack — use: scripts/deployments.sh uninstall '${KINDS[$i]}|${HOSTS[$i]}|${DIRS[$i]}'"
       ;;
   esac
 }
@@ -191,21 +272,48 @@ do_uninstall() {
 do_forget() {
   local i; i="$(resolve_index "$1")"
   local key="${KINDS[$i]}|${HOSTS[$i]}|${DIRS[$i]}"
-  local tmp; tmp="$(mktemp)"
-  awk -F'\t' -v k="$key" '$1 != k' "$HISTORY" > "$tmp"
-  mv "$tmp" "$HISTORY"
+  # Every registry file, not just the one this run happened to read first:
+  # reads union them, so an entry left in the pre-move file would come back on
+  # the next listing. The atomic-write rules live in the lib so they cannot drift
+  # apart from record_deployment's.
+  #
+  # The status is the whole answer here. Saying "the registry entry is gone"
+  # after a file refused to be rewritten leaves the operator trusting a registry
+  # that still lists the box — the one thing this tool exists to get right.
+  forget_deployment "$REPO_ROOT" "$key" ||
+    die "Could not forget ${HOSTS[$i]} everywhere — see the warnings above; it may still be listed. Nothing was stopped or deleted."
   log "Forgot ${HOSTS[$i]} — the registry entry is gone. Nothing was stopped or deleted."
+}
+
+# --- Actions need the WHOLE inventory ---------------------------------------
+#
+# A partial listing is fine for diagnosis and dangerous for actions. Rows from an
+# unreadable file are simply absent, so every number below it shifts: with
+# [boxA, boxB] and boxA's file unreadable, boxB is #1 — and `stop 1`, which the
+# operator just watched print a table naming boxA, sends the command to boxB.
+# ssh/docker is invoked with a resolved host, so nothing warns them. Naming the
+# host is not much safer: the unreadable file can hold a second entry for the
+# same host with a different directory, which is the case where the wrong stack
+# gets torn down.
+#
+# So read freely, act only on a complete inventory. The message says how to fix
+# it, because "refused" without a repair is just a new kind of confusion.
+require_complete_inventory() { # require_complete_inventory <action being refused>
+  [ "$ROWS_INCOMPLETE" != "1" ] && return 0
+  # The unreadable file is named by the reader's warning above; naming one here
+  # too would be a guess, because either of the two (or both) can be the culprit.
+  die "Refusing to '${1}': the inventory is incomplete — the file named above could not be read, so these numbers do not match what was listed and this host may not be the one you saw. Make that file readable (chmod u+r — it is your own), run 'list' again, then act on that."
 }
 
 # --- Dispatch ----------------------------------------------------------------
 ACTION="${1:-}"
 case "$ACTION" in
   list)      print_list; exit 0 ;;
-  stop)      [ $# -ge 2 ] || die "Usage: scripts/deployments.sh stop <#|host>";      print_list; do_stop "$2";      exit 0 ;;
-  remove)    [ $# -ge 2 ] || die "Usage: scripts/deployments.sh remove <#|host>";    print_list; do_remove "$2";    exit 0 ;;
-  destroy)   [ $# -ge 2 ] || die "Usage: scripts/deployments.sh destroy <#|host>";   print_list; do_destroy "$2";   exit 0 ;;
-  uninstall) [ $# -ge 2 ] || die "Usage: scripts/deployments.sh uninstall <#|host>"; print_list; do_uninstall "$2"; exit 0 ;;
-  forget)    [ $# -ge 2 ] || die "Usage: scripts/deployments.sh forget <#|host>";    print_list; do_forget "$2";    exit 0 ;;
+  stop)      [ $# -ge 2 ] || die "Usage: scripts/deployments.sh stop <host|kind|host|dir>";      print_list; require_complete_inventory stop;      do_stop "$2";      exit 0 ;;
+  remove)    [ $# -ge 2 ] || die "Usage: scripts/deployments.sh remove <host|kind|host|dir>";    print_list; require_complete_inventory remove;    do_remove "$2";    exit 0 ;;
+  destroy)   [ $# -ge 2 ] || die "Usage: scripts/deployments.sh destroy <host|kind|host|dir>";   print_list; require_complete_inventory destroy;   do_destroy "$2";   exit 0 ;;
+  uninstall) [ $# -ge 2 ] || die "Usage: scripts/deployments.sh uninstall <host|kind|host|dir>"; print_list; require_complete_inventory uninstall; do_uninstall "$2"; exit 0 ;;
+  forget)    [ $# -ge 2 ] || die "Usage: scripts/deployments.sh forget <host|kind|host|dir>";    print_list; require_complete_inventory forget;    do_forget "$2";    exit 0 ;;
   ""|menu)   ;;
   *)         die "Unknown action '$ACTION'. Try: list | stop | remove | destroy | uninstall | forget" ;;
 esac
@@ -213,6 +321,8 @@ esac
 # --- Interactive -------------------------------------------------------------
 log "Recorded deployments (${COUNT}):"
 print_list
+# Same rule as the CLI: the menu resolves a number into this same short list.
+require_complete_inventory "act interactively"
 
 # Only offer destructive actions on a terminal — piped into something, just list.
 [ -t 0 ] || exit 0
@@ -220,7 +330,10 @@ print_list
 printf 'Act on which one? (number, or Enter to leave everything alone): '
 read -r choice || true
 [ -n "${choice:-}" ] || { log "Nothing changed."; exit 0; }
-idx="$(resolve_index "$choice")"
+# Number from the table THIS process printed (see resolve_display_index); the
+# action below then goes by the resolved key, never by the row position.
+idx="$(resolve_display_index "$choice")"
+chosen_key="${KINDS[$idx]}|${HOSTS[$idx]}|${DIRS[$idx]}"
 
 echo
 echo "  ${HOSTS[$idx]}  (${KINDS[$idx]})"
@@ -237,10 +350,10 @@ printf 'Choice: '
 read -r act || true
 
 case "${act:-}" in
-  s) do_stop      "$((idx + 1))" ;;
-  r) do_remove    "$((idx + 1))" ;;
-  d) do_destroy   "$((idx + 1))" ;;
-  u) do_uninstall "$((idx + 1))" ;;
-  f) do_forget    "$((idx + 1))" ;;
+  s) do_stop      "$chosen_key" ;;
+  r) do_remove    "$chosen_key" ;;
+  d) do_destroy   "$chosen_key" ;;
+  u) do_uninstall "$chosen_key" ;;
+  f) do_forget    "$chosen_key" ;;
   *) log "Cancelled — nothing was touched." ;;
 esac

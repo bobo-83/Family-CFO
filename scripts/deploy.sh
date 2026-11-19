@@ -239,3 +239,9 @@ warn "First boot downloads the vLLM model (multi-GB) — the AI advisor is ready
 # The phone builds here on the Mac, not on the remote box (no Xcode there), and
 # goes last so it never comes up against a stack that isn't serving yet.
 [ "${IOS:-0}" = "1" ] && deploy_ios
+
+# Same trap as scripts/patch.sh: under `set -e` the `&&` list above IS the last
+# command of the script, so on the default path (`IOS` unset) it short-circuits
+# to exit 1 and a successful deploy reports failure to anything that reads `$?`.
+# CI, Makefile targets and wrapper scripts all do.
+exit 0

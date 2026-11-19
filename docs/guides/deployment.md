@@ -204,7 +204,10 @@ Host family-cfo-box
 chmod 700 ~/.ssh && chmod 600 ~/.ssh/config
 ```
 
-**4. Point the deploy config at the alias.** Create `.deploy.env` (gitignored):
+**4. Point the deploy config at the alias.** Create `~/.family-cfo/.deploy.env`,
+the per-machine config the scripts read from any directory. A `.deploy.env` in
+the checkout works too — see
+[Remembering the destination](#remembering-the-destination-deployenv):
 
 ```sh
 SSH_HOST=family-cfo-box
@@ -228,9 +231,13 @@ for.
 
 ## Remembering the destination (`.deploy.env`)
 
-Copy `.deploy.env.example` to `.deploy.env` (gitignored) and set the box once:
+Copy `.deploy.env.example` into place and set the box once:
 
 ```sh
+mkdir -p ~/.family-cfo
+cp .deploy.env.example ~/.family-cfo/.deploy.env
+
+# ~/.family-cfo/.deploy.env
 SSH_HOST=192.168.1.10
 SSH_USER=you
 REMOTE_DIR=~/family-cfo
@@ -240,6 +247,51 @@ Both `deploy.sh` and `patch.sh` load it, so `scripts/patch.sh web` goes to the
 right place without retyping anything. A real environment variable still wins
 (`SSH_HOST=other-box scripts/patch.sh web`), so the file is a memory, not a cage.
 
+**Why `~/.family-cfo/` and not the checkout.** This file describes *your fleet*,
+not this clone, so it must not depend on which directory you happened to run the
+script from, and a fresh clone should not leave you without a destination.
+
+**One file answers — not both.** The first of these that exists is the whole
+answer:
+
+1. a real environment variable (always wins, per key)
+2. `DEPLOY_ENV_FILE`, if you set it
+3. `~/.family-cfo/.deploy.env`
+4. `<checkout>/.deploy.env`
+
+The two files are alternatives, deliberately not merged key-by-key. A destination
+is one address: merging a shared file that names only `SSH_HOST=new-box` with a
+stale checkout file would splice on the OLD box's `SSH_USER`, `SSH_PORT` and
+`REMOTE_DIR`, and a `scripts/patch.sh web` would arrive at the new box as the
+wrong user, on the wrong port, updating the wrong stack. When both files exist
+the scripts say which one they used and that the other is being ignored — move
+anything you still want, then delete it. A checkout that still has its own
+`.deploy.env` and no shared file keeps working exactly as before.
+
+`FAMILY_CFO_HOME` moves the whole directory elsewhere; `DEPLOY_ENV_FILE` names
+one specific file and disables the search. (`FAMILY_CFO_HOME` relocates the base
+directory and still folds in the pre-move registry; `DEPLOY_HISTORY_FILE` selects
+*exactly one* registry file and consults nothing else — it is the seam for tests
+and for "my registry lives over there".)
+
+**`scripts/setup-ssh.sh` writes whichever of these the scripts will actually
+read.** It asks the same function the loader uses rather than guessing, matches
+keys by the loader's own rule (so a padded ` SSH_HOST = old ` is replaced, not
+left winning above the line it appends), and after writing it re-reads through
+the loader and refuses to claim success if the destination that comes back is
+not the one it was given.
+
+It replaces the five keys that ARE an address — `SSH_HOST`, `SSH_USER`,
+`SSH_PORT`, `SSH_KEY`, `REMOTE_DIR` — as one unit, and tells you which old-box
+login settings it cleared. That is deliberate: keeping the previous box's
+`SSH_USER`/`SSH_PORT`/`SSH_KEY` while pointing `SSH_HOST` at the new box
+produced `old-user@new-box:2222` with the old box's key — the destination
+nobody meant, installed by onboarding itself. Leaving them unset is the design
+working: ssh resolves user, port and key from `~/.ssh/config` + ssh-agent, and
+the alias this script installs is what makes that enough. Everything that is
+NOT an address — an Apple team id, an App Store Connect key id, an `IOS_DEVICE`
+— survives onboarding untouched.
+
 **There is deliberately no `TARGET` in it.** Local-vs-remote is derived from
 *where you are*: if `SSH_HOST` is this machine you're on the box, so the stack is
 patched locally; if it isn't, you're on the MacBook, so it goes over SSH. The
@@ -248,16 +300,77 @@ somewhere you didn't mean.
 
 ## What have I deployed, and is it still running?
 
-Every successful deploy/patch records where it went (`.deploy.history`).
+Every successful deploy/patch records where it went, in
+`~/.family-cfo/.deploy.history` (the pre-move `<checkout>/.deploy.history` is
+still read, and its entries are folded into the shared file on the next deploy).
+One registry per machine, because that is the question it answers — *what is
+still running out there* — and a registry that depended on the current
+directory could not answer it.
+
+Unlike `.deploy.env`, the two registry files **are** merged: this is inventory,
+and an entry that goes un-listed is a box nobody can shut down. Which is exactly
+why a *partial* read is never written back. If one of the files cannot be read,
+recording declines to run — you get a warning that the deploy is live but
+UNLISTED rather than a registry quietly missing the other file's boxes. `list`
+does show what it can read, flagged `INCOMPLETE`, because a partial answer beats
+no answer as long as it says so; `forget` fails loudly rather than promising an
+entry is gone when a file refused to be rewritten.
+
+The fold is one-way: the first write that has folded a checkout's pre-move file
+into the shared registry renames that file to `.deploy.history.migrated` —
+nothing is deleted, but it stops feeding the inventory. Left in place it would
+resurrect entries forever, including ones forgotten from a *different* checkout,
+which cannot rewrite this file.
+
+And a forget is recorded, not merely performed: the shared registry keeps a
+tombstone row for the forgotten key, which suppresses every copy of it in every
+file a read consults — so a deployment forgotten from one checkout stays
+forgotten no matter which checkout's pre-move file still holds a copy. Deploying
+that place again removes the tombstone: a re-deploy supersedes a forget.
+
+Because every checkout now writes the ONE shared file, record and forget hold a
+lock across the whole read-merge-write (a directory next to the registry — the
+one lock primitive POSIX guarantees on every filesystem here). Two deployments
+finishing at the same moment both land, instead of the last writer's file
+silently dropping the first one's row. A writer that died holding the lock
+blocks the next writes for five seconds, which then refuse loudly and name the
+lock directory to remove.
+
+Listing degrades; **acting does not.** Whatever the unreadable file holds is
+simply *absent* from the listing, so every row after the gap points at a
+different box than the table you just read, and ssh is handed a host you never
+saw. So `stop`, `remove`, `destroy`, `uninstall` and `forget` (and the
+interactive menu) refuse to run on a partial inventory, before any ssh or docker
+command is built, whether you named a number or a host name: the missing file
+can hold a second entry for the same host at a different directory, which is the
+case where the wrong stack gets torn down. `list` stays available, because
+reading is how you find the file to fix.
+
+**Actions name a place, not a row.** A selector is a host name (when only one
+stack runs there) or the full key `kind|host|dir` — both are in the listing.
+Row numbers are honoured only in the interactive menu, by the process that
+printed the table: a number typed into a fresh command refers to a listing that
+may no longer exist, and an inventory that is not frozen between runs — a deploy
+adds a row, a forget removes one, a file becomes unreadable — would hand the
+command to whatever now occupies that row. When a host runs more than one stack,
+its name alone is refused and the keys it could mean are printed, so you paste
+the right one rather than guess.
+
+The ordering is fixed too: by key, `LC_ALL=C`, rather than by the last-deployed
+stamp or whatever order awk's hash happens to iterate in. A stamp sort would
+renumber the inventory every time a patch succeeded — list shows boxA as 1,
+patching boxB moves boxB to 1, and the number you just read now means boxB.
+Recency stays where it belongs: in the listing's own LAST DEPLOYED column.
 
 ```sh
-scripts/deployments.sh            # list everything, then offer to act on one
-scripts/deployments.sh list       # just list — never prompts
-scripts/deployments.sh stop 1     # containers down, data kept, restartable
-scripts/deployments.sh remove 1   # containers removed, VOLUMES KEPT (db + model survive)
-scripts/deployments.sh destroy 1  # containers AND volumes — DELETES THE DATABASE
-scripts/deployments.sh uninstall 2  # iOS entries: remove the app from the phone
-scripts/deployments.sh forget 1   # drop from the list only; touches nothing
+scripts/deployments.sh                        # list everything, then offer to act (numbers welcome here)
+scripts/deployments.sh list                   # just list — never prompts
+scripts/deployments.sh stop my-box            # containers down, data kept, restartable
+scripts/deployments.sh remove my-box          # containers removed, VOLUMES KEPT (db + model survive)
+scripts/deployments.sh destroy my-box         # containers AND volumes — DELETES THE DATABASE
+scripts/deployments.sh uninstall my-iphone    # iOS entries: remove the app from the phone
+scripts/deployments.sh forget my-box          # drop from the list only; touches nothing
+scripts/deployments.sh forget 'local|my-box|/srv/other-stack'   # when one host runs two stacks
 ```
 
 The listing probes each place for live containers, and an unreachable box says
