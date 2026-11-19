@@ -9,9 +9,14 @@ only; the API (owner-gated) is the only caller.
 
 from __future__ import annotations
 
+import fcntl
+import os
 import re
+import signal
 import subprocess
 import threading
+import time
+from contextlib import suppress
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException, Response
@@ -21,6 +26,7 @@ PROJECT_DIR = "/project"
 SWAP_SCRIPT = "scripts/swap-model.sh"
 SWAP_TIMEOUT_SECONDS = 1800  # .env update + container recreation; downloads continue async
 LOG_TAIL_CHARS = 4000
+SWAP_TERMINATE_GRACE_SECONDS = 5
 
 # org/name with a conservative charset — the only shape ever passed to the shell.
 _REPO_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,95}/[A-Za-z0-9][A-Za-z0-9_.-]{0,95}$")
@@ -51,7 +57,24 @@ def _validate_repo_id(value: str) -> None:
         raise HTTPException(status_code=422, detail=f"invalid model id: {value!r}")
 
 
-def _run_swap(main_model: str, vision_model: str | None, cluster: bool = False) -> None:
+def _terminate_swap(process: subprocess.Popen) -> None:
+    """Stop the whole session's process group, then reap before dropping ownership."""
+    if process.returncode is None:
+        try:
+            os.killpg(process.pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+        else:
+            # Do not wait/reap the shell yet: descendants need the FULL grace
+            # even if it exits first, and its unreaped PID pins the group ID
+            # against reuse until all our signaling is finished.
+            time.sleep(SWAP_TERMINATE_GRACE_SECONDS)
+            with suppress(ProcessLookupError):
+                os.killpg(process.pid, signal.SIGKILL)
+    process.communicate()
+
+
+def _run_swap(main_model: str, vision_model: str | None, cluster: bool, lock_fd: int) -> None:
     global _status
     args = ["bash", SWAP_SCRIPT, main_model]
     if cluster:
@@ -60,22 +83,37 @@ def _run_swap(main_model: str, vision_model: str | None, cluster: bool = False) 
     # A vision-capable main takes no second arg (swap-model.sh rejects it).
     if not _is_vision_model(main_model):
         args.append(vision_model if vision_model else "none")
+    process = None
+    state, output = "failed", "could not run the model swap"
     try:
-        result = subprocess.run(
+        process = subprocess.Popen(
             args,
             cwd=PROJECT_DIR,
-            capture_output=True,
-            text=True,
-            timeout=SWAP_TIMEOUT_SECONDS,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            encoding="utf-8",
+            errors="replace",
+            start_new_session=True,
+            pass_fds=(lock_fd,),
+            env={**os.environ, "FAMILY_CFO_SWAP_LOCK_FD": str(lock_fd)},
         )
-        output = (result.stdout + "\n" + result.stderr)[-LOG_TAIL_CHARS:]
-        state = "succeeded" if result.returncode == 0 else "failed"
+        stdout, stderr = process.communicate(timeout=SWAP_TIMEOUT_SECONDS)
+        output = (stdout + "\n" + stderr)[-LOG_TAIL_CHARS:]
+        state = "succeeded" if process.returncode == 0 else "failed"
     except subprocess.TimeoutExpired:
-        output, state = "swap timed out", "failed"
-    with _lock:
-        _status = SwapStatus(
-            state=state, main_model=main_model, vision_model=vision_model, log_tail=output
-        )
+        output = "swap timed out"
+        _terminate_swap(process)
+    except (Exception, KeyboardInterrupt, SystemExit):
+        # Launch OSError has no child; errors/interruption after launch must
+        # finish group cleanup and reaping before finally closes our copy.
+        if process is not None:
+            _terminate_swap(process)
+    finally:
+        with _lock:
+            os.close(lock_fd)
+            _status = SwapStatus(
+                state=state, main_model=main_model, vision_model=vision_model, log_tail=output
+            )
 
 
 def _is_vision_model(model_id: str) -> bool:
@@ -198,15 +236,31 @@ def swap(payload: SwapRequest) -> SwapStatus:
     with _lock:
         if _status.state == "running":
             raise HTTPException(status_code=409, detail="a swap is already in progress")
+        try:
+            lock_fd = os.open(PROJECT_DIR, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except OSError:
+                os.close(lock_fd)
+                raise
+        except BlockingIOError:
+            raise HTTPException(status_code=409, detail="a swap is already in progress") from None
+        except OSError:
+            raise HTTPException(status_code=503, detail="could not lock the model swap") from None
+
         _status = SwapStatus(
             state="running", main_model=payload.main_model, vision_model=payload.vision_model
         )
-
-    thread = threading.Thread(
-        target=_run_swap,
-        args=(payload.main_model, payload.vision_model, payload.cluster),
-        daemon=True,
-    )
-    thread.start()
-    with _lock:
+        try:
+            threading.Thread(
+                target=_run_swap,
+                args=(payload.main_model, payload.vision_model, payload.cluster, lock_fd),
+                daemon=True,
+            ).start()
+        except Exception:
+            os.close(lock_fd)
+            _status = _status.model_copy(
+                update={"state": "failed", "log_tail": "could not start the model swap"}
+            )
+            raise HTTPException(status_code=503, detail="could not start the model swap") from None
         return _status

@@ -1,6 +1,7 @@
 """Prior API against the current model-manager wire contract (ADR 0074)."""
 
 import json
+import os
 from pathlib import Path
 from unittest.mock import patch
 
@@ -9,7 +10,9 @@ from fastapi.testclient import TestClient
 from family_cfo_model_manager import main as manager
 
 _FIXTURE = json.loads(
-    (Path(__file__).resolve().parents[3] / "shared/schemas/model-manager-v1-contract.json").read_text()
+    (
+        Path(__file__).resolve().parents[3] / "shared/schemas/model-manager-v1-contract.json"
+    ).read_text()
 )["operations"]
 
 
@@ -24,13 +27,16 @@ def _assert_previous_shape(actual, previous) -> None:
         assert type(actual) is type(previous)
 
 
-def test_current_manager_accepts_previous_api_contract() -> None:
+def test_current_manager_accepts_previous_api_contract(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(manager, "PROJECT_DIR", str(tmp_path))
     client = TestClient(manager.app)
 
     swap = _FIXTURE["swap"]
     manager._status = manager.SwapStatus(state="idle")
-    with patch.object(manager.threading, "Thread"):
+    with patch.object(manager.threading, "Thread") as thread:
         response = client.request(swap["method"], swap["path"], json=swap["request"])
+        # No worker runs in this wire-contract test; close its owned fd here.
+        os.close(thread.call_args.kwargs["args"][-1])
     assert response.status_code == 202
     _assert_previous_shape(response.json(), swap["response"])
 

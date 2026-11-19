@@ -41,11 +41,15 @@ VISION="${ARGS[1]:-}"
 
 [ -f .env ] || die ".env not found — deploy first (scripts/deploy.sh)."
 
-# #182: a CLI swap racing a dashboard Apply froze the box once (two writers
-# restarting vllm). The model-manager knows when an apply is running — ask it.
-manager_state=$(docker compose $COMPOSE_FILES exec -T model-manager   python -c "import json,urllib.request;print(json.load(urllib.request.urlopen('http://localhost:8000/status',timeout=3)).get('state',''))"   2>/dev/null || true)
-if [ "$manager_state" = "running" ]; then
-  die "A model swap is already in progress (started from the dashboard). Wait for it to finish, then retry."
+# ADR 0013 / #167: status is not ownership. A standalone invocation execs a
+# supervisor that opens O_RDONLY|O_DIRECTORY, flocks, and re-enters this shell
+# with the retained fd. It also stops/reaps the entire child group on interrupt.
+# A manager invocation already owns the same open file description: validate
+# its directory identity and re-flock (a no-op), never trust the marker alone.
+if [ "${FAMILY_CFO_SWAP_LOCK_FD+x}" = "x" ]; then
+  python3 "$REPO_ROOT/scripts/lib/swap_lock.py" --check "$REPO_ROOT" "$FAMILY_CFO_SWAP_LOCK_FD"
+else
+  exec python3 "$REPO_ROOT/scripts/lib/swap_lock.py" "$REPO_ROOT" "$@"
 fi
 
 # Effective cluster mode: forced by min_nodes:2 models, or requested by flag.
@@ -158,40 +162,31 @@ if cluster_mode && ! grep -qE '^CLUSTER_PEER_HOST=.+' .env; then
   die "'$MAIN' needs two nodes (ADR 0071) — enroll the second box first: scripts/setup-cluster.sh"
 fi
 
-set_env VLLM_MODEL "$MAIN"
-set_env VLLM_TOOL_PARSER "$(parser_for "$MAIN")"
-case "$MAIN" in
-  *GLM-4.5*|*glm-4.5*) set_env VLLM_REASONING_PARSER "glm45" ;;
-  *MiniMax-M2*|*minimax-m2*) set_env VLLM_REASONING_PARSER "minimax_m2" ;;
-  *) set_env VLLM_REASONING_PARSER "qwen3" ;;
-esac
-set_env VLLM_EXTRA_ARGS "$(extra_args_for "$MAIN")"
-
+# Resolve and validate the selection before the FIRST .env write. Cache the
+# vision probe so a changing/offline Hub cannot change this decision mid-swap.
 scale_args=()
+MAIN_HAS_VISION=false
+VISION_ENABLED=false
 if is_vision_model "$MAIN"; then
+  MAIN_HAS_VISION=true
   log "Main model '$MAIN' is vision-capable — it will describe photos itself."
-  set_env FAMILY_CFO_AI_SUPPORTS_VISION "true"
-  set_env FAMILY_CFO_AI_VISION_ENABLED "false"
   scale_args=(--scale vllm-vision=0)
-  [ -n "$VISION" ] && [ "$VISION" != "none" ] && \
+  if [ -n "$VISION" ] && [ "$VISION" != "none" ]; then
     die "Do not pass a vision model with a vision-capable main."
+  fi
 elif [ "$VISION" = "none" ]; then
   log "Photo analysis disabled — attached photos will get a 'not analyzed' warning."
-  set_env FAMILY_CFO_AI_SUPPORTS_VISION "false"
-  set_env FAMILY_CFO_AI_VISION_ENABLED "false"
   scale_args=(--scale vllm-vision=0)
 else
   VISION="${VISION:-Qwen/Qwen2.5-VL-7B-Instruct}"
+  VISION_ENABLED=true
   log "Vision describer: $VISION"
-  set_env FAMILY_CFO_AI_SUPPORTS_VISION "false"
-  set_env FAMILY_CFO_AI_VISION_ENABLED "true"
-  set_env VLLM_VISION_MODEL "$VISION"
 fi
 
 # --- M55: automatic GPU-fraction budgeting -----------------------------------
 # Manual fractions caused three crash-loops (a fraction sized for one model
 # starves the next). Compute them from the applied models; refuse impossible
-# combinations BEFORE touching containers.
+# combinations BEFORE writing .env or touching containers.
 TOTAL_GB="$(total_memory_gb)"
 MAIN_WEIGHTS="$(estimate_weights_gb "$MAIN")"
 # TP=2 shards the weights evenly across both Sparks (ADR 0071), so the fit
@@ -207,7 +202,7 @@ VISION_RESERVE=5  # 8k-context describer overhead
 if [ "$TOTAL_GB" -gt 0 ] && [ "$MAIN_WEIGHTS" -gt 0 ]; then
   MAIN_FRACTION="$(fraction_for "$MAIN_WEIGHTS" "$MAIN_RESERVE" "$TOTAL_GB")"
   VISION_FRACTION="0.00"
-  if [ -n "$VISION" ] && [ "$VISION" != "none" ] && ! is_vision_model "$MAIN"; then
+  if [ "$VISION_ENABLED" = "true" ]; then
     VISION_WEIGHTS="$(estimate_weights_gb "$VISION")"
     if [ "$VISION_WEIGHTS" -gt 0 ]; then
       VISION_FRACTION="$(fraction_for "$VISION_WEIGHTS" "$VISION_RESERVE" "$TOTAL_GB")"
@@ -222,12 +217,29 @@ if [ "$TOTAL_GB" -gt 0 ] && [ "$MAIN_WEIGHTS" -gt 0 ]; then
     die "Won't fit: '$MAIN' (~${MAIN_WEIGHTS}GB + ${MAIN_RESERVE}GB reserve) plus the vision model need more than 92% of ${TOTAL_GB}GB. Pick a smaller photo model (e.g. Qwen/Qwen2.5-VL-7B-Instruct) or 'none'."
   fi
   log "Memory budget: main fraction ${MAIN_FRACTION} (~${MAIN_WEIGHTS}GB weights), vision fraction ${VISION_FRACTION} of ${TOTAL_GB}GB."
+else
+  log "Cannot size '$MAIN' from its name — keeping the current GPU fractions."
+fi
+
+# All rejecting validations are complete; commit the selected configuration.
+set_env VLLM_MODEL "$MAIN"
+set_env VLLM_TOOL_PARSER "$(parser_for "$MAIN")"
+case "$MAIN" in
+  *GLM-4.5*|*glm-4.5*) set_env VLLM_REASONING_PARSER "glm45" ;;
+  *MiniMax-M2*|*minimax-m2*) set_env VLLM_REASONING_PARSER "minimax_m2" ;;
+  *) set_env VLLM_REASONING_PARSER "qwen3" ;;
+esac
+set_env VLLM_EXTRA_ARGS "$(extra_args_for "$MAIN")"
+set_env FAMILY_CFO_AI_SUPPORTS_VISION "$MAIN_HAS_VISION"
+set_env FAMILY_CFO_AI_VISION_ENABLED "$VISION_ENABLED"
+if [ "$VISION_ENABLED" = "true" ]; then
+  set_env VLLM_VISION_MODEL "$VISION"
+fi
+if [ "$TOTAL_GB" -gt 0 ] && [ "$MAIN_WEIGHTS" -gt 0 ]; then
   set_env VLLM_GPU_FRACTION "$MAIN_FRACTION"
   if [ "$VISION_FRACTION" != "0.00" ]; then
     set_env VLLM_VISION_GPU_FRACTION "$VISION_FRACTION"
   fi
-else
-  log "Cannot size '$MAIN' from its name — keeping the current GPU fractions."
 fi
 
 log "Recreating runtime + app containers (new models download once; DB untouched)…"

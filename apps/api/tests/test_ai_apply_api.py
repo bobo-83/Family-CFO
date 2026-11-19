@@ -97,6 +97,86 @@ async def test_apply_forwards_to_manager_and_updates_config(demo_engine, monkeyp
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize("initiating_config_exists", [False, True])
+async def test_manager_conflict_leaves_all_configs_and_apply_audit_untouched(
+    demo_engine, monkeypatch, initiating_config_exists
+) -> None:
+    """Issue #167: manager lock rejection must precede every apply write."""
+    from unittest.mock import Mock
+
+    from sqlalchemy import select
+
+    from family_cfo_api import fixtures, models, repository
+
+    settings = _settings()
+    other = repository.create_household_with_owner(
+        demo_engine,
+        display_name="Other",
+        base_currency="USD",
+        owner_email="other@family-cfo.local",
+        owner_password_hash="synthetic-not-a-password-hash",
+        owner_display_name="Other Owner",
+    )
+    households = [other.household_id]
+    if initiating_config_exists:
+        households.append(fixtures.DEMO_HOUSEHOLD_ID)
+    for household_id in households:
+        repository.upsert_ai_runtime_config(
+            demo_engine,
+            household_id=household_id,
+            provider="vllm",
+            base_url=settings.ai_default_base_url,
+            model="Qwen/Old-Model",
+            enabled=True,
+            cluster_enabled=True,
+        )
+
+    def snapshot():
+        with demo_engine.connect() as conn:
+            return (
+                list(conn.execute(select(models.ai_runtime_configs)).mappings()),
+                list(conn.execute(select(models.audit_events)).mappings()),
+            )
+
+    def conflict(url, json=None, timeout=None):
+        assert url == "http://model-manager:8000/swap"
+        return httpx.Response(
+            409,
+            json={"detail": "a swap is already in progress"},
+            request=httpx.Request("POST", url),
+        )
+
+    monkeypatch.setattr(ai_runtime_module.httpx, "post", conflict)
+    monkeypatch.setattr(ai_runtime_module, "_hf_model_exists", lambda hub, mid: True)
+    app = create_app(settings, engine=demo_engine)
+    client, token = await _owner_client_token(app)
+    try:
+        # Login has its own audit record; compare only after authentication.
+        before = snapshot()
+        writes = []
+        for module, name in [
+            (repository, "upsert_ai_runtime_config"),
+            (repository, "repoint_ai_runtime_configs"),
+            (ai_runtime_module.audit, "write_audit"),
+        ]:
+            spy = Mock(wraps=getattr(module, name))
+            monkeypatch.setattr(module, name, spy)
+            writes.append(spy)
+        response = await client.post(
+            "/api/v1/ai/runtime/apply",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"main_model": "Qwen/Qwen2.5-14B-Instruct", "vision_model": None},
+        )
+        assert response.status_code == 409
+        assert "already in progress" in response.json()["error"]["message"]
+        assert snapshot() == before
+        for spy in writes:
+            spy.assert_not_called()
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.anyio
 async def test_apply_rejects_bad_ids_and_missing_manager(demo_engine, monkeypatch) -> None:
     app = create_app(_settings(), engine=demo_engine)
     client, token = await _owner_client_token(app)
@@ -179,7 +259,11 @@ async def test_apply_status_relays_manager_state(demo_engine, monkeypatch) -> No
     def fake_get(url, timeout=None):
         return httpx.Response(
             200,
-            json={"state": "succeeded", "main_model": "Qwen/Qwen2.5-14B-Instruct", "log_tail": "ok"},
+            json={
+                "state": "succeeded",
+                "main_model": "Qwen/Qwen2.5-14B-Instruct",
+                "log_tail": "ok",
+            },
             request=httpx.Request("GET", url),
         )
 
@@ -333,9 +417,7 @@ async def test_catalog_offers_verified_dual_capable_models(demo_client, demo_tok
     resp = await demo_client.get(
         "/api/v1/ai/models", headers={"Authorization": f"Bearer {demo_token}"}
     )
-    duals = [
-        m for m in resp.json()["models"] if m["supports_vision"] and m["tool_parser"]
-    ]
+    duals = [m for m in resp.json()["models"] if m["supports_vision"] and m["tool_parser"]]
     assert any(m["id"] == "Qwen/Qwen3-VL-30B-A3B-Instruct-FP8" for m in duals)
     assert all("Qwen2.5-VL" not in m["id"] for m in duals)  # 2.5-VL stays tool-less
 
