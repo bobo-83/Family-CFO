@@ -274,3 +274,19 @@ Before coding a milestone, update the relevant documents with:
 [ADR 0080](../adr/0080-session-expiry-reauthentication.md) covers the browser,
 iPhone and phone-managed Watch session transitions. Contract 0.163 provides
 same-device iPhone reauthentication. Direct Watch sign-in is tracked in #166.
+
+## Issue #168 AI runtime model search results view
+
+Accepted for implementation, 2026-11-19. Dashboard-only fix: a submitted
+"Find a model" query renders a labeled, query-restricted results view with an
+exact `owner/model` match first (when it meets the active filters), consistent
+behavior with cluster mode on/off, and distinct loading / no-match / Hugging
+Face failure states with stale-response protection. The behavior contract,
+matching/ranking rules, state machine, and failure semantics are specified in
+[09-angular-dashboard-spec.md](./09-angular-dashboard-spec.md), section "AI
+runtime \"Find a model\" search results (issue #168)"; the design record is
+[the plan](../plans/ai-runtime-model-search-2026-11-19.md) with its
+[critique](../reviews/ai-runtime-model-search-plan-critique-2026-11-19.md).
+Non-goals: no backend/OpenAPI/client changes, no #167 apply-flow work, no iOS,
+and no advisor tool — this changes an existing operator-facing picker, not a
+household data domain.

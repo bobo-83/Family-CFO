@@ -226,3 +226,120 @@ A current expired or rejected session tears down the active protected outlet
 and replaces the protected URL with sign-in. The sign-in reason is separate
 from form errors. Check child activation and guard async work by session owner.
 See [ADR 0080](../adr/0080-session-expiry-reauthentication.md).
+
+## AI runtime "Find a model" search results (issue #168)
+
+A submitted query renders a **labeled, query-restricted results view** — not
+another contribution to the browse universe. Browse behavior is unchanged
+except where stated. See the plan at `docs/plans/ai-runtime-model-search-2026-11-19.md`
+and its critique at `docs/reviews/ai-runtime-model-search-plan-critique-2026-11-19.md`.
+
+### State and ownership
+
+- `searchQuery` is the editable **draft**; `submittedQuery` is the trimmed
+  submitted text (`null` = browse mode). Editing a nonempty draft never
+  relabels or replaces displayed results. The state, not the draft, selects
+  search mode.
+- One shared request generation (`liveGeneration`) covers search and browse
+  fetches. Submit, quick filter (including `all`), clear, and destruction
+  invalidate outstanding work even when they start no replacement request. A
+  completion commits only when its generation is current and the component is
+  alive; there is **no unconditional `finally`**. Logical cancellation only —
+  superseded requests may finish in transport and are discarded.
+- Results are owned per destination: `searchResults` (current query's accepted
+  response) and `browseLiveResults` (last accepted quick-filter response).
+  Search responses never write browse state and vice versa.
+- **`browseLiveResults` lifecycle:** retained across quick-filter switches and
+  while a replacement fetch loads (today's behavior); cleared on that fetch's
+  total failure so the curated fallback is honest. Search exit restores the
+  previous quick filter without refetching.
+- Merged-universe computeds (`knownModels`, `browseModels`, search candidates)
+  read `catalog`/`config` through a guarded accessor: an errored resource
+  degrades to "no curated/configured entries", never a render-time throw.
+
+### Interaction contract
+
+| Trigger | Behavior |
+|---|---|
+| Nonempty draft edit | Draft only; results and heading unchanged. |
+| Draft empty/whitespace (incl. native search-input clear) | Immediately clear search; no request. |
+| Submit nonempty draft | Allowed while loading (newest wins). Identical trimmed in-flight query is a no-op (trim-only identity); any other query supersedes. |
+| Clear search (button or empty submit) | Invalidate pending work, exit search, reset window, restore browsing **without fetching**, return focus to the input. |
+| Quick filter (incl. `pickPhotoModelNext()`) | Exit search, clear draft/query results, invalidate pending work, then existing browse behavior (`all` fetches nothing). |
+| Role / fit-only / sort change | Recompute locally; reset window; never invalidate a pending request. |
+| Cluster toggle / peer reachability | Recompute eligibility and fit in place; keep the query and candidates; reset window. |
+| Apply from a search row | Does not clear or reset the search state; status-driven stub changes recompute candidates in place. |
+| Destruction | Invalidate generation; existing polling cleanup unchanged. |
+
+### Matching, ranking, pagination
+
+- Match = literal contiguous substring (case-insensitive) of the trimmed query
+  in the full repo `id` **or** `label`. No regex, token expansion, fuzzy
+  matching, or matching on `notes`. Stubs qualify only by **id**.
+- Candidates: current HF response (server order), then curated entries, then
+  matching configured/served stubs. Dedupe by case-insensitive id, first
+  position wins, curated metadata overrides a live duplicate at that position;
+  nothing is synthesized from query text.
+- Eligibility: cluster inactive → exclude `min_nodes >= 2`; oversized
+  `min_nodes == 1` models stay visible with their honest single-box verdict.
+- Role/fit-only/sort facets apply to search via the shared helper (neutral
+  `all` quick filter). Exact-first pin: the single case-insensitive full-ID
+  equality match moves to index 0 **only if it survived eligibility and
+  facets**; the pin overrides explicit sorting. A filter-excluded exact match
+  is never reinserted and produces the standard no-match message (no special
+  branch).
+- One ordered paginated list mixing cluster and single-box rows (cluster rows
+  chosen by fragment, not a separate section). Pagination is the mode-aware
+  reuse of `visibleModels`/`hiddenCount`; the exact match is visible without
+  "Show more".
+
+### Presentation states
+
+- Search heading: **Search results for "{submittedQuery}"** (`aria-labelledby`;
+  query via interpolation, never HTML). Clear-search control usable while
+  loading; the Search button label no longer reflects `searching()` — progress
+  lives in the result status, and the button stays enabled for supersede
+  (disabled only for a whitespace-only draft or the identical in-flight query).
+- The browse quick-filter toolbar and the browse loading/error lines are
+  scoped to browse mode; the shared `searchError` alert renders per mode.
+- Loading: "Searching Hugging Face…" (`role="status"`, `aria-busy`); no old
+  rows, no no-match message.
+- Success with rows: result count + one paginated list; full repo ID visible
+  in every collapsed row (both modes, shared fragments).
+- Success, zero displayable rows: "No models match '{query}' with the current
+  filters." — no error alert, no browse rows underneath.
+- **Search failure:** `role="alert"` with dashboard-owned copy ("Could not
+  search Hugging Face. Search again to retry.") — the endpoint's only non-auth
+  failure is a 503 whose server detail is browse-phrased ("showing curated
+  models only") and must not surface in search mode; unexpected statuses keep
+  the structured pass-through. With matching local candidates (curated/active
+  entries), also show "Showing matching catalog and currently configured models
+  only." and render those filtered, ranked matches; without them, no rows and
+  **no** no-match message (remote absence was not established).
+- **Browse failure:** clear `browseLiveResults`, keep curated + stubs, show the
+  browse-specific fallback line (stale live results are never mislabeled as
+  curated).
+- New copy is marked with the existing `i18n`/`$localize` conventions; new
+  styles are minimal (heading, wrapping repo id, cluster annotation).
+
+### Non-goals
+
+- #167 apply flow (Apply must keep working from search rows, nothing more).
+- No backend, OpenAPI, generated-client, database, persistence, URL-state,
+  iOS, or auth changes; no exact-ID lookup endpoint; no auto-retry, timeout
+  policy, or local cache; no new service or child component.
+- Advisor tool access is explicitly out of scope: this changes an existing
+  operator-facing model picker, not a household data domain.
+
+### Regression coverage (acceptance criteria)
+
+1. Exact `owner/model` ranks first (mixed-case/padded input, explicit sort,
+   filter-excluded exact match not reinserted, full ID visible collapsed).
+2. Unrelated curated cluster recommendations stay out; cluster on/off/peer-
+   unreachable consistency; matching cluster rows keep combined fit + Apply
+   (`cluster: true` payload).
+3. Loading / no-match / HF failure are distinct; stale responses and cleared
+   queries cannot repopulate; clearing restores browsing without a request.
+4. Race matrix: supersession in both directions, identical in-flight dedupe,
+   search↔browse crossovers, `all` invalidation, destruction, errored-resource
+   degradation (failed `listAiModels`/`getAiRuntimeConfig` must not throw).

@@ -8128,6 +8128,236 @@
           <context context-type="linenumber">99,102</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="117506188325908861" datatype="html">
+        <source> Second box </source>
+        <target state="needs-review-translation">Máy thứ hai</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">242,245</context>
+        </context-group>
+        <note priority="1" from="description">The optional second machine that shares the load</note>
+        <note priority="1" from="meaning">Section heading</note>
+      </trans-unit>
+      <trans-unit id="1836332772002343246" datatype="html">
+        <source> Fetching the live list from Hugging Face… </source>
+        <target state="needs-review-translation">Đang lấy danh sách trực tiếp từ Hugging Face…</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">410,415</context>
+        </context-group>
+        <note priority="1" from="description">Shown while the live model list is fetched; Hugging Face is a
+                product name</note>
+        <note priority="1" from="meaning">Loading placeholder</note>
+      </trans-unit>
+      <trans-unit id="1923181390517328856" datatype="html">
+        <source> <x id="ICU" equiv-text="{searchResultCount(), plural,
+                    =1 {1 result}
+                    other {{{ searchResultCount() }} results}
+                  }" xid="4028576809388465265"/> </source>
+        <target state="needs-review-translation"> <x id="ICU" equiv-text="{searchResultCount(), plural,
+                    =1 {1 result}
+                    other {{{ searchResultCount() }} results}
+                  }" xid="4028576809388465265" /> </target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">528,533</context>
+        </context-group>
+        <note priority="1" from="description">How many models matched the submitted query</note>
+        <note priority="1" from="meaning">Result count</note>
+      </trans-unit>
+      <trans-unit id="2173576374670504859" datatype="html">
+        <source> Fetching Hugging Face stats… </source>
+        <target state="needs-review-translation">Đang lấy số liệu Hugging Face…</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">783,787</context>
+        </context-group>
+        <note priority="1" from="description">Shown while the live model statistics load; Hugging Face
+                        is a product name</note>
+        <note priority="1" from="meaning">Loading placeholder</note>
+      </trans-unit>
+      <trans-unit id="2286397047534218293" datatype="html">
+        <source> Search </source>
+        <target state="needs-review-translation">Tìm kiếm</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">312,316</context>
+        </context-group>
+        <note priority="1" from="description">Runs the Hugging Face model search, showing progress while it is in flight</note>
+        <note priority="1" from="meaning">Button</note>
+      </trans-unit>
+      <trans-unit id="303971031772549554" datatype="html">
+        <source> Search results for &quot;<x id="INTERPOLATION" equiv-text="{{ submittedQuery() }}"/>&quot; </source>
+        <target state="needs-review-translation">Kết quả tìm kiếm cho &quot;<x id="INTERPOLATION" equiv-text="{{ submittedQuery() }}" />&quot;</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">483,484</context>
+        </context-group>
+        <note priority="1" from="description">Names the query the results answer; the placeholder is the
+                  submitted query text</note>
+        <note priority="1" from="meaning">Results heading</note>
+      </trans-unit>
+      <trans-unit id="3164766819975826312" datatype="html">
+        <source>Could not search Hugging Face. Search again to retry.</source>
+        <target state="needs-review-translation">Không thể tìm kiếm trên Hugging Face. Hãy tìm kiếm lại để thử lại.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.ts</context>
+          <context context-type="linenumber">781</context>
+        </context-group>
+        <note priority="1" from="description">The live model search failed; Hugging Face is a product name</note>
+        <note priority="1" from="meaning">Error message</note>
+      </trans-unit>
+      <trans-unit id="3292014569244646418" datatype="html">
+        <source>Search order</source>
+        <target state="needs-review-translation">Thứ tự tìm kiếm</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">439,442</context>
+        </context-group>
+        <note priority="1" from="description">In search mode the default order keeps the search&apos;s own relevance
+                      order</note>
+        <note priority="1" from="meaning">Sort option</note>
+      </trans-unit>
+      <trans-unit id="3306100694975146929" datatype="html">
+        <source>{VAR_PLURAL, plural, =1 {1 result} other {<x id="INTERPOLATION"/> results}}</source>
+        <target state="needs-review-translation">{VAR_PLURAL, plural, =1 {1 kết quả} other {<x id="INTERPOLATION"/> kết quả}}</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">528,530</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="3489605531860093449" datatype="html">
+        <source> No models match &quot;<x id="INTERPOLATION" equiv-text="{{ submittedQuery() }}"/>&quot; with the current filters. </source>
+        <target state="needs-review-translation">Không có mô hình nào khớp với &quot;<x id="INTERPOLATION" equiv-text="{{ submittedQuery() }}" />&quot; theo các bộ lọc hiện tại.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">521,522</context>
+        </context-group>
+        <note priority="1" from="description">The submitted query matched no models under the current filters</note>
+        <note priority="1" from="meaning">Empty state</note>
+      </trans-unit>
+      <trans-unit id="3499353003335934755" datatype="html">
+        <source> Only the household owner can change the AI runtime configuration. </source>
+        <target state="needs-review-translation">Chỉ chủ hộ mới có thể thay đổi cấu hình bộ máy AI.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">1145,1149</context>
+        </context-group>
+        <note priority="1" from="description">Shown instead of the runtime settings to everyone but the owner</note>
+        <note priority="1" from="meaning">Permission notice</note>
+      </trans-unit>
+      <trans-unit id="400728516988695429" datatype="html">
+        <source> Knowledge of your data </source>
+        <target state="needs-review-translation">Hiểu biết về dữ liệu của bạn</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">1153,1158</context>
+        </context-group>
+        <note priority="1" from="description">What the advisor has learned from the household&apos;s history</note>
+        <note priority="1" from="meaning">Section heading</note>
+      </trans-unit>
+      <trans-unit id="4032752774471491840" datatype="html">
+        <source> Advanced configuration </source>
+        <target state="needs-review-translation">Cấu hình nâng cao</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">1019,1022</context>
+        </context-group>
+        <note priority="1" from="description">Raw AI runtime settings, hidden by default</note>
+        <note priority="1" from="meaning">Section heading</note>
+      </trans-unit>
+      <trans-unit id="4828002327517056469" datatype="html">
+        <source> Clear search </source>
+        <target state="needs-review-translation">Xóa tìm kiếm</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">322,326</context>
+        </context-group>
+        <note priority="1" from="description">Exits the search results view and restores catalog browsing</note>
+        <note priority="1" from="meaning">Button</note>
+      </trans-unit>
+      <trans-unit id="6957543912406633987" datatype="html">
+        <source> Household usage </source>
+        <target state="needs-review-translation">Mức sử dụng theo hộ gia đình</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">176,178</context>
+        </context-group>
+        <note priority="1" from="description">How much of the box each household is using</note>
+        <note priority="1" from="meaning">Section heading</note>
+      </trans-unit>
+      <trans-unit id="7727221231230160580" datatype="html">
+        <source> Showing matching catalog and currently configured models only. </source>
+        <target state="needs-review-translation">Chỉ hiển thị danh mục khớp và các mô hình đang cấu hình.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">505,508</context>
+        </context-group>
+        <note priority="1" from="description">A failed search still shows the matching locally known models</note>
+        <note priority="1" from="meaning">Fallback notice</note>
+      </trans-unit>
+      <trans-unit id="789228540276988686" datatype="html">
+        <source> Saved. </source>
+        <target state="needs-review-translation">Đã lưu.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">1075,1079</context>
+        </context-group>
+        <note priority="1" from="description">The raw configuration was saved</note>
+        <note priority="1" from="meaning">Success notice</note>
+      </trans-unit>
+      <trans-unit id="8216077397035224684" datatype="html">
+        <source> Median answer time </source>
+        <target state="needs-review-translation">Thời gian trả lời trung vị</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">102,104</context>
+        </context-group>
+        <note priority="1" from="description">Typical time each model takes to answer</note>
+        <note priority="1" from="meaning">Section heading</note>
+      </trans-unit>
+      <trans-unit id="8636258699854103562" datatype="html">
+        <source> Searching Hugging Face… </source>
+        <target state="needs-review-translation">Đang tìm kiếm trên Hugging Face…</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">494,497</context>
+        </context-group>
+        <note priority="1" from="description">Shown while the submitted query is fetched; Hugging Face is
+                    a product name</note>
+        <note priority="1" from="meaning">Loading placeholder</note>
+      </trans-unit>
+      <trans-unit id="8702226501918606378" datatype="html">
+        <source> Cluster (both boxes) </source>
+        <target state="needs-review-translation">Cụm (cả hai máy)</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">644,646</context>
+        </context-group>
+        <note priority="1" from="description">Models that need both boxes to run</note>
+        <note priority="1" from="meaning">Section heading</note>
+      </trans-unit>
+      <trans-unit id="8743092668915523457" datatype="html">
+        <source> 📷 No photo model is serving — chat photos won&apos;t be analyzed. <x id="START_TAG_BUTTON" ctype="x-button" equiv-text="&lt;button mat-button type=&quot;button&quot; (click)=&quot;pickPhotoModelNext()&quot;&gt;"/> Pick a photo model <x id="CLOSE_TAG_BUTTON" ctype="x-button" equiv-text="&lt;/button&gt;"/></source>
+        <target state="needs-review-translation"> 📷 Chưa có mô hình ảnh nào phục vụ — ảnh trong trò chuyện sẽ không được phân tích. <x id="START_TAG_BUTTON" ctype="x-button" equiv-text="&lt;button mat-button type=&quot;button&quot; (click)=&quot;pickPhotoModelNext()&quot;&gt;" /> Chọn mô hình ảnh <x id="CLOSE_TAG_BUTTON" ctype="x-button" equiv-text="&lt;/button&gt;" /></target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">162,167</context>
+        </context-group>
+        <note priority="1" from="description">No vision model is serving so photos sent in chat are ignored; the
+                button jumps to the photo models</note>
+        <note priority="1" from="meaning">Photo model nudge</note>
+      </trans-unit>
+      <trans-unit id="9103866759622238508" datatype="html">
+        <source> Nothing to study yet — add or import transactions first. </source>
+        <target state="needs-review-translation">Chưa có gì để nghiên cứu — hãy thêm hoặc nhập giao dịch trước.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">1172,1175</context>
+        </context-group>
+        <note priority="1" from="description">There is no history for the advisor to study yet</note>
+        <note priority="1" from="meaning">Empty state</note>
+      </trans-unit>
     </body>
   </file>
 </xliff>
