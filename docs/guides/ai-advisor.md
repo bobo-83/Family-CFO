@@ -111,6 +111,9 @@ on purpose). The API logs above name the reason.
 Easiest: the dashboard's **AI Runtime** page — search Hugging Face, check the
 hardware-fit verdict, click **Apply**, and watch the live status until the new
 model is active (M23; requires the `model-manager` sidecar, on by default).
+For shared swap ownership, matched script/image rollout and rollback, restart
+limits, and the macOS Docker Desktop concurrency caveat, see the
+[model-manager operations notes](../../services/model-manager/README.md#swap-ownership-and-operational-limits-167).
 
 From the terminal (same effect):
 

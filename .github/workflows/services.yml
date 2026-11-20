@@ -5,6 +5,9 @@ on:
     paths:
       - 'services/**'
       - 'shared/**'
+      - 'scripts/swap-model.sh'
+      - 'scripts/lib/swap_lock.py'
+      - 'scripts/tests/test_swap_model.py'
       - '.github/workflows/services.yml'
   push:
     branches:
@@ -12,9 +15,40 @@ on:
     paths:
       - 'services/**'
       - 'shared/**'
+      - 'scripts/swap-model.sh'
+      - 'scripts/lib/swap_lock.py'
+      - 'scripts/tests/test_swap_model.py'
       - '.github/workflows/services.yml'
 
 jobs:
+  swap-integration:
+    name: Swap integration (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install manager and test dependencies
+        run: pip install -e 'services/model-manager[dev]'
+      - name: Install and start Docker (Linux bind-mount gate)
+        if: runner.os == 'Linux'
+        uses: docker/setup-docker-action@v4
+      - name: Prepare synthetic lock-test runtime (no models)
+        if: runner.os == 'Linux'
+        run: docker pull python:3.12-slim
+      - name: Portable real-script integration
+        run: python -m pytest -q scripts/tests/test_swap_model.py -k 'not docker_bind_mount'
+      - name: Required host/container contention
+        if: runner.os == 'Linux'
+        run: python -m pytest -q scripts/tests/test_swap_model.py -k docker_bind_mount
+        env:
+          FAMILY_CFO_REQUIRE_DOCKER: '1'
+
   test:
     runs-on: ubuntu-latest
     strategy:
