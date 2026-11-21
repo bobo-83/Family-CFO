@@ -92,6 +92,10 @@
     flex: 1;
     min-width: 0;
   }
+
+  &__clear {
+    flex: none;
+  }
 }
 
 .picker__apply {
@@ -356,11 +360,20 @@
   gap: 0.4rem;
 }
 
-
 .model-row__label {
   font-weight: 600;
   font-size: 0.92rem;
   overflow-wrap: anywhere;
+}
+
+/* #168: the full repo id is always visible on collapsed rows. */
+.model-row__id {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+
+  code {
+    word-break: break-all;
+  }
 }
 
 .model-row__meta {
@@ -380,6 +393,28 @@
   background: var(--color-surface);
   cursor: pointer;
   font-size: 0.85rem;
+}
+
+/* --- #168: search results view ---------------------------------------------- */
+
+.search-results {
+  margin-bottom: 0.75rem;
+
+  h3 {
+    margin: 0.2rem 0 0.5rem;
+    font-size: 1rem;
+  }
+
+  &__count,
+  &__fallback {
+    margin: 0.2rem 0 0.5rem;
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+  }
+
+  &__fallback {
+    color: var(--color-warning);
+  }
 }
 
 /* --- Advanced: current combination + vision mini-form (M47) ------------------ */

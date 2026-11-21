@@ -94,7 +94,12 @@ describe('AiRuntime', () => {
       ),
       listAiModels: vi.fn().mockResolvedValue(response({ models: CATALOG })),
       getAiHardwareProfile: vi.fn().mockResolvedValue(
-        response({ gpu_memory_gb: null, system_memory_gb: 120, disk_free_gb: 500, source: 'system' }),
+        response({
+          gpu_memory_gb: null,
+          system_memory_gb: 120,
+          disk_free_gb: 500,
+          source: 'system',
+        }),
       ),
       searchAiModels: vi.fn().mockResolvedValue(response({ models: [] })),
       getAiModelDetail: vi.fn().mockResolvedValue(response({ info: { id: 'x' } })),
@@ -351,9 +356,7 @@ describe('AiRuntime', () => {
     expect(ids).not.toContain('Qwen/Qwen1.5-110B-Chat-AWQ');
     // ...but "All" still shows it.
     component['setQuickFilter']('all');
-    expect(component['filteredModels']().map((m) => m.id)).toContain(
-      'Qwen/Qwen1.5-110B-Chat-AWQ',
-    );
+    expect(component['filteredModels']().map((m) => m.id)).toContain('Qwen/Qwen1.5-110B-Chat-AWQ');
   });
 
   it('all-in-one lists only dual-capable models, honest empty state otherwise', async () => {
@@ -384,9 +387,7 @@ describe('AiRuntime', () => {
       }),
     );
     await component['setQuickFilter']('all-in-one');
-    expect(component['filteredModels']().map((m) => m.id)).toEqual([
-      'future/Dual-30B-VL-Instruct',
-    ]);
+    expect(component['filteredModels']().map((m) => m.id)).toEqual(['future/Dual-30B-VL-Instruct']);
   });
 
   it('guided pairing jumps to the vision filter and collapses the row', async () => {
@@ -817,7 +818,9 @@ describe('AiRuntime', () => {
 
   it('hides household usage when the endpoint answers 403 (telemetry fails quiet)', async () => {
     apiMock.getAiUsage.mockResolvedValue(
-      response(undefined, { error: { code: 'forbidden', message: 'AI runtime management required' } }),
+      response(undefined, {
+        error: { code: 'forbidden', message: 'AI runtime management required' },
+      }),
     );
     const fixture = await create();
     expect((fixture.nativeElement as HTMLElement).querySelector('.usage')).toBeFalsy();
@@ -924,5 +927,749 @@ describe('AiRuntime', () => {
     };
     expect(component.memoryBudgetGb()).toBe(98);
     expect(component.fitOf({ est_memory_gb: 100, min_nodes: 1 })).toBe('no');
+  });
+
+  // --- #168: labeled search results view --------------------------------------
+
+  const EXACT_ID = 'nvidia/Qwen3.8-Flash-Next-NVFP4';
+  const exactModel = {
+    id: EXACT_ID,
+    label: 'Qwen3.8 Flash Next NVFP4',
+    role: 'main',
+    parameters_b: 80,
+    est_memory_gb: 90,
+    est_disk_gb: 85,
+    tool_parser: 'hermes',
+    supports_vision: false,
+    gated: false,
+    notes: '',
+  };
+  const suffixModel = {
+    id: 'nvidia/Qwen3.8-Flash-Next-NVFP4-AWQ',
+    label: 'Qwen3.8 Flash Next AWQ',
+    role: 'main',
+    parameters_b: 40,
+    est_memory_gb: 55,
+    est_disk_gb: 50,
+    tool_parser: 'hermes',
+    supports_vision: false,
+    gated: false,
+    notes: '',
+  };
+  const unrelatedModel = {
+    id: 'meta/Llama-3.1-8B',
+    label: 'Llama 3.1 8B',
+    role: 'main',
+    parameters_b: 8,
+    est_memory_gb: 20,
+    est_disk_gb: 18,
+    tool_parser: 'hermes',
+    supports_vision: false,
+    gated: false,
+    notes: '',
+  };
+  const clusterCurated = {
+    id: 'big/Llama-3.3-70B',
+    label: 'Llama 3.3 70B',
+    role: 'main',
+    parameters_b: 70,
+    est_memory_gb: 140,
+    est_disk_gb: 135,
+    tool_parser: 'hermes',
+    supports_vision: false,
+    gated: false,
+    notes: '',
+    min_nodes: 2,
+  };
+  const clusterMatch = {
+    id: 'org/Qwen3.8-Vision-200B',
+    label: 'Qwen3.8 Vision 200B',
+    role: 'main',
+    parameters_b: 200,
+    est_memory_gb: 200,
+    est_disk_gb: 190,
+    tool_parser: null,
+    supports_vision: false,
+    gated: false,
+    notes: '',
+    min_nodes: 2,
+  };
+
+  function deferred(): { promise: Promise<unknown>; resolve: (value: unknown) => void } {
+    let resolve!: (value: unknown) => void;
+    const promise = new Promise<unknown>((res) => {
+      resolve = res;
+    });
+    return { promise, resolve };
+  }
+
+  function statusResponse(data: unknown, status: number, error?: unknown) {
+    return {
+      data,
+      error,
+      request: new Request('http://localhost/'),
+      response: new Response(null, { status }),
+    } as never;
+  }
+
+  function enableCluster(): void {
+    apiMock.getAiRuntimeConfig.mockResolvedValue(
+      response({
+        provider: 'vllm',
+        base_url: 'http://vllm:8000',
+        model: 'Qwen/Qwen2.5-32B-Instruct',
+        enabled: true,
+        cluster_enabled: true,
+      }),
+    );
+    apiMock.getAiHardwareProfile.mockResolvedValue(
+      response({
+        gpu_memory_gb: null,
+        system_memory_gb: 120,
+        disk_free_gb: 500,
+        source: 'system',
+        cluster_peer_host: 'box2',
+        cluster_peer_reachable: true,
+        cluster_memory_gb: 240,
+      }),
+    );
+  }
+
+  function searchRowIds(fixture: { nativeElement: HTMLElement }): string[] {
+    return [...fixture.nativeElement.querySelectorAll('.search-results .model-row__id code')].map(
+      (node) => (node.textContent ?? '').trim(),
+    );
+  }
+
+  it('ranks an exact owner/model first with its full id visible (#168)', async () => {
+    apiMock.searchAiModels.mockResolvedValue(
+      response({ models: [suffixModel, unrelatedModel, exactModel] }),
+    );
+    const fixture = await create();
+    const component = fixture.componentInstance;
+
+    component['onSearchInput'](`  ${EXACT_ID.toUpperCase()}  `);
+    await component['runSearch']();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    // Labeled results heading uses the trimmed submitted query (case kept).
+    const heading = (fixture.nativeElement as HTMLElement).querySelector('.search-results h3');
+    expect(heading?.textContent).toContain(`Search results for "${EXACT_ID.toUpperCase()}"`);
+    // Exact row first, full repo id visible while collapsed, unrelated gone.
+    const rows = searchRowIds(fixture);
+    expect(rows[0]).toBe(EXACT_ID);
+    expect(rows).toContain('nvidia/Qwen3.8-Flash-Next-NVFP4-AWQ'); // suffix variant matches too
+    expect(rows).not.toContain('meta/Llama-3.1-8B');
+    // Mixed-case padded query matched case-insensitively; duplicates render once.
+    expect(rows.filter((id) => id.toLowerCase() === EXACT_ID.toLowerCase()).length).toBe(1);
+  });
+
+  it('keeps the exact match first under an explicit sort and sends the query (#168)', async () => {
+    apiMock.searchAiModels.mockResolvedValue(response({ models: [exactModel, suffixModel] }));
+    const fixture = await create();
+    const component = fixture.componentInstance;
+
+    component['setSortBy']('size-asc'); // smallest first would put the 40B suffix first
+    component['onSearchInput'](EXACT_ID);
+    await component['runSearch']();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(searchRowIds(fixture)[0]).toBe(EXACT_ID);
+    expect(apiMock.searchAiModels).toHaveBeenCalledWith({
+      q: EXACT_ID,
+      pipeline: 'any',
+      limit: 20,
+    });
+  });
+
+  it('does not reinsert an exact match excluded by the role facet (#168)', async () => {
+    apiMock.searchAiModels.mockResolvedValue(response({ models: [exactModel] }));
+    const fixture = await create();
+    const component = fixture.componentInstance;
+
+    component['setRoleFilter']('vision');
+    component['onSearchInput'](EXACT_ID);
+    await component['runSearch']();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(searchRowIds(fixture)).toEqual([]);
+    expect(host.querySelector('.search-results .page-empty')?.textContent).toContain(
+      `No models match "${EXACT_ID}" with the current filters.`,
+    );
+  });
+
+  it('keeps unrelated cluster recommendations out and keeps cluster fit + Apply (#168)', async () => {
+    apiMock.listAiModels.mockResolvedValue(response({ models: [...CATALOG, clusterCurated] }));
+    apiMock.searchAiModels.mockResolvedValue(
+      response({ models: [clusterMatch, unrelatedModel, exactModel] }),
+    );
+    enableCluster();
+    apiMock.applyAiModelSelection.mockResolvedValue(
+      response({ state: 'running', main_model: 'org/Qwen3.8-Vision-200B', log_tail: '' }),
+    );
+    const fixture = await create();
+    const component = fixture.componentInstance;
+
+    component['onSearchInput']('qwen3.8');
+    await component['runSearch']();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    // Only query-matching eligible rows render in one ordered list. A partial
+    // query has no full-ID pin, so HF order governs; the unrelated curated
+    // cluster recommendation stays out.
+    const rows = searchRowIds(fixture);
+    expect(rows).toEqual(['org/Qwen3.8-Vision-200B', EXACT_ID]);
+    expect(rows).not.toContain('big/Llama-3.3-70B');
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.querySelector('.search-results')?.textContent).toContain('GB combined');
+
+    // The matching cluster row's Apply posts the existing cluster payload.
+    const clusterRowEl = [...host.querySelectorAll('.search-results .model-row')].find((el) =>
+      el.textContent?.includes('org/Qwen3.8-Vision-200B'),
+    );
+    const applyBtn = clusterRowEl?.querySelector('button.picker__apply') as HTMLButtonElement;
+    expect(applyBtn.disabled).toBe(false);
+    applyBtn.click();
+    await fixture.whenStable();
+    expect(apiMock.applyAiModelSelection).toHaveBeenCalledWith(
+      expect.objectContaining({ main_model: 'org/Qwen3.8-Vision-200B', cluster: true }),
+    );
+    component['stopPolling']();
+
+    // Toggling the cluster off hides min_nodes >= 2 rows; the exact stays.
+    // The PUT succeeds and the reload reads back the disabled config.
+    const disabledConfig = response({
+      provider: 'vllm',
+      base_url: 'http://vllm:8000',
+      model: 'Qwen/Qwen2.5-32B-Instruct',
+      enabled: true,
+      cluster_enabled: false,
+    });
+    apiMock.updateAiRuntimeConfig.mockResolvedValue(disabledConfig);
+    apiMock.getAiRuntimeConfig.mockResolvedValue(disabledConfig);
+    await component['setClusterEnabled'](false);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(searchRowIds(fixture)).toEqual([EXACT_ID]);
+  });
+
+  it('hides cluster rows while the peer is unreachable (#168)', async () => {
+    apiMock.searchAiModels.mockResolvedValue(response({ models: [clusterMatch, exactModel] }));
+    enableCluster();
+    apiMock.getAiHardwareProfile.mockResolvedValue(
+      response({
+        gpu_memory_gb: null,
+        system_memory_gb: 120,
+        disk_free_gb: 500,
+        source: 'system',
+        cluster_peer_host: 'box2',
+        cluster_peer_reachable: false,
+        cluster_memory_gb: 240,
+      }),
+    );
+    const fixture = await create();
+    const component = fixture.componentInstance;
+
+    component['onSearchInput']('qwen3.8');
+    await component['runSearch']();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(searchRowIds(fixture)).toEqual([EXACT_ID]);
+  });
+
+  it('shows a query-specific no-match state for a successful empty search (#168)', async () => {
+    apiMock.searchAiModels.mockResolvedValue(response({ models: [] }));
+    const fixture = await create();
+    const component = fixture.componentInstance;
+
+    component['onSearchInput']('zzz-nonexistent');
+    await component['runSearch']();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.querySelector('.search-results .page-empty')?.textContent).toContain(
+      'No models match "zzz-nonexistent" with the current filters.',
+    );
+    expect(host.querySelector('.search-results .page-error')).toBeNull();
+    expect(host.querySelectorAll('.search-results .model-row').length).toBe(0);
+  });
+
+  it('newest search wins regardless of completion order (#168)', async () => {
+    const first = deferred();
+    const second = deferred();
+    apiMock.searchAiModels
+      .mockImplementationOnce(() => first.promise as never)
+      .mockImplementationOnce(() => second.promise as never);
+    const fixture = await create();
+    const component = fixture.componentInstance;
+
+    component['onSearchInput']('llama'); // matches the older response's row
+    void component['runSearch']();
+    component['onSearchInput']('nvidia'); // matches only the newer response's row
+    void component['runSearch']();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(component['searching']()).toBe(true);
+
+    second.resolve(response({ models: [exactModel] }));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    first.resolve(response({ models: [unrelatedModel] })); // older resolves LAST
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(searchRowIds(fixture)).toEqual([EXACT_ID]);
+    expect(component['searching']()).toBe(false);
+    expect(component['submittedQuery']()).toBe('nvidia');
+  });
+
+  it('a stale resolution while a newer search is pending commits nothing (#168)', async () => {
+    const first = deferred();
+    const second = deferred();
+    apiMock.searchAiModels
+      .mockImplementationOnce(() => first.promise as never)
+      .mockImplementationOnce(() => second.promise as never);
+    const fixture = await create();
+    const component = fixture.componentInstance;
+
+    component['onSearchInput']('llama');
+    void component['runSearch']();
+    component['onSearchInput']('nvidia');
+    void component['runSearch']();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    first.resolve(response({ models: [unrelatedModel] }));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(component['searching']()).toBe(true); // newer request still loading
+    expect(searchRowIds(fixture)).toEqual([]); // stale commit discarded
+
+    second.resolve(response({ models: [exactModel] }));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(searchRowIds(fixture)).toEqual([EXACT_ID]);
+  });
+
+  it('a response arriving after clear cannot repopulate and browsing stays restored (#168)', async () => {
+    apiMock.searchAiModels.mockResolvedValueOnce(response({ models: [unrelatedModel] }));
+    const fixture = await create();
+    const component = fixture.componentInstance;
+    await component['setQuickFilter']('recommended');
+
+    const pending = deferred();
+    apiMock.searchAiModels.mockImplementationOnce(() => pending.promise as never);
+    component['onSearchInput']('qwen');
+    void component['runSearch']();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(component['searchActive']()).toBe(true);
+
+    component['clearSearch']();
+    fixture.detectChanges();
+    expect(component['searchActive']()).toBe(false);
+    expect(component['browseLiveResults']().map((m) => m.id)).toContain('meta/Llama-3.1-8B');
+
+    pending.resolve(response({ models: [exactModel] }));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(component['searchActive']()).toBe(false);
+    expect(searchRowIds(fixture)).toEqual([]);
+  });
+
+  it('dedupes an identical in-flight submission but accepts any other query (#168)', async () => {
+    const pending = deferred();
+    apiMock.searchAiModels.mockImplementation(() => pending.promise as never);
+    const fixture = await create();
+    const component = fixture.componentInstance;
+
+    component['onSearchInput']('qwen');
+    void component['runSearch']();
+    await fixture.whenStable();
+    await component['runSearch'](); // identical while loading → no-op
+    expect(apiMock.searchAiModels).toHaveBeenCalledTimes(1);
+
+    component['onSearchInput']('QWEN'); // different identity (trim-only) → supersedes
+    void component['runSearch']();
+    expect(apiMock.searchAiModels).toHaveBeenCalledTimes(2);
+
+    pending.resolve(response({ models: [] }));
+    await fixture.whenStable();
+  });
+
+  it('renders dashboard-owned copy for a 503 failure and keeps matching local models (#168)', async () => {
+    apiMock.searchAiModels.mockResolvedValue(
+      statusResponse(undefined, 503, {
+        error: {
+          code: 'http_error',
+          message: 'Hugging Face is unreachable; showing curated models only',
+        },
+      }),
+    );
+    const fixture = await create();
+    const component = fixture.componentInstance;
+
+    component['onSearchInput']('qwen'); // matches all curated entries
+    await component['runSearch']();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    const alert = host.querySelector('.search-results .page-error');
+    expect(alert?.textContent).toContain('Could not search Hugging Face. Search again to retry.');
+    expect(alert?.textContent).not.toContain('showing curated models only');
+    expect(host.querySelector('.search-results__fallback')?.textContent).toContain(
+      'Showing matching catalog',
+    );
+    expect(searchRowIds(fixture).length).toBe(CATALOG.length);
+  });
+
+  it('shows no rows and no no-match message when a failed search has no local matches (#168)', async () => {
+    apiMock.searchAiModels.mockRejectedValue(new Error('network down'));
+    const fixture = await create();
+    const component = fixture.componentInstance;
+
+    component['onSearchInput']('zzz-nothing');
+    await component['runSearch']();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.querySelector('.search-results .page-error')?.textContent).toContain(
+      'Could not search Hugging Face',
+    );
+    expect(host.querySelector('.search-results__fallback')).toBeNull();
+    expect(host.querySelector('.search-results .page-empty')).toBeNull();
+    expect(host.querySelectorAll('.search-results .model-row').length).toBe(0);
+  });
+
+  it('passes a structured non-503 failure message through (#168)', async () => {
+    apiMock.searchAiModels.mockResolvedValue(
+      statusResponse(undefined, 401, { error: { code: 'http_error', message: 'Session expired' } }),
+    );
+    const fixture = await create();
+    const component = fixture.componentInstance;
+
+    component['onSearchInput']('qwen');
+    await component['runSearch']();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector('.search-results .page-error')
+        ?.textContent,
+    ).toContain('Session expired');
+  });
+
+  it('treats a malformed payload as failure, not an empty success (#168)', async () => {
+    apiMock.searchAiModels.mockResolvedValue(response(undefined));
+    const fixture = await create();
+    const component = fixture.componentInstance;
+
+    component['onSearchInput']('qwen');
+    await component['runSearch']();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.querySelector('.search-results .page-error')).not.toBeNull();
+    expect(host.querySelector('.search-results .page-empty')).toBeNull();
+  });
+
+  it('clears stale browse-live results on a browse fetch failure (D3, #168)', async () => {
+    apiMock.searchAiModels.mockResolvedValueOnce(response({ models: [unrelatedModel] }));
+    const fixture = await create();
+    const component = fixture.componentInstance;
+    await component['setQuickFilter']('recommended');
+    expect(component['browseLiveResults']().length).toBe(1);
+
+    apiMock.searchAiModels.mockResolvedValueOnce(
+      statusResponse(undefined, 503, {
+        error: {
+          code: 'http_error',
+          message: 'Hugging Face is unreachable; showing curated models only',
+        },
+      }),
+    );
+    await component['setQuickFilter']('finance');
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(component['browseLiveResults']()).toEqual([]);
+    const host = fixture.nativeElement as HTMLElement;
+    // Browse keeps the structured pass-through — the phrase is accurate there.
+    expect(host.querySelector('.page-error')?.textContent).toContain('Hugging Face is unreachable');
+    expect(component['visibleModels']().length).toBeGreaterThan(0); // curated fallback
+  });
+
+  it('still searches when the curated catalog fails to load (#168)', async () => {
+    apiMock.listAiModels.mockRejectedValue(new Error('catalog down'));
+    const fixture = await create();
+    const component = fixture.componentInstance;
+    apiMock.searchAiModels.mockResolvedValue(response({ models: [exactModel] }));
+
+    component['onSearchInput'](EXACT_ID);
+    await component['runSearch']();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(searchRowIds(fixture)).toEqual([EXACT_ID]);
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector('.search-results .page-error'),
+    ).toBeNull();
+  });
+
+  it('does not relabel submitted results while the draft changes (#168)', async () => {
+    apiMock.searchAiModels.mockResolvedValue(response({ models: [exactModel] }));
+    const fixture = await create();
+    const component = fixture.componentInstance;
+
+    component['onSearchInput'](EXACT_ID);
+    await component['runSearch']();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    component['onSearchInput']('something else');
+    fixture.detectChanges();
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.querySelector('.search-results h3')?.textContent).toContain(EXACT_ID);
+    expect(searchRowIds(fixture)).toEqual([EXACT_ID]);
+  });
+
+  it('restores the previous quick filter and browse results on clear without refetching (#168)', async () => {
+    apiMock.searchAiModels.mockResolvedValueOnce(response({ models: [unrelatedModel] }));
+    const fixture = await create();
+    const component = fixture.componentInstance;
+    await component['setQuickFilter']('recommended');
+    const callsAfterBrowse = apiMock.searchAiModels.mock.calls.length;
+
+    apiMock.searchAiModels.mockResolvedValueOnce(response({ models: [exactModel] }));
+    component['onSearchInput']('nvidia');
+    await component['runSearch']();
+    await fixture.whenStable();
+    expect(component['quickFilter']()).toBe('recommended'); // search never rewrites it
+
+    component['clearSearch']();
+    fixture.detectChanges();
+    expect(component['quickFilter']()).toBe('recommended');
+    expect(component['browseLiveResults']().map((m) => m.id)).toContain('meta/Llama-3.1-8B');
+    expect(apiMock.searchAiModels.mock.calls.length).toBe(callsAfterBrowse + 1); // no clear-refetch
+  });
+
+  it('invalidates a pending browse fetch when All is selected (#168)', async () => {
+    const pending = deferred();
+    apiMock.searchAiModels.mockImplementationOnce(() => pending.promise as never);
+    const fixture = await create();
+    const component = fixture.componentInstance;
+
+    void component['setQuickFilter']('recommended');
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(component['searching']()).toBe(true);
+
+    await component['setQuickFilter']('all'); // no replacement fetch
+    fixture.detectChanges();
+    expect(component['searching']()).toBe(false);
+
+    pending.resolve(response({ models: [unrelatedModel] }));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(component['browseLiveResults']()).toEqual([]);
+  });
+
+  it('never commits after component destruction (#168)', async () => {
+    const pending = deferred();
+    apiMock.searchAiModels.mockImplementation(() => pending.promise as never);
+    const fixture = await create();
+    const component = fixture.componentInstance;
+
+    component['onSearchInput']('qwen');
+    void component['runSearch']();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    fixture.destroy();
+    pending.resolve(response({ models: [exactModel] }));
+    await fixture.whenStable();
+
+    expect(component['searchResults']()).toEqual([]);
+    expect(component['liveLoadState']()).toBe('loading');
+  });
+
+  it('paginates the single ordered search list across row kinds (#168)', async () => {
+    enableCluster();
+    const filler = Array.from({ length: 7 }, (_, i) => ({
+      id: `lab/Qwen-Filler-${i}`,
+      label: `Qwen filler ${i}`,
+      role: 'main',
+      parameters_b: 3 + i,
+      est_memory_gb: 8 + i,
+      est_disk_gb: 7 + i,
+      tool_parser: 'hermes',
+      supports_vision: false,
+      gated: false,
+      notes: '',
+    }));
+    apiMock.searchAiModels.mockResolvedValue(
+      response({ models: [clusterMatch, ...filler, exactModel] }),
+    );
+    const fixture = await create();
+    const component = fixture.componentInstance;
+
+    component['onSearchInput']('qwen');
+    await component['runSearch']();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    // 12 matching rows (9 HF + the 3 curated Qwen entries, all matching the
+    // query) — cluster and single-box rows share one paginated list.
+    expect(component['searchResultCount']()).toBe(12);
+    expect(component['visibleModels']().length).toBe(6);
+    expect(component['hiddenCount']()).toBe(6);
+    expect(searchRowIds(fixture)[0]).toBe('org/Qwen3.8-Vision-200B'); // HF order, no pin for a partial query
+    expect(component['visibleModels']().some((m) => m.min_nodes === 2)).toBe(true);
+
+    component['showMore']();
+    fixture.detectChanges();
+    expect(component['visibleModels']().length).toBe(12);
+  });
+
+  it('keeps curated metadata over a live duplicate (#168)', async () => {
+    apiMock.searchAiModels.mockResolvedValue(
+      response({
+        models: [{ ...exactModel, id: 'Qwen/Qwen2.5-32B-Instruct', est_memory_gb: 999 }],
+      }),
+    );
+    const fixture = await create();
+    const component = fixture.componentInstance;
+
+    component['onSearchInput']('Qwen2.5-32B');
+    await component['runSearch']();
+    await fixture.whenStable();
+
+    const row = component['filteredSearchModels']().find(
+      (m) => m.id === 'Qwen/Qwen2.5-32B-Instruct',
+    );
+    expect(row?.est_memory_gb).toBe(65); // curated, not the live 999
+  });
+
+  it('matches an off-catalog active model by id, never by its stub label (#168)', async () => {
+    apiMock.getAiRuntimeConfig.mockResolvedValue(
+      response({
+        provider: 'vllm',
+        base_url: 'http://vllm:8000',
+        model: 'someorg/Custom-13B-Instruct',
+        enabled: true,
+      }),
+    );
+    apiMock.searchAiModels.mockResolvedValue(response({ models: [] }));
+    const fixture = await create();
+    const component = fixture.componentInstance;
+
+    component['onSearchInput']('custom-13b');
+    await component['runSearch']();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(searchRowIds(fixture)).toEqual(['someorg/Custom-13B-Instruct']);
+
+    // The generated "(not in catalog)" label alone must never match.
+    component['onSearchInput']('not in catalog');
+    await component['runSearch']();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(searchRowIds(fixture)).toEqual([]);
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector('.search-results .page-empty'),
+    ).not.toBeNull();
+  });
+
+  /** Configured and served ids point at the same off-catalog model (#168). */
+  function configureDuplicateOffCatalog(servedModel: string): void {
+    apiMock.getAiRuntimeConfig.mockResolvedValue(
+      response({
+        provider: 'vllm',
+        base_url: 'http://vllm:8000',
+        model: 'someorg/Custom-13B-Instruct',
+        enabled: true,
+      }),
+    );
+    apiMock.getAiRuntimeStatus.mockResolvedValue(
+      response({
+        enabled: true,
+        provider: 'vllm',
+        model: 'someorg/Custom-13B-Instruct',
+        ready: true,
+        served_model: servedModel,
+        detail: 'ok',
+        vision_ready: false,
+        vision_model: null,
+        vision_enabled: false,
+      }),
+    );
+  }
+
+  it('renders the configured-served off-catalog model once in search (#168)', async () => {
+    configureDuplicateOffCatalog('someorg/Custom-13B-Instruct');
+    apiMock.searchAiModels.mockResolvedValue(response({ models: [] }));
+    const fixture = await create();
+    const component = fixture.componentInstance;
+
+    // The regression: two stubs for one model rendered two identical rows,
+    // counted twice, with duplicate @for track keys (NG0955).
+    expect(component['activeStubs']().length).toBe(1);
+    component['onSearchInput']('someorg/Custom-13B-Instruct');
+    await component['runSearch']();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(searchRowIds(fixture)).toEqual(['someorg/Custom-13B-Instruct']);
+    expect(component['searchResultCount']()).toBe(1);
+  });
+
+  it('dedupes stubs case-insensitively when the served id differs only in case (#168)', async () => {
+    configureDuplicateOffCatalog('SOMEORG/CUSTOM-13B-INSTRUCT');
+    apiMock.searchAiModels.mockResolvedValue(response({ models: [] }));
+    const fixture = await create();
+    const component = fixture.componentInstance;
+
+    component['onSearchInput']('someorg/custom-13b-instruct');
+    await component['runSearch']();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    // One stub, kept under the configured casing (first wins).
+    expect(searchRowIds(fixture)).toEqual(['someorg/Custom-13B-Instruct']);
+  });
+
+  it('shows the off-catalog model once in the fallback after a failed search (#168)', async () => {
+    configureDuplicateOffCatalog('someorg/Custom-13B-Instruct');
+    apiMock.searchAiModels.mockResolvedValue(
+      statusResponse(undefined, 503, {
+        error: {
+          code: 'http_error',
+          message: 'Hugging Face is unreachable; showing curated models only',
+        },
+      }),
+    );
+    const fixture = await create();
+    const component = fixture.componentInstance;
+
+    component['onSearchInput']('custom-13b');
+    await component['runSearch']();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.querySelector('.search-results .page-error')?.textContent).toContain(
+      'Could not search Hugging Face',
+    );
+    expect(searchRowIds(fixture)).toEqual(['someorg/Custom-13B-Instruct']);
   });
 });

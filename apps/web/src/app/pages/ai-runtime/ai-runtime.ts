@@ -1,4 +1,15 @@
-import { Component, computed, DestroyRef, effect, inject, resource, signal } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
+import {
+  Component,
+  computed,
+  DestroyRef,
+  effect,
+  ElementRef,
+  inject,
+  resource,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -11,7 +22,12 @@ import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { apiErrorMessage } from '../../shared/api-error';
 
-const PROVIDERS: AiRuntimeConfig['provider'][] = ['vllm', 'ollama', 'llama_cpp', 'openai_compatible'];
+const PROVIDERS: AiRuntimeConfig['provider'][] = [
+  'vllm',
+  'ollama',
+  'llama_cpp',
+  'openai_compatible',
+];
 
 /** Extra memory beyond the weights for KV cache / runtime overhead (ADR 0012). */
 const HEADROOM = 1.15;
@@ -31,12 +47,23 @@ const LEGACY_FAMILIES = /qwen1[._-]?5|llama-?2\b|falcon|vicuna|mpt-|gpt2|gpt-j|b
 
 export type FitVerdict = 'fits' | 'tight' | 'no' | 'unknown';
 export type QuickFilter =
-  | 'recommended'
-  | 'all-in-one'
-  | 'vision-big'
-  | 'vision-small'
-  | 'finance'
-  | 'all';
+  'recommended' | 'all-in-one' | 'vision-big' | 'vision-small' | 'finance' | 'all';
+
+/** Which accepted live response a fetch commits to (#168). */
+type LiveFetchTarget = 'browse' | 'search';
+
+/** Describes the current live operation (browse or search) (#168). */
+type LiveLoadState = 'idle' | 'loading' | 'success' | 'error';
+
+/** A settled live fetch: models on success, a formatted message on failure. */
+type LiveFetchOutcome = { ok: true; models: AiModelInfo[] } | { ok: false; message: string };
+
+/** searchAiModels options minus limit — fetchLive always supplies LIVE_LIMIT. */
+type LiveSearchOptions = {
+  q?: string;
+  pipeline?: 'any' | 'text-generation' | 'image-text-to-text';
+  deep?: boolean;
+};
 
 /** What would actually be served if this model were applied (M48). */
 export interface ApplyPlan {
@@ -52,6 +79,7 @@ export interface ApplyPlan {
 @Component({
   selector: 'app-ai-runtime',
   imports: [
+    NgTemplateOutlet,
     FormsModule,
     ReactiveFormsModule,
     MatCardModule,
@@ -209,33 +237,69 @@ export class AiRuntime {
     };
   }
 
-  private readonly knownModels = computed<AiModelInfo[]>(() => {
-    const curated = this.catalog.value() ?? [];
-    const ids = new Set(curated.map((m) => m.id));
-    const merged = [...curated];
-    for (const model of this.searchResults()) {
-      if (!ids.has(model.id)) {
-        ids.add(model.id);
-        merged.push(model);
+  /** Stable first-wins merge; dedupe by case-insensitive repo id (#168). */
+  private mergeModels(...sources: AiModelInfo[][]): AiModelInfo[] {
+    const seen = new Set<string>();
+    const merged: AiModelInfo[] = [];
+    for (const source of sources) {
+      for (const model of source) {
+        const key = model.id.toLowerCase();
+        if (!seen.has(key)) {
+          seen.add(key);
+          merged.push(model);
+        }
       }
     }
+    return merged;
+  }
+
+  /** Stubs for the configured/served ids, in configured-main → served order. */
+  /** Stubs for the configured/served ids, in configured-main → served order.
+   *  Deduped case-insensitively (#168): when configured and served (or vision)
+   *  ids refer to the same off-catalog model, it contributes one stub — two
+   *  would render duplicate rows with duplicate @for track keys (NG0955). */
+  private activeStubs(): AiModelInfo[] {
+    const stubs = new Map<string, AiModelInfo>();
     const ensure = (id: string | null | undefined, role: 'main' | 'vision') => {
-      if (id && id !== 'none' && !ids.has(id)) {
-        ids.add(id);
-        merged.push(this.stubModel(id, role));
+      if (!id || id === 'none') {
+        return;
+      }
+      const key = id.toLowerCase();
+      if (!stubs.has(key)) {
+        stubs.set(key, this.stubModel(id, role));
       }
     };
-    ensure(this.config.value()?.model, 'main');
-    ensure(this.status.value()?.served_model, 'main');
-    ensure(this.status.value()?.vision_model, 'vision');
-    return merged;
-  });
+    ensure(this.safeValue(this.config)?.model, 'main');
+    ensure(this.safeValue(this.status)?.served_model, 'main');
+    ensure(this.safeValue(this.status)?.vision_model, 'vision');
+    return [...stubs.values()];
+  }
+
+  /** Lookup universe: curated + query results + browse results + stubs. */
+  private readonly knownModels = computed<AiModelInfo[]>(() =>
+    this.mergeModels(
+      this.safeValue(this.catalog) ?? [],
+      this.searchResults(),
+      this.browseLiveResults(),
+      this.activeStubs(),
+    ),
+  );
+
+  /** Browse display universe — query responses never leak back in (#168). */
+  private readonly browseModels = computed<AiModelInfo[]>(() =>
+    this.mergeModels(
+      this.safeValue(this.catalog) ?? [],
+      this.browseLiveResults(),
+      this.activeStubs(),
+    ),
+  );
 
   protected byId(id: string | null | undefined): AiModelInfo | null {
     if (!id || id === 'none') {
       return null;
     }
-    return this.knownModels().find((m) => m.id === id) ?? null;
+    const key = id.toLowerCase();
+    return this.knownModels().find((m) => m.id.toLowerCase() === key) ?? null;
   }
 
   /** The chat model currently in play (served, else configured). */
@@ -302,9 +366,7 @@ export class AiRuntime {
   protected readonly clusterMemoryGb = computed(
     () => this.hardware.value()?.cluster_memory_gb ?? null,
   );
-  protected readonly clusterEnabled = computed(
-    () => this.config.value()?.cluster_enabled ?? false,
-  );
+  protected readonly clusterEnabled = computed(() => this.config.value()?.cluster_enabled ?? false);
   /** Cluster models are offered only with the toggle ON and the peer reachable. */
   protected readonly clusterActive = computed(
     () => this.clusterEnabled() && this.clusterPeerReachable(),
@@ -375,7 +437,10 @@ export class AiRuntime {
 
   private memoryVerdictFor(requiredGb: number | null, cluster = false): FitVerdict {
     // ADR 0071: cluster-tier entries are judged against the COMBINED budget.
-    return this.verdictAgainst(requiredGb, cluster ? this.clusterMemoryGb() : this.memoryBudgetGb());
+    return this.verdictAgainst(
+      requiredGb,
+      cluster ? this.clusterMemoryGb() : this.memoryBudgetGb(),
+    );
   }
 
   private diskVerdictFor(requiredGb: number | null): FitVerdict {
@@ -439,9 +504,7 @@ export class AiRuntime {
     const visionMem = vision?.est_memory_gb || 0;
     const known = mainMem > 0 && (visionId === null || visionMem > 0);
     const memoryGb = known ? Math.round((mainMem + visionMem) * HEADROOM) : null;
-    const diskGb = known
-      ? Math.round((main?.est_disk_gb || 0) + (vision?.est_disk_gb || 0))
-      : null;
+    const diskGb = known ? Math.round((main?.est_disk_gb || 0) + (vision?.est_disk_gb || 0)) : null;
     return {
       mainId,
       visionId,
@@ -611,10 +674,44 @@ export class AiRuntime {
 
   // --- Live quick filters + search (M48) ---------------------------------------
 
+  /** Editable draft — the submitted query, not this, owns the results (#168). */
   protected readonly searchQuery = signal('');
+  /** The trimmed submitted query; null = browse mode. */
+  protected readonly submittedQuery = signal<string | null>(null);
+  /** The current submitted query's accepted response (search rows only). */
   protected readonly searchResults = signal<AiModelInfo[]>([]);
-  protected readonly searching = signal(false);
+  /** The last accepted quick-filter response (browse rows only). */
+  protected readonly browseLiveResults = signal<AiModelInfo[]>([]);
+  /** Describes the current live operation (browse or search). */
+  protected readonly liveLoadState = signal<LiveLoadState>('idle');
+  protected readonly searching = computed(() => this.liveLoadState() === 'loading');
   protected readonly searchError = signal<string | null>(null);
+
+  protected readonly searchActive = computed(() => this.submittedQuery() !== null);
+
+  /** Monotonically increasing; every new intent invalidates outstanding work. */
+  private liveGeneration = 0;
+  private destroyed = false;
+
+  private readonly searchInput = viewChild<ElementRef<HTMLInputElement>>('searchInput');
+
+  /** Supersede is allowed while loading; only a blank draft or the identical
+   *  in-flight query blocks submission (trim-only identity). */
+  protected readonly searchSubmitDisabled = computed(
+    () =>
+      !this.searchQuery().trim() ||
+      (this.liveLoadState() === 'loading' && this.submittedQuery() === this.searchQuery().trim()),
+  );
+
+  /** A completion may commit only while it is the newest intent and alive. */
+  private canCommit(generation: number): boolean {
+    return !this.destroyed && generation === this.liveGeneration;
+  }
+
+  /** Errored resources throw from value() — degrade to undefined instead. */
+  private safeValue<T>(ref: { hasValue(): boolean; value(): T | undefined }): T | undefined {
+    return ref.hasValue() ? ref.value() : undefined;
+  }
 
   protected readonly quickFilter = signal<QuickFilter>('recommended');
   protected readonly roleFilter = signal<'all' | 'main' | 'vision'>('all');
@@ -624,71 +721,168 @@ export class AiRuntime {
   );
   protected readonly visibleCount = signal(PAGE_SIZE);
 
+  /**
+   * One live fetch with an explicit destination (#168). Every completion write
+   * — commit, failure, or state change — requires the captured generation to
+   * still be current and the component alive; there is no unconditional
+   * finally. Superseded requests finish in transport and are discarded.
+   */
   private async fetchLive(
-    ...requests: {
-      q?: string;
-      pipeline?: 'any' | 'text-generation' | 'image-text-to-text';
-      deep?: boolean;
-    }[]
-  ): Promise<void> {
-    this.searching.set(true);
+    target: LiveFetchTarget,
+    options: LiveSearchOptions,
+  ): Promise<LiveFetchOutcome> {
+    const generation = ++this.liveGeneration;
+    this.liveLoadState.set('loading');
     this.searchError.set(null);
-    const responses = await Promise.all(
-      requests.map((options) => this.api.searchAiModels({ ...options, limit: LIVE_LIMIT })),
+    let outcome: LiveFetchOutcome;
+    try {
+      const { data, error, response } = await this.api.searchAiModels({
+        ...options,
+        limit: LIVE_LIMIT,
+      });
+      if (error || !data || !Array.isArray(data.models)) {
+        outcome = { ok: false, message: this.liveFailureMessage(error, response, target) };
+      } else {
+        outcome = { ok: true, models: data.models };
+      }
+    } catch (error) {
+      outcome = { ok: false, message: this.liveFailureMessage(error, undefined, target) };
+    }
+    if (!this.canCommit(generation)) {
+      // Superseded (or destroyed): commit nothing, touch no signal.
+      return { ok: false, message: '' };
+    }
+    if (outcome.ok) {
+      if (target === 'search') {
+        this.searchResults.set(outcome.models);
+      } else {
+        this.browseLiveResults.set(outcome.models);
+      }
+      this.liveLoadState.set('success');
+      this.searchError.set(null);
+    } else {
+      // Failure clears only this destination — an older query's rows or a
+      // stale browse list must never survive under the new intent.
+      if (target === 'search') {
+        this.searchResults.set([]);
+      } else {
+        this.browseLiveResults.set([]);
+      }
+      this.searchError.set(outcome.message);
+      this.liveLoadState.set('error');
+    }
+    return outcome;
+  }
+
+  /**
+   * Search failures carry dashboard-owned copy: the endpoint's only non-auth
+   * failure is a 503 whose server detail ("showing curated models only") is
+   * browse-phrased and false in search mode. Browse keeps the structured
+   * pass-through — that detail is accurate there.
+   */
+  private liveFailureMessage(
+    error: unknown,
+    response: Response | undefined,
+    target: LiveFetchTarget,
+  ): string {
+    if (target === 'search') {
+      const fallback = $localize`:Error message|The live model search failed; Hugging Face is a product name:Could not search Hugging Face. Search again to retry.`;
+      return response?.status === 503 ? fallback : apiErrorMessage(error, fallback, response);
+    }
+    return apiErrorMessage(
+      error,
+      $localize`:Error message|The live model hub could not be reached; Hugging Face is a product name:Hugging Face is unreachable; showing curated models only.`,
+      response,
     );
-    this.searching.set(false);
-    const merged: AiModelInfo[] = [];
-    const seen = new Set<string>();
-    let failures = 0;
-    for (const { data, error } of responses) {
-      if (error || !data) {
-        failures += 1;
-        continue;
-      }
-      for (const model of data.models) {
-        if (!seen.has(model.id)) {
-          seen.add(model.id);
-          merged.push(model);
-        }
-      }
-    }
-    if (failures === responses.length) {
-      this.searchError.set(
-        $localize`:Error message|The live model hub could not be reached; Hugging Face is a product name:Hugging Face is unreachable; showing curated models only.`,
-      );
-      return;
-    }
-    this.searchResults.set(merged);
   }
 
   protected async runSearch(): Promise<void> {
     const query = this.searchQuery().trim();
-    if (!query || this.searching()) {
+    if (!query) {
+      this.clearSearch();
       return;
     }
-    this.quickFilter.set('all');
+    // Identical in-flight query is a no-op; any other query supersedes it.
+    if (this.liveLoadState() === 'loading' && this.submittedQuery() === query) {
+      return;
+    }
+    this.submittedQuery.set(query);
+    this.searchResults.set([]);
+    this.resetModelWindow();
+    await this.fetchLive('search', { q: query, pipeline: 'any' });
+  }
+
+  /** Draft edits never touch the submitted query's results; empty exits search. */
+  protected onSearchInput(value: string): void {
+    this.searchQuery.set(value);
+    if (!value.trim() && this.searchActive()) {
+      this.clearSearch();
+    }
+  }
+
+  /** Exit search and restore browsing — without refetching. */
+  protected clearSearch(): void {
+    this.liveGeneration += 1;
+    this.searchQuery.set('');
+    this.submittedQuery.set(null);
+    this.searchResults.set([]);
+    this.liveLoadState.set('idle');
+    this.searchError.set(null);
+    this.resetModelWindow();
+    this.searchInput()?.nativeElement.focus();
+  }
+
+  /** Reset pagination and row expansion together (used by every view change). */
+  private resetModelWindow(): void {
     this.visibleCount.set(PAGE_SIZE);
-    await this.fetchLive({ q: query, pipeline: 'any' });
+    this.expandedId.set(null);
+  }
+
+  protected setRoleFilter(value: 'all' | 'main' | 'vision'): void {
+    this.roleFilter.set(value);
+    this.resetModelWindow();
+  }
+
+  protected setSortBy(value: 'default' | 'size-desc' | 'size-asc' | 'memory-asc'): void {
+    this.sortBy.set(value);
+    this.resetModelWindow();
+  }
+
+  protected setOnlyFits(value: boolean): void {
+    this.onlyFits.set(value);
+    this.resetModelWindow();
   }
 
   /** M48: quick filters fetch a live list from the HF catalog, then shape it. */
   protected async setQuickFilter(filter: QuickFilter): Promise<void> {
+    // Quick filters are browse navigation: leaving search discards the query
+    // and invalidates any pending fetch. browseLiveResults is retained — it is
+    // replaced by (or cleared on failure of) the new fetch, matching today's
+    // browse behavior (D3 changes only the failure branch).
+    this.liveGeneration += 1;
+    if (this.searchActive()) {
+      this.searchQuery.set('');
+      this.submittedQuery.set(null);
+      this.searchResults.set([]);
+    }
+    this.searchError.set(null);
+    this.liveLoadState.set('idle');
     this.quickFilter.set(filter);
-    this.visibleCount.set(PAGE_SIZE);
+    this.resetModelWindow();
     switch (filter) {
       case 'recommended':
         // M53: deep fan-out — the largest FITTING models, not just the popular.
-        await this.fetchLive({ pipeline: 'text-generation', deep: true });
+        await this.fetchLive('browse', { pipeline: 'text-generation', deep: true });
         break;
       case 'all-in-one':
-        await this.fetchLive({ pipeline: 'any', deep: true });
+        await this.fetchLive('browse', { pipeline: 'any', deep: true });
         break;
       case 'finance':
-        await this.fetchLive({ q: 'finance', pipeline: 'text-generation', deep: true });
+        await this.fetchLive('browse', { q: 'finance', pipeline: 'text-generation', deep: true });
         break;
       case 'vision-big':
       case 'vision-small':
-        await this.fetchLive({ pipeline: 'image-text-to-text', deep: true });
+        await this.fetchLive('browse', { pipeline: 'image-text-to-text', deep: true });
         break;
       case 'all':
         break;
@@ -700,21 +894,29 @@ export class AiRuntime {
     this.clusterActive() ? this.knownModels().filter((m) => this.needsCluster(m)) : [],
   );
 
-  protected readonly filteredModels = computed<AiModelInfo[]>(() => {
-    // While the cluster is active, everything that needs both boxes renders in
-    // the "Cluster (both boxes)" section — never here. While it is inactive,
-    // only min_nodes >= 2 entries hide; too-big single-node models still show
-    // with their honest "Too big for this box" verdict.
-    let models = this.knownModels().filter((m) =>
-      this.clusterActive() ? !this.needsCluster(m) : !this.isClusterModel(m),
-    );
+  protected readonly filteredModels = computed<AiModelInfo[]>(() =>
+    this.filterAndSortModels(
+      this.browseModels().filter((m) =>
+        this.clusterActive() ? !this.needsCluster(m) : !this.isClusterModel(m),
+      ),
+      this.quickFilter(),
+    ),
+  );
+
+  /**
+   * Shared role/fit/sort shaping for browse and search (#168). Always works on
+   * a copy: the quick filter supplies browse's recommendation predicates while
+   * search passes the neutral 'all' with the user's role/fit/sort choices.
+   */
+  private filterAndSortModels(models: AiModelInfo[], quickFilter: QuickFilter): AiModelInfo[] {
+    let list = [...models];
     let order: 'asc' | 'desc' | null = null;
 
-    switch (this.quickFilter()) {
+    switch (quickFilter) {
       case 'recommended':
         // Strongest CHAT model: must fit AND be able to call the financial
         // tools (M52 — a photo model must never top the chat recommendation).
-        models = models.filter(
+        list = list.filter(
           (m) =>
             (m.role === 'main' || m.role === 'both') &&
             Boolean(m.tool_parser) &&
@@ -725,7 +927,7 @@ export class AiRuntime {
         break;
       case 'all-in-one':
         // The rare model that genuinely does BOTH photos and tool calling.
-        models = models.filter(
+        list = list.filter(
           (m) =>
             m.supports_vision &&
             Boolean(m.tool_parser) &&
@@ -735,16 +937,16 @@ export class AiRuntime {
         order = 'desc';
         break;
       case 'vision-big':
-        models = models.filter((m) => m.supports_vision && this.fitOf(m) !== 'no');
+        list = list.filter((m) => m.supports_vision && this.fitOf(m) !== 'no');
         order = 'desc';
         break;
       case 'vision-small':
-        models = models.filter((m) => m.supports_vision && this.fitOf(m) !== 'no');
+        list = list.filter((m) => m.supports_vision && this.fitOf(m) !== 'no');
         order = 'asc';
         break;
       case 'finance':
         // Financial reasoning needs tool calling; strongest tool-capable first.
-        models = models.filter(
+        list = list.filter(
           (m) =>
             (m.role === 'main' || m.role === 'both') &&
             Boolean(m.tool_parser) &&
@@ -758,12 +960,12 @@ export class AiRuntime {
 
     const role = this.roleFilter();
     if (role === 'main') {
-      models = models.filter((m) => m.role === 'main' || m.role === 'both');
+      list = list.filter((m) => m.role === 'main' || m.role === 'both');
     } else if (role === 'vision') {
-      models = models.filter((m) => m.supports_vision);
+      list = list.filter((m) => m.supports_vision);
     }
     if (this.onlyFits()) {
-      models = models.filter((m) => this.fitOf(m) === 'fits' || this.fitOf(m) === 'tight');
+      list = list.filter((m) => this.fitOf(m) === 'fits' || this.fitOf(m) === 'tight');
     }
 
     const sort = this.sortBy();
@@ -773,11 +975,11 @@ export class AiRuntime {
       order = 'asc';
     }
     if (sort === 'memory-asc') {
-      models.sort((a, b) => (a.est_memory_gb || 1e9) - (b.est_memory_gb || 1e9));
+      list.sort((a, b) => (a.est_memory_gb || 1e9) - (b.est_memory_gb || 1e9));
     } else if (order === 'desc') {
       // M71 generation-aware: modern releases first (largest first), older
       // generations after — a 2024-era 110B must not outrank a modern 80B.
-      models.sort(
+      list.sort(
         (a, b) =>
           Number(this.isModern(b)) - Number(this.isModern(a)) ||
           b.parameters_b - a.parameters_b ||
@@ -785,17 +987,81 @@ export class AiRuntime {
       );
     } else if (order === 'asc') {
       // Unknown sizes (0) sort last, not first.
-      models.sort((a, b) => (a.parameters_b || 1e9) - (b.parameters_b || 1e9));
+      list.sort((a, b) => (a.parameters_b || 1e9) - (b.parameters_b || 1e9));
     }
-    return models;
+    return list;
+  }
+
+  /** Complete filtered search sequence — the count line reads this. */
+  protected readonly searchResultCount = computed(() => this.filteredSearchModels().length);
+
+  /**
+   * The submitted query's ordered, displayable rows (#168): candidates in
+   * stable order (HF response, then curated, then matching stubs), query
+   * matching on id/label substring, deployment eligibility, the shared
+   * facets/sort, and finally the exact-first pin.
+   */
+  private readonly filteredSearchModels = computed<AiModelInfo[]>(() => {
+    const submitted = this.submittedQuery();
+    if (submitted === null) {
+      return [];
+    }
+    const normalized = submitted.trim().toLowerCase();
+    if (!normalized) {
+      return [];
+    }
+
+    // Curated metadata wins at the candidate's first position: the merge keeps
+    // the HF record's position, then the map swaps in the curated record.
+    const curated = this.safeValue(this.catalog) ?? [];
+    const merged = this.mergeModels(this.searchResults(), curated);
+    const curatedById = new Map(curated.map((m) => [m.id.toLowerCase(), m] as const));
+    const candidates = merged.map((m) => curatedById.get(m.id.toLowerCase()) ?? m);
+
+    // Query matching: literal id/label substring. Stubs join only by ID —
+    // their generated "(not in catalog)" label must never match alone.
+    const matches = (m: AiModelInfo) =>
+      m.id.toLowerCase().includes(normalized) || m.label.toLowerCase().includes(normalized);
+    const known = candidates.filter(matches);
+    const knownIds = new Set(candidates.map((m) => m.id.toLowerCase()));
+    const stubs = this.activeStubs().filter(
+      (s) => s.id.toLowerCase().includes(normalized) && !knownIds.has(s.id.toLowerCase()),
+    );
+
+    // Eligibility: without the cluster, min_nodes >= 2 entries are out; an
+    // oversized min_nodes == 1 model stays with its honest single-box verdict.
+    const eligible = [...known, ...stubs].filter((m) =>
+      this.clusterActive() ? true : !this.isClusterModel(m),
+    );
+
+    // Default sort preserves candidate order (HF order, then curated, then
+    // stubs); explicit sorts reuse the shared comparators.
+    const ranked = this.filterAndSortModels(eligible, 'all');
+
+    // Exact-first pin: the single case-insensitive full-ID equality match —
+    // only if it survived eligibility and facets — moves to index 0, overriding
+    // explicit sorts. A filter-excluded match is never reinserted.
+    const exactIndex = ranked.findIndex((m) => m.id.toLowerCase() === normalized);
+    if (exactIndex > 0) {
+      const [exact] = ranked.splice(exactIndex, 1);
+      ranked.unshift(exact);
+    }
+    return ranked;
   });
 
+  /** Mode-aware pagination (#168): search mode paginates the search list. */
   protected readonly visibleModels = computed(() =>
-    this.filteredModels().slice(0, this.visibleCount()),
+    (this.searchActive() ? this.filteredSearchModels() : this.filteredModels()).slice(
+      0,
+      this.visibleCount(),
+    ),
   );
-  protected readonly hiddenCount = computed(() =>
-    Math.max(0, this.filteredModels().length - this.visibleCount()),
-  );
+  protected readonly hiddenCount = computed(() => {
+    const total = this.searchActive()
+      ? this.filteredSearchModels().length
+      : this.filteredModels().length;
+    return Math.max(0, total - this.visibleModels().length);
+  });
 
   protected showMore(): void {
     this.visibleCount.update((count) => count + PAGE_SIZE);
@@ -854,7 +1120,12 @@ export class AiRuntime {
   }
 
   constructor() {
-    inject(DestroyRef).onDestroy(() => this.stopPolling());
+    inject(DestroyRef).onDestroy(() => {
+      // #168: a pending fetch must never commit after destruction.
+      this.destroyed = true;
+      this.liveGeneration += 1;
+      this.stopPolling();
+    });
     effect(() => {
       const value = this.config.value();
       if (value) {
@@ -871,6 +1142,12 @@ export class AiRuntime {
       if (status?.vision_model && !this.visionModelInput()) {
         this.visionModelInput.set(status.vision_model);
       }
+    });
+    // #168: cluster availability re-partitions both lists in place — the
+    // submitted query and fetched candidates stay; the window resets.
+    effect(() => {
+      this.clusterActive();
+      this.resetModelWindow();
     });
   }
 
