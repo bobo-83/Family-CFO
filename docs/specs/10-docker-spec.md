@@ -132,6 +132,45 @@ those explicitly marked cases when PostgreSQL is absent. Deterministic local/SMB
 fakes select all other fallback/error paths explicitly; tests never infer tool
 absence or ask for NAS/DB credentials.
 
+## AI Runtime Apply Deployment Scope (issue #170, ADR 0081)
+
+The model-manager remains the sole Docker-socket holder, internal-network only,
+never recreated by a swap it performs. The swap transaction adds these
+deployment-owned facts:
+
+- **Durable journal mount.** `PROJECT_DIR/.runtime-swap/v2/` (requests, job
+  records, snapshots, `current.json`) must persist on the bind-mounted project
+  directory with mode 0700/0600, excluded from Git and diagnostic exports and
+  added to `.gitignore` as `.runtime-swap/`. A failed required journal write
+  prevents the next deployment mutation.
+- **Immutable runtime artifacts.** Launch uses frozen immutable image IDs and
+  pinned model revisions — no implicit pulls, no runtime upgrades during a
+  swap; rollback artifacts and caches are never pruned by the apply flow.
+  Staging may update cache contents but not active runtime configuration.
+- **Sidecar protocol/version.** The manager speaks protocol major 2 and
+  reports its build identity from `services/model-manager/BUILD`
+  (`GET /v2/capabilities`); manager code stays baked into its image, and the
+  deployment/rollback rules of ADR 0013's matched-pair rollout carry over
+  with the ordered migration of ADR 0081 (disable Apply → drain → migration
+  `0099` → manager v2 → API/reconciler → generated-client clients → enable).
+  During any skew, mutation fails closed.
+- **Peer checks.** Cluster topology validation runs the bounded SSH command
+  allowlist over the enrolled peer (host-key-verified, read-only probes
+  only); node-exporter reachability alone is insufficient, and TP2 is
+  verified as two expected GPU ranks on the declared nodes.
+- **Restart and ordering behavior.** Manager shutdown may leave the supervised
+  executor alive (explicitly supported); startup recovery reads the journal
+  and resumes unfinished jobs before admitting new ones and never signals a
+  recovered PID. `api`/`worker` are recreated only during post-commit
+  finalization, using their currently deployed application images (never
+  pulled or upgraded); a failed candidate never touches application routing.
+- **Transport.** The reverse-proxy read timeout must be verified ≥ 210 s in
+  the deployment spec so the 180 s synchronous preflight cannot be severed by
+  the proxy.
+- **No new exposure.** No public manager port, no new container class, no
+  cloud dependency; checker containers are ephemeral, capped (2 CPUs /
+  4 GiB), read-only-root, and cleaned by exact recorded container IDs.
+
 ## Acceptance Criteria
 
 - Compose file supports local development and home-server deployment profiles.

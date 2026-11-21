@@ -217,3 +217,44 @@ Store the digest of the single-use challenge, its requested device ID and expiry
 The challenge can be issued for an unknown device ID. Only completion under the
 device ownership transaction may consume the challenge and replace auth sessions.
 Bound issuance and prune expired challenge rows.
+
+## AI Runtime Apply Receipts (issue #170, ADR 0081)
+
+Migration `0099_ai_runtime_apply_receipts.py`, parented to current head `0098`
+(revalidate at write time), adds one receipt table — **not** an execution-job
+table. The manager's filesystem journal owns execution state; PostgreSQL owns
+household settings plus this exactly-once commit receipt.
+
+### `ai_runtime_apply_receipts`
+
+- `job_id`: UUID primary key.
+- `runtime_key`: bounded string, not null.
+- `plan_hash`: fixed digest, not null.
+- `initiator_household_id`, `initiator_user_id`: nullable IDs (opaque;
+  household deletion mid-swap tolerates nulls at commit time).
+- `source`: `api | cli` (CLI-origin records carry no invented household/user
+  identity).
+- `committed_model`: string, not null.
+- `committed_at`: timezone-aware timestamp, not null.
+
+No mutable status column and no copied manager journal state. The manager
+records initiating IDs and the configured runtime key at acceptance; only the
+trusted API submits API-origin metadata.
+
+### Audit deduplication
+
+The final apply outcome audits (`model_applied`, `model_apply_failed`,
+`model_apply_restored`, `model_apply_recovery_failed`) are deduplicated by
+job ID + action via an internal uniqueness constraint, so reconciler races
+and retries cannot write duplicate outcomes; `model_apply_started` is written
+once after durable acceptance, also idempotent per job. All are registered
+explicitly irreversible (operational records, not user-undoable changes).
+
+### Migration and downgrade
+
+- No backfill: historical applies get no fabricated receipt.
+- Downgrade only after all v2 jobs are drained and the older application no
+  longer references the table; retain operational records normally.
+- Existing `ai_runtime_configs` data is unchanged until a new verified commit;
+  the receipt commit preserves every household's `cluster_enabled` and other
+  households' `enabled` flags.

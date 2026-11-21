@@ -290,3 +290,46 @@ runtime \"Find a model\" search results (issue #168)"; the design record is
 Non-goals: no backend/OpenAPI/client changes, no #167 apply-flow work, no iOS,
 and no advisor tool — this changes an existing operator-facing picker, not a
 household data domain.
+
+## Issue #170 AI runtime apply validation and recovery gate
+
+Accepted for implementation, 2026-11-21:
+[ADR 0081](../adr/0081-ai-runtime-apply-transactions.md) and the plan
+`docs/plans/ai-runtime-apply-validation-recovery-2026-11-20.md`. Apply stops
+reporting "containers recreated = success": the server resolves and validates
+a launch plan before touching the running deployment, tracks the swap to a
+verified-ready state (exact chat + photo configuration plus bounded synthetic
+inference), commits household settings exactly once after readiness, and
+automatically restores and re-verifies the previous runtime on failure
+(`restored`), with `recovery_failed` distinct when restoration itself fails.
+The model-manager is promoted to a versioned component (protocol major 2 +
+`services/model-manager/BUILD`) under ADR 0074's escape hatch; the #167
+directory-flock ownership spans the full lifecycle; ADR 0013/0071/0074 carry
+the clarifying amendments.
+
+Gate coverage: Scope — PRD §"Safe AI runtime apply with validation and
+recovery (#170)"; Non-goals — below and in the PRD; API behavior —
+`04-openapi.md` §"AI Runtime Apply Contract" (idempotent `request_id`
+admission, read-only GET, retry-recovery, error reasons, transport budget
+chain, legacy additive projection); Data model changes — `03-domain-model.md`
+§"AI Runtime Apply Domain" and `05-database-schema.md` §"AI Runtime Apply
+Receipts" (migration `0099`, receipt-only, no execution state in SQL);
+Security impact — `06-security-model.md` §"AI Runtime Apply Security
+Boundary"; Test expectations — `12-implementation-tasks.md` WI-1–WI-12 and
+the M23 #170 amendment gate; Documentation impact — `docs/guides/ai-advisor.md`
+and `docs/investigations/ai-runtime-170-deployment-validation.md`.
+
+**Non-goals (explicit):**
+
+- No user-initiated cancel of an in-flight job this issue — recourse is the
+  interruption/recovery story (durable journal + verified restore).
+- Legacy-client additive status projection: shipped iOS/web keep decoding
+  `AiSwapStatus`; full-shape consumers are new clients only (ADR 0074
+  Decision 5).
+- Advisor tool access is N/A: this infrastructure fix adds no family-visible
+  data domain and no M16 tool (mirroring the #167 gate wording).
+
+Also non-goals: no blue/green uninterrupted-serving guarantee (staged
+replacement may interrupt AI serving; deterministic fallback covers the gap),
+no visual-accuracy certification of photo answers, no change to financial
+determinism, and no reserve/prepare two-phase admission (one-shot only).

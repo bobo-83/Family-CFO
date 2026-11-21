@@ -4,6 +4,10 @@
 
 Accepted. (Serving path pending hardware bring-up: the boxes are not yet
 cabled; everything up to the toggle is live and verified.)
+Amended 2026-11-21 (issue #170,
+[ADR 0081](0081-ai-runtime-apply-transactions.md)): authoritative topology
+validation and the peer-detection vs rank-readiness distinction — see the
+amendment section below; the toggle/TP invariants are unchanged.
 
 ## Context
 
@@ -47,6 +51,41 @@ toggle to enable the bigger models.
   answer latency and disk usage materially; that is a human's call (same
   confirm-first instinct as ADR 0013's one-click apply).
 - **Storing the toggle client-side** — web and iOS must agree (ADR 0025).
+
+## Amendment (issue #170): authoritative topology validation and rank readiness
+
+The node-exporter TCP probe (decision 1) remains the household-facing
+availability signal that gates the toggle in pickers, but reachability is not
+serviceability: a reachable node exporter says nothing about whether the peer
+can actually host a TP2 rank. Issue #170
+([ADR 0081](0081-ai-runtime-apply-transactions.md)) separates the two and
+names the authority:
+
+- **The model-manager owns authoritative topology validation.** A cluster plan
+  is admitted only after the manager independently verifies the declared
+  peer's availability, image compatibility, Ray membership, GPU count, and
+  per-node memory/cache against the frozen plan. Client estimates and the
+  dashboard's placement preview stay advisory; the API passes the household's
+  `cluster_enabled` toggle as authorization evidence, never as a plan
+  parameter from the public request.
+- **Peer inspection channel.** Today the only peer channel is the
+  node-exporter TCP probe plus the SSH keys `scripts/setup-cluster.sh`
+  enrolls. The manager may run a **bounded SSH command allowlist** over the
+  enrolled peer (host-key-verified), executing read-only probes only — Ray
+  cluster status, per-GPU memory, installed image ID — with structural output
+  parsing and bounded timeouts. Any allowlist, timeout, or parse failure
+  rejects the cluster topology; a peer service that cannot be safely inspected
+  or controlled is never answered with invented partial rollback. This uses
+  the enrollment `setup-cluster.sh` already established;
+  `setup-cluster.sh` itself remains an excluded independent `.env` writer
+  (ADR 0013).
+- **Verification requires ranks, not reachability.** A TP2 swap is verified
+  serving only when two expected GPU ranks on the declared nodes are observed;
+  node-exporter reachability alone never establishes cluster readiness.
+- **Invariants preserved.** Serving stays TP-over-Ray through the
+  `VLLM_EXTRA_ARGS` seam (no pipeline parallelism, no LAN discovery, no
+  automatic enrollment); a swap never flips `cluster_enabled`; losing the
+  peer never breaks single-node serving.
 
 ## Invariant
 

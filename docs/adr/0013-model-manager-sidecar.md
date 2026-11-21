@@ -5,6 +5,10 @@
 Accepted. Partially supersedes ADR 0012 (decision 1: command-only apply).
 Amended 2026-11-19 for issue #167: shared model-swap lock protocol, specified
 before implementation in the [M23 gate](../specs/11-milestone-roadmap.md#m23-hugging-face-model-search--one-click-apply).
+Amended 2026-11-21 for issue #170: the swap becomes a validated, journaled
+transaction with verified restoration and a versioned manager protocol —
+[ADR 0081](0081-ai-runtime-apply-transactions.md) supersedes the
+no-durable-state, no-rollback, and no-contract-change statements below.
 
 ## Context
 
@@ -115,7 +119,11 @@ Close descriptors; do not explicitly unlock the shared open file description
 while another inherited copy may be active. Ownership is released when the last
 copy closes. This preserves exclusion if an orphaned script survives manager
 termination. After restart, manager status resets to process-local `idle`:
-there is no durable job state or job recovery. A surviving orphan keeps the
+there was no durable job state or job recovery at the time #167 was specified.
+Issue #170 ([ADR 0081](0081-ai-runtime-apply-transactions.md)) replaces this:
+execution state lives in a durable manager journal and unfinished jobs are
+recovered on startup. The contention rule is unchanged and now reads the
+durable journal. A surviving orphan keeps the
 inherited lock until it exits and closes its descriptors, so a new request
 must still get 409 even when `/status` says `idle`. The container runtime may
 kill the script too; neither orphan survival nor successful completion is
@@ -125,16 +133,20 @@ promised. `idle` is not proof of an unlocked deployment.
 
 This protocol covers model swaps only, not every `.env` writer.
 `setup-cluster.sh` is explicitly excluded and remains an independent writer;
-operators must not run it concurrently with swaps. There is no new automatic
-rollback or transactional reconciliation after an accepted swap fails: 202 may
-already have led to config repointing, and the existing desired-vs-serving
-mismatch banner plus another Apply remain the recovery story. Do not promise
-that the old model always keeps serving.
+operators must not run it concurrently with swaps. Superseded by [ADR 0081](0081-ai-runtime-apply-transactions.md)
+(issue #170): an accepted swap is now a validated, journaled transaction —
+preflight validation precedes any mutation, exact readiness precedes the
+durable commit decision, and a failed replacement is automatically restored
+from an immutable snapshot and re-verified (`restored`), with
+`recovery_failed` reported when restoration itself fails. The
+desired-vs-serving mismatch banner remains as a diagnostic and another Apply
+remains possible. Do not promise that the old model always keeps serving.
 
 Advisor-tool access is N/A and an explicit non-goal: this infrastructure fix
-adds no family-visible data domain and no M16 tool. No schema, public OpenAPI
-shape, or generated-client change is required. Existing owner gating and the
-socket-free API boundary are unchanged.
+adds no family-visible data domain and no M16 tool. Superseded by [ADR 0081](0081-ai-runtime-apply-transactions.md):
+issue #170 changes the public apply contract and the manager protocol (v2),
+released under ADR 0074's coordinated contract process. Existing owner gating
+and the socket-free API boundary are unchanged.
 
 #### Rollout, mixed versions, and rollback
 

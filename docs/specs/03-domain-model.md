@@ -275,3 +275,66 @@ A device identity outlives an auth session and retains its household and public
 key. An existing-device challenge proves possession of that key in combination
 with the account password. A client session generation identifies work and
 cached data from one installation of a bearer.
+
+## AI Runtime Apply Domain (issue #170, ADR 0081)
+
+An AI runtime replacement is operational deployment state, not financial state.
+Its job records, plans, snapshots, decisions, and receipts carry model and
+deployment identities only — never financial data, credentials, or household
+content. The advisor has no access to it (explicit non-goal, #170 gate).
+
+### ApplyJob
+
+One model-replacement transaction, identified by a UUID `job_id` and an
+idempotency `request_id`. Durable states are `accepted`, `staging`,
+`launching`, `verifying`, `commit_pending`, `restoring`, `succeeded`,
+`failed`, `restored`, `recovery_failed`, and `commit_repair_required`; `idle`
+is a read representation, never a stored state. Each record carries a
+monotonic `sequence`, origin (`api | cli`), optional opaque initiator
+household/user ids, a normalized-request digest, the durable `decision`
+(`undecided | commit | restore` — monotonic: a committed decision never
+becomes restore), phase deadlines, and a failure code with a redacted message.
+HTTP disconnects, client navigation, and manager restarts never cancel a job.
+
+### LaunchPlan
+
+The frozen, immutable resolution of one accepted request: main/photo
+repository IDs with immutable revisions, photo mode and placement, selected
+topology, installed runtime version and exact image IDs, structured launch
+arguments, context/concurrency limits, and per-node memory/disk requirements
+with evidence classifications (`verified | estimated | unknown`). Unknown
+required evidence is never treated as zero, as "fits", or as a single-node
+assumption. The plan never contains `.env` contents, tokens, SSH details,
+raw checker output, or arbitrary container logs.
+
+### DeploymentSnapshot
+
+The immutable previous-working deployment captured before acceptance and
+verified serving at capture time: model IDs + revisions + served-name policy,
+exact image IDs (including peer identity), structured
+serve/parser/context/KV arguments, the presence and value of every
+runtime-owned environment key, service placement/scale/restart/routing,
+runtime configuration hashes, and references to retained cache artifacts.
+Restoration reinstates it exactly and re-verifies it; a first deployment has
+no snapshot and reports `failed`/`no_previous_runtime` after returning to the
+explicit empty baseline.
+
+### CommitDecision and receipt
+
+`commit` becomes durable only after exact verification passes
+(`commit_pending`); an API reconciler then performs the one settings
+transaction — initiating-household config upsert, matching-household repoint,
+receipt insert, outcome audit — under a PostgreSQL advisory lock, and
+acknowledges the manager. `restore` is the durable direction for any failure
+after active mutation but before commit. The receipt
+(`ai_runtime_apply_receipts`) is the only SQL record of the job: identity,
+runtime key, plan hash, attribution, source, committed model, and commit
+time. It makes the commit exactly-once across API replicas and retries; it
+stores no execution state.
+
+### Non-financial scope
+
+No financial calculation reads or writes any of this domain; synthetic
+verification probes never execute household tools; the apply audit actions
+are operational records registered explicitly irreversible and name no
+financial figures beyond the committed model identity.

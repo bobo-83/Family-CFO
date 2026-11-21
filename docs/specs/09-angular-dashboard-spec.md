@@ -343,3 +343,57 @@ and its critique at `docs/reviews/ai-runtime-model-search-plan-critique-2026-11-
 4. Race matrix: supersession in both directions, identical in-flight dedupe,
    search↔browse crossovers, `all` invalidation, destruction, errored-resource
    degradation (failed `listAiModels`/`getAiRuntimeConfig` must not throw).
+
+## AI runtime Apply validation and recovery (issue #170)
+
+Apply becomes a server-authoritative job lane; the plan at
+`docs/plans/ai-runtime-apply-validation-recovery-2026-11-20.md` and
+[ADR 0081](../adr/0081-ai-runtime-apply-transactions.md) are the design
+records. #168's search rules are untouched — Apply never resets or clears
+search state, and search rows keep working as Apply entry points.
+
+### Request and identity
+
+- `applyModel()`, `applyAsVision()`, and `applyVisionModel()` collapse into
+  one request/observation lane; ordinary selections send `topology=auto` and
+  one `request_id` UUID per user confirmation, retained across
+  transport-ambiguous retries (never regenerated for a possibly accepted
+  request).
+- `planFor()` stays a **placement preview only**; client fit badges remain
+  labeled estimates and never block requesting authoritative preflight.
+- Permission, in-flight state, missing required input, and known server
+  rejection may disable Apply; a client estimate of "too big" may not.
+
+### Observation and states
+
+- On page entry, fetch the current/latest job and resume observation; poll by
+  job ID every 5 s with at most one poll in flight (a completion-scheduled
+  loop replaces overlapping `setInterval` requests); catch thrown network
+  failures as well as generated-client error results.
+- Accept only matching job IDs and increasing `sequence` numbers; guard
+  completions by authenticated session and request generation. Destroying the
+  view stops observation — never the server job; a transient status error
+  shows "Progress unavailable; the operation may still be running" and
+  retains the known job.
+- Server states render truthfully: `accepted`/`staging` = preparing;
+  `launching`/`verifying` = replacing/validating (advisor may temporarily use
+  the deterministic fallback); `commit_pending` = verified, waiting to save
+  household selection; `succeeded` = active and saved; `failed`, `restoring`,
+  `restored`, `recovery_failed` distinct — with **Retry recovery** calling
+  the recovery endpoint for `recovery_failed`/`commit_repair_required`.
+- Remove the `succeeded`-means-containers-recreated inference and
+  `lastAppliedMain` main-model-equality success; remove "the current model
+  keeps answering meanwhile".
+
+### Boundaries, accessibility, localization
+
+- Disable Advanced-section writes while a replacement is unfinished.
+- Failures render with `role=alert`, progress with `role=status`; use text as
+  well as color; add Vietnamese/Lithuanian catalog entries for every new
+  string.
+- Non-goals: no new backend beyond the #170 contract, no #168 search-rule
+  changes, no iOS work here, no advisor tool (infrastructure fix, no
+  family-visible data domain).
+- Tests: request identity/retry, polling loop (single-flight, sequence and
+  session guards), every state rendering, recovery action, stale-completion
+  protection, Apply-never-resets-search, accessibility, and translations.

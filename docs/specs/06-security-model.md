@@ -208,3 +208,54 @@ the Security workflow and as a pre-commit hook) alongside gitleaks for secrets.
 [ADR 0080](../adr/0080-session-expiry-reauthentication.md) specifies expiry,
 request ownership, existing-device proof, and recovery. Auth expiry, local
 biometric lock and the sealed household key lock have separate transitions.
+
+## AI Runtime Apply Security Boundary (issue #170, ADR 0081)
+
+Apply moves privileged deployment authority through several seams; each keeps
+an existing boundary and tightens a new one.
+
+- **Privileged execution stays with the sidecar.** The API remains
+  socket-free; the model-manager alone controls Docker, stays on the internal
+  network with no published port, and adds no cloud service. Apply mutations
+  require `ai_runtime.manage`; manager v2 mutators additionally require the
+  deployment-scoped internal credential — an env-provided shared secret held
+  by the API and the local CLI, never stored in job state, journals, or the
+  public status.
+- **Peer control is allowlisted and read-only.** Peer inspection runs a
+  bounded SSH command allowlist over the enrolled peer, host-key-verified,
+  executing only read-only probes (Ray status, per-GPU memory, installed
+  image ID) with structural parsing and bounded timeouts; any allowlist,
+  timeout, or parse failure rejects the topology. No credential file or token
+  is ever copied to a peer.
+- **Checker confinement.** Compatibility checker containers run from the
+  exact installed immutable image ID with read-only root filesystem, dropped
+  capabilities, no Docker socket, no privileged mode, caps of 2 CPUs and
+  4 GiB, a fixed entry point (no request-supplied Python/shell), pinned
+  revisions, and remote model code disabled unless a reviewed local profile
+  explicitly permits it. Checker and staging helpers carry job labels and are
+  cleaned up by exact recorded container IDs — never unrelated containers,
+  caches, or peer services.
+- **Journal access.** The manager journal lives under
+  `PROJECT_DIR/.runtime-swap/v2/` with directory mode 0700 and files 0600,
+  excluded from Git and diagnostic exports. Records hold operational data
+  only — never financial data or credentials; snapshots never include
+  credentials, database settings, household data, or complete application
+  environments.
+- **Redaction.** Subprocess output is captured through bounded streaming
+  files; ANSI/control sequences and credential-bearing values are stripped;
+  public diagnostics are bounded (≤2 KiB) with private diagnostics rotating
+  at 1 MiB. Public responses expose stable reason codes and redacted text —
+  never raw `.env`, tokens, SSH details, raw checker tracebacks, or arbitrary
+  container logs.
+- **No arbitrary execution expansion.** Fixed runtime IDs, service
+  allowlists, declared peer targets, structured command arguments, strict
+  repository IDs, and pinned revisions prevent arbitrary command, SSRF, or
+  image-name expansion; no user-supplied shell command, URL, filesystem path,
+  or extra vLLM argument ever enters a plan.
+- **Advisor boundary unchanged.** This infrastructure fix adds no
+  family-visible data domain and no M16 tool; tests must not assert a tool is
+  absent. Synthetic probes contain no household data, and financial
+  determinism is untouched.
+
+All fixtures use synthetic identities and secrets; no human or agent is asked
+to disclose a credential to run the apply flow.
