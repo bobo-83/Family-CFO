@@ -1589,4 +1589,87 @@ describe('AiRuntime', () => {
       (fixture.nativeElement as HTMLElement).querySelector('.search-results .page-empty'),
     ).not.toBeNull();
   });
+
+  /** Configured and served ids point at the same off-catalog model (#168). */
+  function configureDuplicateOffCatalog(servedModel: string): void {
+    apiMock.getAiRuntimeConfig.mockResolvedValue(
+      response({
+        provider: 'vllm',
+        base_url: 'http://vllm:8000',
+        model: 'someorg/Custom-13B-Instruct',
+        enabled: true,
+      }),
+    );
+    apiMock.getAiRuntimeStatus.mockResolvedValue(
+      response({
+        enabled: true,
+        provider: 'vllm',
+        model: 'someorg/Custom-13B-Instruct',
+        ready: true,
+        served_model: servedModel,
+        detail: 'ok',
+        vision_ready: false,
+        vision_model: null,
+        vision_enabled: false,
+      }),
+    );
+  }
+
+  it('renders the configured-served off-catalog model once in search (#168)', async () => {
+    configureDuplicateOffCatalog('someorg/Custom-13B-Instruct');
+    apiMock.searchAiModels.mockResolvedValue(response({ models: [] }));
+    const fixture = await create();
+    const component = fixture.componentInstance;
+
+    // The regression: two stubs for one model rendered two identical rows,
+    // counted twice, with duplicate @for track keys (NG0955).
+    expect(component['activeStubs']().length).toBe(1);
+    component['onSearchInput']('someorg/Custom-13B-Instruct');
+    await component['runSearch']();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(searchRowIds(fixture)).toEqual(['someorg/Custom-13B-Instruct']);
+    expect(component['searchResultCount']()).toBe(1);
+  });
+
+  it('dedupes stubs case-insensitively when the served id differs only in case (#168)', async () => {
+    configureDuplicateOffCatalog('SOMEORG/CUSTOM-13B-INSTRUCT');
+    apiMock.searchAiModels.mockResolvedValue(response({ models: [] }));
+    const fixture = await create();
+    const component = fixture.componentInstance;
+
+    component['onSearchInput']('someorg/custom-13b-instruct');
+    await component['runSearch']();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    // One stub, kept under the configured casing (first wins).
+    expect(searchRowIds(fixture)).toEqual(['someorg/Custom-13B-Instruct']);
+  });
+
+  it('shows the off-catalog model once in the fallback after a failed search (#168)', async () => {
+    configureDuplicateOffCatalog('someorg/Custom-13B-Instruct');
+    apiMock.searchAiModels.mockResolvedValue(
+      statusResponse(undefined, 503, {
+        error: {
+          code: 'http_error',
+          message: 'Hugging Face is unreachable; showing curated models only',
+        },
+      }),
+    );
+    const fixture = await create();
+    const component = fixture.componentInstance;
+
+    component['onSearchInput']('custom-13b');
+    await component['runSearch']();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.querySelector('.search-results .page-error')?.textContent).toContain(
+      'Could not search Hugging Face',
+    );
+    expect(searchRowIds(fixture)).toEqual(['someorg/Custom-13B-Instruct']);
+  });
 });

@@ -254,17 +254,25 @@ export class AiRuntime {
   }
 
   /** Stubs for the configured/served ids, in configured-main → served order. */
+  /** Stubs for the configured/served ids, in configured-main → served order.
+   *  Deduped case-insensitively (#168): when configured and served (or vision)
+   *  ids refer to the same off-catalog model, it contributes one stub — two
+   *  would render duplicate rows with duplicate @for track keys (NG0955). */
   private activeStubs(): AiModelInfo[] {
-    const stubs: AiModelInfo[] = [];
+    const stubs = new Map<string, AiModelInfo>();
     const ensure = (id: string | null | undefined, role: 'main' | 'vision') => {
-      if (id && id !== 'none') {
-        stubs.push(this.stubModel(id, role));
+      if (!id || id === 'none') {
+        return;
+      }
+      const key = id.toLowerCase();
+      if (!stubs.has(key)) {
+        stubs.set(key, this.stubModel(id, role));
       }
     };
     ensure(this.safeValue(this.config)?.model, 'main');
     ensure(this.safeValue(this.status)?.served_model, 'main');
     ensure(this.safeValue(this.status)?.vision_model, 'vision');
-    return stubs;
+    return [...stubs.values()];
   }
 
   /** Lookup universe: curated + query results + browse results + stubs. */
