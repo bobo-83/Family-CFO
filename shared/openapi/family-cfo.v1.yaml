@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Family CFO API
-  version: "0.163"
+  version: "0.164"
   description: >
     Initial specification for the Family CFO self-hosted backend API.
     This contract is the source of truth for generated Swift and Angular clients.
@@ -4092,7 +4092,30 @@ paths:
       tags:
         - AI Runtime
       operationId: applyAiModelSelection
-      summary: "Apply a model selection: download and switch the served models"
+      summary: "Apply a model selection: validated launch, verified swap, committed settings"
+      description: >-
+        Issue #170 (ADR 0081): the server resolves a launch plan and validates it
+        against the installed runtime and hardware BEFORE touching the running
+        deployment, then tracks the swap through verified readiness and only then
+        commits household settings. A 202 is returned only after successful
+        preflight and durable acceptance; repeated `request_id` with an identical
+        normalized request returns the existing job (never a second launch) and
+        different content is a 409. Clients generate one `request_id` per user
+        confirmation and retain it across transport-ambiguous retries; legacy
+        bodies without `request_id` are accepted and the server synthesizes the
+        identity from the normalized request.
+
+        Stable rejection reasons (in the `error.code` field of the envelope): 409
+        `swap_in_progress`, `cluster_consent_required`, `cluster_peer_unreachable`,
+        `deployment_drift`, `previous_runtime_not_ready`, `request_id_conflict`,
+        `recovery_required`; 422 `invalid_model_id`, `model_not_found`,
+        `model_access_denied`, `runtime_incompatible`, `hardware_incompatible`,
+        `unsupported_photo_mode`, `insufficient_memory`, `insufficient_disk`,
+        `insufficient_evidence`; 503 `manager_unavailable`,
+        `manager_upgrade_required`, `preflight_unavailable`,
+        `journal_unavailable`, `executor_start_failed`. 409/422 never change
+        household settings or write an apply audit; 503 preserves the current
+        configuration.
       security:
         - bearerAuth: []
       requestBody:
@@ -4122,8 +4145,28 @@ paths:
         - AI Runtime
       operationId: getAiApplyStatus
       summary: Report the state of the last model apply
+      description: >-
+        Read-only: this endpoint never commits settings, launches recovery,
+        acknowledges jobs, or creates rows. With `job_id` it reports that exact
+        job (a 404 names an unknown retained job and never substitutes another);
+        without `job_id` it resolves the current job, then the latest retained
+        terminal job, then an explicit idle. The `state` field keeps the coarse
+        legacy enum so shipped clients keep decoding `AiSwapStatus` (ADR 0074
+        Decision 5): in-flight lifecycle states project to `running`,
+        `restored`/`recovery_failed` project to `failed`, `succeeded` projects to
+        `succeeded`, and an unreachable manager reports `unavailable`. The full
+        lifecycle is carried additively in `lifecycle_state` on
+        `AiApplyJobStatus`.
       security:
         - bearerAuth: []
+      parameters:
+        - name: job_id
+          in: query
+          required: false
+          description: A specific apply job to report; omit for current/latest/idle.
+          schema:
+            type: string
+            format: uuid
       responses:
         "200":
           description: Swap status
@@ -4133,6 +4176,70 @@ paths:
                 $ref: "#/components/schemas/AiSwapStatus"
         "401":
           $ref: "#/components/responses/Error"
+  /ai/runtime/apply/{job_id}/retry-recovery:
+    post:
+      tags:
+        - AI Runtime
+      operationId: retryAiApplyRecovery
+      summary: Re-run the frozen direction of a durable apply decision
+      description: >-
+        Issue #170 (ADR 0081): re-runs the frozen direction of the durable
+        decision recorded for the job — a `restore` decision re-runs the same
+        frozen restore plan (offered for `recovery_failed`); a `commit` decision
+        re-runs post-commit forward repair only, never a restore (offered for
+        `commit_repair_required`). It never accepts a new model, upgrades an
+        image, or changes the frozen plan. A new `request_id` identifies the
+        recovery attempt; repeating it returns the existing job rather than
+        overlapping work. Requires `ai_runtime.manage`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          description: The apply job whose frozen decision should re-run.
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AiRetryRecoveryRequest"
+      responses:
+        "202":
+          description: Recovery re-run accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiApplyJobStatus"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          description: Unknown retained job id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/responses/Error"
+        "409":
+          description: >-
+            The job is not in a recoverable state (`recovery_required`), another
+            operation owns the deployment (`swap_in_progress`), or the recovery
+            `request_id` was reused with different content
+            (`request_id_conflict`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/responses/Error"
+        "503":
+          description: Manager/journal/executor unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/responses/Error"
   /connections:
     get:
       tags:
@@ -9553,22 +9660,62 @@ components:
           type: string
     AiApplyRequest:
       type: object
+      description: >-
+        Issue #170 (ADR 0081): one user confirmation. The server resolves
+        photo placement and topology authoritatively; clients send desired
+        roles, never launch flags or memory numbers. `request_id` is the
+        idempotency identity — one UUID per user confirmation, retained
+        across transport-ambiguous retries.
       required:
+        - request_id
         - main_model
       properties:
+        request_id:
+          type: string
+          format: uuid
+          description: Idempotency identity for this apply attempt.
         main_model:
           type: string
-        cluster:
-          description: >-
-            ADR 0071: serve tensor-parallel across the paired second box. The
-            client sets this for models exceeding one node; the server
-            verifies the peer is reachable.
-          type: boolean
-          default: false
+          description: Repository ID of the requested chat (advisor) model.
         vision_model:
           type:
             - string
             - "null"
+          description: Repository ID of the requested photo model, or null for none.
+        photo_mode:
+          type: string
+          description: >-
+            Desired photo placement. `auto` resolves to `separate` when a
+            distinct vision model is present, else `main` when the installed
+            runtime metadata verifies multimodal support, else `off`. Equal
+            main/vision ids normalize to one instance with `main`.
+          enum:
+            - auto
+            - main
+            - separate
+            - off
+          default: auto
+        topology:
+          type: string
+          description: >-
+            Desired serving topology. `auto` prefers a valid single-node plan
+            and only considers the two-node tensor-parallel plan when the
+            household's cluster consent is on; `single` prohibits automatic
+            escalation; `cluster` requires consent, peer readiness and a valid
+            two-node plan. Topology never grants cluster permission.
+          enum:
+            - auto
+            - single
+            - cluster
+          default: auto
+        cluster:
+          description: >-
+            Deprecated alias for `topology: cluster` (ADR 0071). Contradicting
+            values with `topology` are rejected with a 422; new clients send
+            `topology` only.
+          type: boolean
+          default: false
+          deprecated: true
     AiSwapStatus:
       type: object
       required:
@@ -9587,6 +9734,253 @@ components:
             - "null"
         log_tail:
           type: string
+    AiApplyJobStatus:
+      type: object
+      description: >-
+        Issue #170 (ADR 0081): durable apply-job status. `state` keeps the
+        coarse legacy enum (idle/running/succeeded/failed/unavailable) so
+        shipped clients keep decoding `AiSwapStatus`; the full lifecycle is
+        additive in `lifecycle_state`. `idle` is a read representation, never
+        a stored state.
+      required:
+        - job_id
+        - request_id
+        - sequence
+        - state
+        - lifecycle_state
+        - requested_selection
+        - created_at
+        - updated_at
+        - recovery_available
+      properties:
+        job_id:
+          type: string
+          format: uuid
+        request_id:
+          type: string
+          format: uuid
+          description: The idempotency identity that admitted this job.
+        sequence:
+          type: integer
+          description: Monotonically increasing per job; polls accept only increasing values.
+        state:
+          type: string
+          description: Coarse legacy projection (ADR 0074 Decision 5).
+          enum:
+            - idle
+            - running
+            - succeeded
+            - failed
+            - unavailable
+        lifecycle_state:
+          type: string
+          description: >-
+            Full lifecycle. `commit_repair_required` means the commit occurred
+            and forward convergence failed (repair only, never rollback).
+          enum:
+            - accepted
+            - staging
+            - launching
+            - verifying
+            - commit_pending
+            - restoring
+            - succeeded
+            - failed
+            - restored
+            - recovery_failed
+            - commit_repair_required
+        main_model:
+          type:
+            - string
+            - "null"
+          description: Legacy projection of the requested (or previous) main model.
+        vision_model:
+          type:
+            - string
+            - "null"
+          description: Legacy projection of the requested (or previous) vision model.
+        log_tail:
+          type: string
+          description: Redacted bounded diagnostic summary; never raw container output.
+        requested_selection:
+          $ref: "#/components/schemas/AiApplySelectionSummary"
+        resolved_plan:
+          description: Safe summary of the frozen plan; null before resolution.
+          type:
+            - object
+            - "null"
+          allOf:
+            - $ref: "#/components/schemas/AiApplyPlanSummary"
+        previous_selection:
+          description: Safe summary of the previous deployment; null on a first deployment.
+          type:
+            - object
+            - "null"
+          allOf:
+            - $ref: "#/components/schemas/AiApplySelectionSummary"
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        deadline_at:
+          type:
+            - string
+            - "null"
+          format: date-time
+          description: Current phase deadline; null outside a deadline-bounded phase.
+        reason_code:
+          type:
+            - string
+            - "null"
+          description: >-
+            Stable rejection/failure code (the error vocabulary above, plus
+            job-level codes such as `no_previous_runtime`, `request_expired`,
+            `runtime_state_corrupt`); null while progressing normally.
+        message:
+          type:
+            - string
+            - "null"
+          description: Redacted diagnostic, bounded to 2 KiB; never raw logs or secrets.
+        recovery_available:
+          type: boolean
+          description: >-
+            True when `POST /ai/runtime/apply/{job_id}/retry-recovery` can
+            re-run the frozen decision direction (recovery_failed,
+            commit_repair_required).
+    AiApplySelectionSummary:
+      type: object
+      description: >-
+        Normalized selection for a request, or a safe summary of the previous
+        deployment (whose topology is always resolved, never `auto`).
+      required:
+        - main_model
+        - photo_mode
+        - topology
+      properties:
+        main_model:
+          type: string
+        vision_model:
+          type:
+            - string
+            - "null"
+        photo_mode:
+          type: string
+          enum:
+            - main
+            - separate
+            - off
+        topology:
+          type: string
+          enum:
+            - auto
+            - single
+            - cluster
+    AiApplyPlanSummary:
+      type: object
+      description: >-
+        Safe summary of the frozen launch plan: identities and immutable
+        revisions, resolved photo mode, selected topology, installed runtime
+        identity, limits, and per-node requirements with evidence
+        classifications. Never `.env` values, tokens, SSH details, raw
+        checker output, or container logs.
+      required:
+        - main_model
+        - main_revision
+        - photo_mode
+        - topology
+        - runtime_version
+        - image_digest
+        - context_limit
+        - concurrency_limit
+        - node_requirements
+      properties:
+        main_model:
+          type: string
+        main_revision:
+          type: string
+          description: Immutable resolved revision of the main model.
+        vision_model:
+          type:
+            - string
+            - "null"
+        vision_revision:
+          type:
+            - string
+            - "null"
+        photo_mode:
+          type: string
+          description: Resolved photo routing placement; never `auto` in a plan.
+          enum:
+            - main
+            - separate
+            - off
+        topology:
+          type: string
+          description: Selected topology; never `auto` in a plan.
+          enum:
+            - single
+            - cluster
+        runtime_version:
+          type: string
+          description: Installed serving-runtime version the plan targets.
+        image_digest:
+          type: string
+          description: Safe digest of the exact serving image the plan pins.
+        context_limit:
+          type: integer
+        concurrency_limit:
+          type: integer
+        node_requirements:
+          type: array
+          items:
+            $ref: "#/components/schemas/AiApplyNodeRequirement"
+          warnings:
+          type: array
+          description: Non-fatal planning warnings (estimates, degraded evidence).
+          items:
+            type: string
+    AiApplyNodeRequirement:
+      type: object
+      description: >-
+        One node's admission requirement. Every figure carries its evidence
+        class — unknown evidence is never zero and never "fits".
+      required:
+        - node
+        - memory_gb
+        - memory_evidence
+        - disk_gb
+        - disk_evidence
+      properties:
+        node:
+          type: string
+          description: Placement label, e.g. `primary` or `peer`.
+        memory_gb:
+          type: number
+        memory_evidence:
+          type: string
+          enum:
+            - verified
+            - estimated
+            - unknown
+        disk_gb:
+          type: number
+        disk_evidence:
+          type: string
+          enum:
+            - verified
+            - estimated
+            - unknown
+    AiRetryRecoveryRequest:
+      type: object
+      description: One recovery attempt identity; repeat it to replay, never to overlap.
+      required:
+        - request_id
+      properties:
+        request_id:
+          type: string
+          format: uuid
     AiHardwareProfile:
       type: object
       required:

@@ -1,0 +1,196 @@
+{
+  "version": 2,
+  "description": "Model-manager protocol major 2 (ADR 0081): validated, journaled apply with decision/ack/recover. The v1 fixture stays immutable as historical evidence; a mixed protocol pair must fail safely without mutation. All mutators require the deployment-scoped internal credential (env-provided; never stored in job state).",
+  "operations": {
+    "capabilities": {
+      "method": "GET",
+      "path": "/v2/capabilities",
+      "request": null,
+      "response": {
+        "protocol_major": 2,
+        "build": "0",
+        "journal_schema": 2
+      }
+    },
+    "admit_job": {
+      "method": "POST",
+      "path": "/v2/jobs",
+      "request": {
+        "request_id": "0f0e1d2c-3b4a-5968-7789-abcdef012345",
+        "main_model": "Qwen/Qwen2.5-14B-Instruct",
+        "vision_model": "Qwen/Qwen2.5-VL-3B-Instruct",
+        "photo_mode": "auto",
+        "topology": "auto",
+        "cluster_consent": false,
+        "origin": "api",
+        "initiator_household_id": "0b0a0908-0706-0504-0302-0100ffeeddcc",
+        "initiator_user_id": "0b0a0908-0706-0504-0302-0100ffeedccb",
+        "runtime_key": "vllm+http://api:8000/v1"
+      },
+      "response": {
+        "job_id": "1a1b1c1d-1e1f-2a2b-3c3d-4e4f5a5b5c5d",
+        "request_id": "0f0e1d2c-3b4a-5968-7789-abcdef012345",
+        "sequence": 1,
+        "state": "accepted",
+        "decision": "undecided",
+        "requested_selection": {
+          "main_model": "Qwen/Qwen2.5-14B-Instruct",
+          "vision_model": "Qwen/Qwen2.5-VL-3B-Instruct",
+          "photo_mode": "separate",
+          "topology": "single"
+        },
+        "resolved_plan": null,
+        "previous_selection": {
+          "main_model": "Qwen/Qwen2.5-7B-Instruct",
+          "vision_model": "Qwen/Qwen2.5-VL-3B-Instruct",
+          "photo_mode": "separate",
+          "topology": "single"
+        },
+        "created_at": "2026-11-21T12:00:00Z",
+        "updated_at": "2026-11-21T12:00:00Z",
+        "deadline_at": null,
+        "reason_code": null,
+        "message": null,
+        "recovery_available": false
+      }
+    },
+    "get_job": {
+      "method": "GET",
+      "path": "/v2/jobs/{job_id}",
+      "response": {
+        "job_id": "1a1b1c1d-1e1f-2a2b-3c3d-4e4f5a5b5c5d",
+        "request_id": "0f0e1d2c-3b4a-5968-7789-abcdef012345",
+        "sequence": 7,
+        "state": "commit_pending",
+        "decision": "commit",
+        "requested_selection": {
+          "main_model": "Qwen/Qwen2.5-14B-Instruct",
+          "vision_model": "Qwen/Qwen2.5-VL-3B-Instruct",
+          "photo_mode": "separate",
+          "topology": "single"
+        },
+        "resolved_plan": {
+          "main_model": "Qwen/Qwen2.5-14B-Instruct",
+          "main_revision": "8b5e6c1f",
+          "vision_model": "Qwen/Qwen2.5-VL-3B-Instruct",
+          "vision_revision": "4a2d9e07",
+          "photo_mode": "separate",
+          "topology": "single",
+          "runtime_version": "0.32.0",
+          "image_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "context_limit": 8192,
+          "concurrency_limit": 1,
+          "node_requirements": [
+            {
+              "node": "primary",
+              "memory_gb": 34.5,
+              "memory_evidence": "estimated",
+              "disk_gb": 29.5,
+              "disk_evidence": "verified"
+            }
+          ],
+          "warnings": []
+        },
+        "previous_selection": {
+          "main_model": "Qwen/Qwen2.5-7B-Instruct",
+          "vision_model": "Qwen/Qwen2.5-VL-3B-Instruct",
+          "photo_mode": "separate",
+          "topology": "single"
+        },
+        "created_at": "2026-11-21T12:00:00Z",
+        "updated_at": "2026-11-21T12:14:30Z",
+        "deadline_at": "2026-11-21T12:30:00Z",
+        "reason_code": null,
+        "message": null,
+        "recovery_available": false
+      }
+    },
+    "current_job": {
+      "method": "GET",
+      "path": "/v2/jobs/current",
+      "response": {
+        "job_id": "1a1b1c1d-1e1f-2a2b-3c3d-4e4f5a5b5c5d",
+        "request_id": "0f0e1d2c-3b4a-5968-7789-abcdef012345",
+        "sequence": 9,
+        "state": "succeeded",
+        "decision": "commit",
+        "requested_selection": {
+          "main_model": "Qwen/Qwen2.5-14B-Instruct",
+          "vision_model": "Qwen/Qwen2.5-VL-3B-Instruct",
+          "photo_mode": "separate",
+          "topology": "single"
+        },
+        "resolved_plan": null,
+        "previous_selection": null,
+        "created_at": "2026-11-21T12:00:00Z",
+        "updated_at": "2026-11-21T12:20:00Z",
+        "deadline_at": null,
+        "reason_code": null,
+        "message": null,
+        "recovery_available": false
+      }
+    },
+    "decision": {
+      "method": "POST",
+      "path": "/v2/jobs/{job_id}/decision",
+      "request": { "decision": "commit" },
+      "response": {
+        "job_id": "1a1b1c1d-1e1f-2a2b-3c3d-4e4f5a5b5c5d",
+        "sequence": 8,
+        "state": "commit_pending",
+        "decision": "commit"
+      }
+    },
+    "ack": {
+      "method": "POST",
+      "path": "/v2/jobs/{job_id}/ack",
+      "request": {
+        "job_id": "1a1b1c1d-1e1f-2a2b-3c3d-4e4f5a5b5c5d",
+        "receipt_job_id": "1a1b1c1d-1e1f-2a2b-3c3d-4e4f5a5b5c5d",
+        "plan_hash": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+      },
+      "response": {
+        "job_id": "1a1b1c1d-1e1f-2a2b-3c3d-4e4f5a5b5c5d",
+        "sequence": 10,
+        "state": "succeeded",
+        "decision": "commit"
+      }
+    },
+    "recover": {
+      "method": "POST",
+      "path": "/v2/jobs/{job_id}/recover",
+      "request": {},
+      "response": {
+        "job_id": "1a1b1c1d-1e1f-2a2b-3c3d-4e4f5a5b5c5d",
+        "sequence": 11,
+        "state": "restoring",
+        "decision": "restore"
+      }
+    }
+  },
+  "errors": {
+    "envelope": { "error": { "code": "<stable-code>", "message": "<redacted>" } },
+    "codes": [
+      "swap_in_progress",
+      "request_id_conflict",
+      "request_expired",
+      "recovery_required",
+      "deployment_drift",
+      "previous_runtime_not_ready",
+      "insufficient_memory",
+      "insufficient_disk",
+      "insufficient_evidence",
+      "runtime_incompatible",
+      "hardware_incompatible",
+      "unsupported_photo_mode",
+      "invalid_model_id",
+      "model_not_found",
+      "model_access_denied",
+      "journal_unavailable",
+      "executor_start_failed",
+      "runtime_state_corrupt",
+      "manager_upgrade_required",
+      "unauthorized"
+    ]
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "notes": "Reviewed deployment profiles (ADR 0081 S2). A profile is evidence from a verified deployment on specific hardware/runtime - never generic defaults; the resolver only raises policy minimums, never lowers them. A model without a matching profile resolves with the generic admission caps (8,192 context tokens, one concurrent sequence) or refuses with insufficient_evidence when evidence is missing.",
+  "profiles": [
+    {
+      "repo_id": "nvidia/Qwen3.8-Flash-Next-NVFP4",
+      "architecture": "qwen4_exp",
+      "min_nodes": 2,
+      "context_limit": 8192,
+      "concurrency_limit": 4,
+      "tool_protocol": true,
+      "main_rank_overhead_gb": 8.0,
+      "photo_instance_overhead_gb": 2.0
+    }
+  ]
+}

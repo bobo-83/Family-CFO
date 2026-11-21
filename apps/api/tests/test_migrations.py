@@ -431,6 +431,60 @@ def test_0095_revision_backfill_and_downgrade_preserve_settings(tmp_path) -> Non
         engine.dispose()
 
 
+def _assert_apply_receipt_schema(engine: Engine) -> None:
+    columns = {column["name"] for column in inspect(engine).get_columns(
+        "ai_runtime_apply_receipts"
+    )}
+    assert columns == {
+        "job_id",
+        "runtime_key",
+        "plan_hash",
+        "initiator_household_id",
+        "initiator_user_id",
+        "source",
+        "committed_model",
+        "committed_at",
+    }
+    indexes = {
+        index["name"]: index["column_names"]
+        for index in inspect(engine).get_indexes("audit_events")
+    }
+    assert indexes["uq_audit_apply_outcome_job_action"] == ["action", "entity_id"]
+
+
+def test_0099_receipts_and_audit_index_upgrade_downgrade(tmp_path) -> None:
+    database_url = f"sqlite:///{tmp_path / 'apply_receipts_0099.db'}"
+    before_receipts = _run_alembic(
+        "upgrade", "0098_device_reauth_challenges", database_url=database_url
+    )
+    assert before_receipts.returncode == 0, before_receipts.stderr
+    engine = create_engine(database_url)
+    try:
+        assert "ai_runtime_apply_receipts" not in inspect(engine).get_table_names()
+        assert "uq_audit_apply_outcome_job_action" not in {
+            index["name"] for index in inspect(engine).get_indexes("audit_events")
+        }
+
+        upgraded = _run_alembic("upgrade", "head", database_url=database_url)
+        assert upgraded.returncode == 0, upgraded.stderr
+        _assert_apply_receipt_schema(engine)
+
+        downgraded = _run_alembic(
+            "downgrade", "0098_device_reauth_challenges", database_url=database_url
+        )
+        assert downgraded.returncode == 0, downgraded.stderr
+        assert "ai_runtime_apply_receipts" not in inspect(engine).get_table_names()
+        assert "uq_audit_apply_outcome_job_action" not in {
+            index["name"] for index in inspect(engine).get_indexes("audit_events")
+        }
+
+        re_upgraded = _run_alembic("upgrade", "head", database_url=database_url)
+        assert re_upgraded.returncode == 0, re_upgraded.stderr
+        _assert_apply_receipt_schema(engine)
+    finally:
+        engine.dispose()
+
+
 def test_postgresql_17_backup_migrations_and_singleton_bootstrap() -> None:
     admin_engine = _postgresql_test_engine()
     schema_name = f"family_cfo_migration_{uuid4().hex}"
@@ -490,7 +544,7 @@ def test_postgresql_17_backup_migrations_and_singleton_bootstrap() -> None:
             with schema_engine.connect() as connection:
                 assert connection.execute(
                     text("SELECT version_num FROM alembic_version")
-                ).scalar_one() == "0098_device_reauth_challenges"
+                ).scalar_one() == "0099_ai_runtime_apply_receipts"
                 assert (
                     connection.execute(text("SELECT count(*) FROM backup_settings")).scalar_one()
                     == 0
