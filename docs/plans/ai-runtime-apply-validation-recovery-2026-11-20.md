@@ -723,4 +723,4 @@ Branch: `fix/170-ai-runtime-apply-validation-recovery` (stacked on `fix/168-ai-r
 - [x] Item 3: Manager execution — checker, deployment, verification, executor, v2 routes, CLI unification
 - [x] Item 4: API layer + contract activation — reconciler, model_manager_client.py, generated clients, VERSION/BUILD, compatibility fixtures (commit 0b5ffbe1: apps/api 1340 passed on PG 17, manager 211, web 482/482, check-openapi/versions/fixtures OK)
 - [x] Item 5: Web + iOS presentation + full verification matrix (runnable portions)
-- [ ] PR opened against main
+- [x] PR opened against main: bobo-83/Family-CFO#180 (branch pushed 2026-11-22; two-Spark evidence gates pending hardware per docs/investigations/ai-runtime-170-deployment-validation.md)
