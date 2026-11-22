@@ -721,6 +721,6 @@ Branch: `fix/170-ai-runtime-apply-validation-recovery` (stacked on `fix/168-ai-r
 - [x] Item 1: Spec Kit documentation gate + ADR 0081 (docs-only, must land first)
 - [x] Item 2: Contracts + migration 0099 + manager journal/planning foundations (contracts.py, journal.py, planning.py, profiles.json, receipt table, OpenAPI freeze)
 - [x] Item 3: Manager execution — checker, deployment, verification, executor, v2 routes, CLI unification
-- [ ] Item 4: API layer + contract activation — reconciler, model_manager_client.py, generated clients, VERSION/BUILD, compatibility fixtures
+- [x] Item 4: API layer + contract activation — reconciler, model_manager_client.py, generated clients, VERSION/BUILD, compatibility fixtures (commit 0b5ffbe1: apps/api 1340 passed on PG 17, manager 211, web 482/482, check-openapi/versions/fixtures OK)
 - [ ] Item 5: Web + iOS presentation + full verification matrix (runnable portions)
 - [ ] PR opened against main
