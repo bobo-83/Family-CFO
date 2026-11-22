@@ -3294,12 +3294,16 @@ def upsert_ai_runtime_config(
     enabled: bool,
     cluster_enabled: bool = False,
     connection: Connection | None = None,
+    deployment_locked: bool = False,
 ) -> AiRuntimeConfigRecord:
     """Create or overwrite one household's runtime config.
 
     ``connection`` joins the caller's transaction (issue #170) instead of
     committing independently; when None the upsert runs in its own
-    transaction, exactly as before."""
+    transaction, exactly as before. `deployment_locked` (issue #170,
+    ADR 0081) takes the fixed deployment advisory key inside that own
+    transaction so managed-config PUTs serialize with the receipt commit;
+    it is ignored when `connection` is supplied (the caller owns locking)."""
     now = utcnow()
     existing = None
     if connection is not None:
@@ -3315,6 +3319,15 @@ def upsert_ai_runtime_config(
         )
     else:
         with engine.begin() as conn:
+            if deployment_locked and engine.dialect.name == "postgresql":
+                # Issue #170 (ADR 0081): serialize managed-config PUTs with the
+                # receipt-commit transaction on the SAME fixed deployment key,
+                # so a delayed repoint can never interleave with an Advanced
+                # save (no stale full-object overwrite, no toggle race).
+                conn.execute(
+                    text("SELECT pg_advisory_xact_lock(:key)"),
+                    {"key": AI_RUNTIME_DEPLOYMENT_LOCK_KEY},
+                )
             existing = conn.execute(
                 select(models.ai_runtime_configs.c.id).where(
                     models.ai_runtime_configs.c.household_id == household_id
@@ -3384,8 +3397,11 @@ def _upsert_ai_runtime_config_values(
 # (from the reconciliation work item) managed runtime-config PUTs, so a
 # delayed repoint can never race an Advanced save. Derived from a stable name
 # rather than chosen ad hoc; the same constant must be used by both sides.
+# PostgreSQL advisory keys are SIGNED bigint: `int.from_bytes(..., "big")`
+# unsigned would overflow `pg_advisory_xact_lock(numeric)` on ~half the
+# possible digests. signed=True keeps the key in the bigint range.
 AI_RUNTIME_DEPLOYMENT_LOCK_KEY = int.from_bytes(
-    hashlib.sha256(b"family-cfo-ai-runtime-deployment").digest()[:8], "big"
+    hashlib.sha256(b"family-cfo-ai-runtime-deployment").digest()[:8], "big", signed=True
 )
 
 
@@ -3421,6 +3437,23 @@ def _apply_receipt_from_row(row: Mapping[str, Any]) -> AiRuntimeApplyReceiptReco
         committed_model=row["committed_model"],
         committed_at=_as_aware(row["committed_at"]),
     )
+
+
+def first_ai_runtime_household(
+    engine: Engine, *, provider: str, base_url: str
+) -> str | None:
+    """One real household currently configured on a runtime, deterministic
+    pick — the scheduled-work convention for operational audits that have no
+    natural actor (issue #170: CLI-origin/deleted-initiator apply outcomes)."""
+    with engine.connect() as conn:
+        row = conn.execute(
+            select(models.ai_runtime_configs.c.household_id)
+            .where(models.ai_runtime_configs.c.provider == provider)
+            .where(models.ai_runtime_configs.c.base_url == base_url)
+            .order_by(models.ai_runtime_configs.c.household_id)
+            .limit(1)
+        ).first()
+    return row[0] if row else None
 
 
 def get_ai_runtime_apply_receipt(

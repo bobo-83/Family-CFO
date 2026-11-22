@@ -187,6 +187,11 @@ def _item_2_nullable_fields(spec: dict) -> tuple[dict[str, int], set[tuple[str, 
 def _assert_nullable_aliases_are_exact_copies(spec: dict) -> None:
     components = spec["components"]["schemas"]
     for target_name, alias_name in SWIFT_GENERATOR_NULLABLE_ALIASES.items():
+        if target_name not in components:
+            # Frozen pre-0.164 fixtures predate the apply-job components
+            # entirely (issue #170); pre-0.160 fixtures predate BackupJob.
+            assert target_name in {"BackupJob", "AiApplyPlanSummary", "AiApplySelectionSummary"}
+            continue
         target = components[target_name]
         if alias_name not in components:
             # Frozen pre-0.160 fixtures predate the nullable BackupJob alias.
@@ -202,7 +207,8 @@ def _assert_nullable_aliases_are_exact_copies(spec: dict) -> None:
         if "title" in target:
             alias["title"] = target["title"]
         else:
-            alias.pop("title")
+            # Hand-written yaml aliases may carry no title at all.
+            alias.pop("title", None)
         if alias.get("enum") and alias["enum"][-1] is None:
             alias["enum"].pop()
         assert alias == target
@@ -237,12 +243,39 @@ def test_item_2_nullable_fields_use_swift_compatible_type_unions(spec: dict) -> 
     )
     if has_revision:
         backup_counts = backup_counts | {"BackupConfigUpdateRequest": 11}
-    expected_counts = EXPECTED_NULLABLE_FIELD_COUNTS | backup_counts
-    expected_required = EXPECTED_REQUIRED_NULLABLE_FIELDS | (
-        WI5_REQUIRED_NULLABLE_FIELDS if has_wi5 else set()
+    # Issue #170 item 4: the apply-job schemas are 0.164+ (pre-0.164 frozen
+    # fixtures predate them).
+    has_apply = "AiApplyJobStatus" in spec["components"]["schemas"]
+    apply_counts = (
+        {"AiApplyJobStatus": 14, "AiApplyPlanSummary": 2, "AiApplySelectionSummary": 1}
+        if has_apply
+        else {}
+    )
+    apply_required = (
+        {
+            # The identity/lifecycle fields are required AND nullable — null
+            # exactly on the explicit idle/unavailable read.
+            ("AiApplyJobStatus", "job_id"),
+            ("AiApplyJobStatus", "request_id"),
+            ("AiApplyJobStatus", "sequence"),
+            ("AiApplyJobStatus", "lifecycle_state"),
+            ("AiApplyJobStatus", "requested_selection"),
+            ("AiApplyJobStatus", "created_at"),
+            ("AiApplyJobStatus", "updated_at"),
+        }
+        if has_apply
+        else set()
+    )
+    expected_counts = EXPECTED_NULLABLE_FIELD_COUNTS | backup_counts | apply_counts
+    expected_required = (
+        EXPECTED_REQUIRED_NULLABLE_FIELDS
+        | apply_required
+        | (WI5_REQUIRED_NULLABLE_FIELDS if has_wi5 else set())
     )
     assert field_counts == expected_counts
-    assert sum(field_counts.values()) == (132 if has_revision else 131 if has_wi5 else 93)
+    # +17 when the apply-job schemas are present (14 + 2 + 1, issue #170 item 4).
+    base_total = 132 if has_revision else 131 if has_wi5 else 93
+    assert sum(field_counts.values()) == base_total + (17 if has_apply else 0)
     assert required_nullable == expected_required
     _assert_nullable_aliases_are_exact_copies(spec)
 

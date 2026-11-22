@@ -1,5 +1,6 @@
 from datetime import UTC, date, datetime
 from typing import Any, Literal
+from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic_core import PydanticCustomError
@@ -1650,21 +1651,123 @@ class AiStudyStatus(BaseModel):
 
 
 class AiApplyRequest(BaseModel):
-    """One-click model apply (ADR 0013). vision_model None disables photo analysis."""
+    """Issue #170 (ADR 0081): one user confirmation.
+
+    The server resolves photo placement and topology authoritatively; clients
+    send desired roles, never launch flags or memory numbers. `request_id`
+    is the idempotency identity — one UUID per user confirmation, retained
+    across transport-ambiguous retries. Shipped legacy clients may omit it
+    (the server then synthesizes the identity from the normalized request);
+    new clients always send one.
+    """
+
+    request_id: UUID | None = None
+    main_model: str
+    vision_model: str | None = None
+    photo_mode: Literal["auto", "main", "separate", "off"] = "auto"
+    topology: Literal["auto", "single", "cluster"] = "auto"
+    # Deprecated alias for `topology: cluster` (ADR 0071). Contradicting
+    # values with `topology` are rejected with a 422; new clients send
+    # `topology` only. Cluster PERMISSION never comes from here: it is the
+    # household's stored `cluster_enabled` consent (ADR 0071/0081).
+    cluster: bool = False
+
+    @model_validator(mode="after")
+    def _reject_alias_contradiction(self) -> "AiApplyRequest":
+        # `cluster: true` + `topology: single` disagree about the serving
+        # shape; a request-shape contradiction is 422 validation, not a
+        # preflight refusal (the plan's topology semantics).
+        if self.cluster and self.topology == "single":
+            raise ValueError("cluster=true contradicts topology='single'")
+        return self
+
+
+class AiApplySelectionSummary(BaseModel):
+    """A normalized selection, or a safe summary of the previous deployment."""
 
     main_model: str
     vision_model: str | None = None
-    # ADR 0071: serve tensor-parallel across the paired second box. The client
-    # sets this for any model whose estimate exceeds one node (the UI owns fit
-    # math); the server verifies the peer is actually reachable first.
-    cluster: bool = False
+    photo_mode: Literal["main", "separate", "off"]
+    topology: Literal["auto", "single", "cluster"]
 
 
-class AiSwapStatus(BaseModel):
+class AiApplyNodeRequirement(BaseModel):
+    """One node's admission requirement; every figure carries its evidence."""
+
+    node: str
+    memory_gb: float
+    memory_evidence: Literal["verified", "estimated", "unknown"]
+    disk_gb: float
+    disk_evidence: Literal["verified", "estimated", "unknown"]
+
+
+class AiApplyPlanSummary(BaseModel):
+    """Safe summary of the frozen launch plan (spec 04): identities and
+    immutable revisions, limits, per-node requirements with evidence
+    classifications. Never .env values, tokens, or container logs."""
+
+    main_model: str
+    main_revision: str
+    vision_model: str | None = None
+    vision_revision: str | None = None
+    photo_mode: Literal["main", "separate", "off"]
+    topology: Literal["single", "cluster"]
+    runtime_version: str
+    image_digest: str
+    context_limit: int
+    concurrency_limit: int
+    node_requirements: list[AiApplyNodeRequirement]
+    warnings: list[str] = []
+
+
+class AiApplyJobStatus(BaseModel):
+    """Issue #170 (ADR 0081): durable apply-job status.
+
+    `state` keeps the coarse legacy enum (idle/running/succeeded/failed/
+    unavailable) so shipped clients keep decoding it; the full lifecycle is
+    additive in `lifecycle_state`. `idle` is a read representation, never
+    a stored state: the identity fields are null exactly on the explicit
+    idle/unavailable read (no job has been admitted).
+    """
+
+    job_id: UUID | None
+    request_id: UUID | None
+    sequence: int | None
     state: Literal["idle", "running", "succeeded", "failed", "unavailable"]
+    lifecycle_state: (
+        Literal[
+            "accepted",
+            "staging",
+            "launching",
+            "verifying",
+            "commit_pending",
+            "restoring",
+            "succeeded",
+            "failed",
+            "restored",
+            "recovery_failed",
+            "commit_repair_required",
+        ]
+        | None
+    )
     main_model: str | None = None
     vision_model: str | None = None
     log_tail: str = ""
+    requested_selection: AiApplySelectionSummary | None
+    resolved_plan: AiApplyPlanSummary | None = None
+    previous_selection: AiApplySelectionSummary | None = None
+    created_at: datetime | None
+    updated_at: datetime | None
+    deadline_at: datetime | None = None
+    reason_code: str | None = None
+    message: str | None = None
+    recovery_available: bool
+
+
+class AiRetryRecoveryRequest(BaseModel):
+    """One recovery attempt identity; repeat it to replay, never to overlap."""
+
+    request_id: UUID
 
 
 class AiHardwareProfile(BaseModel):

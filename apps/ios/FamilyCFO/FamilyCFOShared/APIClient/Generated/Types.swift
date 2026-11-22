@@ -857,16 +857,28 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `DELETE /system/admins/{user_id}`.
     /// - Remark: Generated from `#/paths//system/admins/{user_id}/delete(revokeSystemAdmin)`.
     func revokeSystemAdmin(_ input: Operations.RevokeSystemAdmin.Input) async throws -> Operations.RevokeSystemAdmin.Output
-    /// Apply a model selection: download and switch the served models
+    /// Apply a model selection: validated launch, verified swap, committed settings
+    ///
+    /// Issue #170 (ADR 0081): the server resolves a launch plan and validates it against the installed runtime and hardware BEFORE touching the running deployment, then tracks the swap through verified readiness and only then commits household settings. A 202 is returned only after successful preflight and durable acceptance; repeated `request_id` with an identical normalized request returns the existing job (never a second launch) and different content is a 409. Clients generate one `request_id` per user confirmation and retain it across transport-ambiguous retries; legacy bodies without `request_id` are accepted and the server synthesizes the identity from the normalized request.
+    /// Stable rejection reasons (in the `error.code` field of the envelope): 409 `swap_in_progress`, `cluster_consent_required`, `cluster_peer_unreachable`, `deployment_drift`, `previous_runtime_not_ready`, `request_id_conflict`, `recovery_required`; 422 `invalid_model_id`, `model_not_found`, `model_access_denied`, `runtime_incompatible`, `hardware_incompatible`, `unsupported_photo_mode`, `insufficient_memory`, `insufficient_disk`, `insufficient_evidence`; 503 `manager_unavailable`, `manager_upgrade_required`, `preflight_unavailable`, `journal_unavailable`, `executor_start_failed`. 409/422 never change household settings or write an apply audit; 503 preserves the current configuration.
     ///
     /// - Remark: HTTP `POST /ai/runtime/apply`.
     /// - Remark: Generated from `#/paths//ai/runtime/apply/post(applyAiModelSelection)`.
     func applyAiModelSelection(_ input: Operations.ApplyAiModelSelection.Input) async throws -> Operations.ApplyAiModelSelection.Output
     /// Report the state of the last model apply
     ///
+    /// Read-only: this endpoint never commits settings, launches recovery, acknowledges jobs, or creates rows. With `job_id` it reports that exact job (a 404 names an unknown retained job and never substitutes another); without `job_id` it resolves the current job, then the latest retained terminal job, then an explicit idle. The `state` field keeps the coarse legacy enum so shipped clients keep decoding `AiSwapStatus` (ADR 0074 Decision 5): in-flight lifecycle states project to `running`, `restored`/`recovery_failed` project to `failed`, `succeeded` projects to `succeeded`, and an unreachable manager reports `unavailable`. The full lifecycle is carried additively in `lifecycle_state` on `AiApplyJobStatus`.
+    ///
     /// - Remark: HTTP `GET /ai/runtime/apply/status`.
     /// - Remark: Generated from `#/paths//ai/runtime/apply/status/get(getAiApplyStatus)`.
     func getAiApplyStatus(_ input: Operations.GetAiApplyStatus.Input) async throws -> Operations.GetAiApplyStatus.Output
+    /// Re-run the frozen direction of a durable apply decision
+    ///
+    /// Issue #170 (ADR 0081): re-runs the frozen direction of the durable decision recorded for the job — a `restore` decision re-runs the same frozen restore plan (offered for `recovery_failed`); a `commit` decision re-runs post-commit forward repair only, never a restore (offered for `commit_repair_required`). It never accepts a new model, upgrades an image, or changes the frozen plan. A new `request_id` identifies the recovery attempt; repeating it returns the existing job rather than overlapping work. Requires `ai_runtime.manage`.
+    ///
+    /// - Remark: HTTP `POST /ai/runtime/apply/{job_id}/retry-recovery`.
+    /// - Remark: Generated from `#/paths//ai/runtime/apply/{job_id}/retry-recovery/post(retryAiApplyRecovery)`.
+    func retryAiApplyRecovery(_ input: Operations.RetryAiApplyRecovery.Input) async throws -> Operations.RetryAiApplyRecovery.Output
     /// List linked financial institutions
     ///
     /// - Remark: HTTP `GET /connections`.
@@ -2778,7 +2790,10 @@ extension APIProtocol {
             headers: headers
         ))
     }
-    /// Apply a model selection: download and switch the served models
+    /// Apply a model selection: validated launch, verified swap, committed settings
+    ///
+    /// Issue #170 (ADR 0081): the server resolves a launch plan and validates it against the installed runtime and hardware BEFORE touching the running deployment, then tracks the swap through verified readiness and only then commits household settings. A 202 is returned only after successful preflight and durable acceptance; repeated `request_id` with an identical normalized request returns the existing job (never a second launch) and different content is a 409. Clients generate one `request_id` per user confirmation and retain it across transport-ambiguous retries; legacy bodies without `request_id` are accepted and the server synthesizes the identity from the normalized request.
+    /// Stable rejection reasons (in the `error.code` field of the envelope): 409 `swap_in_progress`, `cluster_consent_required`, `cluster_peer_unreachable`, `deployment_drift`, `previous_runtime_not_ready`, `request_id_conflict`, `recovery_required`; 422 `invalid_model_id`, `model_not_found`, `model_access_denied`, `runtime_incompatible`, `hardware_incompatible`, `unsupported_photo_mode`, `insufficient_memory`, `insufficient_disk`, `insufficient_evidence`; 503 `manager_unavailable`, `manager_upgrade_required`, `preflight_unavailable`, `journal_unavailable`, `executor_start_failed`. 409/422 never change household settings or write an apply audit; 503 preserves the current configuration.
     ///
     /// - Remark: HTTP `POST /ai/runtime/apply`.
     /// - Remark: Generated from `#/paths//ai/runtime/apply/post(applyAiModelSelection)`.
@@ -2793,10 +2808,35 @@ extension APIProtocol {
     }
     /// Report the state of the last model apply
     ///
+    /// Read-only: this endpoint never commits settings, launches recovery, acknowledges jobs, or creates rows. With `job_id` it reports that exact job (a 404 names an unknown retained job and never substitutes another); without `job_id` it resolves the current job, then the latest retained terminal job, then an explicit idle. The `state` field keeps the coarse legacy enum so shipped clients keep decoding `AiSwapStatus` (ADR 0074 Decision 5): in-flight lifecycle states project to `running`, `restored`/`recovery_failed` project to `failed`, `succeeded` projects to `succeeded`, and an unreachable manager reports `unavailable`. The full lifecycle is carried additively in `lifecycle_state` on `AiApplyJobStatus`.
+    ///
     /// - Remark: HTTP `GET /ai/runtime/apply/status`.
     /// - Remark: Generated from `#/paths//ai/runtime/apply/status/get(getAiApplyStatus)`.
-    public func getAiApplyStatus(headers: Operations.GetAiApplyStatus.Input.Headers = .init()) async throws -> Operations.GetAiApplyStatus.Output {
-        try await getAiApplyStatus(Operations.GetAiApplyStatus.Input(headers: headers))
+    public func getAiApplyStatus(
+        query: Operations.GetAiApplyStatus.Input.Query = .init(),
+        headers: Operations.GetAiApplyStatus.Input.Headers = .init()
+    ) async throws -> Operations.GetAiApplyStatus.Output {
+        try await getAiApplyStatus(Operations.GetAiApplyStatus.Input(
+            query: query,
+            headers: headers
+        ))
+    }
+    /// Re-run the frozen direction of a durable apply decision
+    ///
+    /// Issue #170 (ADR 0081): re-runs the frozen direction of the durable decision recorded for the job — a `restore` decision re-runs the same frozen restore plan (offered for `recovery_failed`); a `commit` decision re-runs post-commit forward repair only, never a restore (offered for `commit_repair_required`). It never accepts a new model, upgrades an image, or changes the frozen plan. A new `request_id` identifies the recovery attempt; repeating it returns the existing job rather than overlapping work. Requires `ai_runtime.manage`.
+    ///
+    /// - Remark: HTTP `POST /ai/runtime/apply/{job_id}/retry-recovery`.
+    /// - Remark: Generated from `#/paths//ai/runtime/apply/{job_id}/retry-recovery/post(retryAiApplyRecovery)`.
+    public func retryAiApplyRecovery(
+        path: Operations.RetryAiApplyRecovery.Input.Path,
+        headers: Operations.RetryAiApplyRecovery.Input.Headers = .init(),
+        body: Operations.RetryAiApplyRecovery.Input.Body
+    ) async throws -> Operations.RetryAiApplyRecovery.Output {
+        try await retryAiApplyRecovery(Operations.RetryAiApplyRecovery.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
     }
     /// List linked financial institutions
     ///
@@ -12603,35 +12643,82 @@ public enum Components {
                 case email
             }
         }
+        /// Issue #170 (ADR 0081): one user confirmation. The server resolves photo placement and topology authoritatively; clients send desired roles, never launch flags or memory numbers. `request_id` is the idempotency identity — one UUID per user confirmation, retained across transport-ambiguous retries.
+        ///
         /// - Remark: Generated from `#/components/schemas/AiApplyRequest`.
         public struct AiApplyRequest: Codable, Hashable, Sendable {
+            /// Idempotency identity for this apply attempt. Shipped legacy clients may omit it: the server then synthesizes the identity from the normalized request, so a replay is a read, never a second launch. New clients always send one UUID per user confirmation.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AiApplyRequest/request_id`.
+            public var requestId: Swift.String?
+            /// Repository ID of the requested chat (advisor) model.
+            ///
             /// - Remark: Generated from `#/components/schemas/AiApplyRequest/main_model`.
             public var mainModel: Swift.String
-            /// ADR 0071: serve tensor-parallel across the paired second box. The client sets this for models exceeding one node; the server verifies the peer is reachable.
+            /// Repository ID of the requested photo model, or null for none.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AiApplyRequest/vision_model`.
+            public var visionModel: Swift.String?
+            /// Desired photo placement. `auto` resolves to `separate` when a distinct vision model is present, else `main` when the installed runtime metadata verifies multimodal support, else `off`. Equal main/vision ids normalize to one instance with `main`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AiApplyRequest/photo_mode`.
+            @frozen public enum PhotoModePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case auto = "auto"
+                case main = "main"
+                case separate = "separate"
+                case off = "off"
+            }
+            /// Desired photo placement. `auto` resolves to `separate` when a distinct vision model is present, else `main` when the installed runtime metadata verifies multimodal support, else `off`. Equal main/vision ids normalize to one instance with `main`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AiApplyRequest/photo_mode`.
+            public var photoMode: Components.Schemas.AiApplyRequest.PhotoModePayload?
+            /// Desired serving topology. `auto` prefers a valid single-node plan and only considers the two-node tensor-parallel plan when the household's cluster consent is on; `single` prohibits automatic escalation; `cluster` requires consent, peer readiness and a valid two-node plan. Topology never grants cluster permission.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AiApplyRequest/topology`.
+            @frozen public enum TopologyPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case auto = "auto"
+                case single = "single"
+                case cluster = "cluster"
+            }
+            /// Desired serving topology. `auto` prefers a valid single-node plan and only considers the two-node tensor-parallel plan when the household's cluster consent is on; `single` prohibits automatic escalation; `cluster` requires consent, peer readiness and a valid two-node plan. Topology never grants cluster permission.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AiApplyRequest/topology`.
+            public var topology: Components.Schemas.AiApplyRequest.TopologyPayload?
+            /// Deprecated alias for `topology: cluster` (ADR 0071). Contradicting values with `topology` are rejected with a 422; new clients send `topology` only.
             ///
             /// - Remark: Generated from `#/components/schemas/AiApplyRequest/cluster`.
             public var cluster: Swift.Bool?
-            /// - Remark: Generated from `#/components/schemas/AiApplyRequest/vision_model`.
-            public var visionModel: Swift.String?
             /// Creates a new `AiApplyRequest`.
             ///
             /// - Parameters:
-            ///   - mainModel:
-            ///   - cluster: ADR 0071: serve tensor-parallel across the paired second box. The client sets this for models exceeding one node; the server verifies the peer is reachable.
-            ///   - visionModel:
+            ///   - requestId: Idempotency identity for this apply attempt. Shipped legacy clients may omit it: the server then synthesizes the identity from the normalized request, so a replay is a read, never a second launch. New clients always send one UUID per user confirmation.
+            ///   - mainModel: Repository ID of the requested chat (advisor) model.
+            ///   - visionModel: Repository ID of the requested photo model, or null for none.
+            ///   - photoMode: Desired photo placement. `auto` resolves to `separate` when a distinct vision model is present, else `main` when the installed runtime metadata verifies multimodal support, else `off`. Equal main/vision ids normalize to one instance with `main`.
+            ///   - topology: Desired serving topology. `auto` prefers a valid single-node plan and only considers the two-node tensor-parallel plan when the household's cluster consent is on; `single` prohibits automatic escalation; `cluster` requires consent, peer readiness and a valid two-node plan. Topology never grants cluster permission.
+            ///   - cluster: Deprecated alias for `topology: cluster` (ADR 0071). Contradicting values with `topology` are rejected with a 422; new clients send `topology` only.
             public init(
+                requestId: Swift.String? = nil,
                 mainModel: Swift.String,
-                cluster: Swift.Bool? = nil,
-                visionModel: Swift.String? = nil
+                visionModel: Swift.String? = nil,
+                photoMode: Components.Schemas.AiApplyRequest.PhotoModePayload? = nil,
+                topology: Components.Schemas.AiApplyRequest.TopologyPayload? = nil,
+                cluster: Swift.Bool? = nil
             ) {
+                self.requestId = requestId
                 self.mainModel = mainModel
-                self.cluster = cluster
                 self.visionModel = visionModel
+                self.photoMode = photoMode
+                self.topology = topology
+                self.cluster = cluster
             }
             public enum CodingKeys: String, CodingKey {
+                case requestId = "request_id"
                 case mainModel = "main_model"
-                case cluster
                 case visionModel = "vision_model"
+                case photoMode = "photo_mode"
+                case topology
+                case cluster
             }
         }
         /// - Remark: Generated from `#/components/schemas/AiSwapStatus`.
@@ -12675,6 +12762,425 @@ public enum Components {
                 case mainModel = "main_model"
                 case visionModel = "vision_model"
                 case logTail = "log_tail"
+            }
+        }
+        /// Issue #170 (ADR 0081): durable apply-job status. `state` keeps the coarse legacy enum (idle/running/succeeded/failed/unavailable) so shipped clients keep decoding `AiSwapStatus`; the full lifecycle is additive in `lifecycle_state`. `idle` is a read representation, never a stored state.
+        ///
+        /// - Remark: Generated from `#/components/schemas/AiApplyJobStatus`.
+        public struct AiApplyJobStatus: Codable, Hashable, Sendable {
+            /// Null exactly on the explicit idle/unavailable read.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AiApplyJobStatus/job_id`.
+            public var jobId: Swift.String?
+            /// The idempotency identity that admitted this job; null on idle.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AiApplyJobStatus/request_id`.
+            public var requestId: Swift.String?
+            /// Monotonically increasing per job; polls accept only increasing values. Null on the explicit idle/unavailable read.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AiApplyJobStatus/sequence`.
+            public var sequence: Swift.Int?
+            /// Coarse legacy projection (ADR 0074 Decision 5).
+            ///
+            /// - Remark: Generated from `#/components/schemas/AiApplyJobStatus/state`.
+            @frozen public enum StatePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case idle = "idle"
+                case running = "running"
+                case succeeded = "succeeded"
+                case failed = "failed"
+                case unavailable = "unavailable"
+            }
+            /// Coarse legacy projection (ADR 0074 Decision 5).
+            ///
+            /// - Remark: Generated from `#/components/schemas/AiApplyJobStatus/state`.
+            public var state: Components.Schemas.AiApplyJobStatus.StatePayload
+            /// Full lifecycle. `commit_repair_required` means the commit occurred and forward convergence failed (repair only, never rollback). Null on the explicit idle/unavailable read.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AiApplyJobStatus/lifecycle_state`.
+            @frozen public enum LifecycleStatePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case accepted = "accepted"
+                case staging = "staging"
+                case launching = "launching"
+                case verifying = "verifying"
+                case commitPending = "commit_pending"
+                case restoring = "restoring"
+                case succeeded = "succeeded"
+                case failed = "failed"
+                case restored = "restored"
+                case recoveryFailed = "recovery_failed"
+                case commitRepairRequired = "commit_repair_required"
+                case _empty_ = ""
+            }
+            /// Full lifecycle. `commit_repair_required` means the commit occurred and forward convergence failed (repair only, never rollback). Null on the explicit idle/unavailable read.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AiApplyJobStatus/lifecycle_state`.
+            public var lifecycleState: Components.Schemas.AiApplyJobStatus.LifecycleStatePayload?
+            /// Legacy projection of the requested (or previous) main model.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AiApplyJobStatus/main_model`.
+            public var mainModel: Swift.String?
+            /// Legacy projection of the requested (or previous) vision model.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AiApplyJobStatus/vision_model`.
+            public var visionModel: Swift.String?
+            /// Redacted bounded diagnostic summary; never raw container output.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AiApplyJobStatus/log_tail`.
+            public var logTail: Swift.String?
+            /// The normalized selection; null on the explicit idle/unavailable read.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AiApplyJobStatus/requested_selection`.
+            public var requestedSelection: Components.Schemas.NullableAiApplySelectionSummary?
+            /// Safe summary of the frozen plan; null before resolution.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AiApplyJobStatus/resolved_plan`.
+            public var resolvedPlan: Components.Schemas.NullableAiApplyPlanSummary?
+            /// Safe summary of the previous deployment; null on a first deployment.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AiApplyJobStatus/previous_selection`.
+            public var previousSelection: Components.Schemas.NullableAiApplySelectionSummary?
+            /// Null on the explicit idle/unavailable read.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AiApplyJobStatus/created_at`.
+            public var createdAt: Foundation.Date?
+            /// Null on the explicit idle/unavailable read.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AiApplyJobStatus/updated_at`.
+            public var updatedAt: Foundation.Date?
+            /// Current phase deadline; null outside a deadline-bounded phase.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AiApplyJobStatus/deadline_at`.
+            public var deadlineAt: Foundation.Date?
+            /// Stable rejection/failure code (the error vocabulary above, plus job-level codes such as `no_previous_runtime`, `request_expired`, `runtime_state_corrupt`); null while progressing normally.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AiApplyJobStatus/reason_code`.
+            public var reasonCode: Swift.String?
+            /// Redacted diagnostic, bounded to 2 KiB; never raw logs or secrets.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AiApplyJobStatus/message`.
+            public var message: Swift.String?
+            /// True when `POST /ai/runtime/apply/{job_id}/retry-recovery` can re-run the frozen decision direction (recovery_failed, commit_repair_required).
+            ///
+            /// - Remark: Generated from `#/components/schemas/AiApplyJobStatus/recovery_available`.
+            public var recoveryAvailable: Swift.Bool
+            /// Creates a new `AiApplyJobStatus`.
+            ///
+            /// - Parameters:
+            ///   - jobId: Null exactly on the explicit idle/unavailable read.
+            ///   - requestId: The idempotency identity that admitted this job; null on idle.
+            ///   - sequence: Monotonically increasing per job; polls accept only increasing values. Null on the explicit idle/unavailable read.
+            ///   - state: Coarse legacy projection (ADR 0074 Decision 5).
+            ///   - lifecycleState: Full lifecycle. `commit_repair_required` means the commit occurred and forward convergence failed (repair only, never rollback). Null on the explicit idle/unavailable read.
+            ///   - mainModel: Legacy projection of the requested (or previous) main model.
+            ///   - visionModel: Legacy projection of the requested (or previous) vision model.
+            ///   - logTail: Redacted bounded diagnostic summary; never raw container output.
+            ///   - requestedSelection: The normalized selection; null on the explicit idle/unavailable read.
+            ///   - resolvedPlan: Safe summary of the frozen plan; null before resolution.
+            ///   - previousSelection: Safe summary of the previous deployment; null on a first deployment.
+            ///   - createdAt: Null on the explicit idle/unavailable read.
+            ///   - updatedAt: Null on the explicit idle/unavailable read.
+            ///   - deadlineAt: Current phase deadline; null outside a deadline-bounded phase.
+            ///   - reasonCode: Stable rejection/failure code (the error vocabulary above, plus job-level codes such as `no_previous_runtime`, `request_expired`, `runtime_state_corrupt`); null while progressing normally.
+            ///   - message: Redacted diagnostic, bounded to 2 KiB; never raw logs or secrets.
+            ///   - recoveryAvailable: True when `POST /ai/runtime/apply/{job_id}/retry-recovery` can re-run the frozen decision direction (recovery_failed, commit_repair_required).
+            public init(
+                jobId: Swift.String? = nil,
+                requestId: Swift.String? = nil,
+                sequence: Swift.Int? = nil,
+                state: Components.Schemas.AiApplyJobStatus.StatePayload,
+                lifecycleState: Components.Schemas.AiApplyJobStatus.LifecycleStatePayload? = nil,
+                mainModel: Swift.String? = nil,
+                visionModel: Swift.String? = nil,
+                logTail: Swift.String? = nil,
+                requestedSelection: Components.Schemas.NullableAiApplySelectionSummary? = nil,
+                resolvedPlan: Components.Schemas.NullableAiApplyPlanSummary? = nil,
+                previousSelection: Components.Schemas.NullableAiApplySelectionSummary? = nil,
+                createdAt: Foundation.Date? = nil,
+                updatedAt: Foundation.Date? = nil,
+                deadlineAt: Foundation.Date? = nil,
+                reasonCode: Swift.String? = nil,
+                message: Swift.String? = nil,
+                recoveryAvailable: Swift.Bool
+            ) {
+                self.jobId = jobId
+                self.requestId = requestId
+                self.sequence = sequence
+                self.state = state
+                self.lifecycleState = lifecycleState
+                self.mainModel = mainModel
+                self.visionModel = visionModel
+                self.logTail = logTail
+                self.requestedSelection = requestedSelection
+                self.resolvedPlan = resolvedPlan
+                self.previousSelection = previousSelection
+                self.createdAt = createdAt
+                self.updatedAt = updatedAt
+                self.deadlineAt = deadlineAt
+                self.reasonCode = reasonCode
+                self.message = message
+                self.recoveryAvailable = recoveryAvailable
+            }
+            public enum CodingKeys: String, CodingKey {
+                case jobId = "job_id"
+                case requestId = "request_id"
+                case sequence
+                case state
+                case lifecycleState = "lifecycle_state"
+                case mainModel = "main_model"
+                case visionModel = "vision_model"
+                case logTail = "log_tail"
+                case requestedSelection = "requested_selection"
+                case resolvedPlan = "resolved_plan"
+                case previousSelection = "previous_selection"
+                case createdAt = "created_at"
+                case updatedAt = "updated_at"
+                case deadlineAt = "deadline_at"
+                case reasonCode = "reason_code"
+                case message
+                case recoveryAvailable = "recovery_available"
+            }
+        }
+        /// Normalized selection for a request, or a safe summary of the previous deployment (whose topology is always resolved, never `auto`).
+        ///
+        /// - Remark: Generated from `#/components/schemas/AiApplySelectionSummary`.
+        public struct AiApplySelectionSummary: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/AiApplySelectionSummary/main_model`.
+            public var mainModel: Swift.String
+            /// - Remark: Generated from `#/components/schemas/AiApplySelectionSummary/vision_model`.
+            public var visionModel: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/AiApplySelectionSummary/photo_mode`.
+            @frozen public enum PhotoModePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case main = "main"
+                case separate = "separate"
+                case off = "off"
+            }
+            /// - Remark: Generated from `#/components/schemas/AiApplySelectionSummary/photo_mode`.
+            public var photoMode: Components.Schemas.AiApplySelectionSummary.PhotoModePayload
+            /// - Remark: Generated from `#/components/schemas/AiApplySelectionSummary/topology`.
+            @frozen public enum TopologyPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case auto = "auto"
+                case single = "single"
+                case cluster = "cluster"
+            }
+            /// - Remark: Generated from `#/components/schemas/AiApplySelectionSummary/topology`.
+            public var topology: Components.Schemas.AiApplySelectionSummary.TopologyPayload
+            /// Creates a new `AiApplySelectionSummary`.
+            ///
+            /// - Parameters:
+            ///   - mainModel:
+            ///   - visionModel:
+            ///   - photoMode:
+            ///   - topology:
+            public init(
+                mainModel: Swift.String,
+                visionModel: Swift.String? = nil,
+                photoMode: Components.Schemas.AiApplySelectionSummary.PhotoModePayload,
+                topology: Components.Schemas.AiApplySelectionSummary.TopologyPayload
+            ) {
+                self.mainModel = mainModel
+                self.visionModel = visionModel
+                self.photoMode = photoMode
+                self.topology = topology
+            }
+            public enum CodingKeys: String, CodingKey {
+                case mainModel = "main_model"
+                case visionModel = "vision_model"
+                case photoMode = "photo_mode"
+                case topology
+            }
+        }
+        /// Safe summary of the frozen launch plan: identities and immutable revisions, resolved photo mode, selected topology, installed runtime identity, limits, and per-node requirements with evidence classifications. Never `.env` values, tokens, SSH details, raw checker output, or container logs.
+        ///
+        /// - Remark: Generated from `#/components/schemas/AiApplyPlanSummary`.
+        public struct AiApplyPlanSummary: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/AiApplyPlanSummary/main_model`.
+            public var mainModel: Swift.String
+            /// Immutable resolved revision of the main model.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AiApplyPlanSummary/main_revision`.
+            public var mainRevision: Swift.String
+            /// - Remark: Generated from `#/components/schemas/AiApplyPlanSummary/vision_model`.
+            public var visionModel: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/AiApplyPlanSummary/vision_revision`.
+            public var visionRevision: Swift.String?
+            /// Resolved photo routing placement; never `auto` in a plan.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AiApplyPlanSummary/photo_mode`.
+            @frozen public enum PhotoModePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case main = "main"
+                case separate = "separate"
+                case off = "off"
+            }
+            /// Resolved photo routing placement; never `auto` in a plan.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AiApplyPlanSummary/photo_mode`.
+            public var photoMode: Components.Schemas.AiApplyPlanSummary.PhotoModePayload
+            /// Selected topology; never `auto` in a plan.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AiApplyPlanSummary/topology`.
+            @frozen public enum TopologyPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case single = "single"
+                case cluster = "cluster"
+            }
+            /// Selected topology; never `auto` in a plan.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AiApplyPlanSummary/topology`.
+            public var topology: Components.Schemas.AiApplyPlanSummary.TopologyPayload
+            /// Installed serving-runtime version the plan targets.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AiApplyPlanSummary/runtime_version`.
+            public var runtimeVersion: Swift.String
+            /// Safe digest of the exact serving image the plan pins.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AiApplyPlanSummary/image_digest`.
+            public var imageDigest: Swift.String
+            /// - Remark: Generated from `#/components/schemas/AiApplyPlanSummary/context_limit`.
+            public var contextLimit: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/AiApplyPlanSummary/concurrency_limit`.
+            public var concurrencyLimit: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/AiApplyPlanSummary/node_requirements`.
+            public var nodeRequirements: [Components.Schemas.AiApplyNodeRequirement]
+            /// Non-fatal planning warnings (estimates, degraded evidence).
+            ///
+            /// - Remark: Generated from `#/components/schemas/AiApplyPlanSummary/warnings`.
+            public var warnings: [Swift.String]?
+            /// Creates a new `AiApplyPlanSummary`.
+            ///
+            /// - Parameters:
+            ///   - mainModel:
+            ///   - mainRevision: Immutable resolved revision of the main model.
+            ///   - visionModel:
+            ///   - visionRevision:
+            ///   - photoMode: Resolved photo routing placement; never `auto` in a plan.
+            ///   - topology: Selected topology; never `auto` in a plan.
+            ///   - runtimeVersion: Installed serving-runtime version the plan targets.
+            ///   - imageDigest: Safe digest of the exact serving image the plan pins.
+            ///   - contextLimit:
+            ///   - concurrencyLimit:
+            ///   - nodeRequirements:
+            ///   - warnings: Non-fatal planning warnings (estimates, degraded evidence).
+            public init(
+                mainModel: Swift.String,
+                mainRevision: Swift.String,
+                visionModel: Swift.String? = nil,
+                visionRevision: Swift.String? = nil,
+                photoMode: Components.Schemas.AiApplyPlanSummary.PhotoModePayload,
+                topology: Components.Schemas.AiApplyPlanSummary.TopologyPayload,
+                runtimeVersion: Swift.String,
+                imageDigest: Swift.String,
+                contextLimit: Swift.Int,
+                concurrencyLimit: Swift.Int,
+                nodeRequirements: [Components.Schemas.AiApplyNodeRequirement],
+                warnings: [Swift.String]? = nil
+            ) {
+                self.mainModel = mainModel
+                self.mainRevision = mainRevision
+                self.visionModel = visionModel
+                self.visionRevision = visionRevision
+                self.photoMode = photoMode
+                self.topology = topology
+                self.runtimeVersion = runtimeVersion
+                self.imageDigest = imageDigest
+                self.contextLimit = contextLimit
+                self.concurrencyLimit = concurrencyLimit
+                self.nodeRequirements = nodeRequirements
+                self.warnings = warnings
+            }
+            public enum CodingKeys: String, CodingKey {
+                case mainModel = "main_model"
+                case mainRevision = "main_revision"
+                case visionModel = "vision_model"
+                case visionRevision = "vision_revision"
+                case photoMode = "photo_mode"
+                case topology
+                case runtimeVersion = "runtime_version"
+                case imageDigest = "image_digest"
+                case contextLimit = "context_limit"
+                case concurrencyLimit = "concurrency_limit"
+                case nodeRequirements = "node_requirements"
+                case warnings
+            }
+        }
+        /// Normalized selection for a request, or a safe summary of the previous deployment (whose topology is always resolved, never `auto`).
+        ///
+        /// - Remark: Generated from `#/components/schemas/NullableAiApplySelectionSummary`.
+        public typealias NullableAiApplySelectionSummary = Components.Schemas.AiApplySelectionSummary
+        /// Safe summary of the frozen launch plan: identities and immutable revisions, resolved photo mode, selected topology, installed runtime identity, limits, and per-node requirements with evidence classifications. Never `.env` values, tokens, SSH details, raw checker output, or container logs.
+        ///
+        /// - Remark: Generated from `#/components/schemas/NullableAiApplyPlanSummary`.
+        public typealias NullableAiApplyPlanSummary = Components.Schemas.AiApplyPlanSummary
+        /// One node's admission requirement. Every figure carries its evidence class — unknown evidence is never zero and never "fits".
+        ///
+        /// - Remark: Generated from `#/components/schemas/AiApplyNodeRequirement`.
+        public struct AiApplyNodeRequirement: Codable, Hashable, Sendable {
+            /// Placement label, e.g. `primary` or `peer`.
+            ///
+            /// - Remark: Generated from `#/components/schemas/AiApplyNodeRequirement/node`.
+            public var node: Swift.String
+            /// - Remark: Generated from `#/components/schemas/AiApplyNodeRequirement/memory_gb`.
+            public var memoryGb: Swift.Double
+            /// - Remark: Generated from `#/components/schemas/AiApplyNodeRequirement/memory_evidence`.
+            @frozen public enum MemoryEvidencePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case verified = "verified"
+                case estimated = "estimated"
+                case unknown = "unknown"
+            }
+            /// - Remark: Generated from `#/components/schemas/AiApplyNodeRequirement/memory_evidence`.
+            public var memoryEvidence: Components.Schemas.AiApplyNodeRequirement.MemoryEvidencePayload
+            /// - Remark: Generated from `#/components/schemas/AiApplyNodeRequirement/disk_gb`.
+            public var diskGb: Swift.Double
+            /// - Remark: Generated from `#/components/schemas/AiApplyNodeRequirement/disk_evidence`.
+            @frozen public enum DiskEvidencePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case verified = "verified"
+                case estimated = "estimated"
+                case unknown = "unknown"
+            }
+            /// - Remark: Generated from `#/components/schemas/AiApplyNodeRequirement/disk_evidence`.
+            public var diskEvidence: Components.Schemas.AiApplyNodeRequirement.DiskEvidencePayload
+            /// Creates a new `AiApplyNodeRequirement`.
+            ///
+            /// - Parameters:
+            ///   - node: Placement label, e.g. `primary` or `peer`.
+            ///   - memoryGb:
+            ///   - memoryEvidence:
+            ///   - diskGb:
+            ///   - diskEvidence:
+            public init(
+                node: Swift.String,
+                memoryGb: Swift.Double,
+                memoryEvidence: Components.Schemas.AiApplyNodeRequirement.MemoryEvidencePayload,
+                diskGb: Swift.Double,
+                diskEvidence: Components.Schemas.AiApplyNodeRequirement.DiskEvidencePayload
+            ) {
+                self.node = node
+                self.memoryGb = memoryGb
+                self.memoryEvidence = memoryEvidence
+                self.diskGb = diskGb
+                self.diskEvidence = diskEvidence
+            }
+            public enum CodingKeys: String, CodingKey {
+                case node
+                case memoryGb = "memory_gb"
+                case memoryEvidence = "memory_evidence"
+                case diskGb = "disk_gb"
+                case diskEvidence = "disk_evidence"
+            }
+        }
+        /// One recovery attempt identity; repeat it to replay, never to overlap.
+        ///
+        /// - Remark: Generated from `#/components/schemas/AiRetryRecoveryRequest`.
+        public struct AiRetryRecoveryRequest: Codable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/AiRetryRecoveryRequest/request_id`.
+            public var requestId: Swift.String
+            /// Creates a new `AiRetryRecoveryRequest`.
+            ///
+            /// - Parameters:
+            ///   - requestId:
+            public init(requestId: Swift.String) {
+                self.requestId = requestId
+            }
+            public enum CodingKeys: String, CodingKey {
+                case requestId = "request_id"
             }
         }
         /// - Remark: Generated from `#/components/schemas/AiHardwareProfile`.
@@ -42144,7 +42650,10 @@ public enum Operations {
             }
         }
     }
-    /// Apply a model selection: download and switch the served models
+    /// Apply a model selection: validated launch, verified swap, committed settings
+    ///
+    /// Issue #170 (ADR 0081): the server resolves a launch plan and validates it against the installed runtime and hardware BEFORE touching the running deployment, then tracks the swap through verified readiness and only then commits household settings. A 202 is returned only after successful preflight and durable acceptance; repeated `request_id` with an identical normalized request returns the existing job (never a second launch) and different content is a 409. Clients generate one `request_id` per user confirmation and retain it across transport-ambiguous retries; legacy bodies without `request_id` are accepted and the server synthesizes the identity from the normalized request.
+    /// Stable rejection reasons (in the `error.code` field of the envelope): 409 `swap_in_progress`, `cluster_consent_required`, `cluster_peer_unreachable`, `deployment_drift`, `previous_runtime_not_ready`, `request_id_conflict`, `recovery_required`; 422 `invalid_model_id`, `model_not_found`, `model_access_denied`, `runtime_incompatible`, `hardware_incompatible`, `unsupported_photo_mode`, `insufficient_memory`, `insufficient_disk`, `insufficient_evidence`; 503 `manager_unavailable`, `manager_upgrade_required`, `preflight_unavailable`, `journal_unavailable`, `executor_start_failed`. 409/422 never change household settings or write an apply audit; 503 preserves the current configuration.
     ///
     /// - Remark: HTTP `POST /ai/runtime/apply`.
     /// - Remark: Generated from `#/paths//ai/runtime/apply/post(applyAiModelSelection)`.
@@ -42187,12 +42696,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/ai/runtime/apply/POST/responses/202/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/ai/runtime/apply/POST/responses/202/content/application\/json`.
-                    case json(Components.Schemas.AiSwapStatus)
+                    case json(Components.Schemas.AiApplyJobStatus)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas.AiSwapStatus {
+                    public var json: Components.Schemas.AiApplyJobStatus {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -42211,7 +42720,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// Swap started
+            /// Durable acceptance: the launch plan resolved and validated, the job is persisted, and the executor is starting. Household settings are NOT changed here — the reconciler commits them exactly once after verified readiness.
             ///
             /// - Remark: Generated from `#/paths//ai/runtime/apply/post(applyAiModelSelection)/responses/202`.
             ///
@@ -42305,6 +42814,29 @@ public enum Operations {
             }
             /// Error response
             ///
+            /// - Remark: Generated from `#/paths//ai/runtime/apply/post(applyAiModelSelection)/responses/422`.
+            ///
+            /// HTTP response code: `422 unprocessableContent`.
+            case unprocessableContent(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unprocessableContent`.
+            ///
+            /// - Throws: An error if `self` is not `.unprocessableContent`.
+            /// - SeeAlso: `.unprocessableContent`.
+            public var unprocessableContent: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unprocessableContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unprocessableContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
             /// - Remark: Generated from `#/paths//ai/runtime/apply/post(applyAiModelSelection)/responses/503`.
             ///
             /// HTTP response code: `503 serviceUnavailable`.
@@ -42359,11 +42891,28 @@ public enum Operations {
     }
     /// Report the state of the last model apply
     ///
+    /// Read-only: this endpoint never commits settings, launches recovery, acknowledges jobs, or creates rows. With `job_id` it reports that exact job (a 404 names an unknown retained job and never substitutes another); without `job_id` it resolves the current job, then the latest retained terminal job, then an explicit idle. The `state` field keeps the coarse legacy enum so shipped clients keep decoding `AiSwapStatus` (ADR 0074 Decision 5): in-flight lifecycle states project to `running`, `restored`/`recovery_failed` project to `failed`, `succeeded` projects to `succeeded`, and an unreachable manager reports `unavailable`. The full lifecycle is carried additively in `lifecycle_state` on `AiApplyJobStatus`.
+    ///
     /// - Remark: HTTP `GET /ai/runtime/apply/status`.
     /// - Remark: Generated from `#/paths//ai/runtime/apply/status/get(getAiApplyStatus)`.
     public enum GetAiApplyStatus {
         public static let id: Swift.String = "getAiApplyStatus"
         public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/ai/runtime/apply/status/GET/query`.
+            public struct Query: Sendable, Hashable {
+                /// A specific apply job to report; omit for current/latest/idle.
+                ///
+                /// - Remark: Generated from `#/paths/ai/runtime/apply/status/GET/query/job_id`.
+                public var jobId: Swift.String?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - jobId: A specific apply job to report; omit for current/latest/idle.
+                public init(jobId: Swift.String? = nil) {
+                    self.jobId = jobId
+                }
+            }
+            public var query: Operations.GetAiApplyStatus.Input.Query
             /// - Remark: Generated from `#/paths/ai/runtime/apply/status/GET/header`.
             public struct Headers: Sendable, Hashable {
                 public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.GetAiApplyStatus.AcceptableContentType>]
@@ -42379,8 +42928,13 @@ public enum Operations {
             /// Creates a new `Input`.
             ///
             /// - Parameters:
+            ///   - query:
             ///   - headers:
-            public init(headers: Operations.GetAiApplyStatus.Input.Headers = .init()) {
+            public init(
+                query: Operations.GetAiApplyStatus.Input.Query = .init(),
+                headers: Operations.GetAiApplyStatus.Input.Headers = .init()
+            ) {
+                self.query = query
                 self.headers = headers
             }
         }
@@ -42389,12 +42943,12 @@ public enum Operations {
                 /// - Remark: Generated from `#/paths/ai/runtime/apply/status/GET/responses/200/content`.
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/ai/runtime/apply/status/GET/responses/200/content/application\/json`.
-                    case json(Components.Schemas.AiSwapStatus)
+                    case json(Components.Schemas.AiApplyJobStatus)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas.AiSwapStatus {
+                    public var json: Components.Schemas.AiApplyJobStatus {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -42413,7 +42967,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// Swap status
+            /// Apply-job status. The identity fields are null exactly on the explicit idle/unavailable read (no job has been admitted).
             ///
             /// - Remark: Generated from `#/paths//ai/runtime/apply/status/get(getAiApplyStatus)/responses/200`.
             ///
@@ -42454,6 +43008,397 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/ai/runtime/apply/status/GET/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/ai/runtime/apply/status/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas.ErrorResponse)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.ErrorResponse {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.GetAiApplyStatus.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.GetAiApplyStatus.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// Unknown retained job id — never a substituted job.
+            ///
+            /// - Remark: Generated from `#/paths//ai/runtime/apply/status/get(getAiApplyStatus)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.GetAiApplyStatus.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.GetAiApplyStatus.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Re-run the frozen direction of a durable apply decision
+    ///
+    /// Issue #170 (ADR 0081): re-runs the frozen direction of the durable decision recorded for the job — a `restore` decision re-runs the same frozen restore plan (offered for `recovery_failed`); a `commit` decision re-runs post-commit forward repair only, never a restore (offered for `commit_repair_required`). It never accepts a new model, upgrades an image, or changes the frozen plan. A new `request_id` identifies the recovery attempt; repeating it returns the existing job rather than overlapping work. Requires `ai_runtime.manage`.
+    ///
+    /// - Remark: HTTP `POST /ai/runtime/apply/{job_id}/retry-recovery`.
+    /// - Remark: Generated from `#/paths//ai/runtime/apply/{job_id}/retry-recovery/post(retryAiApplyRecovery)`.
+    public enum RetryAiApplyRecovery {
+        public static let id: Swift.String = "retryAiApplyRecovery"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/ai/runtime/apply/{job_id}/retry-recovery/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// The apply job whose frozen decision should re-run.
+                ///
+                /// - Remark: Generated from `#/paths/ai/runtime/apply/{job_id}/retry-recovery/POST/path/job_id`.
+                public var jobId: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - jobId: The apply job whose frozen decision should re-run.
+                public init(jobId: Swift.String) {
+                    self.jobId = jobId
+                }
+            }
+            public var path: Operations.RetryAiApplyRecovery.Input.Path
+            /// - Remark: Generated from `#/paths/ai/runtime/apply/{job_id}/retry-recovery/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.RetryAiApplyRecovery.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.RetryAiApplyRecovery.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.RetryAiApplyRecovery.Input.Headers
+            /// - Remark: Generated from `#/paths/ai/runtime/apply/{job_id}/retry-recovery/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/ai/runtime/apply/{job_id}/retry-recovery/POST/requestBody/content/application\/json`.
+                case json(Components.Schemas.AiRetryRecoveryRequest)
+            }
+            public var body: Operations.RetryAiApplyRecovery.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.RetryAiApplyRecovery.Input.Path,
+                headers: Operations.RetryAiApplyRecovery.Input.Headers = .init(),
+                body: Operations.RetryAiApplyRecovery.Input.Body
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Accepted: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/ai/runtime/apply/{job_id}/retry-recovery/POST/responses/202/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/ai/runtime/apply/{job_id}/retry-recovery/POST/responses/202/content/application\/json`.
+                    case json(Components.Schemas.AiApplyJobStatus)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.AiApplyJobStatus {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.RetryAiApplyRecovery.Output.Accepted.Body
+                /// Creates a new `Accepted`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.RetryAiApplyRecovery.Output.Accepted.Body) {
+                    self.body = body
+                }
+            }
+            /// Recovery re-run accepted
+            ///
+            /// - Remark: Generated from `#/paths//ai/runtime/apply/{job_id}/retry-recovery/post(retryAiApplyRecovery)/responses/202`.
+            ///
+            /// HTTP response code: `202 accepted`.
+            case accepted(Operations.RetryAiApplyRecovery.Output.Accepted)
+            /// The associated value of the enum case if `self` is `.accepted`.
+            ///
+            /// - Throws: An error if `self` is not `.accepted`.
+            /// - SeeAlso: `.accepted`.
+            public var accepted: Operations.RetryAiApplyRecovery.Output.Accepted {
+                get throws {
+                    switch self {
+                    case let .accepted(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "accepted",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//ai/runtime/apply/{job_id}/retry-recovery/post(retryAiApplyRecovery)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Error response
+            ///
+            /// - Remark: Generated from `#/paths//ai/runtime/apply/{job_id}/retry-recovery/post(retryAiApplyRecovery)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Components.Responses._Error)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Components.Responses._Error {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/ai/runtime/apply/{job_id}/retry-recovery/POST/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/ai/runtime/apply/{job_id}/retry-recovery/POST/responses/404/content/application\/json`.
+                    case json(Components.Schemas.ErrorResponse)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.ErrorResponse {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.RetryAiApplyRecovery.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.RetryAiApplyRecovery.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// Unknown retained job id
+            ///
+            /// - Remark: Generated from `#/paths//ai/runtime/apply/{job_id}/retry-recovery/post(retryAiApplyRecovery)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.RetryAiApplyRecovery.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.RetryAiApplyRecovery.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Conflict: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/ai/runtime/apply/{job_id}/retry-recovery/POST/responses/409/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/ai/runtime/apply/{job_id}/retry-recovery/POST/responses/409/content/application\/json`.
+                    case json(Components.Schemas.ErrorResponse)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.ErrorResponse {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.RetryAiApplyRecovery.Output.Conflict.Body
+                /// Creates a new `Conflict`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.RetryAiApplyRecovery.Output.Conflict.Body) {
+                    self.body = body
+                }
+            }
+            /// The job is not in a recoverable state (`recovery_required`), another operation owns the deployment (`swap_in_progress`), or the recovery `request_id` was reused with different content (`request_id_conflict`).
+            ///
+            /// - Remark: Generated from `#/paths//ai/runtime/apply/{job_id}/retry-recovery/post(retryAiApplyRecovery)/responses/409`.
+            ///
+            /// HTTP response code: `409 conflict`.
+            case conflict(Operations.RetryAiApplyRecovery.Output.Conflict)
+            /// The associated value of the enum case if `self` is `.conflict`.
+            ///
+            /// - Throws: An error if `self` is not `.conflict`.
+            /// - SeeAlso: `.conflict`.
+            public var conflict: Operations.RetryAiApplyRecovery.Output.Conflict {
+                get throws {
+                    switch self {
+                    case let .conflict(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "conflict",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct ServiceUnavailable: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/ai/runtime/apply/{job_id}/retry-recovery/POST/responses/503/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/ai/runtime/apply/{job_id}/retry-recovery/POST/responses/503/content/application\/json`.
+                    case json(Components.Schemas.ErrorResponse)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.ErrorResponse {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.RetryAiApplyRecovery.Output.ServiceUnavailable.Body
+                /// Creates a new `ServiceUnavailable`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.RetryAiApplyRecovery.Output.ServiceUnavailable.Body) {
+                    self.body = body
+                }
+            }
+            /// Manager/journal/executor unavailable
+            ///
+            /// - Remark: Generated from `#/paths//ai/runtime/apply/{job_id}/retry-recovery/post(retryAiApplyRecovery)/responses/503`.
+            ///
+            /// HTTP response code: `503 serviceUnavailable`.
+            case serviceUnavailable(Operations.RetryAiApplyRecovery.Output.ServiceUnavailable)
+            /// The associated value of the enum case if `self` is `.serviceUnavailable`.
+            ///
+            /// - Throws: An error if `self` is not `.serviceUnavailable`.
+            /// - SeeAlso: `.serviceUnavailable`.
+            public var serviceUnavailable: Operations.RetryAiApplyRecovery.Output.ServiceUnavailable {
+                get throws {
+                    switch self {
+                    case let .serviceUnavailable(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "serviceUnavailable",
                             response: self
                         )
                     }

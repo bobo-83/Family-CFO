@@ -4126,16 +4126,22 @@ paths:
               $ref: "#/components/schemas/AiApplyRequest"
       responses:
         "202":
-          description: Swap started
+          description: >-
+            Durable acceptance: the launch plan resolved and validated, the job
+            is persisted, and the executor is starting. Household settings are
+            NOT changed here — the reconciler commits them exactly once after
+            verified readiness.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AiSwapStatus"
+                $ref: "#/components/schemas/AiApplyJobStatus"
         "401":
           $ref: "#/components/responses/Error"
         "403":
           $ref: "#/components/responses/Error"
         "409":
+          $ref: "#/components/responses/Error"
+        "422":
           $ref: "#/components/responses/Error"
         "503":
           $ref: "#/components/responses/Error"
@@ -4169,13 +4175,21 @@ paths:
             format: uuid
       responses:
         "200":
-          description: Swap status
+          description: >-
+            Apply-job status. The identity fields are null exactly on the
+            explicit idle/unavailable read (no job has been admitted).
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AiSwapStatus"
+                $ref: "#/components/schemas/AiApplyJobStatus"
         "401":
           $ref: "#/components/responses/Error"
+        "404":
+          description: Unknown retained job id — never a substituted job.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /ai/runtime/apply/{job_id}/retry-recovery:
     post:
       tags:
@@ -4223,7 +4237,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/responses/Error"
+                $ref: "#/components/schemas/ErrorResponse"
         "409":
           description: >-
             The job is not in a recoverable state (`recovery_required`), another
@@ -4233,13 +4247,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/responses/Error"
+                $ref: "#/components/schemas/ErrorResponse"
         "503":
           description: Manager/journal/executor unavailable
           content:
             application/json:
               schema:
-                $ref: "#/components/responses/Error"
+                $ref: "#/components/schemas/ErrorResponse"
   /connections:
     get:
       tags:
@@ -9667,13 +9681,17 @@ components:
         idempotency identity — one UUID per user confirmation, retained
         across transport-ambiguous retries.
       required:
-        - request_id
         - main_model
       properties:
         request_id:
           type: string
           format: uuid
-          description: Idempotency identity for this apply attempt.
+          description: >-
+            Idempotency identity for this apply attempt. Shipped legacy
+            clients may omit it: the server then synthesizes the identity
+            from the normalized request, so a replay is a read, never a
+            second launch. New clients always send one UUID per user
+            confirmation.
         main_model:
           type: string
           description: Repository ID of the requested chat (advisor) model.
@@ -9693,7 +9711,7 @@ components:
             - auto
             - main
             - separate
-            - off
+            - "off"
           default: auto
         topology:
           type: string
@@ -9754,15 +9772,24 @@ components:
         - recovery_available
       properties:
         job_id:
-          type: string
+          type:
+            - string
+            - "null"
           format: uuid
+          description: Null exactly on the explicit idle/unavailable read.
         request_id:
-          type: string
+          type:
+            - string
+            - "null"
           format: uuid
-          description: The idempotency identity that admitted this job.
+          description: The idempotency identity that admitted this job; null on idle.
         sequence:
-          type: integer
-          description: Monotonically increasing per job; polls accept only increasing values.
+          type:
+            - integer
+            - "null"
+          description: >-
+            Monotonically increasing per job; polls accept only increasing
+            values. Null on the explicit idle/unavailable read.
         state:
           type: string
           description: Coarse legacy projection (ADR 0074 Decision 5).
@@ -9773,10 +9800,13 @@ components:
             - failed
             - unavailable
         lifecycle_state:
-          type: string
+          type:
+            - string
+            - "null"
           description: >-
             Full lifecycle. `commit_repair_required` means the commit occurred
-            and forward convergence failed (repair only, never rollback).
+            and forward convergence failed (repair only, never rollback). Null
+            on the explicit idle/unavailable read.
           enum:
             - accepted
             - staging
@@ -9789,6 +9819,7 @@ components:
             - restored
             - recovery_failed
             - commit_repair_required
+            - null
         main_model:
           type:
             - string
@@ -9803,27 +9834,26 @@ components:
           type: string
           description: Redacted bounded diagnostic summary; never raw container output.
         requested_selection:
-          $ref: "#/components/schemas/AiApplySelectionSummary"
+          description: The normalized selection; null on the explicit idle/unavailable read.
+          $ref: "#/components/schemas/NullableAiApplySelectionSummary"
         resolved_plan:
           description: Safe summary of the frozen plan; null before resolution.
-          type:
-            - object
-            - "null"
-          allOf:
-            - $ref: "#/components/schemas/AiApplyPlanSummary"
+          $ref: "#/components/schemas/NullableAiApplyPlanSummary"
         previous_selection:
           description: Safe summary of the previous deployment; null on a first deployment.
-          type:
-            - object
-            - "null"
-          allOf:
-            - $ref: "#/components/schemas/AiApplySelectionSummary"
+          $ref: "#/components/schemas/NullableAiApplySelectionSummary"
         created_at:
-          type: string
+          type:
+            - string
+            - "null"
           format: date-time
+          description: Null on the explicit idle/unavailable read.
         updated_at:
-          type: string
+          type:
+            - string
+            - "null"
           format: date-time
+          description: Null on the explicit idle/unavailable read.
         deadline_at:
           type:
             - string
@@ -9870,7 +9900,7 @@ components:
           enum:
             - main
             - separate
-            - off
+            - "off"
         topology:
           type: string
           enum:
@@ -9915,7 +9945,7 @@ components:
           enum:
             - main
             - separate
-            - off
+            - "off"
         topology:
           type: string
           description: Selected topology; never `auto` in a plan.
@@ -9936,7 +9966,103 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AiApplyNodeRequirement"
-          warnings:
+        warnings:
+          type: array
+          description: Non-fatal planning warnings (estimates, degraded evidence).
+          items:
+            type: string
+    NullableAiApplySelectionSummary:
+      type:
+        - object
+        - "null"
+      description: >-
+        Normalized selection for a request, or a safe summary of the previous
+        deployment (whose topology is always resolved, never `auto`).
+      required:
+        - main_model
+        - photo_mode
+        - topology
+      properties:
+        main_model:
+          type: string
+        vision_model:
+          type:
+            - string
+            - "null"
+        photo_mode:
+          type: string
+          enum:
+            - main
+            - separate
+            - "off"
+        topology:
+          type: string
+          enum:
+            - auto
+            - single
+            - cluster
+    NullableAiApplyPlanSummary:
+      type:
+        - object
+        - "null"
+      description: >-
+        Safe summary of the frozen launch plan: identities and immutable
+        revisions, resolved photo mode, selected topology, installed runtime
+        identity, limits, and per-node requirements with evidence
+        classifications. Never `.env` values, tokens, SSH details, raw
+        checker output, or container logs.
+      required:
+        - main_model
+        - main_revision
+        - photo_mode
+        - topology
+        - runtime_version
+        - image_digest
+        - context_limit
+        - concurrency_limit
+        - node_requirements
+      properties:
+        main_model:
+          type: string
+        main_revision:
+          type: string
+          description: Immutable resolved revision of the main model.
+        vision_model:
+          type:
+            - string
+            - "null"
+        vision_revision:
+          type:
+            - string
+            - "null"
+        photo_mode:
+          type: string
+          description: Resolved photo routing placement; never `auto` in a plan.
+          enum:
+            - main
+            - separate
+            - "off"
+        topology:
+          type: string
+          description: Selected topology; never `auto` in a plan.
+          enum:
+            - single
+            - cluster
+        runtime_version:
+          type: string
+          description: Installed serving-runtime version the plan targets.
+        image_digest:
+          type: string
+          description: Safe digest of the exact serving image the plan pins.
+        context_limit:
+          type: integer
+        concurrency_limit:
+          type: integer
+        node_requirements:
+          type: array
+          items:
+            $ref: "#/components/schemas/AiApplyNodeRequirement"
+        warnings:
           type: array
           description: Non-fatal planning warnings (estimates, degraded evidence).
           items:

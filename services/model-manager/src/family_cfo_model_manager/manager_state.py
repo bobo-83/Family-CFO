@@ -142,6 +142,11 @@ def job_status_of(
         message=record.safe_message,
         recovery_available=record.state.recoverable,
         verified_at=verified_at,
+        # The frozen identity + initiator attribution (issue #170 item 4).
+        runtime_key=record.runtime_key,
+        target_plan_hash=record.target_plan_hash,
+        initiator_household_id=record.initiator_household_id,
+        initiator_user_id=record.initiator_user_id,
     )
 
 
@@ -149,10 +154,15 @@ def _requested_selection(requested: dict[str, Any], plan: dict[str, Any]) -> Sel
     if not requested and not plan:
         return None
     if requested:
+        # The NORMALIZED selection (contracts.py): photo_mode is resolved —
+        # never AUTO — once a plan exists; topology stays the requested value.
+        photo_mode = requested.get("photo_mode", "auto")
+        if plan.get("photo_mode"):
+            photo_mode = plan["photo_mode"]
         return SelectionSummary(
             main_model=requested.get("main_model", ""),
             vision_model=requested.get("vision_model"),
-            photo_mode=PhotoMode(requested.get("photo_mode", "auto")),
+            photo_mode=PhotoMode(photo_mode),
             topology=Topology(requested.get("topology", "auto")),
         )
     # Fall back to the resolved plan's selection when only it is retained.

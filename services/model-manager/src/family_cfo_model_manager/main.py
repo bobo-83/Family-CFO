@@ -552,6 +552,13 @@ def _status_document(status: Any) -> dict:
         "message": status.message,
         "recovery_available": status.recovery_available,
         "verified_at": status.verified_at.isoformat() if status.verified_at else None,
+        # Issue #170 item 4: the reconciler's receipt and acknowledgement need
+        # the frozen identity (runtime key + plan hash) and the initiator
+        # attribution for the outcome audits. Additive (ADR 0074 Decision 5).
+        "runtime_key": status.runtime_key,
+        "target_plan_hash": status.target_plan_hash,
+        "initiator_household_id": status.initiator_household_id,
+        "initiator_user_id": status.initiator_user_id,
     }
 
 

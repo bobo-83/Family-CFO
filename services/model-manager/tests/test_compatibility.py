@@ -89,12 +89,18 @@ def test_v2_contract_replays(replay) -> None:
     _assert_previous_shape(response.json(), admit["response"])
     job_id = response.json()["job_id"]
 
-    # The executor durably stamps the phase deadline when it starts staging;
-    # the fake spawn skips that, so stage it exactly where the executor would.
+    # The executor durably stamps the phase deadline when it starts staging
+    # and writes verification evidence when the target verifies (refreshing it
+    # every 15 s while the commit waits — commit_pending always carries fresh
+    # evidence by construction). The fake spawn skips both, so stage them
+    # exactly where the executor would.
     with deps.journal.locked():
         stored = deps.journal.read_job_record(job_id)
         deps.journal.write_job_record(
             dataclasses.replace(stored, phase_deadline_at=stored.created_at)
+        )
+        deps.journal.write_verification_evidence(
+            job_id, {"verified_at": stored.created_at.isoformat()}
         )
 
     # Read surfaces.

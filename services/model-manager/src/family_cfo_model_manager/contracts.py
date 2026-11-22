@@ -267,6 +267,13 @@ class JobStatus:
     # Additive field (ADR 0074 Decision 5): when the target last passed
     # verification. The reconciler commits only on evidence <= 30 s old.
     verified_at: datetime | None = None
+    # Additive (issue #170 item 4): the frozen identity the reconciler's
+    # receipt and acknowledgement freeze, plus the initiator attribution for
+    # the outcome audits. Never credentials; safe to expose on the wire.
+    runtime_key: str | None = None
+    target_plan_hash: str | None = None
+    initiator_household_id: str | None = None
+    initiator_user_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

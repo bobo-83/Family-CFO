@@ -4,10 +4,11 @@ import httpx
 import pytest
 from sqlalchemy.engine import Engine
 
-from family_cfo_api import fixtures
+from family_cfo_api import fixtures, model_manager_client
 from family_cfo_api.config import Settings
 from family_cfo_api.db import create_database_engine
 from family_cfo_api.main import create_app
+from tests._fake_manager import FakeManagerV2
 from tests._test_keys import TEST_FERNET_KEY
 
 
@@ -141,6 +142,22 @@ async def demo_token(demo_client: httpx.AsyncClient) -> str:
 @pytest.fixture
 async def demo_viewer_token(demo_client: httpx.AsyncClient) -> str:
     return await login(demo_client, fixtures.DEMO_VIEWER_EMAIL, fixtures.DEMO_VIEWER_PASSWORD)
+
+
+@pytest.fixture
+def fake_manager(monkeypatch: pytest.MonkeyPatch) -> FakeManagerV2:
+    """Serve the fake manager v2 surface (`tests/_fake_manager.py`) to the
+    REAL typed client, so credential headers, error-envelope parsing, and 404
+    semantics are exercised rather than mocked away. App settings must carry
+    `model_manager_credential=DEFAULT_CREDENTIAL` for mutators to pass the
+    fake's credential guard."""
+    manager = FakeManagerV2()
+    monkeypatch.setattr(
+        model_manager_client.httpx,
+        "request",
+        lambda method, url, **kw: manager.handle(method, url, **kw),
+    )
+    return manager
 
 
 @pytest.fixture(autouse=True)
