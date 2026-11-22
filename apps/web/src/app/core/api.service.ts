@@ -77,6 +77,7 @@ import {
   generateReport,
   getAiApplyStatus,
   getAiRuntimeConfig,
+  retryAiApplyRecovery,
   getAiHardwareProfile,
   getAiRuntimeStatus,
   getAiStudyStatus,
@@ -154,6 +155,7 @@ import {
   uploadImportFile,
   type AccountCreateRequest,
   type AiApplyRequest,
+  type AiRetryRecoveryRequest,
   type AccountUpdateRequest,
   type AiRuntimeConfig,
   type CardStatementCreateRequest,
@@ -1005,8 +1007,14 @@ export class ApiService {
     return applyAiModelSelection({ body });
   }
 
-  getAiApplyStatus() {
-    return getAiApplyStatus();
+  /** #170: read one exact job, or omit for current/latest/idle. */
+  getAiApplyStatus(jobId?: string) {
+    return getAiApplyStatus(jobId ? { query: { job_id: jobId } } : undefined);
+  }
+
+  /** #170: re-run a job's frozen recovery direction; a NEW request_id per attempt. */
+  retryAiApplyRecovery(jobId: string, body: AiRetryRecoveryRequest) {
+    return retryAiApplyRecovery({ path: { job_id: jobId }, body });
   }
 
   updateAiRuntimeConfig(body: AiRuntimeConfig) {

@@ -1058,817 +1058,108 @@
           <context context-type="linenumber">114,115</context>
         </context-group>
       </trans-unit>
-      <trans-unit id="3205260326138809168" datatype="html">
-        <source>Applying — <x id="INTERPOLATION" equiv-text="{{ live.detail }}"/> This can take several minutes for a first download; the current model keeps answering meanwhile.</source>
+      <trans-unit id="6677323504466207464" datatype="html">
+        <source>Checking model and deployment compatibility…</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">134,135</context>
+          <context context-type="linenumber">141,145</context>
         </context-group>
-        <note priority="1" from="description">The swap is in progress and may take a while</note>
+        <note priority="1" from="description">The apply request is being validated before anything
+                      changes</note>
         <note priority="1" from="meaning">Model swap status</note>
       </trans-unit>
-      <trans-unit id="6436370391986998789" datatype="html">
-        <source>✅ <x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/><x id="INTERPOLATION" equiv-text="{{ live.detail }}"/><x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/> is active and answering.</source>
+      <trans-unit id="7223837559639036363" datatype="html">
+        <source>Preparing — downloading the new model. The current deployment is not replaced yet.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">140,141</context>
+          <context context-type="linenumber">151,156</context>
         </context-group>
-        <note priority="1" from="description">The newly applied model is serving</note>
+        <note priority="1" from="description">The new model is being prepared; the current deployment is
+                      not replaced yet</note>
         <note priority="1" from="meaning">Model swap status</note>
       </trans-unit>
-      <trans-unit id="685014332173279827" datatype="html">
-        <source>❌ The swap failed. Log tail: <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code&gt;"/><x id="INTERPOLATION" equiv-text="{{ live.detail }}"/><x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/></source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">145,146</context>
-        </context-group>
-        <note priority="1" from="description">The swap failed, with the tail of the container log</note>
-        <note priority="1" from="meaning">Model swap status</note>
-      </trans-unit>
-      <trans-unit id="8743092668915523457" datatype="html">
-        <source> 📷 No photo model is serving — chat photos won&apos;t be analyzed. <x id="START_TAG_BUTTON" ctype="x-button" equiv-text="&lt;button mat-button type=&quot;button&quot; (click)=&quot;pickPhotoModelNext()&quot;&gt;"/> Pick a photo model <x id="CLOSE_TAG_BUTTON" ctype="x-button" equiv-text="&lt;/button&gt;"/></source>
+      <trans-unit id="344471728733790803" datatype="html">
+        <source>Replacing and validating the new deployment. The advisor may temporarily answer with deterministic fallbacks.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
           <context context-type="linenumber">162,167</context>
         </context-group>
-        <note priority="1" from="description">No vision model is serving so photos sent in chat are ignored; the
-                button jumps to the photo models</note>
-        <note priority="1" from="meaning">Photo model nudge</note>
+        <note priority="1" from="description">The deployment is being replaced and validated; the advisor
+                      may temporarily answer with deterministic fallbacks</note>
+        <note priority="1" from="meaning">Model swap status</note>
       </trans-unit>
-      <trans-unit id="6957543912406633987" datatype="html">
-        <source> Household usage </source>
+      <trans-unit id="7980634732056819786" datatype="html">
+        <source>Verified — saving the household selection…</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">176,178</context>
+          <context context-type="linenumber">173,178</context>
         </context-group>
-        <note priority="1" from="description">How much of the box each household is using</note>
-        <note priority="1" from="meaning">Section heading</note>
+        <note priority="1" from="description">The target is verified; the household selection is being
+                      saved</note>
+        <note priority="1" from="meaning">Model swap status</note>
       </trans-unit>
-      <trans-unit id="2978284517621836921" datatype="html">
-        <source>member sign-in needed</source>
+      <trans-unit id="104503519351194687" datatype="html">
+        <source>✅ The requested configuration is active; the selection is saved.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">192,197</context>
+          <context context-type="linenumber">182,188</context>
         </context-group>
-        <note priority="1" from="description">The household has members but nobody has signed in
-                          yet</note>
-        <note priority="1" from="meaning">Household usage flag</note>
+        <note priority="1" from="description">The requested chat and photo configuration is active and the
+                      selection is saved</note>
+        <note priority="1" from="meaning">Model swap status</note>
       </trans-unit>
-      <trans-unit id="6975695638312322787" datatype="html">
-        <source> <x id="ICU" equiv-text="{row.chats_7d, plural, =1 {1 chat} other {{{ row.chats_7d }} chats}}" xid="1145287114575928656"/> this week (<x id="INTERPOLATION_1" equiv-text="{{ row.chats_24h }}"/> in the last 24 h) · <x id="START_BLOCK_IF" equiv-text="@if (row.median_answer_ms != null) {"/><x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/><x id="INTERPOLATION_2" equiv-text="{{ formatAnswerTime(row.median_answer_ms) }}"/><x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/> median <x id="CLOSE_BLOCK_IF" equiv-text="}"/><x id="START_BLOCK_ELSE" equiv-text="@else {"/> — median <x id="CLOSE_BLOCK_ELSE" equiv-text="}"/> · <x id="INTERPOLATION_3" equiv-text="{{ formatStorage(row.storage_bytes) }}"/> </source>
+      <trans-unit id="211094080713856728" datatype="html">
+        <source>❌ The replacement failed before anything was changed.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">202,210</context>
+          <context context-type="linenumber">191,195</context>
         </context-group>
-        <note priority="1" from="description">Chats this household ran, its median answer time, and the
-                      space it takes up</note>
-        <note priority="1" from="meaning">Household usage</note>
+        <note priority="1" from="description">The replacement failed before any change was made, or no
+                      previous runtime existed</note>
+        <note priority="1" from="meaning">Model swap status</note>
       </trans-unit>
-      <trans-unit id="3268652683891229916" datatype="html">
-        <source>{VAR_PLURAL, plural, =1 {1 chat} other {<x id="INTERPOLATION"/> chats}}</source>
+      <trans-unit id="7725855611200842768" datatype="html">
+        <source>The replacement failed — restoring the previous configuration…</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">202</context>
+          <context context-type="linenumber">204,209</context>
         </context-group>
+        <note priority="1" from="description">The replacement failed and the previous configuration is
+                      being restored</note>
+        <note priority="1" from="meaning">Model swap status</note>
       </trans-unit>
-      <trans-unit id="6468367623806502835" datatype="html">
-        <source> Households marked &quot;member sign-in needed&quot; can&apos;t be sealed until a member signs in with their password. </source>
+      <trans-unit id="6176516947641048945" datatype="html">
+        <source>↩️ The previous configuration is verified and running again.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">219,223</context>
+          <context context-type="linenumber">212,216</context>
         </context-group>
-        <note priority="1" from="description">Explains the member sign-in needed flag</note>
-        <note priority="1" from="meaning">Household usage footnote</note>
+        <note priority="1" from="description">The previous configuration is verified and running again</note>
+        <note priority="1" from="meaning">Model swap status</note>
       </trans-unit>
-      <trans-unit id="3810964357127254692" datatype="html">
-        <source>Fair-use cap: <x id="INTERPOLATION" equiv-text="{{ usageData.chat_hourly_limit }}"/> chats/hour per household</source>
+      <trans-unit id="3800326510956561279" datatype="html">
+        <source>⚠️ Recovery needs attention.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">226,227</context>
+          <context context-type="linenumber">221,224</context>
         </context-group>
-        <note priority="1" from="description">How many chats per hour each household may run</note>
-        <note priority="1" from="meaning">Fair-use cap</note>
-      </trans-unit>
-      <trans-unit id="3539419223538310627" datatype="html">
-        <source>Fair-use cap: off</source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">231,234</context>
-        </context-group>
-        <note priority="1" from="description">No per-household chat limit is set</note>
-        <note priority="1" from="meaning">Fair-use cap</note>
-      </trans-unit>
-      <trans-unit id="117506188325908861" datatype="html">
-        <source> Second box </source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">242,245</context>
-        </context-group>
-        <note priority="1" from="description">The optional second machine that shares the load</note>
-        <note priority="1" from="meaning">Section heading</note>
-      </trans-unit>
-      <trans-unit id="4840304724695598311" datatype="html">
-        <source> Second box detected (<x id="INTERPOLATION" equiv-text="{{ peerHost }}"/>) <x id="START_BLOCK_IF" equiv-text="@if (clusterMemoryGb() !== null) {"/> — combined budget <x id="INTERPOLATION_1" equiv-text="{{ clusterMemoryGb() }}"/> GB <x id="CLOSE_BLOCK_IF" equiv-text="}"/></source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">252,256</context>
-        </context-group>
-        <note priority="1" from="description">A second box is enrolled and reachable, with the combined memory
-                  budget</note>
-        <note priority="1" from="meaning">Cluster status</note>
-      </trans-unit>
-      <trans-unit id="7617848046858813880" datatype="html">
-        <source> ⚠️ Second box (<x id="INTERPOLATION" equiv-text="{{ peerHost }}"/>) enrolled but not reachable </source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">263,264</context>
-        </context-group>
-        <note priority="1" from="description">A second box is enrolled but cannot be reached</note>
-        <note priority="1" from="meaning">Cluster status</note>
-      </trans-unit>
-      <trans-unit id="6619356352128166291" datatype="html">
-        <source> Use both boxes for larger models </source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">273,275</context>
-        </context-group>
-        <note priority="1" from="description">Spreads a model across both boxes so bigger models fit</note>
-        <note priority="1" from="meaning">Checkbox</note>
-      </trans-unit>
-      <trans-unit id="6142326596619120985" datatype="html">
-        <source>Find a model</source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">283,285</context>
-        </context-group>
-        <note priority="1" from="description">Browse and search the available models</note>
-        <note priority="1" from="meaning">Section heading</note>
-      </trans-unit>
-      <trans-unit id="4992937708168551647" datatype="html">
-        <source>Search Hugging Face</source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">291,296</context>
-        </context-group>
-        <note priority="1" from="description">Search box for the Hugging Face model hub; Hugging Face is a
-                  product name</note>
-        <note priority="1" from="meaning">Form field label</note>
-      </trans-unit>
-      <trans-unit id="2286397047534218293" datatype="html">
-        <source> Search </source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">314,318</context>
-        </context-group>
-        <note priority="1" from="description">Runs the Hugging Face model search, showing progress while it is in flight</note>
-        <note priority="1" from="meaning">Button</note>
-      </trans-unit>
-      <trans-unit id="4828002327517056469" datatype="html">
-        <source> Clear search </source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">324,328</context>
-        </context-group>
-        <note priority="1" from="description">Exits the search results view and restores catalog browsing</note>
-        <note priority="1" from="meaning">Button</note>
-      </trans-unit>
-      <trans-unit id="2261079183030797646" datatype="html">
-        <source>Quick filters</source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">337,339</context>
-        </context-group>
-        <note priority="1" from="description">Names the row of one-click model filters</note>
-        <note priority="1" from="meaning">Quick filter group accessible name</note>
-      </trans-unit>
-      <trans-unit id="5328820608648858959" datatype="html">
-        <source> ✨ Recommended chat models </source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">350,353</context>
-        </context-group>
-        <note priority="1" from="description">Shows the strongest chat models that fit this box</note>
-        <note priority="1" from="meaning">Quick filter</note>
-      </trans-unit>
-      <trans-unit id="7889997520636858270" datatype="html">
-        <source> 🪄 One model for both </source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">360,363</context>
-        </context-group>
-        <note priority="1" from="description">Shows models that handle both chat and photos</note>
-        <note priority="1" from="meaning">Quick filter</note>
-      </trans-unit>
-      <trans-unit id="8129601877318423089" datatype="html">
-        <source> 🏦 Best for finances </source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">370,373</context>
-        </context-group>
-        <note priority="1" from="description">Shows models suited to financial reasoning</note>
-        <note priority="1" from="meaning">Quick filter</note>
-      </trans-unit>
-      <trans-unit id="6726129633038907357" datatype="html">
-        <source> 📷 Biggest vision that fits </source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">380,383</context>
-        </context-group>
-        <note priority="1" from="description">Shows the largest photo model this box can run</note>
-        <note priority="1" from="meaning">Quick filter</note>
-      </trans-unit>
-      <trans-unit id="4729699586746563022" datatype="html">
-        <source> 📷 Smallest vision </source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">390,393</context>
-        </context-group>
-        <note priority="1" from="description">Shows the smallest photo model available</note>
-        <note priority="1" from="meaning">Quick filter</note>
-      </trans-unit>
-      <trans-unit id="2930680497134130255" datatype="html">
-        <source> All </source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">400,404</context>
-        </context-group>
-        <note priority="1" from="description">Removes the quick filter and shows every model</note>
-        <note priority="1" from="meaning">Quick filter</note>
-      </trans-unit>
-      <trans-unit id="1836332772002343246" datatype="html">
-        <source> Fetching the live list from Hugging Face… </source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">412,417</context>
-        </context-group>
-        <note priority="1" from="description">Shown while the live model list is fetched; Hugging Face is a
-                product name</note>
-        <note priority="1" from="meaning">Loading placeholder</note>
-      </trans-unit>
-      <trans-unit id="5856906234277753368" datatype="html">
-        <source>Role</source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">419,421</context>
-        </context-group>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/users/users.html</context>
-          <context context-type="linenumber">194,196</context>
-        </context-group>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/users/users.html</context>
-          <context context-type="linenumber">320,322</context>
-        </context-group>
-        <note priority="1" from="description">Filters models by what they are used for</note>
-        <note priority="1" from="meaning">Form field label</note>
-      </trans-unit>
-      <trans-unit id="6796491552588378740" datatype="html">
-        <source>All</source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">422,423</context>
-        </context-group>
-        <note priority="1" from="description">No role filter</note>
-        <note priority="1" from="meaning">Role filter option</note>
-      </trans-unit>
-      <trans-unit id="1972771658675427590" datatype="html">
-        <source>Main</source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">424,426</context>
-        </context-group>
-        <note priority="1" from="description">Models that answer chat questions</note>
-        <note priority="1" from="meaning">Role filter option</note>
-      </trans-unit>
-      <trans-unit id="5079160005943105865" datatype="html">
-        <source>Vision</source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">427,429</context>
-        </context-group>
-        <note priority="1" from="description">Models that analyse photos</note>
-        <note priority="1" from="meaning">Role filter option</note>
-      </trans-unit>
-      <trans-unit id="7858710981744114957" datatype="html">
-        <source>Sort</source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">432,433</context>
-        </context-group>
-        <note priority="1" from="description">Orders the model list</note>
-        <note priority="1" from="meaning">Form field label</note>
-      </trans-unit>
-      <trans-unit id="3292014569244646418" datatype="html">
-        <source>Search order</source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">441,444</context>
-        </context-group>
-        <note priority="1" from="description">In search mode the default order keeps the search&apos;s own relevance
-                      order</note>
-        <note priority="1" from="meaning">Sort option</note>
-      </trans-unit>
-      <trans-unit id="3721638029309178159" datatype="html">
-        <source>Recommended</source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">445,447</context>
-        </context-group>
-        <note priority="1" from="description">The suggested order</note>
-        <note priority="1" from="meaning">Sort option</note>
-      </trans-unit>
-      <trans-unit id="3800564267193498102" datatype="html">
-        <source>Largest first</source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">449,451</context>
-        </context-group>
-        <note priority="1" from="description">Most parameters first</note>
-        <note priority="1" from="meaning">Sort option</note>
-      </trans-unit>
-      <trans-unit id="3857596338180899787" datatype="html">
-        <source>Smallest first</source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">452,454</context>
-        </context-group>
-        <note priority="1" from="description">Fewest parameters first</note>
-        <note priority="1" from="meaning">Sort option</note>
-      </trans-unit>
-      <trans-unit id="7434387742144539519" datatype="html">
-        <source>Least memory first</source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">455,457</context>
-        </context-group>
-        <note priority="1" from="description">Lowest memory requirement first</note>
-        <note priority="1" from="meaning">Sort option</note>
-      </trans-unit>
-      <trans-unit id="5679342027657181529" datatype="html">
-        <source> Only models that fit </source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">465,469</context>
-        </context-group>
-        <note priority="1" from="description">Hides models this box does not have the memory for</note>
-        <note priority="1" from="meaning">Checkbox</note>
-      </trans-unit>
-      <trans-unit id="303971031772549554" datatype="html">
-        <source> Search results for &quot;<x id="INTERPOLATION" equiv-text="{{ submittedQuery() }}"/>&quot; </source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">485,486</context>
-        </context-group>
-        <note priority="1" from="description">Names the query the results answer; the placeholder is the
-                  submitted query text</note>
-        <note priority="1" from="meaning">Results heading</note>
-      </trans-unit>
-      <trans-unit id="8636258699854103562" datatype="html">
-        <source> Searching Hugging Face… </source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">496,499</context>
-        </context-group>
-        <note priority="1" from="description">Shown while the submitted query is fetched; Hugging Face is
-                    a product name</note>
-        <note priority="1" from="meaning">Loading placeholder</note>
-      </trans-unit>
-      <trans-unit id="7727221231230160580" datatype="html">
-        <source> Showing matching catalog and currently configured models only. </source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">507,510</context>
-        </context-group>
-        <note priority="1" from="description">A failed search still shows the matching locally known models</note>
-        <note priority="1" from="meaning">Fallback notice</note>
-      </trans-unit>
-      <trans-unit id="3489605531860093449" datatype="html">
-        <source> No models match &quot;<x id="INTERPOLATION" equiv-text="{{ submittedQuery() }}"/>&quot; with the current filters. </source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">523,524</context>
-        </context-group>
-        <note priority="1" from="description">The submitted query matched no models under the current filters</note>
-        <note priority="1" from="meaning">Empty state</note>
-      </trans-unit>
-      <trans-unit id="1923181390517328856" datatype="html">
-        <source> <x id="ICU" equiv-text="{searchResultCount(), plural,
-                    =1 {1 result}
-                    other {{{ searchResultCount() }} results}
-                  }" xid="4028576809388465265"/> </source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">530,535</context>
-        </context-group>
-        <note priority="1" from="description">How many models matched the submitted query</note>
-        <note priority="1" from="meaning">Result count</note>
-      </trans-unit>
-      <trans-unit id="3306100694975146929" datatype="html">
-        <source>{VAR_PLURAL, plural, =1 {1 result} other {<x id="INTERPOLATION"/> results}}</source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">530,532</context>
-        </context-group>
-      </trans-unit>
-      <trans-unit id="8718215969370981850" datatype="html">
-        <source>now serving</source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">562,565</context>
-        </context-group>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">709,712</context>
-        </context-group>
-        <note priority="1" from="description">This model is the one currently being served</note>
-        <note priority="1" from="meaning">Model badge</note>
-      </trans-unit>
-      <trans-unit id="2916025183372814429" datatype="html">
-        <source><x id="START_BLOCK_IF" equiv-text="@if (model.parameters_b) {"/> <x id="INTERPOLATION" equiv-text="{{ model.parameters_b }}"/>B · <x id="CLOSE_BLOCK_IF" equiv-text="}"/> ~<x id="INTERPOLATION_1" equiv-text="{{ model.est_memory_gb }}"/> GB needed · <x id="INTERPOLATION_2" equiv-text="{{ clusterMemoryGb() ?? &apos;?&apos; }}"/> GB combined </source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">576,580</context>
-        </context-group>
-        <note priority="1" from="description">Parameter count, memory needed, and the memory both boxes have
-                      together</note>
-        <note priority="1" from="meaning">Model size line</note>
-      </trans-unit>
-      <trans-unit id="2701793786660777827" datatype="html">
-        <source>✅ Fits across both boxes</source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">587,590</context>
-        </context-group>
-        <note priority="1" from="description">The model fits the two boxes together</note>
-        <note priority="1" from="meaning">Fit verdict</note>
-      </trans-unit>
-      <trans-unit id="1522140590620524841" datatype="html">
-        <source>⚠️ Tight — may need reduced context</source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">592,595</context>
-        </context-group>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">848,850</context>
-        </context-group>
-        <note priority="1" from="description">The model only just fits the available memory</note>
-        <note priority="1" from="meaning">Fit verdict</note>
-      </trans-unit>
-      <trans-unit id="3511584560216130994" datatype="html">
-        <source>❌ Too big even for both boxes</source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">598,601</context>
-        </context-group>
-        <note priority="1" from="description">The model does not fit even both boxes together</note>
-        <note priority="1" from="meaning">Fit verdict</note>
-      </trans-unit>
-      <trans-unit id="3970543966675217968" datatype="html">
-        <source>❓ Unknown</source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">604,607</context>
-        </context-group>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">862,864</context>
-        </context-group>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">905,907</context>
-        </context-group>
-        <note priority="1" from="description">The model&apos;s memory need could not be worked out</note>
-        <note priority="1" from="meaning">Fit verdict</note>
-      </trans-unit>
-      <trans-unit id="7640409202493080979" datatype="html">
-        <source>Already serving</source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">624,626</context>
-        </context-group>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">952,954</context>
-        </context-group>
-        <note priority="1" from="description">This model is already the one being served</note>
-        <note priority="1" from="meaning">Button</note>
-      </trans-unit>
-      <trans-unit id="63341034909997005" datatype="html">
-        <source>{VAR_SELECT, select, true {Starting…} other {Apply}}</source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">632,637</context>
-        </context-group>
-        <note priority="1" from="description">Switches the box to this model, showing progress while the swap
-                        starts</note>
-        <note priority="1" from="meaning">Button</note>
-      </trans-unit>
-      <trans-unit id="8702226501918606378" datatype="html">
-        <source> Cluster (both boxes) </source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">646,648</context>
-        </context-group>
-        <note priority="1" from="description">Models that need both boxes to run</note>
-        <note priority="1" from="meaning">Section heading</note>
-      </trans-unit>
-      <trans-unit id="6424918201419411604" datatype="html">
-        <source> No available model reliably does both chat (tool calling) and photos today. Pick a chat model first, then a photo model — the expanded panel guides you. </source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">670,674</context>
-        </context-group>
-        <note priority="1" from="description">No single model handles both chat and photos well</note>
-        <note priority="1" from="meaning">Empty state</note>
-      </trans-unit>
-      <trans-unit id="8556361295656267190" datatype="html">
-        <source> No models match these filters. Try &quot;All&quot; or search Hugging Face above. </source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">675,678</context>
-        </context-group>
-        <note priority="1" from="description">The current filters match no models</note>
-        <note priority="1" from="meaning">Empty state</note>
-      </trans-unit>
-      <trans-unit id="273807870200803531" datatype="html">
-        <source>vision-capable</source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">714,715</context>
-        </context-group>
-        <note priority="1" from="description">The model can look at photos</note>
-        <note priority="1" from="meaning">Model icon tooltip</note>
-      </trans-unit>
-      <trans-unit id="9164142340917569618" datatype="html">
-        <source>gated on Hugging Face</source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">721,723</context>
-        </context-group>
-        <note priority="1" from="description">The model needs an access token; Hugging Face is a
-                          product name</note>
-        <note priority="1" from="meaning">Model icon tooltip</note>
-      </trans-unit>
-      <trans-unit id="8739800648825777343" datatype="html">
-        <source><x id="INTERPOLATION" equiv-text="{{ model.parameters_b }}"/>B · ~<x id="INTERPOLATION_1" equiv-text="{{ model.est_memory_gb }}"/> GB memory</source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">737,738</context>
-        </context-group>
-        <note priority="1" from="description">Parameter count and the memory the model needs</note>
-        <note priority="1" from="meaning">Model size line</note>
-      </trans-unit>
-      <trans-unit id="6677118768071048254" datatype="html">
-        <source>size unknown</source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">742,745</context>
-        </context-group>
-        <note priority="1" from="description">The model&apos;s size could not be worked out</note>
-        <note priority="1" from="meaning">Model size line</note>
-      </trans-unit>
-      <trans-unit id="2173576374670504859" datatype="html">
-        <source> Fetching Hugging Face stats… </source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">785,789</context>
-        </context-group>
-        <note priority="1" from="description">Shown while the live model statistics load; Hugging Face
-                        is a product name</note>
-        <note priority="1" from="meaning">Loading placeholder</note>
-      </trans-unit>
-      <trans-unit id="3812975471739501571" datatype="html">
-        <source> ⬇️ <x id="INTERPOLATION" equiv-text="{{ hub.downloads?.toLocaleString() ?? &apos;—&apos; }}"/> downloads · ❤️ <x id="INTERPOLATION_1" equiv-text="{{ hub.likes ?? &apos;—&apos; }}"/> <x id="START_BLOCK_IF" equiv-text="@if (hub.license) {"/> · <x id="INTERPOLATION_2" equiv-text="{{ hub.license }}"/> <x id="CLOSE_BLOCK_IF" equiv-text="}"/><x id="START_BLOCK_IF_1" equiv-text="@if (hub.last_modified) {"/> · updated <x id="INTERPOLATION_3" equiv-text="{{ formatHubDate(hub.last_modified) }}"/> <x id="CLOSE_BLOCK_IF" equiv-text="}"/></source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">795,803</context>
-        </context-group>
-        <note priority="1" from="description">Downloads, likes, licence and last update of the model
-                        on Hugging Face</note>
-        <note priority="1" from="meaning">Model hub statistics</note>
-      </trans-unit>
-      <trans-unit id="8144990991100690639" datatype="html">
-        <source>Memory (incl. ~15% headroom)</source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">815,818</context>
-        </context-group>
-        <note priority="1" from="description">Memory the model needs, including runtime headroom</note>
-        <note priority="1" from="meaning">Fit row label</note>
-      </trans-unit>
-      <trans-unit id="1162400230323624225" datatype="html">
-        <source><x id="START_BLOCK_IF" equiv-text="@if (plan.memoryGb !== null) {"/> <x id="INTERPOLATION" equiv-text="{{ plan.memoryGb }}"/> GB required · <x id="CLOSE_BLOCK_IF" equiv-text="}"/><x id="START_BLOCK_ELSE" equiv-text="@else {"/> required unknown · <x id="CLOSE_BLOCK_ELSE" equiv-text="}"/><x id="START_BLOCK_IF_2" equiv-text="@if (memoryBudgetGb() !== null) {"/> <x id="INTERPOLATION_1" equiv-text="{{ memoryBudgetGb() }}"/> GB available <x id="START_BLOCK_IF_1" equiv-text="@if (usingSystemMemoryBudget()) {"/> (system memory) <x id="CLOSE_BLOCK_IF" equiv-text="}"/><x id="CLOSE_BLOCK_IF" equiv-text="}"/><x id="START_BLOCK_ELSE" equiv-text="@else {"/> available unknown <x id="CLOSE_BLOCK_ELSE" equiv-text="}"/></source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">824,837</context>
-        </context-group>
-        <note priority="1" from="description">Memory the model needs against the memory this computer
-                            has free</note>
-        <note priority="1" from="meaning">Fit row figures</note>
-      </trans-unit>
-      <trans-unit id="2094630199712345199" datatype="html">
-        <source>✅ Fits this computer</source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">842,844</context>
-        </context-group>
-        <note priority="1" from="description">The model fits this computer&apos;s memory</note>
-        <note priority="1" from="meaning">Fit verdict</note>
-      </trans-unit>
-      <trans-unit id="1057442326411131852" datatype="html">
-        <source>❌ Won&apos;t fit this computer</source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">856,858</context>
-        </context-group>
-        <note priority="1" from="description">The model needs more memory than this computer has</note>
-        <note priority="1" from="meaning">Fit verdict</note>
-      </trans-unit>
-      <trans-unit id="3384726157292468569" datatype="html">
-        <source>Disk for downloads</source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">872,875</context>
-        </context-group>
-        <note priority="1" from="description">Disk space the downloaded weights need</note>
-        <note priority="1" from="meaning">Fit row label</note>
-      </trans-unit>
-      <trans-unit id="2567312700629079949" datatype="html">
-        <source> ~<x id="INTERPOLATION" equiv-text="{{ plan.diskGb ?? &apos;?&apos; }}"/> GB weights · <x id="INTERPOLATION_1" equiv-text="{{ hardware.value()?.disk_free_gb ?? &apos;?&apos; }}"/> GB free </source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">881,883</context>
-        </context-group>
-        <note priority="1" from="description">Disk the weights need against the free disk on this
-                            computer</note>
-        <note priority="1" from="meaning">Fit row figure</note>
-      </trans-unit>
-      <trans-unit id="1886922830401671165" datatype="html">
-        <source>✅ Fits</source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">888,890</context>
-        </context-group>
-        <note priority="1" from="description">There is enough free disk</note>
-        <note priority="1" from="meaning">Disk fit verdict</note>
-      </trans-unit>
-      <trans-unit id="6567993139144926027" datatype="html">
-        <source>⚠️ Tight</source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">894,896</context>
-        </context-group>
-        <note priority="1" from="description">There is only just enough free disk</note>
-        <note priority="1" from="meaning">Disk fit verdict</note>
-      </trans-unit>
-      <trans-unit id="6740956904262551583" datatype="html">
-        <source>❌ Not enough free disk</source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">899,901</context>
-        </context-group>
-        <note priority="1" from="description">There is not enough free disk</note>
-        <note priority="1" from="meaning">Disk fit verdict</note>
-      </trans-unit>
-      <trans-unit id="8247316279828780329" datatype="html">
-        <source> 🔒 Gated on Hugging Face — the server needs HUGGING_FACE_HUB_TOKEN. </source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">921,926</context>
-        </context-group>
-        <note priority="1" from="description">The model needs an access token; HUGGING_FACE_HUB_TOKEN is an
-                        environment variable name and Hugging Face is a product name</note>
-        <note priority="1" from="meaning">Model warning</note>
-      </trans-unit>
-      <trans-unit id="3339921436445073219" datatype="html">
-        <source> ⚠️ This model can&apos;t call the financial tools — as the chat model, answers fall back to deterministic snapshots. Best applied as the photo model. </source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">932,936</context>
-        </context-group>
-        <note priority="1" from="description">The model cannot call the financial tools, so it is a poor
-                        chat model</note>
-        <note priority="1" from="meaning">Model warning</note>
-      </trans-unit>
-      <trans-unit id="2942933804955710219" datatype="html">
-        <source>{VAR_SELECT, select, true {Starting…} other {Apply — download &amp; switch now}}</source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">960,965</context>
-        </context-group>
-        <note priority="1" from="description">Downloads and switches to this model, showing progress while the
-                            swap starts</note>
-        <note priority="1" from="meaning">Button</note>
-      </trans-unit>
-      <trans-unit id="3433266243049195482" datatype="html">
-        <source>Already the photo model</source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">977,979</context>
-        </context-group>
-        <note priority="1" from="description">This model already analyses the photos</note>
-        <note priority="1" from="meaning">Button</note>
-      </trans-unit>
-      <trans-unit id="1904040223917073768" datatype="html">
-        <source>Apply as photo model only</source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">984,987</context>
-        </context-group>
-        <note priority="1" from="description">Uses this model for photos only, keeping the current chat model</note>
-        <note priority="1" from="meaning">Button</note>
-      </trans-unit>
-      <trans-unit id="7471129984836545867" datatype="html">
-        <source> Next: pick a photo model → </source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">996,998</context>
-        </context-group>
-        <note priority="1" from="description">Guides the user on to choosing a photo model</note>
-        <note priority="1" from="meaning">Button</note>
-      </trans-unit>
-      <trans-unit id="2918821177526400769" datatype="html">
-        <source> Show <x id="INTERPOLATION" equiv-text="{{ hiddenCount() }}"/> more </source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">1012,1013</context>
-        </context-group>
-        <note priority="1" from="description">Reveals the models hidden below the fold</note>
-        <note priority="1" from="meaning">Button</note>
-      </trans-unit>
-      <trans-unit id="4032752774471491840" datatype="html">
-        <source> Advanced configuration </source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">1021,1024</context>
-        </context-group>
-        <note priority="1" from="description">Raw AI runtime settings, hidden by default</note>
-        <note priority="1" from="meaning">Section heading</note>
-      </trans-unit>
-      <trans-unit id="5690101403047084078" datatype="html">
-        <source> Currently serving: <x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/><x id="INTERPOLATION" equiv-text="{{ status.value()?.served_model || &apos;—&apos; }}"/><x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/> (main) + <x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/><x id="INTERPOLATION_1" equiv-text="{{ status.value()?.vision_model || offLabel }}"/><x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/> (vision) </source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">1027,1030</context>
-        </context-group>
-        <note priority="1" from="description">Which model answers chat and which analyses photos right now</note>
-        <note priority="1" from="meaning">Advanced summary</note>
-      </trans-unit>
-      <trans-unit id="4808088334302311411" datatype="html">
-        <source>Provider</source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">1033,1035</context>
-        </context-group>
-        <note priority="1" from="description">Which serving engine runs the model</note>
-        <note priority="1" from="meaning">Form field label</note>
-      </trans-unit>
-      <trans-unit id="2801762277977136294" datatype="html">
-        <source>Base URL</source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">1044,1046</context>
-        </context-group>
-        <note priority="1" from="description">Address the serving engine listens on</note>
-        <note priority="1" from="meaning">Form field label</note>
-      </trans-unit>
-      <trans-unit id="2274928897210713565" datatype="html">
-        <source>Main model</source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">1051,1055</context>
-        </context-group>
-        <note priority="1" from="description">Identifier of the model that answers chat questions</note>
-        <note priority="1" from="meaning">Form field label</note>
-      </trans-unit>
-      <trans-unit id="3368802918181650871" datatype="html">
-        <source> Enabled </source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">1066,1069</context>
-        </context-group>
-        <note priority="1" from="description">Turns the AI runtime on</note>
-        <note priority="1" from="meaning">Checkbox</note>
-      </trans-unit>
-      <trans-unit id="789228540276988686" datatype="html">
-        <source> Saved. </source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">1077,1081</context>
-        </context-group>
-        <note priority="1" from="description">The raw configuration was saved</note>
-        <note priority="1" from="meaning">Success notice</note>
+        <note priority="1" from="description">Runtime recovery needs attention; retrying re-runs the same
+                      frozen plan</note>
+        <note priority="1" from="meaning">Model swap status</note>
       </trans-unit>
       <trans-unit id="6351444981476985768" datatype="html">
-        <source> <x id="ICU" equiv-text="{submitting(), select, true {Saving…} other {Save}}" xid="910075115452465892"/> </source>
+        <source> <x id="ICU" equiv-text="{retryingRecovery(), select, true {Retrying…} other {Retry recovery}}" xid="3720343997600933294"/> </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">1089,1091</context>
+          <context context-type="linenumber">240,242</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">1133,1135</context>
+          <context context-type="linenumber">1214,1216</context>
+        </context-group>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">1258,1260</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/backups/backups.html</context>
@@ -1910,14 +1201,816 @@
           <context context-type="sourcefile">src/app/pages/roles/roles.html</context>
           <context context-type="linenumber">112,114</context>
         </context-group>
-        <note priority="1" from="description">Saves the raw configuration, showing progress while the request is in flight</note>
+        <note priority="1" from="description">Re-runs the same frozen recovery plan for a failed replacement</note>
         <note priority="1" from="meaning">Button</note>
+      </trans-unit>
+      <trans-unit id="3720343997600933294" datatype="html">
+        <source>{VAR_SELECT, select, true {Retrying…} other {Retry recovery}}</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">240,241</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="4962605656853346804" datatype="html">
+        <source> Progress unavailable; the operation may still be running. </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">253,258</context>
+        </context-group>
+        <note priority="1" from="description">A status poll failed but the operation continues
+                  server-side</note>
+        <note priority="1" from="meaning">Apply progress notice</note>
+      </trans-unit>
+      <trans-unit id="8743092668915523457" datatype="html">
+        <source> 📷 No photo model is serving — chat photos won&apos;t be analyzed. <x id="START_TAG_BUTTON" ctype="x-button" equiv-text="&lt;button mat-button type=&quot;button&quot; (click)=&quot;pickPhotoModelNext()&quot;&gt;"/> Pick a photo model <x id="CLOSE_TAG_BUTTON" ctype="x-button" equiv-text="&lt;/button&gt;"/></source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">268,273</context>
+        </context-group>
+        <note priority="1" from="description">No vision model is serving so photos sent in chat are ignored; the
+                button jumps to the photo models</note>
+        <note priority="1" from="meaning">Photo model nudge</note>
+      </trans-unit>
+      <trans-unit id="6957543912406633987" datatype="html">
+        <source> Household usage </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">282,284</context>
+        </context-group>
+        <note priority="1" from="description">How much of the box each household is using</note>
+        <note priority="1" from="meaning">Section heading</note>
+      </trans-unit>
+      <trans-unit id="2978284517621836921" datatype="html">
+        <source>member sign-in needed</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">298,303</context>
+        </context-group>
+        <note priority="1" from="description">The household has members but nobody has signed in
+                          yet</note>
+        <note priority="1" from="meaning">Household usage flag</note>
+      </trans-unit>
+      <trans-unit id="6975695638312322787" datatype="html">
+        <source> <x id="ICU" equiv-text="{row.chats_7d, plural, =1 {1 chat} other {{{ row.chats_7d }} chats}}" xid="1145287114575928656"/> this week (<x id="INTERPOLATION_1" equiv-text="{{ row.chats_24h }}"/> in the last 24 h) · <x id="START_BLOCK_IF" equiv-text="@if (row.median_answer_ms != null) {"/><x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/><x id="INTERPOLATION_2" equiv-text="{{ formatAnswerTime(row.median_answer_ms) }}"/><x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/> median <x id="CLOSE_BLOCK_IF" equiv-text="}"/><x id="START_BLOCK_ELSE" equiv-text="@else {"/> — median <x id="CLOSE_BLOCK_ELSE" equiv-text="}"/> · <x id="INTERPOLATION_3" equiv-text="{{ formatStorage(row.storage_bytes) }}"/> </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">308,316</context>
+        </context-group>
+        <note priority="1" from="description">Chats this household ran, its median answer time, and the
+                      space it takes up</note>
+        <note priority="1" from="meaning">Household usage</note>
+      </trans-unit>
+      <trans-unit id="3268652683891229916" datatype="html">
+        <source>{VAR_PLURAL, plural, =1 {1 chat} other {<x id="INTERPOLATION"/> chats}}</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">308</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="6468367623806502835" datatype="html">
+        <source> Households marked &quot;member sign-in needed&quot; can&apos;t be sealed until a member signs in with their password. </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">325,329</context>
+        </context-group>
+        <note priority="1" from="description">Explains the member sign-in needed flag</note>
+        <note priority="1" from="meaning">Household usage footnote</note>
+      </trans-unit>
+      <trans-unit id="3810964357127254692" datatype="html">
+        <source>Fair-use cap: <x id="INTERPOLATION" equiv-text="{{ usageData.chat_hourly_limit }}"/> chats/hour per household</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">332,333</context>
+        </context-group>
+        <note priority="1" from="description">How many chats per hour each household may run</note>
+        <note priority="1" from="meaning">Fair-use cap</note>
+      </trans-unit>
+      <trans-unit id="3539419223538310627" datatype="html">
+        <source>Fair-use cap: off</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">337,340</context>
+        </context-group>
+        <note priority="1" from="description">No per-household chat limit is set</note>
+        <note priority="1" from="meaning">Fair-use cap</note>
+      </trans-unit>
+      <trans-unit id="117506188325908861" datatype="html">
+        <source> Second box </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">348,351</context>
+        </context-group>
+        <note priority="1" from="description">The optional second machine that shares the load</note>
+        <note priority="1" from="meaning">Section heading</note>
+      </trans-unit>
+      <trans-unit id="4840304724695598311" datatype="html">
+        <source> Second box detected (<x id="INTERPOLATION" equiv-text="{{ peerHost }}"/>) <x id="START_BLOCK_IF" equiv-text="@if (clusterMemoryGb() !== null) {"/> — combined budget <x id="INTERPOLATION_1" equiv-text="{{ clusterMemoryGb() }}"/> GB <x id="CLOSE_BLOCK_IF" equiv-text="}"/></source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">358,362</context>
+        </context-group>
+        <note priority="1" from="description">A second box is enrolled and reachable, with the combined memory
+                  budget</note>
+        <note priority="1" from="meaning">Cluster status</note>
+      </trans-unit>
+      <trans-unit id="7617848046858813880" datatype="html">
+        <source> ⚠️ Second box (<x id="INTERPOLATION" equiv-text="{{ peerHost }}"/>) enrolled but not reachable </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">369,370</context>
+        </context-group>
+        <note priority="1" from="description">A second box is enrolled but cannot be reached</note>
+        <note priority="1" from="meaning">Cluster status</note>
+      </trans-unit>
+      <trans-unit id="6619356352128166291" datatype="html">
+        <source> Use both boxes for larger models </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">381,383</context>
+        </context-group>
+        <note priority="1" from="description">Spreads a model across both boxes so bigger models fit</note>
+        <note priority="1" from="meaning">Checkbox</note>
+      </trans-unit>
+      <trans-unit id="6142326596619120985" datatype="html">
+        <source>Find a model</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">391,393</context>
+        </context-group>
+        <note priority="1" from="description">Browse and search the available models</note>
+        <note priority="1" from="meaning">Section heading</note>
+      </trans-unit>
+      <trans-unit id="4992937708168551647" datatype="html">
+        <source>Search Hugging Face</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">399,404</context>
+        </context-group>
+        <note priority="1" from="description">Search box for the Hugging Face model hub; Hugging Face is a
+                  product name</note>
+        <note priority="1" from="meaning">Form field label</note>
+      </trans-unit>
+      <trans-unit id="2286397047534218293" datatype="html">
+        <source> Search </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">422,426</context>
+        </context-group>
+        <note priority="1" from="description">Runs the Hugging Face model search, showing progress while it is in flight</note>
+        <note priority="1" from="meaning">Button</note>
+      </trans-unit>
+      <trans-unit id="4828002327517056469" datatype="html">
+        <source> Clear search </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">432,436</context>
+        </context-group>
+        <note priority="1" from="description">Exits the search results view and restores catalog browsing</note>
+        <note priority="1" from="meaning">Button</note>
+      </trans-unit>
+      <trans-unit id="2261079183030797646" datatype="html">
+        <source>Quick filters</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">445,447</context>
+        </context-group>
+        <note priority="1" from="description">Names the row of one-click model filters</note>
+        <note priority="1" from="meaning">Quick filter group accessible name</note>
+      </trans-unit>
+      <trans-unit id="5328820608648858959" datatype="html">
+        <source> ✨ Recommended chat models </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">458,461</context>
+        </context-group>
+        <note priority="1" from="description">Shows the strongest chat models that fit this box</note>
+        <note priority="1" from="meaning">Quick filter</note>
+      </trans-unit>
+      <trans-unit id="7889997520636858270" datatype="html">
+        <source> 🪄 One model for both </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">468,471</context>
+        </context-group>
+        <note priority="1" from="description">Shows models that handle both chat and photos</note>
+        <note priority="1" from="meaning">Quick filter</note>
+      </trans-unit>
+      <trans-unit id="8129601877318423089" datatype="html">
+        <source> 🏦 Best for finances </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">478,481</context>
+        </context-group>
+        <note priority="1" from="description">Shows models suited to financial reasoning</note>
+        <note priority="1" from="meaning">Quick filter</note>
+      </trans-unit>
+      <trans-unit id="6726129633038907357" datatype="html">
+        <source> 📷 Biggest vision that fits </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">488,491</context>
+        </context-group>
+        <note priority="1" from="description">Shows the largest photo model this box can run</note>
+        <note priority="1" from="meaning">Quick filter</note>
+      </trans-unit>
+      <trans-unit id="4729699586746563022" datatype="html">
+        <source> 📷 Smallest vision </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">498,501</context>
+        </context-group>
+        <note priority="1" from="description">Shows the smallest photo model available</note>
+        <note priority="1" from="meaning">Quick filter</note>
+      </trans-unit>
+      <trans-unit id="2930680497134130255" datatype="html">
+        <source> All </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">508,512</context>
+        </context-group>
+        <note priority="1" from="description">Removes the quick filter and shows every model</note>
+        <note priority="1" from="meaning">Quick filter</note>
+      </trans-unit>
+      <trans-unit id="1836332772002343246" datatype="html">
+        <source> Fetching the live list from Hugging Face… </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">520,525</context>
+        </context-group>
+        <note priority="1" from="description">Shown while the live model list is fetched; Hugging Face is a
+                product name</note>
+        <note priority="1" from="meaning">Loading placeholder</note>
+      </trans-unit>
+      <trans-unit id="5856906234277753368" datatype="html">
+        <source>Role</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">527,529</context>
+        </context-group>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/users/users.html</context>
+          <context context-type="linenumber">194,196</context>
+        </context-group>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/users/users.html</context>
+          <context context-type="linenumber">320,322</context>
+        </context-group>
+        <note priority="1" from="description">Filters models by what they are used for</note>
+        <note priority="1" from="meaning">Form field label</note>
+      </trans-unit>
+      <trans-unit id="6796491552588378740" datatype="html">
+        <source>All</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">530,531</context>
+        </context-group>
+        <note priority="1" from="description">No role filter</note>
+        <note priority="1" from="meaning">Role filter option</note>
+      </trans-unit>
+      <trans-unit id="1972771658675427590" datatype="html">
+        <source>Main</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">532,534</context>
+        </context-group>
+        <note priority="1" from="description">Models that answer chat questions</note>
+        <note priority="1" from="meaning">Role filter option</note>
+      </trans-unit>
+      <trans-unit id="5079160005943105865" datatype="html">
+        <source>Vision</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">535,537</context>
+        </context-group>
+        <note priority="1" from="description">Models that analyse photos</note>
+        <note priority="1" from="meaning">Role filter option</note>
+      </trans-unit>
+      <trans-unit id="7858710981744114957" datatype="html">
+        <source>Sort</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">540,541</context>
+        </context-group>
+        <note priority="1" from="description">Orders the model list</note>
+        <note priority="1" from="meaning">Form field label</note>
+      </trans-unit>
+      <trans-unit id="3292014569244646418" datatype="html">
+        <source>Search order</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">549,552</context>
+        </context-group>
+        <note priority="1" from="description">In search mode the default order keeps the search&apos;s own relevance
+                      order</note>
+        <note priority="1" from="meaning">Sort option</note>
+      </trans-unit>
+      <trans-unit id="3721638029309178159" datatype="html">
+        <source>Recommended</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">553,555</context>
+        </context-group>
+        <note priority="1" from="description">The suggested order</note>
+        <note priority="1" from="meaning">Sort option</note>
+      </trans-unit>
+      <trans-unit id="3800564267193498102" datatype="html">
+        <source>Largest first</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">557,559</context>
+        </context-group>
+        <note priority="1" from="description">Most parameters first</note>
+        <note priority="1" from="meaning">Sort option</note>
+      </trans-unit>
+      <trans-unit id="3857596338180899787" datatype="html">
+        <source>Smallest first</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">560,562</context>
+        </context-group>
+        <note priority="1" from="description">Fewest parameters first</note>
+        <note priority="1" from="meaning">Sort option</note>
+      </trans-unit>
+      <trans-unit id="7434387742144539519" datatype="html">
+        <source>Least memory first</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">563,565</context>
+        </context-group>
+        <note priority="1" from="description">Lowest memory requirement first</note>
+        <note priority="1" from="meaning">Sort option</note>
+      </trans-unit>
+      <trans-unit id="5679342027657181529" datatype="html">
+        <source> Only models that fit </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">573,577</context>
+        </context-group>
+        <note priority="1" from="description">Hides models this box does not have the memory for</note>
+        <note priority="1" from="meaning">Checkbox</note>
+      </trans-unit>
+      <trans-unit id="303971031772549554" datatype="html">
+        <source> Search results for &quot;<x id="INTERPOLATION" equiv-text="{{ submittedQuery() }}"/>&quot; </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">593,594</context>
+        </context-group>
+        <note priority="1" from="description">Names the query the results answer; the placeholder is the
+                  submitted query text</note>
+        <note priority="1" from="meaning">Results heading</note>
+      </trans-unit>
+      <trans-unit id="8636258699854103562" datatype="html">
+        <source> Searching Hugging Face… </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">604,607</context>
+        </context-group>
+        <note priority="1" from="description">Shown while the submitted query is fetched; Hugging Face is
+                    a product name</note>
+        <note priority="1" from="meaning">Loading placeholder</note>
+      </trans-unit>
+      <trans-unit id="7727221231230160580" datatype="html">
+        <source> Showing matching catalog and currently configured models only. </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">615,618</context>
+        </context-group>
+        <note priority="1" from="description">A failed search still shows the matching locally known models</note>
+        <note priority="1" from="meaning">Fallback notice</note>
+      </trans-unit>
+      <trans-unit id="3489605531860093449" datatype="html">
+        <source> No models match &quot;<x id="INTERPOLATION" equiv-text="{{ submittedQuery() }}"/>&quot; with the current filters. </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">631,632</context>
+        </context-group>
+        <note priority="1" from="description">The submitted query matched no models under the current filters</note>
+        <note priority="1" from="meaning">Empty state</note>
+      </trans-unit>
+      <trans-unit id="1923181390517328856" datatype="html">
+        <source> <x id="ICU" equiv-text="{searchResultCount(), plural,
+                    =1 {1 result}
+                    other {{{ searchResultCount() }} results}
+                  }" xid="4028576809388465265"/> </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">638,643</context>
+        </context-group>
+        <note priority="1" from="description">How many models matched the submitted query</note>
+        <note priority="1" from="meaning">Result count</note>
+      </trans-unit>
+      <trans-unit id="3306100694975146929" datatype="html">
+        <source>{VAR_PLURAL, plural, =1 {1 result} other {<x id="INTERPOLATION"/> results}}</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">638,640</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="8718215969370981850" datatype="html">
+        <source>now serving</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">670,673</context>
+        </context-group>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">818,821</context>
+        </context-group>
+        <note priority="1" from="description">This model is the one currently being served</note>
+        <note priority="1" from="meaning">Model badge</note>
+      </trans-unit>
+      <trans-unit id="2916025183372814429" datatype="html">
+        <source><x id="START_BLOCK_IF" equiv-text="@if (model.parameters_b) {"/> <x id="INTERPOLATION" equiv-text="{{ model.parameters_b }}"/>B · <x id="CLOSE_BLOCK_IF" equiv-text="}"/> ~<x id="INTERPOLATION_1" equiv-text="{{ model.est_memory_gb }}"/> GB needed · <x id="INTERPOLATION_2" equiv-text="{{ clusterMemoryGb() ?? &apos;?&apos; }}"/> GB combined </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">684,688</context>
+        </context-group>
+        <note priority="1" from="description">Parameter count, memory needed, and the memory both boxes have
+                      together</note>
+        <note priority="1" from="meaning">Model size line</note>
+      </trans-unit>
+      <trans-unit id="2701793786660777827" datatype="html">
+        <source>✅ Fits across both boxes</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">695,698</context>
+        </context-group>
+        <note priority="1" from="description">The model fits the two boxes together</note>
+        <note priority="1" from="meaning">Fit verdict</note>
+      </trans-unit>
+      <trans-unit id="1522140590620524841" datatype="html">
+        <source>⚠️ Tight — may need reduced context</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">700,703</context>
+        </context-group>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">957,959</context>
+        </context-group>
+        <note priority="1" from="description">The model only just fits the available memory</note>
+        <note priority="1" from="meaning">Fit verdict</note>
+      </trans-unit>
+      <trans-unit id="3511584560216130994" datatype="html">
+        <source>❌ Too big even for both boxes</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">706,709</context>
+        </context-group>
+        <note priority="1" from="description">The model does not fit even both boxes together</note>
+        <note priority="1" from="meaning">Fit verdict</note>
+      </trans-unit>
+      <trans-unit id="3970543966675217968" datatype="html">
+        <source>❓ Unknown</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">712,715</context>
+        </context-group>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">971,973</context>
+        </context-group>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">1014,1016</context>
+        </context-group>
+        <note priority="1" from="description">The model&apos;s memory need could not be worked out</note>
+        <note priority="1" from="meaning">Fit verdict</note>
+      </trans-unit>
+      <trans-unit id="7640409202493080979" datatype="html">
+        <source>Already serving</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">733,735</context>
+        </context-group>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">1075,1077</context>
+        </context-group>
+        <note priority="1" from="description">This model is already the one being served</note>
+        <note priority="1" from="meaning">Button</note>
+      </trans-unit>
+      <trans-unit id="63341034909997005" datatype="html">
+        <source>{VAR_SELECT, select, true {Starting…} other {Apply}}</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">741,746</context>
+        </context-group>
+        <note priority="1" from="description">Switches the box to this model, showing progress while the swap
+                        starts</note>
+        <note priority="1" from="meaning">Button</note>
+      </trans-unit>
+      <trans-unit id="8702226501918606378" datatype="html">
+        <source> Cluster (both boxes) </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">755,757</context>
+        </context-group>
+        <note priority="1" from="description">Models that need both boxes to run</note>
+        <note priority="1" from="meaning">Section heading</note>
+      </trans-unit>
+      <trans-unit id="6424918201419411604" datatype="html">
+        <source> No available model reliably does both chat (tool calling) and photos today. Pick a chat model first, then a photo model — the expanded panel guides you. </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">779,783</context>
+        </context-group>
+        <note priority="1" from="description">No single model handles both chat and photos well</note>
+        <note priority="1" from="meaning">Empty state</note>
+      </trans-unit>
+      <trans-unit id="8556361295656267190" datatype="html">
+        <source> No models match these filters. Try &quot;All&quot; or search Hugging Face above. </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">784,787</context>
+        </context-group>
+        <note priority="1" from="description">The current filters match no models</note>
+        <note priority="1" from="meaning">Empty state</note>
+      </trans-unit>
+      <trans-unit id="273807870200803531" datatype="html">
+        <source>vision-capable</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">823,824</context>
+        </context-group>
+        <note priority="1" from="description">The model can look at photos</note>
+        <note priority="1" from="meaning">Model icon tooltip</note>
+      </trans-unit>
+      <trans-unit id="9164142340917569618" datatype="html">
+        <source>gated on Hugging Face</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">830,832</context>
+        </context-group>
+        <note priority="1" from="description">The model needs an access token; Hugging Face is a
+                          product name</note>
+        <note priority="1" from="meaning">Model icon tooltip</note>
+      </trans-unit>
+      <trans-unit id="8739800648825777343" datatype="html">
+        <source><x id="INTERPOLATION" equiv-text="{{ model.parameters_b }}"/>B · ~<x id="INTERPOLATION_1" equiv-text="{{ model.est_memory_gb }}"/> GB memory</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">846,847</context>
+        </context-group>
+        <note priority="1" from="description">Parameter count and the memory the model needs</note>
+        <note priority="1" from="meaning">Model size line</note>
+      </trans-unit>
+      <trans-unit id="6677118768071048254" datatype="html">
+        <source>size unknown</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">851,854</context>
+        </context-group>
+        <note priority="1" from="description">The model&apos;s size could not be worked out</note>
+        <note priority="1" from="meaning">Model size line</note>
+      </trans-unit>
+      <trans-unit id="2173576374670504859" datatype="html">
+        <source> Fetching Hugging Face stats… </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">894,898</context>
+        </context-group>
+        <note priority="1" from="description">Shown while the live model statistics load; Hugging Face
+                        is a product name</note>
+        <note priority="1" from="meaning">Loading placeholder</note>
+      </trans-unit>
+      <trans-unit id="3812975471739501571" datatype="html">
+        <source> ⬇️ <x id="INTERPOLATION" equiv-text="{{ hub.downloads?.toLocaleString() ?? &apos;—&apos; }}"/> downloads · ❤️ <x id="INTERPOLATION_1" equiv-text="{{ hub.likes ?? &apos;—&apos; }}"/> <x id="START_BLOCK_IF" equiv-text="@if (hub.license) {"/> · <x id="INTERPOLATION_2" equiv-text="{{ hub.license }}"/> <x id="CLOSE_BLOCK_IF" equiv-text="}"/><x id="START_BLOCK_IF_1" equiv-text="@if (hub.last_modified) {"/> · updated <x id="INTERPOLATION_3" equiv-text="{{ formatHubDate(hub.last_modified) }}"/> <x id="CLOSE_BLOCK_IF" equiv-text="}"/></source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">904,912</context>
+        </context-group>
+        <note priority="1" from="description">Downloads, likes, licence and last update of the model
+                        on Hugging Face</note>
+        <note priority="1" from="meaning">Model hub statistics</note>
+      </trans-unit>
+      <trans-unit id="8144990991100690639" datatype="html">
+        <source>Memory (incl. ~15% headroom)</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">924,927</context>
+        </context-group>
+        <note priority="1" from="description">Memory the model needs, including runtime headroom</note>
+        <note priority="1" from="meaning">Fit row label</note>
+      </trans-unit>
+      <trans-unit id="1162400230323624225" datatype="html">
+        <source><x id="START_BLOCK_IF" equiv-text="@if (plan.memoryGb !== null) {"/> <x id="INTERPOLATION" equiv-text="{{ plan.memoryGb }}"/> GB required · <x id="CLOSE_BLOCK_IF" equiv-text="}"/><x id="START_BLOCK_ELSE" equiv-text="@else {"/> required unknown · <x id="CLOSE_BLOCK_ELSE" equiv-text="}"/><x id="START_BLOCK_IF_2" equiv-text="@if (memoryBudgetGb() !== null) {"/> <x id="INTERPOLATION_1" equiv-text="{{ memoryBudgetGb() }}"/> GB available <x id="START_BLOCK_IF_1" equiv-text="@if (usingSystemMemoryBudget()) {"/> (system memory) <x id="CLOSE_BLOCK_IF" equiv-text="}"/><x id="CLOSE_BLOCK_IF" equiv-text="}"/><x id="START_BLOCK_ELSE" equiv-text="@else {"/> available unknown <x id="CLOSE_BLOCK_ELSE" equiv-text="}"/></source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">933,946</context>
+        </context-group>
+        <note priority="1" from="description">Memory the model needs against the memory this computer
+                            has free</note>
+        <note priority="1" from="meaning">Fit row figures</note>
+      </trans-unit>
+      <trans-unit id="2094630199712345199" datatype="html">
+        <source>✅ Fits this computer</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">951,953</context>
+        </context-group>
+        <note priority="1" from="description">The model fits this computer&apos;s memory</note>
+        <note priority="1" from="meaning">Fit verdict</note>
+      </trans-unit>
+      <trans-unit id="1057442326411131852" datatype="html">
+        <source>❌ Won&apos;t fit this computer</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">965,967</context>
+        </context-group>
+        <note priority="1" from="description">The model needs more memory than this computer has</note>
+        <note priority="1" from="meaning">Fit verdict</note>
+      </trans-unit>
+      <trans-unit id="3384726157292468569" datatype="html">
+        <source>Disk for downloads</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">981,984</context>
+        </context-group>
+        <note priority="1" from="description">Disk space the downloaded weights need</note>
+        <note priority="1" from="meaning">Fit row label</note>
+      </trans-unit>
+      <trans-unit id="2567312700629079949" datatype="html">
+        <source> ~<x id="INTERPOLATION" equiv-text="{{ plan.diskGb ?? &apos;?&apos; }}"/> GB weights · <x id="INTERPOLATION_1" equiv-text="{{ hardware.value()?.disk_free_gb ?? &apos;?&apos; }}"/> GB free </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">990,992</context>
+        </context-group>
+        <note priority="1" from="description">Disk the weights need against the free disk on this
+                            computer</note>
+        <note priority="1" from="meaning">Fit row figure</note>
+      </trans-unit>
+      <trans-unit id="1886922830401671165" datatype="html">
+        <source>✅ Fits</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">997,999</context>
+        </context-group>
+        <note priority="1" from="description">There is enough free disk</note>
+        <note priority="1" from="meaning">Disk fit verdict</note>
+      </trans-unit>
+      <trans-unit id="6567993139144926027" datatype="html">
+        <source>⚠️ Tight</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">1003,1005</context>
+        </context-group>
+        <note priority="1" from="description">There is only just enough free disk</note>
+        <note priority="1" from="meaning">Disk fit verdict</note>
+      </trans-unit>
+      <trans-unit id="6740956904262551583" datatype="html">
+        <source>❌ Not enough free disk</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">1008,1010</context>
+        </context-group>
+        <note priority="1" from="description">There is not enough free disk</note>
+        <note priority="1" from="meaning">Disk fit verdict</note>
+      </trans-unit>
+      <trans-unit id="2361933729737192437" datatype="html">
+        <source> Size figures are estimates from the model&apos;s name — the server validates compatibility before anything changes. </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">1031,1037</context>
+        </context-group>
+        <note priority="1" from="description">The memory and disk figures are client-side estimates; the
+                        server validates compatibility before anything changes</note>
+        <note priority="1" from="meaning">Fit estimate note</note>
+      </trans-unit>
+      <trans-unit id="8247316279828780329" datatype="html">
+        <source> 🔒 Gated on Hugging Face — the server needs HUGGING_FACE_HUB_TOKEN. </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">1043,1048</context>
+        </context-group>
+        <note priority="1" from="description">The model needs an access token; HUGGING_FACE_HUB_TOKEN is an
+                        environment variable name and Hugging Face is a product name</note>
+        <note priority="1" from="meaning">Model warning</note>
+      </trans-unit>
+      <trans-unit id="3339921436445073219" datatype="html">
+        <source> ⚠️ This model can&apos;t call the financial tools — as the chat model, answers fall back to deterministic snapshots. Best applied as the photo model. </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">1054,1058</context>
+        </context-group>
+        <note priority="1" from="description">The model cannot call the financial tools, so it is a poor
+                        chat model</note>
+        <note priority="1" from="meaning">Model warning</note>
+      </trans-unit>
+      <trans-unit id="2942933804955710219" datatype="html">
+        <source>{VAR_SELECT, select, true {Starting…} other {Apply — download &amp; switch now}}</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">1083,1088</context>
+        </context-group>
+        <note priority="1" from="description">Downloads and switches to this model, showing progress while the
+                            swap starts</note>
+        <note priority="1" from="meaning">Button</note>
+      </trans-unit>
+      <trans-unit id="3433266243049195482" datatype="html">
+        <source>Already the photo model</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">1102,1104</context>
+        </context-group>
+        <note priority="1" from="description">This model already analyses the photos</note>
+        <note priority="1" from="meaning">Button</note>
+      </trans-unit>
+      <trans-unit id="1904040223917073768" datatype="html">
+        <source>Apply as photo model only</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">1109,1112</context>
+        </context-group>
+        <note priority="1" from="description">Uses this model for photos only, keeping the current chat model</note>
+        <note priority="1" from="meaning">Button</note>
+      </trans-unit>
+      <trans-unit id="7471129984836545867" datatype="html">
+        <source> Next: pick a photo model → </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">1121,1123</context>
+        </context-group>
+        <note priority="1" from="description">Guides the user on to choosing a photo model</note>
+        <note priority="1" from="meaning">Button</note>
+      </trans-unit>
+      <trans-unit id="2918821177526400769" datatype="html">
+        <source> Show <x id="INTERPOLATION" equiv-text="{{ hiddenCount() }}"/> more </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">1137,1138</context>
+        </context-group>
+        <note priority="1" from="description">Reveals the models hidden below the fold</note>
+        <note priority="1" from="meaning">Button</note>
+      </trans-unit>
+      <trans-unit id="4032752774471491840" datatype="html">
+        <source> Advanced configuration </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">1146,1149</context>
+        </context-group>
+        <note priority="1" from="description">Raw AI runtime settings, hidden by default</note>
+        <note priority="1" from="meaning">Section heading</note>
+      </trans-unit>
+      <trans-unit id="5690101403047084078" datatype="html">
+        <source> Currently serving: <x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/><x id="INTERPOLATION" equiv-text="{{ status.value()?.served_model || &apos;—&apos; }}"/><x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/> (main) + <x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/><x id="INTERPOLATION_1" equiv-text="{{ status.value()?.vision_model || offLabel }}"/><x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/> (vision) </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">1152,1155</context>
+        </context-group>
+        <note priority="1" from="description">Which model answers chat and which analyses photos right now</note>
+        <note priority="1" from="meaning">Advanced summary</note>
+      </trans-unit>
+      <trans-unit id="4808088334302311411" datatype="html">
+        <source>Provider</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">1158,1160</context>
+        </context-group>
+        <note priority="1" from="description">Which serving engine runs the model</note>
+        <note priority="1" from="meaning">Form field label</note>
+      </trans-unit>
+      <trans-unit id="2801762277977136294" datatype="html">
+        <source>Base URL</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">1169,1171</context>
+        </context-group>
+        <note priority="1" from="description">Address the serving engine listens on</note>
+        <note priority="1" from="meaning">Form field label</note>
+      </trans-unit>
+      <trans-unit id="2274928897210713565" datatype="html">
+        <source>Main model</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">1176,1180</context>
+        </context-group>
+        <note priority="1" from="description">Identifier of the model that answers chat questions</note>
+        <note priority="1" from="meaning">Form field label</note>
+      </trans-unit>
+      <trans-unit id="3368802918181650871" datatype="html">
+        <source> Enabled </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">1191,1194</context>
+        </context-group>
+        <note priority="1" from="description">Turns the AI runtime on</note>
+        <note priority="1" from="meaning">Checkbox</note>
+      </trans-unit>
+      <trans-unit id="789228540276988686" datatype="html">
+        <source> Saved. </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">1202,1206</context>
+        </context-group>
+        <note priority="1" from="description">The raw configuration was saved</note>
+        <note priority="1" from="meaning">Success notice</note>
       </trans-unit>
       <trans-unit id="910075115452465892" datatype="html">
         <source>{VAR_SELECT, select, true {Saving…} other {Save}}</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">1089,1090</context>
+          <context context-type="linenumber">1214,1215</context>
         </context-group>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/loans/loans.html</context>
@@ -1928,7 +2021,7 @@
         <source>Vision model</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">1095,1098</context>
+          <context context-type="linenumber">1220,1223</context>
         </context-group>
         <note priority="1" from="description">Settings for the model that analyses photos</note>
         <note priority="1" from="meaning">Section heading</note>
@@ -1937,7 +2030,7 @@
         <source> The photo model is served by a separate container; changing it triggers a model swap and <x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/>restarts the vision container<x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/> (empty = photo analysis off). Entering the same model as the chat model runs <x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/>one<x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/> container that handles both — never two copies. </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">1103,1107</context>
+          <context context-type="linenumber">1228,1232</context>
         </context-group>
         <note priority="1" from="description">Explains that changing the photo model restarts its container and that
                 one model can serve both roles</note>
@@ -1947,7 +2040,7 @@
         <source>Vision model</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">1115,1118</context>
+          <context context-type="linenumber">1240,1243</context>
         </context-group>
         <note priority="1" from="description">Identifier of the model that analyses photos</note>
         <note priority="1" from="meaning">Form field label</note>
@@ -1956,14 +2049,14 @@
         <source>{VAR_SELECT, select, true {Applying…} other {Apply vision model}}</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">1133,1134</context>
+          <context context-type="linenumber">1258,1259</context>
         </context-group>
       </trans-unit>
       <trans-unit id="3499353003335934755" datatype="html">
         <source> Only the household owner can change the AI runtime configuration. </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">1147,1151</context>
+          <context context-type="linenumber">1272,1276</context>
         </context-group>
         <note priority="1" from="description">Shown instead of the runtime settings to everyone but the owner</note>
         <note priority="1" from="meaning">Permission notice</note>
@@ -1972,7 +2065,7 @@
         <source> Knowledge of your data </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">1155,1160</context>
+          <context context-type="linenumber">1280,1285</context>
         </context-group>
         <note priority="1" from="description">What the advisor has learned from the household&apos;s history</note>
         <note priority="1" from="meaning">Section heading</note>
@@ -1981,7 +2074,7 @@
         <source> While nobody is chatting, the advisor studies your history one month at a time and remembers the patterns — spending habits, income rhythm, seasonal costs. Knowledge is stored as reviewable notes, never trained into the model, so it stays current and deletable. </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">1164,1171</context>
+          <context context-type="linenumber">1289,1296</context>
         </context-group>
         <note priority="1" from="description">Says how the advisor studies the history and that the notes stay
             reviewable and deletable</note>
@@ -1991,7 +2084,7 @@
         <source> Nothing to study yet — add or import transactions first. </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">1174,1177</context>
+          <context context-type="linenumber">1299,1302</context>
         </context-group>
         <note priority="1" from="description">There is no history for the advisor to study yet</note>
         <note priority="1" from="meaning">Empty state</note>
@@ -2000,7 +2093,7 @@
         <source> Studied <x id="INTERPOLATION" equiv-text="{{ knowledge.studied_months }}"/> of <x id="INTERPOLATION_1" equiv-text="{{ knowledge.total_months }}"/> complete months of your history. <x id="START_BLOCK_IF" equiv-text="@if (!knowledge.runtime_usable) {"/><x id="START_TAG_SPAN" ctype="x-span" equiv-text="&lt;span class=&quot;study__paused&quot;&gt;"/>Paused — pick and enable an AI model to resume.<x id="CLOSE_TAG_SPAN" ctype="x-span" equiv-text="&lt;/span&gt;"/><x id="CLOSE_BLOCK_IF" equiv-text="}"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">1196,1202</context>
+          <context context-type="linenumber">1321,1327</context>
         </context-group>
         <note priority="1" from="description">How many complete months of history have been studied, and whether
               studying is paused</note>
@@ -2010,7 +2103,7 @@
         <source>What it has learned</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">1203,1205</context>
+          <context context-type="linenumber">1328,1330</context>
         </context-group>
         <note priority="1" from="description">The patterns the advisor has learned</note>
         <note priority="1" from="meaning">Section heading</note>
@@ -2019,7 +2112,7 @@
         <source> Show all <x id="INTERPOLATION" equiv-text="{{ knowledge.insights.length }}"/> </source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
-          <context context-type="linenumber">1219,1220</context>
+          <context context-type="linenumber">1344,1345</context>
         </context-group>
         <note priority="1" from="description">Expands the list to show every learned insight</note>
         <note priority="1" from="meaning">Button</note>
@@ -2028,7 +2121,7 @@
         <source>off</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.ts</context>
-          <context context-type="linenumber">109</context>
+          <context context-type="linenumber">173</context>
         </context-group>
         <note priority="1" from="description">No photo model is being served</note>
         <note priority="1" from="meaning">Runtime model value</note>
@@ -2037,7 +2130,7 @@
         <source>Only a system administrator can switch the box-wide model (ADR 0065)</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.ts</context>
-          <context context-type="linenumber">119</context>
+          <context context-type="linenumber">183</context>
         </context-group>
         <note priority="1" from="description">Explains why only a system administrator may switch the box-wide model</note>
         <note priority="1" from="meaning">Apply button tooltip</note>
@@ -2046,7 +2139,7 @@
         <source>Failed to load AI runtime configuration.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.ts</context>
-          <context context-type="linenumber">129</context>
+          <context context-type="linenumber">193</context>
         </context-group>
         <note priority="1" from="description">The AI runtime configuration could not be loaded</note>
         <note priority="1" from="meaning">Error message</note>
@@ -2055,7 +2148,7 @@
         <source>Failed to load the model catalog.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.ts</context>
-          <context context-type="linenumber">151</context>
+          <context context-type="linenumber">215</context>
         </context-group>
         <note priority="1" from="description">The list of available models could not be loaded</note>
         <note priority="1" from="meaning">Error message</note>
@@ -2064,7 +2157,7 @@
         <source><x id="name" equiv-text="name"/> (not in catalog)</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.ts</context>
-          <context context-type="linenumber">228</context>
+          <context context-type="linenumber">292</context>
         </context-group>
         <note priority="1" from="description">A model that is not in the curated catalog, so its specs are guessed</note>
         <note priority="1" from="meaning">Model label</note>
@@ -2073,7 +2166,7 @@
         <source>Specs estimated from the model name.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.ts</context>
-          <context context-type="linenumber">236</context>
+          <context context-type="linenumber">300</context>
         </context-group>
         <note priority="1" from="description">The model&apos;s specs were guessed from its identifier</note>
         <note priority="1" from="meaning">Model note</note>
@@ -2082,7 +2175,7 @@
         <source>downloading</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.ts</context>
-          <context context-type="linenumber">320</context>
+          <context context-type="linenumber">392</context>
         </context-group>
         <note priority="1" from="description">The weights are being downloaded</note>
         <note priority="1" from="meaning">Runtime phase</note>
@@ -2091,7 +2184,7 @@
         <source>loading weights</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.ts</context>
-          <context context-type="linenumber">322</context>
+          <context context-type="linenumber">394</context>
         </context-group>
         <note priority="1" from="description">The downloaded weights are being loaded into memory</note>
         <note priority="1" from="meaning">Runtime phase</note>
@@ -2100,7 +2193,7 @@
         <source>warming up</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.ts</context>
-          <context context-type="linenumber">324</context>
+          <context context-type="linenumber">396</context>
         </context-group>
         <note priority="1" from="description">The model is loaded and warming up</note>
         <note priority="1" from="meaning">Runtime phase</note>
@@ -2109,7 +2202,7 @@
         <source>starting</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.ts</context>
-          <context context-type="linenumber">326</context>
+          <context context-type="linenumber">398</context>
         </context-group>
         <note priority="1" from="description">The serving container is starting</note>
         <note priority="1" from="meaning">Runtime phase</note>
@@ -2118,7 +2211,7 @@
         <source>loading / off</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.ts</context>
-          <context context-type="linenumber">328</context>
+          <context context-type="linenumber">400</context>
         </context-group>
         <note priority="1" from="description">The model is either loading or not running at all</note>
         <note priority="1" from="meaning">Runtime phase</note>
@@ -2127,7 +2220,7 @@
         <source>Could not update the cluster setting.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.ts</context>
-          <context context-type="linenumber">412</context>
+          <context context-type="linenumber">486</context>
         </context-group>
         <note priority="1" from="description">The two-box cluster toggle could not be saved</note>
         <note priority="1" from="meaning">Error message</note>
@@ -2136,7 +2229,7 @@
         <source>Photos: this model · Chat: <x id="mainModel" equiv-text="mainId"/></source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.ts</context>
-          <context context-type="linenumber">480</context>
+          <context context-type="linenumber">554</context>
         </context-group>
         <note priority="1" from="description">This model would analyse photos while another keeps answering chat</note>
         <note priority="1" from="meaning">Apply plan</note>
@@ -2145,7 +2238,7 @@
         <source>Chat + photos: this model (sees photos itself)</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.ts</context>
-          <context context-type="linenumber">484</context>
+          <context context-type="linenumber">558</context>
         </context-group>
         <note priority="1" from="description">One model would answer chat and analyse photos</note>
         <note priority="1" from="meaning">Apply plan</note>
@@ -2154,7 +2247,7 @@
         <source>Chat: this model · Photos: <x id="visionModel" equiv-text="visionId"/> (kept)</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.ts</context>
-          <context context-type="linenumber">489</context>
+          <context context-type="linenumber">563</context>
         </context-group>
         <note priority="1" from="description">This model would answer chat while the current photo model is kept</note>
         <note priority="1" from="meaning">Apply plan</note>
@@ -2163,25 +2256,16 @@
         <source>Chat: this model · Photos: off</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.ts</context>
-          <context context-type="linenumber">490</context>
+          <context context-type="linenumber">564</context>
         </context-group>
         <note priority="1" from="description">This model would answer chat and no photo model would run</note>
         <note priority="1" from="meaning">Apply plan</note>
-      </trans-unit>
-      <trans-unit id="6736066921047544063" datatype="html">
-        <source> the weights are being downloaded or loaded:Downloading / loading the model…</source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.ts</context>
-          <context context-type="linenumber">578</context>
-        </context-group>
-        <note priority="1" from="description">The swap is running</note>
-        <note priority="1" from="meaning">Model swap detail</note>
       </trans-unit>
       <trans-unit id="8879551865130446383" datatype="html">
         <source>No chat model is configured to pair with.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.ts</context>
-          <context context-type="linenumber">602</context>
+          <context context-type="linenumber">768</context>
         </context-group>
         <note priority="1" from="description">A photo model cannot be applied because no chat model is configured</note>
         <note priority="1" from="meaning">Error message</note>
@@ -2190,16 +2274,34 @@
         <source>Could not start the model swap. Is the model manager running?</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.ts</context>
-          <context context-type="linenumber">632</context>
+          <context context-type="linenumber">820</context>
         </context-group>
         <note priority="1" from="description">The model swap request failed to start</note>
+        <note priority="1" from="meaning">Error message</note>
+      </trans-unit>
+      <trans-unit id="1374264731344909992" datatype="html">
+        <source>Progress unavailable; the operation may still be running.</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.ts</context>
+          <context context-type="linenumber">894</context>
+        </context-group>
+        <note priority="1" from="description">A status poll failed but the operation continues server-side</note>
+        <note priority="1" from="meaning">Apply progress notice</note>
+      </trans-unit>
+      <trans-unit id="5740690414712204441" datatype="html">
+        <source>Could not retry recovery. Is the model manager running?</source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.ts</context>
+          <context context-type="linenumber">992</context>
+        </context-group>
+        <note priority="1" from="description">The recovery retry could not start</note>
         <note priority="1" from="meaning">Error message</note>
       </trans-unit>
       <trans-unit id="3164766819975826312" datatype="html">
         <source>Could not search Hugging Face. Search again to retry.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.ts</context>
-          <context context-type="linenumber">781</context>
+          <context context-type="linenumber">1114</context>
         </context-group>
         <note priority="1" from="description">The live model search failed; Hugging Face is a product name</note>
         <note priority="1" from="meaning">Error message</note>
@@ -2208,25 +2310,16 @@
         <source>Hugging Face is unreachable; showing curated models only.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.ts</context>
-          <context context-type="linenumber">786</context>
+          <context context-type="linenumber">1119</context>
         </context-group>
         <note priority="1" from="description">The live model hub could not be reached; Hugging Face is a product name</note>
-        <note priority="1" from="meaning">Error message</note>
-      </trans-unit>
-      <trans-unit id="6726065554630669373" datatype="html">
-        <source>Could not start the vision swap. Is the model manager running?</source>
-        <context-group purpose="location">
-          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.ts</context>
-          <context context-type="linenumber">1104</context>
-        </context-group>
-        <note priority="1" from="description">The photo model swap request failed to start</note>
         <note priority="1" from="meaning">Error message</note>
       </trans-unit>
       <trans-unit id="891731478159118077" datatype="html">
         <source>Failed to update AI runtime configuration.</source>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.ts</context>
-          <context context-type="linenumber">1169</context>
+          <context context-type="linenumber">1512</context>
         </context-group>
         <note priority="1" from="description">The AI runtime configuration could not be saved</note>
         <note priority="1" from="meaning">Error message</note>

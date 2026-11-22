@@ -118,35 +118,141 @@
             </div>
           }
 
-          <!-- Live apply status (polls every 5s until active/failed) -->
-          @if (applyLive(); as live) {
+          <!-- Live apply status (#170): the server job is authoritative. The
+               lifecycle phases stay distinct — validation, preparing,
+               replacing/validating, commit wait, succeeded, failed, restoring,
+               restored, recovery. -->
+          @if (applyPhase(); as phase) {
             <div
               class="apply-live"
-              [class.apply-live--working]="live.phase === 'working'"
-              [class.apply-live--active]="live.phase === 'active'"
-              [class.apply-live--failed]="live.phase === 'failed'"
-              role="status"
+              [class.apply-live--working]="isProgressPhase(phase)"
+              [class.apply-live--active]="isSuccessPhase(phase)"
+              [class.apply-live--failed]="isFailurePhase(phase)"
+              [attr.role]="isFailurePhase(phase) ? 'alert' : 'status'"
             >
-              @switch (live.phase) {
-                @case ('working') {
+              @switch (phase) {
+                @case ('preflight') {
                   <span class="apply-live__spinner" aria-hidden="true"></span>
-                  <span i18n="Model swap status|The swap is in progress and may take a while"
-                    >Applying — {{ live.detail }} This can take several minutes for a first
-                    download; the current model keeps answering meanwhile.</span
+                  <span
+                    i18n="
+                      Model swap status|The apply request is being validated before anything
+                      changes
+                    "
+                    >Checking model and deployment compatibility…</span
                   >
                 }
-                @case ('active') {
-                  <span i18n="Model swap status|The newly applied model is serving"
-                    >✅ <strong>{{ live.detail }}</strong> is active and answering.</span
+                @case ('preparing') {
+                  <span class="apply-live__spinner" aria-hidden="true"></span>
+                  <span
+                    i18n="
+                      Model swap status|The new model is being prepared; the current deployment is
+                      not replaced yet
+                    "
+                    >Preparing — downloading the new model. The current deployment is not replaced
+                    yet.</span
+                  >
+                }
+                @case ('replacing') {
+                  <span class="apply-live__spinner" aria-hidden="true"></span>
+                  <span
+                    i18n="
+                      Model swap status|The deployment is being replaced and validated; the advisor
+                      may temporarily answer with deterministic fallbacks
+                    "
+                    >Replacing and validating the new deployment. The advisor may temporarily answer
+                    with deterministic fallbacks.</span
+                  >
+                }
+                @case ('commit_pending') {
+                  <span class="apply-live__spinner" aria-hidden="true"></span>
+                  <span
+                    i18n="
+                      Model swap status|The target is verified; the household selection is being
+                      saved
+                    "
+                    >Verified — saving the household selection…</span
+                  >
+                }
+                @case ('succeeded') {
+                  <span
+                    i18n="
+                      Model swap status|The requested chat and photo configuration is active and the
+                      selection is saved
+                    "
+                    >✅ The requested configuration is active; the selection is saved.</span
                   >
                 }
                 @case ('failed') {
-                  <span i18n="Model swap status|The swap failed, with the tail of the container log"
-                    >❌ The swap failed. Log tail: <code>{{ live.detail }}</code></span
+                  <span
+                    i18n="
+                      Model swap status|The replacement failed before any change was made, or no
+                      previous runtime existed
+                    "
+                    >❌ The replacement failed before anything was changed.</span
                   >
+                  @if (applyFailureDetail(); as detail) {
+                    <code>{{ detail }}</code>
+                  }
+                }
+                @case ('restoring') {
+                  <span class="apply-live__spinner" aria-hidden="true"></span>
+                  <span
+                    i18n="
+                      Model swap status|The replacement failed and the previous configuration is
+                      being restored
+                    "
+                    >The replacement failed — restoring the previous configuration…</span
+                  >
+                }
+                @case ('restored') {
+                  <span
+                    i18n="
+                      Model swap status|The previous configuration is verified and running again
+                    "
+                    >↩️ The previous configuration is verified and running again.</span
+                  >
+                }
+                @case ('recovery') {
+                  <span
+                    i18n="
+                      Model swap status|Runtime recovery needs attention; retrying re-runs the same
+                      frozen plan
+                    "
+                    >⚠️ Recovery needs attention.</span
+                  >
+                  @if (applyFailureDetail(); as detail) {
+                    <code>{{ detail }}</code>
+                  }
                 }
               }
             </div>
+            <!-- Retry recovery re-runs the job's frozen direction — never a new
+                 model (#170). Kept outside the alert so the alert stays text. -->
+            @if (phase === 'recovery' && applyJob()?.recovery_available) {
+              <button
+                mat-stroked-button
+                type="button"
+                class="apply-live__retry"
+                (click)="retryRecovery()"
+                [disabled]="retryingRecovery()"
+                i18n="Button|Re-runs the same frozen recovery plan for a failed replacement"
+              >
+                {retryingRecovery(), select, true {Retrying…} other {Retry recovery}}
+              </button>
+            }
+            <!-- A transient poll failure never claims the operation died (#170). -->
+            @if (applyPollError(); as pollMessage) {
+              <p
+                class="apply-live__poll"
+                role="status"
+                i18n="
+                  Apply progress notice|A status poll failed but the operation continues
+                  server-side
+                "
+              >
+                Progress unavailable; the operation may still be running.
+              </p>
+            }
           }
           @if (applyError(); as message) {
             <p class="page-error" role="alert">{{ message }}</p>
@@ -266,7 +372,9 @@
             <mat-checkbox
               class="cluster__toggle"
               [ngModel]="clusterEnabled()"
-              [disabled]="!clusterPeerReachable() || savingCluster()"
+              [disabled]="
+                !clusterPeerReachable() || savingCluster() || replacementInFlight()
+              "
               (ngModelChange)="setClusterEnabled($event)"
               i18n="Checkbox|Spreads a model across both boxes so bigger models fit"
             >
@@ -606,6 +714,8 @@
                     }
                   }
                 </span>
+                <!-- #170: a "too big" badge is a name-derived ESTIMATE — it
+                     must not block the authoritative server preflight. -->
                 <button
                   mat-flat-button
                   type="button"
@@ -613,9 +723,8 @@
                   (click)="applyModel(model)"
                   [disabled]="
                     !canManageRuntime() ||
-                    applying() ||
-                    model.id === status.value()?.served_model ||
-                    fitOf(model) === 'no'
+                    replacementInFlight() ||
+                    model.id === status.value()?.served_model
                   "
                   [title]="applyDisabledTitle()"
                 >
@@ -909,6 +1018,19 @@
                         </span>
                       </div>
                     </div>
+                    <!-- #170: fit verdicts here are client estimates from the
+                         model's name — the server validates before changing
+                         anything, so a badge never blocks Apply. -->
+                    <p
+                      class="fit__note"
+                      i18n="
+                        Fit estimate note|The memory and disk figures are client-side estimates; the
+                        server validates compatibility before anything changes
+                      "
+                    >
+                      Size figures are estimates from the model's name — the server validates
+                      compatibility before anything changes.
+                    </p>
                   }
                   @if (model.gated) {
                     <p
@@ -934,6 +1056,8 @@
                     </p>
                   }
                   <div class="model-detail__actions">
+                    <!-- #170: a "too big" badge is a name-derived ESTIMATE —
+                         it must not block the authoritative server preflight. -->
                     <button
                       mat-flat-button
                       type="button"
@@ -941,9 +1065,8 @@
                       (click)="applyModel(model)"
                       [disabled]="
                         !canManageRuntime() ||
-                        applying() ||
-                        model.id === status.value()?.served_model ||
-                        fitOf(model) === 'no'
+                        replacementInFlight() ||
+                        model.id === status.value()?.served_model
                       "
                       [title]="applyDisabledTitle()"
                     >
@@ -970,7 +1093,9 @@
                         type="button"
                         class="model-detail__as-photo"
                         (click)="applyAsVision(model)"
-                        [disabled]="applying() || model.id === status.value()?.vision_model"
+                        [disabled]="
+                          replacementInFlight() || model.id === status.value()?.vision_model
+                        "
                       >
                         @if (model.id === status.value()?.vision_model) {
                           <ng-container i18n="Button|This model already analyses the photos"
@@ -1081,7 +1206,7 @@
           <button
             mat-flat-button
             type="submit"
-            [disabled]="submitting()"
+            [disabled]="submitting() || replacementInFlight()"
             i18n="
               Button|Saves the raw configuration, showing progress while the request is in flight
             "
@@ -1127,10 +1252,10 @@
                 mat-flat-button
                 type="button"
                 (click)="applyVisionModel()"
-                [disabled]="applyingVision()"
+                [disabled]="applying() || replacementInFlight()"
                 i18n="Button|Switches the photo model, showing progress while the swap starts"
               >
-                {applyingVision(), select, true {Applying…} other {Apply vision model}}
+                {applying(), select, true {Applying…} other {Apply vision model}}
               </button>
             </div>
             @if (visionApplyError(); as message) {

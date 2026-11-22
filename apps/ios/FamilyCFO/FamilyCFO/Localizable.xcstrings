@@ -4389,6 +4389,22 @@
         }
       }
     },
+    "Checking model and deployment compatibility…": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Tikrinamas modelio ir diegimo suderinamumas…"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang kiểm tra khả năng tương thích của mô hình và bản triển khai…"
+          }
+        }
+      }
+    },
     "Checking…": {
       "localizations": {
         "lt": {
@@ -6315,24 +6331,24 @@
         }
       }
     },
-    "Downloads %@ if needed (~%lld GB) and restarts the AI. The advisor answers with deterministic snapshots until the new model finishes loading — usually a few minutes, longer on first download.": {
+    "Downloads %@ if needed (~%lld GB), then validates the new deployment before switching. Serving may be briefly interrupted while the replacement is verified; if validation fails, the previous configuration is restored.": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "new",
-            "value": "Downloads %1$@ if needed (~%2$lld GB) and restarts the AI. The advisor answers with deterministic snapshots until the new model finishes loading — usually a few minutes, longer on first download."
+            "value": "Downloads %1$@ if needed (~%2$lld GB), then validates the new deployment before switching. Serving may be briefly interrupted while the replacement is verified; if validation fails, the previous configuration is restored."
           }
         },
         "lt": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "Jei reikia, atsisiųs %@ (~%lld GB) ir iš naujo paleis DI. Kol naujas modelis įsikels, patarėjas atsakys apskaičiuotomis santraukomis — paprastai kelias minutes, pirmą kartą ilgiau."
+            "value": "Jei reikia, atsisiųs %@ (~%lld GB), tada prieš perjungdamas patikrins naują diegimą. Vietą keičiant ir tikrinant, aptarnavimas gali trumpai nutrūkti; jei tikrinimas nepavyks, bus atkurta ankstesnė konfigūracija."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sẽ tải %@ nếu cần (~%lld GB) và khởi động lại AI. Cố vấn trả lời bằng bản tóm tắt tự động cho đến khi mô hình mới tải xong — thường vài phút, lâu hơn ở lần tải đầu."
+            "value": "Sẽ tải %@ nếu cần (~%lld GB), sau đó xác thực bản triển khai mới trước khi chuyển đổi. Việc phục vụ có thể bị gián đoạn ngắn trong lúc xác thực bản thay thế; nếu xác thực thất bại, cấu hình trước đó sẽ được khôi phục."
           }
         }
       }
@@ -9401,38 +9417,6 @@
         }
       }
     },
-    "Model swap failed. %@": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Nepavyko pakeisti modelio. %@"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Đổi mô hình thất bại. %@"
-          }
-        }
-      }
-    },
-    "Model swap finished. The AI may take a few more minutes to finish loading.": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Modelis pakeistas. DI gali prireikti dar kelių minučių, kol visiškai įsikels."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Đã đổi xong mô hình. AI có thể cần thêm vài phút để tải xong."
-          }
-        }
-      }
-    },
     "Money back — statement credits and refunds. Tap one to file it under the category it offsets (e.g. a Resy credit → Dining).": {
       "localizations": {
         "lt": {
@@ -10155,6 +10139,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Không thấy khoản chi nào gần ngày đến hạn này — hãy đồng bộ tài khoản hoặc thêm giao dịch trước."
+          }
+        }
+      }
+    },
+    "No chat model is configured to pair with a photo model.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Nesukonfigūruotas joks pokalbių modelis, su kuriuo būtų galima suporuoti nuotraukų modelį."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chưa có mô hình trò chuyện nào được cấu hình để ghép cặp với mô hình ảnh."
           }
         }
       }
@@ -12140,6 +12140,22 @@
         }
       }
     },
+    "Preparing — downloading the new model. The current deployment is not replaced yet.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Ruošiama — atsisiunčiamas naujas modelis. Dabartinis diegimas dar nepakeistas."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang chuẩn bị — tải xuống mô hình mới. Bản triển khai hiện tại chưa bị thay thế."
+          }
+        }
+      }
+    },
     "Priority": {
       "localizations": {
         "lt": {
@@ -12168,6 +12184,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Chế độ riêng tư"
+          }
+        }
+      }
+    },
+    "Progress unavailable; the operation may still be running.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Nepavyksta matyti pažangos; operacija gali vis dar vykti."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không xem được tiến trình; thao tác vẫn có thể đang chạy."
           }
         }
       }
@@ -12918,6 +12950,22 @@
         }
       }
     },
+    "Replacing and validating the new deployment. The advisor may temporarily answer with deterministic fallbacks.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Keičiamas ir tikrinamas naujas diegimas. Patarėjas gali laikinai atsakinėti apskaičiuotais atsakymais."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang thay thế và xác thực bản triển khai mới. Cố vấn có thể tạm thời trả lời bằng các câu trả lời cố định."
+          }
+        }
+      }
+    },
     "Repository": {
       "localizations": {
         "lt": {
@@ -13318,6 +13366,22 @@
         }
       }
     },
+    "Retry recovery": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Kartoti atkūrimą"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thử khôi phục lại"
+          }
+        }
+      }
+    },
     "Retry save": {
       "localizations": {
         "lt": {
@@ -13330,6 +13394,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Thử lưu lại"
+          }
+        }
+      }
+    },
+    "Retrying…": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Bandoma iš naujo…"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang thử lại…"
           }
         }
       }
@@ -15110,22 +15190,6 @@
         }
       }
     },
-    "Swapping models — downloading and restarting the AI. This can take several minutes; you can leave this screen.": {
-      "localizations": {
-        "lt": {
-          "stringUnit": {
-            "state": "needs_review",
-            "value": "Keičiamas modelis — atsisiunčiama ir iš naujo paleidžiamas DI. Tai gali užtrukti kelias minutes; galite išeiti iš šio ekrano."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Đang đổi mô hình — tải về và khởi động lại AI. Việc này có thể mất vài phút; bạn có thể rời màn hình này."
-          }
-        }
-      }
-    },
     "Swipe to revoke. Changes take effect at the person's next sign-in.": {
       "localizations": {
         "lt": {
@@ -16339,6 +16403,22 @@
         }
       }
     },
+    "The replacement failed — restoring the previous configuration…": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Pakeitimas nepavyko — atkurama ankstesnė konfigūracija…"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Việc thay thế thất bại — đang khôi phục cấu hình trước đó…"
+          }
+        }
+      }
+    },
     "The request timed out while the advisor was still working. The answer may still be saved — check this conversation again in a minute.": {
       "localizations": {
         "lt": {
@@ -16933,6 +17013,22 @@
         }
       }
     },
+    "This model's estimated memory exceeds the box — the server validates before switching.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Šio modelio apytikslė atmintis viršija serverio galimybes — prieš perjungdamas serveris patikrins."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bộ nhớ ước tính của mô hình này vượt quá máy — máy chủ xác thực trước khi chuyển đổi."
+          }
+        }
+      }
+    },
     "This overwrites the current database and documents with the backup from %@. It can't be undone.": {
       "localizations": {
         "lt": {
@@ -17061,18 +17157,18 @@
         }
       }
     },
-    "Tight fit — it will load, with little headroom": {
+    "Tight fit (estimated) — the server verifies before switching": {
       "localizations": {
         "lt": {
           "stringUnit": {
             "state": "needs_review",
-            "value": "Telpa vos vos — įsikels, bet atsargos beveik nebus"
+            "value": "Vos telpa (apytiksliai) — serveris patikrins prieš perjungdamas"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vừa khít — vẫn tải được nhưng gần hết bộ nhớ"
+            "value": "Vừa khít (ước tính) — máy chủ xác thực trước khi chuyển đổi"
           }
         }
       }
@@ -18002,6 +18098,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Xe cộ"
+          }
+        }
+      }
+    },
+    "Verified — saving the household selection…": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Patikrinta — įrašomas namų ūkio pasirinkimas…"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã xác thực — đang lưu lựa chọn của hộ gia đình…"
           }
         }
       }
@@ -19905,6 +20017,70 @@
           "stringUnit": {
             "state": "translated",
             "value": "· tiết kiệm %@/tháng"
+          }
+        }
+      }
+    },
+    "↩️ The previous configuration is verified and running again.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "↩️ Ankstesnė konfigūracija patikrinta ir vėl veikia."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "↩️ Cấu hình trước đó đã được xác thực và đang chạy trở lại."
+          }
+        }
+      }
+    },
+    "⚠️ Recovery needs attention.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "⚠️ Atkūrimui reikia dėmesio."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "⚠️ Việc khôi phục cần được chú ý."
+          }
+        }
+      }
+    },
+    "✅ The requested configuration is active; the selection is saved.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "✅ Pageidaujama konfigūracija aktyvi; pasirinkimas įrašytas."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "✅ Cấu hình được yêu cầu đang hoạt động; lựa chọn đã được lưu."
+          }
+        }
+      }
+    },
+    "❌ The replacement failed before anything was changed.": {
+      "localizations": {
+        "lt": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "❌ Pakeitimas nepavyko, kol niekas nepasikeitė."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "❌ Việc thay thế thất bại trước khi có bất cứ gì bị thay đổi."
           }
         }
       }

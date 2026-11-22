@@ -31,4 +31,67 @@ struct AIRuntimeDecodeTests {
             "{\"gpu_memory_gb\":null,\"system_memory_gb\":121.7,\"disk_free_gb\":2144.3,\"source\":\"system\"}")
         #expect(hardware.systemMemoryGb == 121.7)
     }
+
+    // MARK: - Apply job (#170): every lifecycle the screen must present
+
+    private let jobID = "5f0c3d2e-1a4b-4c8d-9e2f-3a5b6c7d8e9f"
+
+    @Test func decodesAnInFlightVerifyingJob() throws {
+        let job = try decode(
+            Components.Schemas.AiApplyJobStatus.self,
+            "{\"job_id\":\"\(jobID)\",\"request_id\":\"req-1\",\"sequence\":2,\"state\":\"running\",\"lifecycle_state\":\"verifying\",\"main_model\":\"Qwen/New\",\"vision_model\":null,\"log_tail\":\"staging complete\",\"requested_selection\":null,\"resolved_plan\":null,\"previous_selection\":null,\"reason_code\":null,\"message\":null,\"recovery_available\":false}")
+        #expect(job.jobId == jobID)
+        #expect(job.sequence == 2)
+        #expect(job.lifecycleState == .verifying)
+        #expect(job.recoveryAvailable == false)
+    }
+
+    @Test func decodesARecoveryFailedJobOfferingRetry() throws {
+        let job = try decode(
+            Components.Schemas.AiApplyJobStatus.self,
+            "{\"job_id\":\"\(jobID)\",\"request_id\":\"req-1\",\"sequence\":3,\"state\":\"failed\",\"lifecycle_state\":\"recovery_failed\",\"main_model\":\"Qwen/New\",\"vision_model\":\"Qwen/Vision\",\"log_tail\":\"restore did not converge\",\"requested_selection\":null,\"resolved_plan\":null,\"previous_selection\":null,\"reason_code\":\"restore_failed\",\"message\":\"The previous configuration could not be verified again.\",\"recovery_available\":true}")
+        #expect(job.lifecycleState == .recoveryFailed)
+        #expect(job.recoveryAvailable)
+        #expect(job.reasonCode == "restore_failed")
+    }
+
+    @Test func decodesCommitRepairRequiredAsTerminalButRepairable() throws {
+        let job = try decode(
+            Components.Schemas.AiApplyJobStatus.self,
+            "{\"job_id\":\"\(jobID)\",\"request_id\":\"req-1\",\"sequence\":3,\"state\":\"running\",\"lifecycle_state\":\"commit_repair_required\",\"main_model\":\"Qwen/New\",\"vision_model\":null,\"log_tail\":\"\",\"requested_selection\":null,\"resolved_plan\":null,\"previous_selection\":null,\"reason_code\":\"commit_repair_pending\",\"message\":null,\"recovery_available\":true}")
+        // Terminal in outcome, forward-repairable: the coarse projection is
+        // still "running" (ADR 0081) but the lifecycle state must decode.
+        #expect(job.state == .running)
+        #expect(job.lifecycleState == .commitRepairRequired)
+        #expect(job.recoveryAvailable)
+    }
+
+    @Test func decodesTheExplicitIdleRead() throws {
+        let job = try decode(
+            Components.Schemas.AiApplyJobStatus.self,
+            "{\"job_id\":null,\"request_id\":null,\"sequence\":null,\"state\":\"idle\",\"lifecycle_state\":null,\"main_model\":null,\"vision_model\":null,\"log_tail\":\"\",\"requested_selection\":null,\"resolved_plan\":null,\"previous_selection\":null,\"reason_code\":null,\"message\":null,\"recovery_available\":false}")
+        #expect(job.jobId == nil)
+        #expect(job.sequence == nil)
+        #expect(job.lifecycleState == nil)
+        #expect(job.recoveryAvailable == false)
+    }
+
+    @Test func decodesAnApplyRequestRoundTrip() throws {
+        let request = try decode(
+            Components.Schemas.AiApplyRequest.self,
+            "{\"request_id\":\"req-9\",\"main_model\":\"Qwen/New\",\"vision_model\":\"Qwen/Vision\",\"photo_mode\":\"separate\",\"topology\":\"auto\"}")
+        #expect(request.requestId == "req-9")
+        #expect(request.mainModel == "Qwen/New")
+        #expect(request.visionModel == "Qwen/Vision")
+        #expect(request.photoMode == .separate)
+        #expect(request.topology == .auto)
+        #expect(request.cluster == nil)
+
+        let minimal = try decode(
+            Components.Schemas.AiApplyRequest.self,
+            "{\"main_model\":\"Qwen/New\",\"photo_mode\":\"off\",\"topology\":\"auto\"}")
+        #expect(minimal.requestId == nil)
+        #expect(minimal.visionModel == nil)
+        #expect(minimal.photoMode == .off)
+    }
 }

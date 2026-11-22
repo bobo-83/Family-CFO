@@ -476,25 +476,105 @@
         <source>{VAR_PLURAL, plural, =1 {1 answer} other {<x id="INTERPOLATION"/> answers}}</source>
         <target state="translated">{VAR_PLURAL, plural, =1 {1 câu trả lời} other {<x id="INTERPOLATION" /> câu trả lời}}</target>
       </trans-unit>
-      <trans-unit id="3205260326138809168" datatype="html">
-        <source>Applying — <x id="INTERPOLATION" equiv-text="{{ live.detail }}"/> This can take several minutes for a first download; the current model keeps answering meanwhile.</source>
-        <target state="translated">Đang áp dụng — <x id="INTERPOLATION" equiv-text="{{ live.detail }}" /> Lần tải đầu tiên có thể mất vài phút; trong lúc đó mô hình hiện tại vẫn trả lời.</target>
-        <note priority="1" from="description">The swap is in progress and may take a while</note>
+  <trans-unit id="6677323504466207464" datatype="html">
+        <source>Checking model and deployment compatibility…</source>
+        <target state="translated">Đang kiểm tra khả năng tương thích của mô hình và bản triển khai…</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">141,145</context>
+        </context-group>
+        <note priority="1" from="description">The apply request is being validated before anything
+                      changes</note>
         <note priority="1" from="meaning">Model swap status</note>
       </trans-unit>
-      <trans-unit id="6436370391986998789" datatype="html">
-        <source>✅ <x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;"/><x id="INTERPOLATION" equiv-text="{{ live.detail }}"/><x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;"/> is active and answering.</source>
-        <target state="translated">✅ <x id="START_TAG_STRONG" ctype="x-strong" equiv-text="&lt;strong&gt;" /><x id="INTERPOLATION" equiv-text="{{ live.detail }}" /><x id="CLOSE_TAG_STRONG" ctype="x-strong" equiv-text="&lt;/strong&gt;" /> đang hoạt động và trả lời.</target>
-        <note priority="1" from="description">The newly applied model is serving</note>
+  <trans-unit id="7223837559639036363" datatype="html">
+        <source>Preparing — downloading the new model. The current deployment is not replaced yet.</source>
+        <target state="translated">Đang chuẩn bị — tải xuống mô hình mới. Bản triển khai hiện tại chưa bị thay thế.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">151,156</context>
+        </context-group>
+        <note priority="1" from="description">The new model is being prepared; the current deployment is
+                      not replaced yet</note>
         <note priority="1" from="meaning">Model swap status</note>
       </trans-unit>
-      <trans-unit id="685014332173279827" datatype="html">
-        <source>❌ The swap failed. Log tail: <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code&gt;"/><x id="INTERPOLATION" equiv-text="{{ live.detail }}"/><x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;"/></source>
-        <target state="translated">❌ Việc chuyển đổi thất bại. Cuối nhật ký: <x id="START_TAG_CODE" ctype="x-code" equiv-text="&lt;code&gt;" /><x id="INTERPOLATION" equiv-text="{{ live.detail }}" /><x id="CLOSE_TAG_CODE" ctype="x-code" equiv-text="&lt;/code&gt;" /></target>
-        <note priority="1" from="description">The swap failed, with the tail of the container log</note>
+  <trans-unit id="344471728733790803" datatype="html">
+        <source>Replacing and validating the new deployment. The advisor may temporarily answer with deterministic fallbacks.</source>
+        <target state="translated">Đang thay thế và xác thực bản triển khai mới. Cố vấn có thể tạm thời trả lời bằng các câu trả lời cố định.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">162,167</context>
+        </context-group>
+        <note priority="1" from="description">The deployment is being replaced and validated; the advisor
+                      may temporarily answer with deterministic fallbacks</note>
         <note priority="1" from="meaning">Model swap status</note>
       </trans-unit>
-      <trans-unit id="110671020437966832" datatype="html">
+  <trans-unit id="7980634732056819786" datatype="html">
+        <source>Verified — saving the household selection…</source>
+        <target state="translated">Đã xác thực — đang lưu lựa chọn của hộ gia đình…</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">173,178</context>
+        </context-group>
+        <note priority="1" from="description">The target is verified; the household selection is being
+                      saved</note>
+        <note priority="1" from="meaning">Model swap status</note>
+      </trans-unit>
+  <trans-unit id="104503519351194687" datatype="html">
+        <source>✅ The requested configuration is active; the selection is saved.</source>
+        <target state="translated">✅ Cấu hình được yêu cầu đang hoạt động; lựa chọn đã được lưu.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">182,188</context>
+        </context-group>
+        <note priority="1" from="description">The requested chat and photo configuration is active and the
+                      selection is saved</note>
+        <note priority="1" from="meaning">Model swap status</note>
+      </trans-unit>
+  <trans-unit id="211094080713856728" datatype="html">
+        <source>❌ The replacement failed before anything was changed.</source>
+        <target state="translated">❌ Việc thay thế thất bại trước khi có bất cứ gì bị thay đổi.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">191,195</context>
+        </context-group>
+        <note priority="1" from="description">The replacement failed before any change was made, or no
+                      previous runtime existed</note>
+        <note priority="1" from="meaning">Model swap status</note>
+      </trans-unit>
+  <trans-unit id="7725855611200842768" datatype="html">
+        <source>The replacement failed — restoring the previous configuration…</source>
+        <target state="translated">Việc thay thế thất bại — đang khôi phục cấu hình trước đó…</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">204,209</context>
+        </context-group>
+        <note priority="1" from="description">The replacement failed and the previous configuration is
+                      being restored</note>
+        <note priority="1" from="meaning">Model swap status</note>
+      </trans-unit>
+  <trans-unit id="6176516947641048945" datatype="html">
+        <source>↩️ The previous configuration is verified and running again.</source>
+        <target state="translated">↩️ Cấu hình trước đó đã được xác thực và đang chạy trở lại.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">212,216</context>
+        </context-group>
+        <note priority="1" from="description">The previous configuration is verified and running again</note>
+        <note priority="1" from="meaning">Model swap status</note>
+      </trans-unit>
+  <trans-unit id="3800326510956561279" datatype="html">
+        <source>⚠️ Recovery needs attention.</source>
+        <target state="translated">⚠️ Việc khôi phục cần được chú ý.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">221,224</context>
+        </context-group>
+        <note priority="1" from="description">Runtime recovery needs attention; retrying re-runs the same
+                      frozen plan</note>
+        <note priority="1" from="meaning">Model swap status</note>
+      </trans-unit>
+                  <trans-unit id="110671020437966832" datatype="html">
         <source> 📷 No photo model is serving — chat photos won&apos;t be analyzed. <x id="START_TAG_BUTTON" ctype="x-button" equiv-text="&lt;button mat-button type=&quot;button&quot; (click)=&quot;pickPhotoModelNext()&quot;&gt;"/>Pick a photo model<x id="CLOSE_TAG_BUTTON" ctype="x-button" equiv-text="&lt;/button&gt;"/></source>
         <target state="translated"> 📷 Chưa có mô hình ảnh nào phục vụ — ảnh trong trò chuyện sẽ không được phân tích. <x id="START_TAG_BUTTON" ctype="x-button" equiv-text="&lt;button mat-button type=&quot;button&quot; (click)=&quot;pickPhotoModelNext()&quot;&gt;" />Chọn mô hình ảnh<x id="CLOSE_TAG_BUTTON" ctype="x-button" equiv-text="&lt;/button&gt;" /></target>
         <note priority="1" from="description">No vision model is serving so photos sent in chat are ignored; the button jumps to the photo models</note>
@@ -581,6 +661,25 @@
         <target state="translated"> <x id="ICU" equiv-text="{searching(), select, true {…} other {Search}}" xid="7924674412353326651" /></target>
         <note priority="1" from="description">Runs the Hugging Face model search, showing progress while it is in flight</note>
         <note priority="1" from="meaning">Button</note>
+      </trans-unit>
+  <trans-unit id="3720343997600933294" datatype="html">
+        <source>{VAR_SELECT, select, true {Retrying…} other {Retry recovery}}</source>
+        <target state="translated">{VAR_SELECT, select, true {Đang thử lại…} other {Thử khôi phục lại}}</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">240,241</context>
+        </context-group>
+      </trans-unit>
+  <trans-unit id="4962605656853346804" datatype="html">
+        <source> Progress unavailable; the operation may still be running. </source>
+        <target state="translated">Không xem được tiến trình; thao tác vẫn có thể đang chạy.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">253,258</context>
+        </context-group>
+        <note priority="1" from="description">A status poll failed but the operation continues
+                  server-side</note>
+        <note priority="1" from="meaning">Apply progress notice</note>
       </trans-unit>
       <trans-unit id="7924674412353326651" datatype="html">
         <source>{VAR_SELECT, select, true {…} other {Search}}</source>
@@ -850,6 +949,17 @@
         <note priority="1" from="description">There is not enough free disk</note>
         <note priority="1" from="meaning">Disk fit verdict</note>
       </trans-unit>
+  <trans-unit id="2361933729737192437" datatype="html">
+        <source> Size figures are estimates from the model&apos;s name — the server validates compatibility before anything changes. </source>
+        <target state="translated">Các số liệu kích thước chỉ là ước lượng từ tên mô hình — máy chủ sẽ kiểm tra khả năng tương thích trước khi có bất cứ gì bị thay đổi.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.html</context>
+          <context context-type="linenumber">1031,1037</context>
+        </context-group>
+        <note priority="1" from="description">The memory and disk figures are client-side estimates; the
+                        server validates compatibility before anything changes</note>
+        <note priority="1" from="meaning">Fit estimate note</note>
+      </trans-unit>
       <trans-unit id="8247316279828780329" datatype="html">
         <source> 🔒 Gated on Hugging Face — the server needs HUGGING_FACE_HUB_TOKEN. </source>
         <target state="translated"> 🔒 Cần cấp quyền trên Hugging Face — máy chủ cần HUGGING_FACE_HUB_TOKEN.</target>
@@ -1098,13 +1208,7 @@
         <note priority="1" from="description">This model would answer chat and no photo model would run</note>
         <note priority="1" from="meaning">Apply plan</note>
       </trans-unit>
-      <trans-unit id="6736066921047544063" datatype="html">
-        <source> the weights are being downloaded or loaded:Downloading / loading the model…</source>
-        <target state="translated"> các trọng số đang được tải xuống hoặc nạp:Đang tải xuống / nạp mô hình…</target>
-        <note priority="1" from="description">The swap is running</note>
-        <note priority="1" from="meaning">Model swap detail</note>
-      </trans-unit>
-      <trans-unit id="8879551865130446383" datatype="html">
+          <trans-unit id="8879551865130446383" datatype="html">
         <source>No chat model is configured to pair with.</source>
         <target state="translated">Chưa có mô hình trò chuyện nào được cấu hình để ghép cặp.</target>
         <note priority="1" from="description">A photo model cannot be applied because no chat model is configured</note>
@@ -1116,19 +1220,33 @@
         <note priority="1" from="description">The model swap request failed to start</note>
         <note priority="1" from="meaning">Error message</note>
       </trans-unit>
+  <trans-unit id="1374264731344909992" datatype="html">
+        <source>Progress unavailable; the operation may still be running.</source>
+        <target state="translated">Không xem được tiến trình; thao tác vẫn có thể đang chạy.</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.ts</context>
+          <context context-type="linenumber">894</context>
+        </context-group>
+        <note priority="1" from="description">A status poll failed but the operation continues server-side</note>
+        <note priority="1" from="meaning">Apply progress notice</note>
+      </trans-unit>
+  <trans-unit id="5740690414712204441" datatype="html">
+        <source>Could not retry recovery. Is the model manager running?</source>
+        <target state="translated">Không thử lại được việc khôi phục. Trình quản lý mô hình có đang chạy không?</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/ai-runtime/ai-runtime.ts</context>
+          <context context-type="linenumber">992</context>
+        </context-group>
+        <note priority="1" from="description">The recovery retry could not start</note>
+        <note priority="1" from="meaning">Error message</note>
+      </trans-unit>
       <trans-unit id="6764579732311087642" datatype="html">
         <source>Hugging Face is unreachable; showing curated models only.</source>
         <target state="translated">Không kết nối được Hugging Face; chỉ hiển thị các mô hình đã tuyển chọn.</target>
         <note priority="1" from="description">The live model hub could not be reached; Hugging Face is a product name</note>
         <note priority="1" from="meaning">Error message</note>
       </trans-unit>
-      <trans-unit id="6726065554630669373" datatype="html">
-        <source>Could not start the vision swap. Is the model manager running?</source>
-        <target state="translated">Không bắt đầu được việc đổi mô hình hình ảnh. Trình quản lý mô hình có đang chạy không?</target>
-        <note priority="1" from="description">The photo model swap request failed to start</note>
-        <note priority="1" from="meaning">Error message</note>
-      </trans-unit>
-      <trans-unit id="891731478159118077" datatype="html">
+          <trans-unit id="891731478159118077" datatype="html">
         <source>Failed to update AI runtime configuration.</source>
         <target state="translated">Không cập nhật được cấu hình bộ máy AI.</target>
         <note priority="1" from="description">The AI runtime configuration could not be saved</note>
