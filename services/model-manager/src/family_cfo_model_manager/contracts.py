@@ -254,6 +254,7 @@ class JobStatus:
     sequence: int
     state: JobState
     decision: JobDecision
+    origin: JobOrigin
     requested_selection: SelectionSummary | None
     resolved_plan: PlanSummary | None
     previous_selection: SelectionSummary | None
@@ -263,6 +264,9 @@ class JobStatus:
     reason_code: ReasonCode | None
     message: str | None
     recovery_available: bool
+    # Additive field (ADR 0074 Decision 5): when the target last passed
+    # verification. The reconciler commits only on evidence <= 30 s old.
+    verified_at: datetime | None = None
 
 
 @dataclass(frozen=True, slots=True)

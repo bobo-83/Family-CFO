@@ -1,30 +1,46 @@
-"""Issue #167 unit tests: real directory flock, mocked swap processes only."""
+"""Issue #167 lock discipline on the v2 engine (real directory flock, mocked
+executor processes only).
+
+Preserved semantics under the new admission/spawn seams:
+- the deployment flock is taken BEFORE the executor is spawned and the child
+  inherits the exact descriptor;
+- an inherited (orphaned) fd keeps owning the lock across a manager restart;
+- simultaneous admissions produce exactly one executor;
+- a spawn failure is terminal, durably failed, and releases the lock;
+- lock errors fail closed without starting anything;
+- terminate_executor keeps the #167 reap discipline (SIGTERM -> full grace ->
+  SIGKILL -> reap, leader never reaped early).
+"""
+
+from __future__ import annotations
 
 import errno
 import fcntl
 import os
 import signal
-import subprocess
 import threading
-from contextlib import contextmanager, suppress
-from unittest.mock import Mock, call, patch
+from contextlib import contextmanager
+from unittest.mock import Mock, patch
 
 import pytest
-from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
+from family_cfo_model_manager import executor as executor_module
 from family_cfo_model_manager import main as manager
+from family_cfo_model_manager.contracts import JobState, ReasonCode
+from conftest import JOB_ID, MAIN, REQUEST_ID, make_deps
 
-MAIN = "Qwen/Qwen2.5-14B-Instruct"
-VISION = "Qwen/Qwen2.5-VL-3B-Instruct"
+CREDENTIAL = "synthetic-deployment-credential"
+HEADER = {"X-Manager-Credential": CREDENTIAL}
 
 
 @pytest.fixture(autouse=True)
 def deployment(tmp_path, monkeypatch):
     monkeypatch.setattr(manager, "PROJECT_DIR", str(tmp_path))
-    manager._status = manager.SwapStatus(state="idle")
+    os.environ["FAMILY_CFO_MANAGER_CREDENTIAL"] = CREDENTIAL
+    monkeypatch.setattr(manager, "_run_recovery_scan", lambda: None)
     yield tmp_path
-    manager._status = manager.SwapStatus(state="idle")
+    os.environ.pop("FAMILY_CFO_MANAGER_CREDENTIAL", None)
 
 
 @contextmanager
@@ -47,259 +63,311 @@ def assert_unlocked(directory):
         fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
 
 
+def _admission_body(**overrides):
+    body = {
+        "request_id": REQUEST_ID,
+        "main_model": MAIN,
+        "vision_model": None,
+        "photo_mode": "auto",
+        "topology": "auto",
+        "cluster_consent": False,
+        "origin": "api",
+        "runtime_key": "vllm+http://api:8000/v1",
+    }
+    body.update(overrides)
+    return body
+
+
 @pytest.fixture
-def pending_worker():
-    with patch.object(manager.threading, "Thread") as thread:
-        yield thread
-        # The mocked worker did not take ownership in admission-only tests.
-        for invocation in thread.call_args_list:
-            with suppress(OSError):
-                os.close(invocation.kwargs["args"][-1])
+def engine(tmp_path, monkeypatch):
+    """The engine behind the app, with a spawn seam that KEEPS the lock fd."""
+    deps = make_deps(tmp_path)
+    spawned: list[tuple[str, int]] = []
 
+    def spawn(deps_, job_id, fd, **kw):
+        # Called while admission owns the deployment lock: contended here.
+        assert_contended(tmp_path)
+        # The real child inherits the descriptor; emulate that with a dup so
+        # the route closing its own copy never releases the lock early.
+        spawned.append((job_id, os.dup(fd)))
+        return Mock(pid=4242, returncode=0)
 
-def test_admission_locks_before_start_and_passes_validated_args(deployment, pending_worker):
-    def start():
-        assert manager._status.state == "running"
-        assert_contended(deployment)
-
-    pending_worker.return_value.start.side_effect = start
+    object.__setattr__(deps, "spawn", spawn)
+    monkeypatch.setattr(manager, "_deps", lambda: deps)
     client = TestClient(manager.app)
-    response = client.post("/swap", json={"main_model": MAIN, "vision_model": VISION})
+    return client, deps, spawned
+
+
+def _close_all(spawned):
+    for _job_id, fd in spawned:
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+
+
+def test_admission_locks_before_spawn_and_hands_the_fd_to_the_executor(engine):
+    client, deps, spawned = engine
+    response = client.post("/v2/jobs", json=_admission_body(), headers=HEADER)
     assert response.status_code == 202
-    assert response.json()["state"] == "running"
-    args = pending_worker.call_args.kwargs["args"]
-    assert args[:3] == (MAIN, VISION, False)
-    assert os.path.samestat(os.fstat(args[3]), os.stat(deployment))
-
-
-def test_cli_first_rejects_dashboard_even_when_status_idle(deployment, pending_worker):
-    with directory_fd(deployment) as fd:
-        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        response = TestClient(manager.app).post("/swap", json={"main_model": MAIN})
-        assert response.status_code == 409
-        assert manager.status().state == "idle"
-        pending_worker.assert_not_called()
-    assert_unlocked(deployment)
-    assert TestClient(manager.app).post("/swap", json={"main_model": MAIN}).status_code == 202
-
-
-def test_dashboard_first_rejects_cli_and_second_dashboard(deployment, pending_worker):
-    client = TestClient(manager.app)
-    assert client.post("/swap", json={"main_model": MAIN}).status_code == 202
+    assert response.json()["state"] == "accepted"
+    assert len(spawned) == 1
+    job_id, fd = spawned[0]
+    # The descriptor handed to the executor is one the manager opened on the
+    # deployment directory itself.
+    assert os.path.samestat(os.fstat(fd), os.stat(deployment := manager.PROJECT_DIR))
+    # The child still owns the lock after the HTTP call returns.
     assert_contended(deployment)
-    assert client.post("/swap", json={"main_model": MAIN}).status_code == 409
-    assert pending_worker.call_count == 1
+    _close_all(spawned)
+    assert_unlocked(deployment)
 
 
-def test_restart_idle_does_not_bypass_inherited_owner(deployment, pending_worker):
-    client = TestClient(manager.app)
-    assert client.post("/swap", json={"main_model": MAIN}).status_code == 202
-    fd = pending_worker.call_args.kwargs["args"][-1]
-    inherited = os.dup(fd)
-    # Drop the manager copy and simulate process-local status reset. The
-    # inherited copy still owns the same open file description, without UNLOCK.
+def test_executor_spawn_wiring_inherits_the_lock_and_its_own_session(tmp_path, monkeypatch):
+    """The REAL spawn seam: fixed command, own session, inherited fd, project env."""
+    deps = make_deps(tmp_path)
+    fd = os.open(tmp_path, os.O_RDONLY | os.O_DIRECTORY)
     try:
+        with patch.object(executor_module.subprocess, "Popen") as popen:
+            executor_module.spawn_executor(deps, JOB_ID, fd)
+        args, kwargs = popen.call_args
+        assert args[0] == executor_module.executor_command(JOB_ID)
+        assert kwargs["cwd"] == str(tmp_path)
+        assert kwargs["start_new_session"] is True
+        assert kwargs["pass_fds"] == (fd,)
+        assert kwargs["env"]["FAMILY_CFO_SWAP_LOCK_FD"] == str(fd)
+        assert kwargs["env"]["FAMILY_CFO_PROJECT_DIR"] == str(tmp_path)
+        assert kwargs["env"]["PATH"] == os.environ["PATH"]
+
+        with patch.object(
+            executor_module.subprocess,
+            "Popen",
+            side_effect=OSError(errno.EACCES, "synthetic"),
+        ):
+            with pytest.raises(executor_module.ExecutorRefusal) as exc_info:
+                executor_module.spawn_executor(deps, JOB_ID, fd)
+        assert exc_info.value.reason_code is ReasonCode.EXECUTOR_START_FAILED
+    finally:
         os.close(fd)
-        manager._status = manager.SwapStatus(state="idle")
-        assert client.post("/swap", json={"main_model": MAIN}).status_code == 409
-        assert manager.status().state == "idle"
+
+
+def test_executor_command_is_fixed_and_host_side_capable():
+    module_form = executor_module.executor_command(JOB_ID)
+    assert module_form[1:] == ["-m", "family_cfo_model_manager.executor", "--job-id", JOB_ID]
+    bootstrap_form = executor_module.executor_command(
+        JOB_ID, python="/usr/bin/python3", package_src="/srv/app/src"
+    )
+    assert bootstrap_form[0] == "/usr/bin/python3"
+    assert bootstrap_form[1] == "-c"
+    assert "--job-id" in bootstrap_form and JOB_ID in bootstrap_form
+
+
+def test_cli_first_rejects_the_dashboard_even_when_idle(engine):
+    client, deps, spawned = engine
+    with directory_fd(manager.PROJECT_DIR) as fd:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        response = client.post("/v2/jobs", json=_admission_body(), headers=HEADER)
+        assert response.status_code == 409
+        assert response.json()["error"]["code"] == "swap_in_progress"
+        assert deps.journal.list_job_records() == ()
+        assert spawned == []
+    # Lock released: the same request now admits.
+    assert client.post("/v2/jobs", json=_admission_body(), headers=HEADER).status_code == 202
+    assert len(spawned) == 1
+    _close_all(spawned)
+
+
+def test_dashboard_first_rejects_the_cli_and_a_second_dashboard(engine):
+    client, deps, spawned = engine
+    assert client.post("/v2/jobs", json=_admission_body(), headers=HEADER).status_code == 202
+    assert_contended(deployment := manager.PROJECT_DIR)
+    assert client.post("/v2/jobs", json=_admission_body(), headers=HEADER).status_code == 409
+    assert len(spawned) == 1
+    _close_all(spawned)
+    assert_unlocked(deployment)
+
+
+def test_restart_does_not_bypass_the_inherited_owner(engine, tmp_path, monkeypatch):
+    client, deps, spawned = engine
+    assert client.post("/v2/jobs", json=_admission_body(), headers=HEADER).status_code == 202
+    job_id, fd = spawned[0]
+    inherited = os.dup(fd)
+    try:
+        # Drop the manager's own copy and rebuild the app as a restart would:
+        # fresh deps over the SAME journal, in-process state gone.
+        os.close(fd)
+        spawned.clear()
+        restarted = make_deps(tmp_path)
+        object.__setattr__(restarted, "spawn", lambda d, j, f, **kw: Mock(pid=1))
+        monkeypatch.setattr(manager, "_deps", lambda: restarted)
+        restarted_client = TestClient(manager.app)
+        response = restarted_client.post(
+            "/v2/jobs", json=_admission_body(), headers=HEADER
+        )
+        assert response.status_code == 409
+        # The inherited copy still owns the same open file description.
+        assert_contended(tmp_path)
     finally:
         os.close(inherited)
-    assert_unlocked(deployment)
+    assert_unlocked(tmp_path)
+    _close_all(spawned)
 
 
-def test_simultaneous_dashboard_admission_starts_one_worker(deployment, monkeypatch):
-    barrier = threading.Barrier(3)
-    finish = threading.Event()
-    worker_finished = threading.Event()
-    starts = []
+def test_simultaneous_admissions_spawn_one_executor(engine, tmp_path):
+    client, deps, spawned = engine
+    barrier = threading.Barrier(2)
+    release = threading.Event()
+    first_entered = threading.Event()
+    results: list[int] = []
 
-    def worker(main, vision, cluster, fd):
-        starts.append(main)
-        try:
-            assert finish.wait(5)
-        finally:
-            os.close(fd)
-            worker_finished.set()
+    def blocking_spawn(deps_, job_id, fd, **kw):
+        first_entered.set()
+        assert release.wait(5)
+        spawned.append((job_id, os.dup(fd)))  # the child's inherited copy
+        return Mock(pid=4242, returncode=0)
 
-    monkeypatch.setattr(manager, "_run_swap", worker)
-    results = []
+    object.__setattr__(deps, "spawn", blocking_spawn)
 
     def submit():
         barrier.wait(timeout=5)
+        # One TestClient per thread: the portal is not shared across threads.
+        thread_client = TestClient(manager.app)
         try:
-            manager.swap(manager.SwapRequest(main_model=MAIN))
-            results.append(202)
-        except HTTPException as exc:
-            results.append(exc.status_code)
+            results.append(
+                thread_client.post("/v2/jobs", json=_admission_body(), headers=HEADER).status_code
+            )
+        except Exception as exc:  # noqa: BLE001
+            results.append(getattr(exc, "status_code", 500))
 
-    submissions = [threading.Thread(target=submit) for _ in range(2)]
-    try:
-        for thread in submissions:
-            thread.start()
-        barrier.wait(timeout=5)
-        for thread in submissions:
-            thread.join(timeout=5)
-            assert not thread.is_alive()
-        assert sorted(results) == [202, 409]
-        assert_contended(deployment)
-    finally:
-        finish.set()
-        assert worker_finished.wait(5)
-    assert starts == [MAIN]
-    assert_unlocked(deployment)
-
-
-@pytest.mark.parametrize("error", [OSError(errno.EACCES, "synthetic"), RuntimeError("synthetic")])
-def test_thread_start_failure_is_terminal_and_releases(deployment, pending_worker, error):
-    pending_worker.return_value.start.side_effect = error
-    client = TestClient(manager.app)
-    assert client.post("/swap", json={"main_model": MAIN}).status_code == 503
-    assert manager.status().state == "failed"
-    assert "could not start" in manager.status().log_tail
-    assert_unlocked(deployment)
-    pending_worker.return_value.start.side_effect = None
-    assert client.post("/swap", json={"main_model": MAIN}).status_code == 202
-
-
-def test_lock_error_fails_closed_without_starting(deployment, pending_worker):
-    with patch.object(manager.fcntl, "flock", side_effect=OSError(errno.EIO, "synthetic")):
-        response = TestClient(manager.app).post("/swap", json={"main_model": MAIN})
-    assert response.status_code == 503
-    pending_worker.assert_not_called()
-    assert manager.status().state == "idle"
-    assert_unlocked(deployment)
+    threads = [threading.Thread(target=submit) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    # The lock winner blocks inside its spawn; release it, then collect.
+    assert first_entered.wait(5)
+    release.set()
+    for thread in threads:
+        thread.join(timeout=10)
+        assert not thread.is_alive()
+    assert sorted(results) == [202, 409]
+    assert len(spawned) == 1
+    assert_contended(tmp_path)
+    _close_all(spawned)
+    assert_unlocked(tmp_path)
 
 
 @pytest.mark.parametrize(
-    "main,vision,cluster,expected",
-    [
-        (MAIN, VISION, False, [MAIN, VISION]),
-        (MAIN, None, False, [MAIN, "none"]),
-        (MAIN, None, True, ["--cluster", MAIN, "none"]),
-        ("Qwen/Qwen2.5-VL-32B-Instruct", None, False, ["Qwen/Qwen2.5-VL-32B-Instruct"]),
-    ],
+    "error", [executor_module.ExecutorRefusal(ReasonCode.EXECUTOR_START_FAILED, "no"), RuntimeError("synthetic")]
 )
-@pytest.mark.parametrize("returncode", [0, 1])
-def test_worker_inherits_fd_and_releases_only_after_completion(
-    deployment, main, vision, cluster, expected, returncode
-):
-    fd = os.open(deployment, os.O_RDONLY | os.O_DIRECTORY)
-    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    process = Mock(returncode=returncode)
+def test_spawn_failure_is_terminal_and_releases_the_lock(engine, tmp_path, error):
+    client, deps, spawned = engine
 
-    def communicate(**kwargs):
-        assert kwargs == {"timeout": manager.SWAP_TIMEOUT_SECONDS}
-        assert_contended(deployment)
-        return "swapped ok", "stderr tail"
+    def failing_spawn(deps_, job_id, fd, **kw):
+        os.close(fd)  # a failed spawn leaves nothing holding the lock
+        raise error
 
-    process.communicate.side_effect = communicate
-    with patch.object(manager.subprocess, "Popen", return_value=process) as popen:
-        manager._run_swap(main, vision, cluster, fd)
-    assert popen.call_args.args[0] == ["bash", "scripts/swap-model.sh", *expected]
-    kwargs = popen.call_args.kwargs
-    assert kwargs["cwd"] == str(deployment)
-    assert kwargs["start_new_session"] is True
-    assert kwargs["pass_fds"] == (fd,)
-    assert kwargs["env"]["FAMILY_CFO_SWAP_LOCK_FD"] == str(fd)
-    assert kwargs["env"]["PATH"] == os.environ["PATH"]
-    assert manager.status().state == ("succeeded" if returncode == 0 else "failed")
-    assert "swapped ok\nstderr tail" in manager.status().log_tail
-    with pytest.raises(OSError):
-        os.fstat(fd)
-    assert_unlocked(deployment)
+    object.__setattr__(deps, "spawn", failing_spawn)
+    response = client.post("/v2/jobs", json=_admission_body(), headers=HEADER)
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "executor_start_failed"
+    # Durably failed, never resumable as-is, and the pointer released.
+    record = deps.journal.read_job_record(response.json().get("job_id") or _last_job(deps))
+    assert record is not None and record.state is JobState.FAILED
+    assert deps.journal.read_current().job_id is None
+    assert_unlocked(tmp_path)
+    # A retry with a fresh request id admits normally.
+    object.__setattr__(
+        deps, "spawn", lambda d, j, f, **kw: spawned.append((j, os.dup(f))) or Mock(pid=1)
+    )
+    from conftest import rearm_runner
 
-
-def test_launch_oserror_records_terminal_failure_and_retry(deployment):
-    fd = os.open(deployment, os.O_RDONLY | os.O_DIRECTORY)
-    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    manager._status = manager.SwapStatus(state="running")
-    with patch.object(manager.subprocess, "Popen", side_effect=OSError("synthetic")):
-        manager._run_swap(MAIN, None, False, fd)
-    assert manager.status().state == "failed"
-    assert "could not run" in manager.status().log_tail
-    assert_unlocked(deployment)
+    rearm_runner(deps)  # the failed admission consumed the canned checker results
+    retry = client.post(
+        "/v2/jobs",
+        json=_admission_body(request_id="0f0e1d2c-3b4a-5968-7789-abcdef012346"),
+        headers=HEADER,
+    )
+    assert retry.status_code == 202
+    _close_all(spawned)
 
 
-@pytest.mark.parametrize("failure", [subprocess.TimeoutExpired("swap", 1), KeyboardInterrupt()])
-@pytest.mark.parametrize("group_survives_grace", [True, False])
-def test_timeout_or_interrupt_gives_descendants_full_grace_then_reaps(
-    deployment, failure, group_survives_grace
-):
-    fd = os.open(deployment, os.O_RDONLY | os.O_DIRECTORY)
-    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+def _last_job(deps):
+    records = deps.journal.list_job_records()
+    assert records
+    return records[-1].job_id
+
+
+def test_lock_error_fails_closed_without_starting(engine, tmp_path, monkeypatch):
+    client, deps, spawned = engine
+    with patch.object(fcntl, "flock", side_effect=OSError(errno.EIO, "synthetic")):
+        response = client.post("/v2/jobs", json=_admission_body(), headers=HEADER)
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "journal_unavailable"
+    assert deps.journal.list_job_records() == ()
+    assert_unlocked(tmp_path)
+
+
+# --- terminate_executor: the #167 reap discipline -----------------------------------
+
+
+def test_terminate_gives_descendants_full_grace_then_reaps():
     process = Mock(pid=1234, returncode=None)
-    events = []
-    delivered = []
-
-    def communicate(timeout=None):
-        assert_contended(deployment)
-        events.append(("communicate", timeout))
-        if len(events) == 1:
-            raise failure
-        process.returncode = -9 if group_survives_grace else -15
-        return "", ""
+    events: list[tuple] = []
+    delivered: list[int] = []
 
     def killpg(pid, sig):
-        assert_contended(deployment)
-        assert process.returncode is None  # No reap / reusable PGID before signaling finishes.
-        events.append(("signal", sig))
         assert pid == process.pid
-        if sig == signal.SIGKILL and not group_survives_grace:
-            raise ProcessLookupError
+        assert process.wait.call_count == 0  # the leader is never reaped early
+        events.append(("signal", sig))
         delivered.append(sig)
 
     def grace(seconds):
-        assert seconds == manager.SWAP_TERMINATE_GRACE_SECONDS
-        assert_contended(deployment)
-        # The shell may exit immediately on TERM; do NOT reap it or end its
-        # descendants' grace early. No wait/communicate has occurred since TERM.
-        assert process.communicate.call_count == 1
-        assert process.returncode is None
+        assert seconds == executor_module.EXECUTOR_TERMINATE_GRACE_SECONDS == 5.0
+        assert process.wait.call_count == 0  # no reap during the grace
         events.append(("grace", seconds))
 
-    process.communicate.side_effect = communicate
+    process.wait.side_effect = lambda: events.append(("reap",))
     with (
-        patch.object(manager.subprocess, "Popen", return_value=process),
-        patch.object(manager.os, "killpg", side_effect=killpg),
-        patch.object(manager.time, "sleep", side_effect=grace),
+        patch.object(executor_module.os, "killpg", side_effect=killpg),
+        patch.object(executor_module.time, "sleep", side_effect=grace),
     ):
-        manager._run_swap(MAIN, None, False, fd)
+        executor_module.terminate_executor(process)
     assert events == [
-        ("communicate", manager.SWAP_TIMEOUT_SECONDS),
         ("signal", signal.SIGTERM),
-        ("grace", manager.SWAP_TERMINATE_GRACE_SECONDS),
+        ("grace", 5.0),
         ("signal", signal.SIGKILL),
-        ("communicate", None),
+        ("reap",),
     ]
-    assert delivered == [signal.SIGTERM] + ([signal.SIGKILL] if group_survives_grace else [])
-    assert manager.status().state == "failed"
-    assert_unlocked(deployment)
+    assert delivered == [signal.SIGTERM, signal.SIGKILL]
 
 
-def test_group_already_exited_is_still_reaped(deployment):
-    fd = os.open(deployment, os.O_RDONLY | os.O_DIRECTORY)
+def test_terminate_group_already_gone_on_sigterm_is_still_reaped():
     process = Mock(pid=1234, returncode=None)
-    process.communicate.side_effect = [subprocess.TimeoutExpired("swap", 1), ("", "")]
-    with (
-        patch.object(manager.subprocess, "Popen", return_value=process),
-        patch.object(manager.os, "killpg", side_effect=ProcessLookupError) as killpg,
-        patch.object(manager.time, "sleep") as sleep,
-    ):
-        manager._run_swap(MAIN, None, False, fd)
+    with patch.object(executor_module.os, "killpg", side_effect=ProcessLookupError) as killpg:
+        executor_module.terminate_executor(process)
     killpg.assert_called_once_with(process.pid, signal.SIGTERM)
-    sleep.assert_not_called()
-    assert process.communicate.call_args_list == [
-        call(timeout=manager.SWAP_TIMEOUT_SECONDS),
-        call(),
-    ]
-    assert manager.status().state == "failed"
-    assert_unlocked(deployment)
+    process.sleep_asserted = None
+    process.wait.assert_called_once_with()
+
+
+def test_terminate_sigkill_group_gone_is_suppressed():
+    """A group that exits during the grace still gets its final reap."""
+    process = Mock(pid=1234, returncode=None)
+
+    def killpg(pid, sig):
+        if sig == signal.SIGKILL:
+            raise ProcessLookupError
+
+    with (
+        patch.object(executor_module.os, "killpg", side_effect=killpg),
+        patch.object(executor_module.time, "sleep") as sleep,
+    ):
+        executor_module.terminate_executor(process)
+    sleep.assert_called_once_with(executor_module.EXECUTOR_TERMINATE_GRACE_SECONDS)
+    process.wait.assert_called_once_with()
 
 
 def test_already_reaped_child_is_not_signalled():
     process = Mock(pid=1234, returncode=0)
-    with patch.object(manager.os, "killpg") as killpg:
-        manager._terminate_swap(process)
+    with patch.object(executor_module.os, "killpg") as killpg:
+        executor_module.terminate_executor(process)
     killpg.assert_not_called()
-    process.communicate.assert_called_once_with()
+    process.wait.assert_called_once_with()

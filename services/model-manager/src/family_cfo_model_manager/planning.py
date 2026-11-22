@@ -73,6 +73,9 @@ class ModelFacts:
     resident_weight_bytes: int | None = None
     multimodal: bool | None = None
     model_context_limit: int | None = None
+    # Architecture-aware per-token KV bytes for the standard GQA/MHA layout;
+    # None means the cache layout is unknown -> the resolver refuses.
+    kv_bytes_per_token: int | None = None
     evidence: Evidence = Evidence.UNKNOWN
 
 
@@ -106,6 +109,15 @@ class ProfilePolicy:
     tool_protocol: bool | None = None
     main_rank_overhead_gb: float | None = None
     photo_instance_overhead_gb: float | None = None
+    # Remote model code (trust_remote_code) runs only when a reviewed profile
+    # explicitly permits it (ADR 0081 S2).
+    remote_code: bool = False
+    # Reviewed parser/argument policy (replaces the shell family heuristics
+    # as the authoritative source; a None value falls back to the generic
+    # policy below).
+    tool_call_parser: str | None = None
+    reasoning_parser: str | None = None
+    extra_args: str | None = None
 
 
 class ModelMetadataSource(Protocol):
@@ -158,8 +170,16 @@ class LaunchPlan:
     image_digest: str
     context_limit: int
     concurrency_limit: int
+    # Resolved structured serve options (from the reviewed profile or the
+    # generic family policy) - part of the frozen identity the verifier and
+    # the launch configuration must reproduce exactly.
+    tool_call_parser: str
+    reasoning_parser: str
     node_requirements: tuple[NodeRequirement, ...]
     warnings: tuple[str, ...] = ()
+    # The separate photo instance's own admission demand (GB), when placement
+    # is separate - the basis for the describer's assigned GPU fraction.
+    vision_demand_gb: float | None = None
 
     def summary(self) -> PlanSummary:
         return PlanSummary(
@@ -190,6 +210,9 @@ class LaunchPlan:
             "image_digest": self.image_digest,
             "context_limit": self.context_limit,
             "concurrency_limit": self.concurrency_limit,
+            "tool_call_parser": self.tool_call_parser,
+            "reasoning_parser": self.reasoning_parser,
+            "vision_demand_gb": self.vision_demand_gb,
             "node_requirements": [
                 {
                     "node": item.node,
@@ -430,6 +453,49 @@ def node_disk_verdict(
 # --- limits ------------------------------------------------------------------------
 
 
+def parser_policy(
+    profile: ProfilePolicy | None, architecture: str | None
+) -> tuple[str, str]:
+    """(tool_call_parser, reasoning_parser) for the launch configuration.
+
+    Reviewed profiles are authoritative; without one a deterministic family
+    policy applies (mirroring the retired shell heuristics), defaulting to
+    vLLM's hermes tool parser and the qwen3 reasoning parser. These are
+    policy estimates -- the verifier's synthetic tool probe stays the final
+    authority on whether a tool protocol actually works.
+    """
+    if profile is not None and profile.tool_call_parser is not None:
+        tool = profile.tool_call_parser
+    elif architecture and "glm" in architecture.lower():
+        tool = "glm45"
+    elif architecture and "minimax" in architecture.lower():
+        tool = "minimax_m2"
+    elif architecture and "llama" in architecture.lower():
+        tool = "llama3_json"
+    else:
+        tool = "hermes"
+    if profile is not None and profile.reasoning_parser is not None:
+        reasoning = profile.reasoning_parser
+    elif architecture and "glm" in architecture.lower():
+        reasoning = "glm45"
+    elif architecture and "minimax" in architecture.lower():
+        reasoning = "minimax_m2"
+    else:
+        reasoning = "qwen3"
+    return tool, reasoning
+
+
+def assigned_fraction(memory_gb: float, demand_total_gb: float) -> float | None:
+    """The GPU fraction assigned to a placement on a node of known memory.
+
+    Rounds UP to the next percentage point (the admission rule); None when
+    memory is unknown -- never a guessed fraction.
+    """
+    if memory_gb <= 0:
+        return None
+    return math.ceil((demand_total_gb / memory_gb) * 100.0) / 100.0
+
+
 def effective_limits(
     profile: ProfilePolicy | None, model_context_limit: int | None
 ) -> tuple[int, int]:
@@ -597,9 +663,21 @@ def resolve_launch_plan(
     context_limit, concurrency_limit = effective_limits(
         profile, main_facts.model_context_limit
     )
+    tool_call_parser, reasoning_parser = parser_policy(
+        profile, main_facts.architecture
+    )
     photo_weight_bytes: int | None = None
+    vision_demand_gb: float | None = None
     if placement.photo_mode is PhotoMode.SEPARATE and vision_facts is not None:
         photo_weight_bytes = vision_facts.resident_weight_bytes
+        # The describer is a full additional placement: its own weights (with
+        # the residency margin), its own instance overhead, and its KV share.
+        profile_overhead = photo_instance_overhead(profile)
+        vision_demand_gb = (
+            (photo_weight_bytes / _GB) * (1.0 + WEIGHT_RESIDENCY_MARGIN)
+            + profile_overhead
+            + (kv_bytes / _GB)
+        )
     refusals: list[str] = []
     for candidate in candidates:
         outcome = _evaluate_candidate(
@@ -617,6 +695,9 @@ def resolve_launch_plan(
             runtime_version=runtime_version,
             image_digest=image_digest,
             vision_revision=vision_revision,
+            tool_call_parser=tool_call_parser,
+            reasoning_parser=reasoning_parser,
+            vision_demand_gb=vision_demand_gb,
         )
         if isinstance(outcome, LaunchPlan):
             return outcome
@@ -649,6 +730,9 @@ def _evaluate_candidate(
     runtime_version: str,
     image_digest: str,
     vision_revision: str | None,
+    tool_call_parser: str,
+    reasoning_parser: str,
+    vision_demand_gb: float | None,
 ) -> LaunchPlan | str:
     """Evaluate one candidate; a LaunchPlan when every node admits, else the
     stable refusal reason."""
@@ -705,6 +789,9 @@ def _evaluate_candidate(
         image_digest=image_digest,
         context_limit=context_limit,
         concurrency_limit=concurrency_limit,
+        tool_call_parser=tool_call_parser,
+        reasoning_parser=reasoning_parser,
+        vision_demand_gb=vision_demand_gb,
         node_requirements=tuple(requirements),
         warnings=placement.warnings,
     )
@@ -755,6 +842,10 @@ _ALLOWED_PROFILE_KEYS = {
     "tool_protocol",
     "main_rank_overhead_gb",
     "photo_instance_overhead_gb",
+    "remote_code",
+    "tool_call_parser",
+    "reasoning_parser",
+    "extra_args",
 }
 
 
@@ -780,6 +871,10 @@ def load_profiles(path: Path | str) -> ProfilesDocument:
                 tool_protocol=entry.get("tool_protocol"),
                 main_rank_overhead_gb=entry.get("main_rank_overhead_gb"),
                 photo_instance_overhead_gb=entry.get("photo_instance_overhead_gb"),
+                remote_code=bool(entry.get("remote_code", False)),
+                tool_call_parser=entry.get("tool_call_parser"),
+                reasoning_parser=entry.get("reasoning_parser"),
+                extra_args=entry.get("extra_args"),
             )
         )
     return ProfilesDocument(profiles=tuple(profiles))

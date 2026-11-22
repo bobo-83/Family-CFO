@@ -273,6 +273,16 @@ class Journal:
     def read_target_plan(self, job_id: str) -> dict[str, Any] | None:
         return self._read_json(self.job_dir(job_id) / "target.json")
 
+    def write_verification_evidence(self, job_id: str, evidence: dict[str, Any]) -> None:
+        """The verification evidence the API reconciler reads (freshness)."""
+        self._atomic_write(
+            self.job_dir(job_id) / "verification.json",
+            json.dumps(evidence).encode(),
+        )
+
+    def read_verification_evidence(self, job_id: str) -> dict[str, Any] | None:
+        return self._read_json(self.job_dir(job_id) / "verification.json")
+
     def append_diagnostics(self, job_id: str, line: str) -> None:
         """Append one bounded diagnostics line; rotate at 1 MiB (keep tail)."""
         path = self.job_dir(job_id) / "diagnostics.log"

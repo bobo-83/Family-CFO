@@ -71,6 +71,7 @@ services:
         esac;
         exec vllm serve
         '${VLLM_MODEL:-Qwen/Qwen2.5-32B-Instruct}'
+        ${VLLM_REVISION:+--revision '${VLLM_REVISION}'}
         --enable-auto-tool-choice
         --tool-call-parser '${VLLM_TOOL_PARSER:-hermes}'
         --reasoning-parser '${VLLM_REASONING_PARSER:-qwen3}'
