@@ -318,6 +318,10 @@ def deployment(tmp_path):
         "HF_HUB_OFFLINE": "1",
         "PYTHONPATH": str(ROOT / "services/model-manager/src"),
         "FAMILY_CFO_COMMIT_REVERIFY_SECONDS": "1",
+        # Deterministic admission evidence: the manager and CLI subprocesses
+        # must not depend on the runner's RAM (a ~7 GB CI runner refuses
+        # even the 0.5 GB synthetic models at the 8 GiB reserve floor).
+        "FAMILY_CFO_NODE_MEMORY_GB": "64.0",
     }
     base_env.pop("FAMILY_CFO_SWAP_LOCK_FD", None)
     for variable in (

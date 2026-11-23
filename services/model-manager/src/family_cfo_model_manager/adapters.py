@@ -293,9 +293,12 @@ class LocalHardwareSource:
     """One node's hardware facts: unified memory IS one pool (ADR 0071).
 
     Memory comes from /proc/meminfo (the host total, even inside the manager
-    container); the model-cache filesystem and free space are probed through
-    an allowlisted read-only `docker exec df` into the runtime container, so
-    the manager needs no cache mount of its own.
+    container) with a sysctl fallback on macOS; the model-cache filesystem and
+    free space are probed through an allowlisted read-only `docker exec df`
+    into the runtime container, so the manager needs no cache mount of its
+    own. FAMILY_CFO_NODE_MEMORY_GB overrides the probe with an operator-
+    declared value (deterministic tests, constrained deployments); it is
+    declared, not measured, so it classifies as ESTIMATED evidence.
     """
 
     def __init__(
@@ -308,7 +311,12 @@ class LocalHardwareSource:
         self._cache_probe = cache_probe or self._docker_cache_probe
 
     def nodes(self) -> tuple[NodeHardware, ...]:
-        memory_gb = _meminfo_gb()
+        declared = _declared_memory_gb()
+        if declared is not None:
+            memory_gb, evidence = declared, Evidence.ESTIMATED
+        else:
+            memory_gb = _meminfo_gb()
+            evidence = Evidence.VERIFIED if memory_gb is not None else Evidence.UNKNOWN
         cache_gb: int | None = None
         free_gb: int | None = None
         try:
@@ -322,9 +330,7 @@ class LocalHardwareSource:
                 cache_filesystem_gb=cache_gb,
                 disk_free_gb=free_gb,
                 resident_managed_gb=None,
-                evidence=(
-                    Evidence.VERIFIED if memory_gb is not None else Evidence.UNKNOWN
-                ),
+                evidence=evidence,
             ),
         )
 
@@ -352,6 +358,23 @@ class LocalHardwareSource:
                 total_kb, avail_kb = int(parts[1]), int(parts[3])
                 return total_kb / 1_000_000, avail_kb / 1_000_000
         raise MetadataUnavailable("cache filesystem probe was unparseable")
+
+
+def _declared_memory_gb() -> float | None:
+    """Operator-declared node memory: FAMILY_CFO_NODE_MEMORY_GB, in GiB.
+
+    Takes precedence over the measured probe so tests and constrained
+    deployments get deterministic admission. A declared value was not
+    observed on this host, so callers must classify it below VERIFIED.
+    """
+    raw = os.getenv("FAMILY_CFO_NODE_MEMORY_GB", "").strip()
+    if not raw:
+        return None
+    try:
+        value = float(raw)
+    except ValueError:
+        return None
+    return value if value > 0 else None
 
 
 def _meminfo_gb() -> float | None:
