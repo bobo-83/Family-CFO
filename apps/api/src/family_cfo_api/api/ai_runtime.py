@@ -540,18 +540,6 @@ def _vision_slot_gb(settings: Settings) -> float | None:
     return node_gb * settings.vision_gpu_fraction
 
 
-def _model_estimate_gb(model_id: str) -> float | None:
-    """Weights estimate for a model id: catalog truth, else name-derived."""
-    for model in MODEL_CATALOG:
-        if model.id == model_id:
-            return model.est_memory_gb
-    match = _PARAMS_IN_NAME.search(model_id.rsplit("/", 1)[-1])
-    if not match:
-        return None
-    gb_per_b, _precision = _bytes_per_param(model_id)
-    return float(match.group(1)) * gb_per_b
-
-
 def _estimate_from_hf(item: dict, pipeline: str) -> AiModelInfo | None:
     """Map an HF Hub result to catalog shape with ESTIMATED specs (ADR 0013)."""
     model_id = item.get("modelId") or item.get("id") or ""
@@ -775,23 +763,10 @@ def _validate_apply_selection(payload: AiApplyRequest, settings: Settings) -> _N
         raise _ApplyRefusal(
             422, "unsupported_photo_mode", "photo_mode 'separate' requires a distinct vision model"
         )
-    # The photo-model slot is a FIXED memory share (VLLM_VISION_GPU_FRACTION):
-    # a describer whose weights exceed it crash-loops silently after the swap
-    # (found live when a text-only main inherited a 35B as its photo model).
-    # Unknown estimates pass — this guard only refuses the provably absurd.
-    if vision_model is not None:
-        slot_gb = _vision_slot_gb(settings)
-        est_gb = _model_estimate_gb(vision_model)
-        if slot_gb is not None and est_gb is not None and est_gb > slot_gb:
-            raise _ApplyRefusal(
-                422,
-                "insufficient_memory",
-                (
-                    f"'{vision_model}' needs ~{est_gb:.0f} GB but the "
-                    f"photo-model slot has ~{slot_gb:.0f} GB "
-                    f"(VLLM_VISION_GPU_FRACTION) — pick a smaller vision model"
-                ),
-            )
+    # Memory fit is the MANAGER's admission call (ADR 0081): its evidence-based
+    # planning refuses a photo model that cannot run. The API host may not be a
+    # GPU box (two-Spark: peers hold them), so host-memory math here is not
+    # placement evidence — it only produced false refusals (#170).
     return _NormalizedSelection(
         main_model=payload.main_model,
         vision_model=vision_model,

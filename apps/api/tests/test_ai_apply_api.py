@@ -462,16 +462,20 @@ async def test_apply_collapses_duplicate_main_and_vision(
 
 
 @pytest.mark.anyio
-async def test_apply_refuses_a_photo_model_that_cannot_fit_its_slot(
+async def test_apply_surfaces_the_manager_insufficient_memory_refusal(
     demo_engine, fake_manager, monkeypatch
 ) -> None:
-    """A describer bigger than the vision memory share crash-loops silently."""
-    monkeypatch.setattr(ai_runtime_module, "_hf_model_exists", lambda hub, mid: True)
-    monkeypatch.setattr(
-        ai_runtime_module,
-        "hardware_profile",
-        lambda: {"gpu_memory_gb": 121.0, "system_memory_gb": 121.0},
+    """A describer bigger than the vision memory share crash-loops silently —
+    but memory admission is the MANAGER's evidence-based call (ADR 0081), so
+    the refusal arrives from its planning, never from API-host hardware math
+    (the API host may not be a GPU box). The 422 envelope preserves the
+    manager's stable reason."""
+    fake_manager.admission_refusal = (
+        422,
+        "insufficient_memory",
+        "'Qwen/Qwen2.5-VL-32B-Instruct' cannot fit the photo-model slot",
     )
+    monkeypatch.setattr(ai_runtime_module, "_hf_model_exists", lambda hub, mid: True)
     app = create_app(_settings(), engine=demo_engine)
     client, token = await _owner_client_token(app)
     try:
@@ -486,7 +490,8 @@ async def test_apply_refuses_a_photo_model_that_cannot_fit_its_slot(
         assert resp.status_code == 422
         assert resp.json()["error"]["code"] == "insufficient_memory"
         assert "photo-model slot" in resp.json()["error"]["message"]
-        assert fake_manager.calls == []  # refused before any manager contact
+        # The refusal is the manager's: admission was attempted and answered.
+        assert len(fake_manager.admission_calls) == 1
     finally:
         await client.aclose()
 
