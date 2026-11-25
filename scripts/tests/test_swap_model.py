@@ -145,6 +145,10 @@ def revision(key):
     value = env(key, "")
     return " --revision '" + value + "'" if value else ""
 
+def seqs_cap():
+    value = env("VLLM_MAX_NUM_SEQS", "")
+    return " --max-num-seqs '" + value + "'" if value else ""
+
 def vllm_command():
     return (
         "exec vllm serve '" + env("VLLM_MODEL", "Qwen/Qwen2.5-32B-Instruct") + "'"
@@ -154,7 +158,8 @@ def vllm_command():
         " --reasoning-parser '" + env("VLLM_REASONING_PARSER", "qwen3") + "'"
         " --gpu-memory-utilization '" + env("VLLM_GPU_FRACTION", "0.60") + "'"
         " --max-model-len '" + env("VLLM_MAX_MODEL_LEN", "32768") + "'"
-        " " + env("VLLM_EXTRA_ARGS", "")
+        + seqs_cap()
+        + " " + env("VLLM_EXTRA_ARGS", "")
     ).rstrip()
 
 def vision_command():
@@ -602,6 +607,7 @@ def test_cli_swap_completes_with_acknowledgement(deployment, manager):
         VLLM_TOOL_PARSER="hermes",
         VLLM_REASONING_PARSER="qwen3",
         VLLM_MAX_MODEL_LEN="8192",
+        VLLM_MAX_NUM_SEQS="1",
         FAMILY_CFO_AI_SUPPORTS_VISION="false",
         FAMILY_CFO_AI_VISION_ENABLED="false",
     )

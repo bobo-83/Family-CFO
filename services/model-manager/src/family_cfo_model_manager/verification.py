@@ -105,6 +105,7 @@ class ExpectedRuntime:
     tool_call_parser: str | None = None
     reasoning_parser: str | None = None
     max_model_len: int | None = None
+    max_num_seqs: int | None = None
     extra_args: str | None = None
     plan_hash: str | None = None
     peer_host: str | None = None
@@ -124,6 +125,7 @@ class ExpectedRuntime:
             tool_call_parser=plan.tool_call_parser,
             reasoning_parser=plan.reasoning_parser,
             max_model_len=plan.context_limit,
+            max_num_seqs=plan.concurrency_limit,
             plan_hash=plan.digest(),
             peer_host=peer_host,
         )
@@ -516,6 +518,11 @@ def _args_match(command: str | None, expected: ExpectedRuntime) -> str | None:
         and f"--max-model-len '{expected.max_model_len}'" not in command
     ):
         return "the running runtime uses a different context limit"
+    if (
+        expected.max_num_seqs is not None
+        and f"--max-num-seqs '{expected.max_num_seqs}'" not in command
+    ):
+        return "the running runtime uses a different concurrency cap"
     if (
         expected.tool_call_parser
         and f"--tool-call-parser '{expected.tool_call_parser}'" not in command

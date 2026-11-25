@@ -46,9 +46,11 @@ RUNTIME_ENV_KEYS: tuple[str, ...] = (
     "VLLM_VISION_GPU_FRACTION",
     "VLLM_VISION_MODEL",
     "VLLM_MAX_MODEL_LEN",
+    "VLLM_MAX_NUM_SEQS",
     "FAMILY_CFO_AI_SUPPORTS_VISION",
     "FAMILY_CFO_AI_VISION_ENABLED",
-    # Revision/context keys required by reviewed profiles (pinned revisions).
+    # Plan-pinned keys required by reviewed profiles (pinned revisions, and
+    # the concurrency cap the admission memory estimate assumed).
     "VLLM_REVISION",
     "VLLM_VISION_REVISION",
     # Topology keys (declared peer; owned by setup-cluster.sh, restored only).
@@ -539,6 +541,7 @@ _VLLM_CMD_RE = re.compile(
     r"(?:.*--reasoning-parser '(?P<reasoning>[^']+)')?"
     r"(?:.*--gpu-memory-utilization '(?P<fraction>[^']+)')?"
     r"(?:.*--max-model-len '(?P<max_len>[^']+)')?"
+    r"(?:.*--max-num-seqs '(?P<seqs>[^']+)')?"
     r"(?:.*--revision '(?P<revision>[^']+)')?"
     r"(?P<extra>.*)",
     re.DOTALL,
@@ -569,6 +572,7 @@ def runtime_values_from_running(services: tuple[ServiceInspection, ...]) -> dict
             values["VLLM_REASONING_PARSER"] = match.group("reasoning") or None
             values["VLLM_GPU_FRACTION"] = match.group("fraction")
             values["VLLM_MAX_MODEL_LEN"] = match.group("max_len")
+            values["VLLM_MAX_NUM_SEQS"] = match.group("seqs")
             values["VLLM_REVISION"] = match.group("revision") or None
             values["VLLM_EXTRA_ARGS"] = (match.group("extra") or "").strip() or None
     if vision is not None and vision.command:
@@ -617,9 +621,10 @@ def assert_no_drift(
             continue  # absent: the compose fallback explains the running value
         if in_running is None:
             # A key the file carries but the running deployment does not use:
-            # only new profile keys (revision pins) are legitimately ahead of
-            # an old deployment; the routing/fraction/model keys are not.
-            if key not in ("VLLM_REVISION", "VLLM_VISION_REVISION"):
+            # only plan-pinned keys (revision pins, the concurrency cap) are
+            # legitimately ahead of an old deployment; the routing/fraction/
+            # model keys are not.
+            if key not in ("VLLM_REVISION", "VLLM_VISION_REVISION", "VLLM_MAX_NUM_SEQS"):
                 problems.append(key)
         elif in_env != in_running:
             problems.append(key)
@@ -722,6 +727,10 @@ def launch_values(
     values["VLLM_TOOL_PARSER"] = plan.tool_call_parser
     values["VLLM_REASONING_PARSER"] = plan.reasoning_parser
     values["VLLM_MAX_MODEL_LEN"] = str(plan.context_limit)
+    # The concurrency cap admission's memory estimate assumed: the running
+    # scheduler must not exceed it, or KV/activation memory can exceed what
+    # admission verified.
+    values["VLLM_MAX_NUM_SEQS"] = str(plan.concurrency_limit)
     values["VLLM_REVISION"] = plan.main_revision
     values["FAMILY_CFO_AI_SUPPORTS_VISION"] = (
         "true" if plan.photo_mode is PhotoMode.MAIN else "false"

@@ -649,6 +649,7 @@ def _expected_from_snapshot(
     vision = snapshot.service("vllm-vision")
     extra = running_values.get("VLLM_EXTRA_ARGS")
     max_len = running_values.get("VLLM_MAX_MODEL_LEN")
+    seqs = running_values.get("VLLM_MAX_NUM_SEQS")
     return ExpectedRuntime(
         main_model=snapshot.main_model or "",
         vision_model=snapshot.vision_model,
@@ -661,6 +662,7 @@ def _expected_from_snapshot(
         tool_call_parser=running_values.get("VLLM_TOOL_PARSER"),
         reasoning_parser=running_values.get("VLLM_REASONING_PARSER"),
         max_model_len=int(max_len) if max_len and max_len.isdigit() else None,
+        max_num_seqs=int(seqs) if seqs and seqs.isdigit() else None,
         extra_args=extra,
         peer_host=snapshot.declared_peer,
     )

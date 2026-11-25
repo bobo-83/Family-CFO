@@ -183,7 +183,7 @@ def test_runtime_values_from_running_parses_the_known_command_shapes():
             command=(
                 f"exec vllm serve '{MAIN}' --tool-call-parser 'hermes' "
                 "--reasoning-parser 'deepseek_r1' --gpu-memory-utilization '0.85' "
-                "--max-model-len '8192' --served-model-name extra"
+                "--max-model-len '8192' --max-num-seqs '4' --served-model-name extra"
             ),
         ),
         service(
@@ -200,10 +200,19 @@ def test_runtime_values_from_running_parses_the_known_command_shapes():
     assert values["VLLM_REASONING_PARSER"] == "deepseek_r1"
     assert values["VLLM_GPU_FRACTION"] == "0.85"
     assert values["VLLM_MAX_MODEL_LEN"] == "8192"
+    assert values["VLLM_MAX_NUM_SEQS"] == "4"
     assert values["VLLM_VISION_MODEL"] == VISION
     assert values["VLLM_VISION_GPU_FRACTION"] == "0.20"
     assert values["FAMILY_CFO_AI_VISION_ENABLED"] == "true"
     assert values["FAMILY_CFO_AI_SUPPORTS_VISION"] == "true"
+
+
+def test_runtime_values_from_running_leaves_the_seq_cap_unparsed_when_absent():
+    # A deployment predating the seq cap parses None - never a guessed value.
+    values = runtime_values_from_running(
+        (service("vllm", running=True, command=f"exec vllm serve '{MAIN}' --max-model-len '8192'"),)
+    )
+    assert values["VLLM_MAX_NUM_SEQS"] is None
 
 
 # --- snapshots ------------------------------------------------------------------------
@@ -316,8 +325,18 @@ def test_launch_values_install_the_frozen_plan():
     assert values["FAMILY_CFO_AI_SUPPORTS_VISION"] == "false"
     assert values["FAMILY_CFO_AI_VISION_ENABLED"] == "false"
     assert values["VLLM_VISION_MODEL"] is None
+    assert values["VLLM_MAX_NUM_SEQS"] == "1"  # the generic admission cap
     assert values["VLLM_EXTRA_ARGS"] is None
     assert values["VLLM_GPU_FRACTION"] is not None  # assigned from the node memory
+
+
+def test_launch_values_freeze_the_planned_concurrency_cap():
+    # The Qwen profile's reviewed cap (4 seqs): the launch must pin exactly
+    # the concurrency the admission memory estimate assumed.
+    values = launch_values(
+        _plan(concurrency_limit=4), node_memory_gb=64.0, photo_node_memory_gb=None, profile=None
+    )
+    assert values["VLLM_MAX_NUM_SEQS"] == "4"
 
 
 def test_launch_values_separate_photo_installs_the_describer_keys():

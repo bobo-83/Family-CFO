@@ -243,7 +243,8 @@ def previous_runtime_services(
                 f"exec vllm serve '{main_model}' "
                 "--revision '8b5e6c1f' "
                 "--tool-call-parser 'hermes' "
-                "--gpu-memory-utilization '0.85' --max-model-len '8192'"
+                "--gpu-memory-utilization '0.85' --max-model-len '8192' "
+                "--max-num-seqs '1'"
             ),
         )
     ]
@@ -293,6 +294,7 @@ def write_previous_runtime_env(
         "VLLM_TOOL_PARSER=hermes",
         "VLLM_GPU_FRACTION=0.85",
         "VLLM_MAX_MODEL_LEN=8192",
+        "VLLM_MAX_NUM_SEQS=1",
         "FAMILY_CFO_AI_SUPPORTS_VISION=" + ("true" if vision_model else "false"),
     ]
     if vision_model is not None:

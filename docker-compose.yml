@@ -242,6 +242,8 @@ services:
       # VLLM_REVISION pins the served checkpoint (issue #170): the apply
       # engine stages and verifies an immutable revision, so serving must
       # name it — when unset the hub default is used exactly as before.
+      # VLLM_MAX_NUM_SEQS pins the concurrency cap the apply plan's memory
+      # estimate assumed; when unset (manual launches) vLLM's default stands.
       - >-
         exec vllm serve
         '${VLLM_MODEL:-Qwen/Qwen2.5-32B-Instruct}'
@@ -251,6 +253,7 @@ services:
         --reasoning-parser '${VLLM_REASONING_PARSER:-qwen3}'
         --gpu-memory-utilization '${VLLM_GPU_FRACTION:-0.60}'
         --max-model-len '${VLLM_MAX_MODEL_LEN:-32768}'
+        ${VLLM_MAX_NUM_SEQS:+--max-num-seqs '${VLLM_MAX_NUM_SEQS}'}
         ${VLLM_EXTRA_ARGS:-}
     environment:
       # Only needed for gated models (e.g. Llama). Ungated defaults ignore it.

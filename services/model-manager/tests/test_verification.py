@@ -226,6 +226,7 @@ def test_expected_runtime_from_plan_maps_the_frozen_fields():
     assert expected.image_id == IMAGE_ID
     assert expected.tool_call_parser == "hermes"
     assert expected.max_model_len == 8192
+    assert expected.max_num_seqs == 1
     assert expected.plan_hash == plan.digest()
     assert expected.peer_host == "peer-1"
     # The EXACT intended photo route (spec 07).
@@ -334,6 +335,39 @@ def test_running_command_must_carry_the_frozen_options():
     outcome4 = verifier4.verify(make_expected(), deadline=100.0)
     assert not outcome4.passed
     assert "different main model" in outcome4.message
+
+    # Missing the planned concurrency cap: the running scheduler would not be
+    # limited to what admission's memory estimate assumed.
+    verifier5, _clock, _sleeps = make_verifier(
+        services=make_services(
+            command=f"exec vllm serve '{MAIN}' --tool-call-parser 'hermes' "
+            "--gpu-memory-utilization '0.85' --max-model-len '8192'"
+        )
+    )
+    outcome5 = verifier5.verify(make_expected(max_num_seqs=1), deadline=100.0)
+    assert not outcome5.passed
+    assert "different concurrency cap" in outcome5.message
+
+    # A cap different from the frozen plan.
+    verifier6, _clock, _sleeps = make_verifier(
+        services=make_services(
+            command=f"exec vllm serve '{MAIN}' --tool-call-parser 'hermes' "
+            "--gpu-memory-utilization '0.85' --max-model-len '8192' --max-num-seqs '8'"
+        )
+    )
+    outcome6 = verifier6.verify(make_expected(max_num_seqs=1), deadline=100.0)
+    assert not outcome6.passed
+    assert "different concurrency cap" in outcome6.message
+
+    # The planned cap present passes.
+    verifier7, _clock, _sleeps = make_verifier(
+        services=make_services(
+            command=f"exec vllm serve '{MAIN}' --tool-call-parser 'hermes' "
+            "--gpu-memory-utilization '0.85' --max-model-len '8192' --max-num-seqs '1'"
+        )
+    )
+    outcome7 = verifier7.verify(make_expected(max_num_seqs=1), deadline=100.0)
+    assert outcome7.passed
 
 
 # --- photo modes ---------------------------------------------------------------------
