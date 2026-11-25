@@ -661,6 +661,69 @@ def test_separate_photo_describer_health_failure_fails():
     assert "photo describer is not ready" in outcome.message
 
 
+# --- adapter contract: a known status with an unusable body is not a
+# --- transport failure (PR #180 review finding 1) -------------------------------
+
+
+def test_health_with_an_empty_body_passes():
+    """vLLM's /health answers 200 with an EMPTY body (the reviewer's
+    reproduction): the status alone is the signal, so the attempt passes -
+    body=None must not be reported as a transport failure."""
+    http = ok_http(**{"/health": (200, None)})
+    verifier, _clock, _sleeps = make_verifier(http=http, services=make_services())
+    outcome = verifier.verify(make_expected(), deadline=100.0)
+    assert outcome.passed
+
+
+def test_separate_describer_health_with_an_empty_body_passes():
+    http = ok_http(**{"http://vllm-vision:8000/health": (200, None)})
+    verifier, _clock, _sleeps = make_verifier(
+        http=http, services=make_services(photo_mode=PhotoMode.SEPARATE)
+    )
+    outcome = verifier.verify(
+        make_expected(photo_mode=PhotoMode.SEPARATE, vision_model=VISION), deadline=100.0
+    )
+    assert outcome.passed
+
+
+def test_model_listing_with_an_empty_body_fails_closed():
+    """The exact-name check REQUIRES the payload: a 2xx with an empty or
+    unparseable body fails closed even though the status is known."""
+    http = ok_http(**{"/v1/models": (200, None)})
+    verifier, _clock, _sleeps = make_verifier(http=http, services=make_services())
+    outcome = verifier.verify(make_expected(), deadline=100.0)
+    assert not outcome.passed
+    assert "empty or unparseable" in outcome.message
+
+
+def test_text_probe_with_an_empty_body_fails_closed():
+    http = ok_http(**{"/v1/chat/completions": (200, None)})
+    verifier, _clock, _sleeps = make_verifier(http=http, services=make_services())
+    outcome = verifier.verify(make_expected(), deadline=100.0)
+    assert not outcome.passed
+    assert "no content" in outcome.message
+
+
+def test_tool_probe_with_an_empty_body_fails_closed():
+    base = ok_http()
+
+    def handler(method: str, url: str, payload: Any) -> tuple[int, Any] | None:
+        if (
+            url.endswith("/v1/chat/completions")
+            and isinstance(payload, dict)
+            and payload.get("tools")
+        ):
+            return (200, None)  # empty body exactly on the tool probe
+        return base.handler(method, url, payload)
+
+    verifier, _clock, _sleeps = make_verifier(
+        http=FakeHttp(handler=handler), services=make_services()
+    )
+    outcome = verifier.verify(make_expected(), deadline=100.0)
+    assert not outcome.passed
+    assert "no parsable tool call" in outcome.message
+
+
 # --- bounds --------------------------------------------------------------------------
 
 

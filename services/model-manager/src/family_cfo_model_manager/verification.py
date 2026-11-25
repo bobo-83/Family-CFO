@@ -287,6 +287,10 @@ class Verifier:
         status, models = self._http.get_json(f"{base}/v1/models", timeout)
         if status != 200:
             return _outcome(False, "the main runtime model listing failed")
+        if models is None:
+            # The payload is REQUIRED here: the exact-name check fails closed
+            # on an empty or unparseable body even when the status is 2xx.
+            return _outcome(False, "the model listing response was empty or unparseable")
         served = _served_names(models)
         if expected.main_model not in served:
             return _outcome(

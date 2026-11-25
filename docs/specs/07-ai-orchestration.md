@@ -272,8 +272,11 @@ and the verification machinery itself stays financial-neutral.
 
 Before a swap can commit, the target must satisfy, in order: expected
 containers/ranks running; image, revision arguments, structured options,
-topology, and job/config hash matching the frozen plan; main `/health`; main
-`/v1/models` advertising the exact requested served name; photo mode matching
+topology, and job/config hash matching the frozen plan; main `/health` (the
+status alone is the signal — a 2xx response passes even with an empty body,
+while a transport failure still fails closed); main `/v1/models` advertising
+the exact requested served name (the payload is required and fails closed
+when missing or unparseable); photo mode matching
 exactly (`off` = no managed separate describer + application photo routing
 disabled; `main` = routing targets main, no separate describer; `separate` =
 exact describer identity and endpoint ready, routing targets it); TP2

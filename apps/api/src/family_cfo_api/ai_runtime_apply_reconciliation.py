@@ -137,6 +137,18 @@ class ApplyReconciler:
 
     def _commit_pending(self, client: ModelManagerClient, status: ManagerJobStatus) -> str:
         assert status.job_id is not None
+        # The receipt IS the durable decision record: read it BEFORE evidence
+        # freshness. Freshness gates only the DECISION to commit (a target
+        # that crashed after verification must not be committed blindly); a
+        # receipt that already landed is acknowledged regardless of evidence
+        # age, or a stale-evidence job whose commit had already landed would
+        # strand in commit_pending forever.
+        existing = repository.get_ai_runtime_apply_receipt(self.engine, status.job_id)
+        if existing is not None:
+            # The SQL commit landed but the acknowledgement was lost (or this
+            # is a replay): re-acknowledge — never roll back a committed job.
+            self._acknowledge(client, status, existing.plan_hash)
+            return "already_committed"
         age = status.evidence_age_seconds
         if age is None or age > EVIDENCE_FRESHNESS_SECONDS:
             logger.info(
@@ -146,12 +158,6 @@ class ApplyReconciler:
                 None if age is None else round(age, 1),
             )
             return "evidence_stale"
-        existing = repository.get_ai_runtime_apply_receipt(self.engine, status.job_id)
-        if existing is not None:
-            # The SQL commit landed but the acknowledgement was lost (or this
-            # is a replay): re-acknowledge — never roll back a committed job.
-            self._acknowledge(client, status, existing.plan_hash)
-            return "already_committed"
         if not status.runtime_key or not status.target_plan_hash:
             # The manager must name the runtime key and the frozen plan hash:
             # without them the receipt could not freeze an auditable identity.

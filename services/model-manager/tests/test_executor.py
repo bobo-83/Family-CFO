@@ -6,8 +6,11 @@ from __future__ import annotations
 
 import dataclasses
 import fcntl
+import http.server
+import json
 import os
 import signal
+import socket
 import threading
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -17,6 +20,7 @@ import pytest
 
 from family_cfo_model_manager import deployment, executor as executor_module
 from family_cfo_model_manager import runtime_check
+from family_cfo_model_manager import verification as verification_module
 from family_cfo_model_manager.contracts import (
     JobDecision,
     JobOrigin,
@@ -29,6 +33,7 @@ from family_cfo_model_manager.journal import JournalError
 from conftest import (
     DualRunner,
     FakeCompose,
+    FakeHttp,
     MAIN,
     REQUEST_ID,
     VISION,
@@ -99,6 +104,121 @@ def read_record(deps, job_id):
 
 def past(timestamp_seconds_ago=1.0):
     return datetime.now(UTC) - timedelta(seconds=timestamp_seconds_ago)
+
+
+# --- the runtime HTTP adapter contract (PR #180 review finding 1) -----------------------
+
+
+class _ShapeServer(http.server.BaseHTTPRequestHandler):
+    """Canned endpoint shapes: 200 + empty body (vLLM's /health), 200 + JSON,
+    200 + non-JSON text, 404, and an empty-body POST."""
+
+    def do_GET(self):
+        if self.path.endswith("/empty"):
+            self.send_response(200)
+            self.end_headers()
+        elif self.path.endswith("/json"):
+            body = json.dumps({"ok": True}).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        elif self.path.endswith("/text"):
+            body = b"service ready"
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        else:
+            self.send_response(404)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+
+    def do_POST(self):
+        self.send_response(200)
+        self.end_headers()
+
+    def log_message(self, *_args):
+        pass
+
+
+def _shape_http_server():
+    server = http.server.HTTPServer(("127.0.0.1", 0), _ShapeServer)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    return server, f"http://127.0.0.1:{server.server_port}"
+
+
+def _closed_port() -> int:
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        return sock.getsockname()[1]
+
+
+def test_runtime_http_reports_known_statuses_with_unusable_bodies():
+    """PR #180 review finding 1 (the reviewer's reproduction against a local
+    HTTP server): vLLM's /health answers 200 with an EMPTY body. The adapter
+    must return the KNOWN status with body=None - collapsing that into
+    (0, None) made a healthy deployment fail baseline verification as
+    previous_runtime_not_ready."""
+    server, base = _shape_http_server()
+    try:
+        http = executor_module.UrllibRuntimeHttp()
+        assert http.get_json(f"{base}/empty", 5.0) == (200, None)
+        assert http.get_json(f"{base}/json", 5.0) == (200, {"ok": True})
+        # A non-JSON body on a 2xx is still a known status, not transport loss.
+        assert http.get_json(f"{base}/text", 5.0) == (200, None)
+        assert http.get_json(f"{base}/missing", 5.0) == (404, None)
+        assert http.post_json(f"{base}/empty", {}, 5.0) == (200, None)
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_runtime_http_transport_failures_stay_zero():
+    server, _base = _shape_http_server()
+    try:
+        http = executor_module.UrllibRuntimeHttp()
+        port = _closed_port()  # nothing listens there: a genuine transport error
+        assert http.get_json(f"http://127.0.0.1:{port}/empty", 5.0) == (0, None)
+        assert http.post_json(f"http://127.0.0.1:{port}/empty", {}, 5.0) == (0, None)
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_baseline_accepts_a_healthy_empty_body_health(tmp_path):
+    """The reviewer's reproduction, end to end: a healthy runtime whose
+    /health answers 200 with an empty body is adoptable as a rollback
+    baseline - not a previous_runtime_not_ready refusal."""
+    ok = verify_ok_http()
+
+    def handler(method, url, payload):
+        if url.endswith("/health"):
+            return (200, None)  # empty body; the status is the signal
+        return ok.handler(method, url, payload)
+
+    deps = make_engine(tmp_path)
+    object.__setattr__(deps, "http", FakeHttp(handler=handler))
+    record = admit_job(deps)  # raised ExecutorRefusal before the fix
+    assert read_record(deps, record.job_id).state is JobState.ACCEPTED
+
+
+def test_baseline_still_refuses_a_genuine_transport_failure(tmp_path):
+    ok = verify_ok_http()
+
+    def handler(method, url, payload):
+        if url.endswith("/health"):
+            return (0, None)  # real transport failure, not an empty body
+        return ok.handler(method, url, payload)
+
+    deps = make_engine(tmp_path)
+    object.__setattr__(deps, "http", FakeHttp(handler=handler))
+    with pytest.raises(executor_module.ExecutorRefusal) as excinfo:
+        admit_job(deps)
+    assert excinfo.value.reason_code is ReasonCode.PREVIOUS_RUNTIME_NOT_READY
 
 
 # --- the full happy path ---------------------------------------------------------------
@@ -412,6 +532,7 @@ def test_forward_repair_reruns_finalization_only(tmp_path):
             read_record(deps, job_id),
             state=JobState.COMMIT_REPAIR_REQUIRED,
             decision=JobDecision.COMMIT,
+            config_receipt_id=job_id,
             phase_deadline_at=None,
         ),
     )
@@ -438,6 +559,192 @@ def test_forward_repair_never_rolls_back_a_restore_decision(tmp_path):
     # A repair-required record without a commit decision cannot finalize.
     assert executor_module.run_job(deps, job_id) == 1
     assert read_record(deps, job_id).state is JobState.COMMIT_REPAIR_REQUIRED
+
+
+def test_commit_pending_deadline_expiry_lands_in_forward_repair(tmp_path):
+    """Finding 2 (PR #180 review): a candidate that dies while the API is
+    unavailable must not strand commit_pending forever. The persisted phase
+    deadline bounds the wait; expiring WITHOUT a receipt lands in
+    commit_repair_required - the durable commit decision is never rolled
+    back."""
+    deps = make_engine(tmp_path)
+    record = admit_job(deps)
+    job_id = record.job_id
+    write_record(
+        deps,
+        dataclasses.replace(
+            read_record(deps, job_id),
+            state=JobState.COMMIT_PENDING,
+            decision=JobDecision.COMMIT,
+            phase_deadline_at=past(60.0),  # expired a minute ago
+        ),
+    )
+    sleeps: list[float] = []
+    object.__setattr__(deps, "sleep", sleeps.append)
+    assert executor_module.run_job(deps, job_id) == 1
+    current = read_record(deps, job_id)
+    assert current.state is JobState.COMMIT_REPAIR_REQUIRED
+    assert current.decision is JobDecision.COMMIT  # monotonic: never rolled back
+    assert "deadline expired" in current.safe_message
+    assert sleeps == []  # exhausted before any further re-verify cadence
+
+
+def test_a_late_receipt_still_finalizes_after_deadline_expiry(tmp_path):
+    """The receipt is checked before the deadline: a commit that landed late
+    is finalized, not bounced to repair."""
+    deps = make_engine(tmp_path)
+    record = admit_job(deps)
+    job_id = record.job_id
+    write_record(
+        deps,
+        dataclasses.replace(
+            read_record(deps, job_id),
+            state=JobState.COMMIT_PENDING,
+            decision=JobDecision.COMMIT,
+            config_receipt_id=job_id,
+            phase_deadline_at=past(60.0),
+        ),
+    )
+    assert executor_module.run_job(deps, job_id) == 0
+    assert read_record(deps, job_id).state is JobState.SUCCEEDED
+
+
+def test_forward_repair_without_a_receipt_reawaits_the_ack(tmp_path):
+    """Finalizing without a receipt would report succeeded while the
+    household settings were never written (finding 2). Without a receipt,
+    forward repair re-enters the commit wait with a fresh bounded window so
+    the reconciler can still execute the durable commit decision."""
+    deps = make_engine(tmp_path)
+    record = admit_job(deps)
+    job_id = record.job_id
+    write_record(
+        deps,
+        dataclasses.replace(
+            read_record(deps, job_id),
+            state=JobState.COMMIT_REPAIR_REQUIRED,
+            decision=JobDecision.COMMIT,
+            phase_deadline_at=past(60.0),
+        ),
+    )
+    observed_states: list[JobState] = []
+    observed_deadline: list[datetime] = []
+
+    def ack_during_wait(seconds):
+        current = read_record(deps, job_id)
+        observed_states.append(current.state)
+        observed_deadline.append(current.phase_deadline_at)
+        write_record(deps, dataclasses.replace(current, config_receipt_id=job_id))
+
+    object.__setattr__(deps, "sleep", ack_during_wait)
+    assert executor_module.run_job(deps, job_id) == 0
+    assert read_record(deps, job_id).state is JobState.SUCCEEDED
+    # The wait ran as commit_pending on a FRESH bounded deadline: an explicit
+    # retry is a new attempt, not a restart, and never inherits a spent one.
+    assert observed_states == [JobState.COMMIT_PENDING]
+    assert observed_deadline[0] is not None
+    assert observed_deadline[0] > datetime.now(UTC)
+
+
+# --- finalization readiness (PR #180 review finding 3) ----------------------------------
+
+
+def _admit_at_commit_pending_with_receipt(deps, job_id, *, deadline_at):
+    write_record(
+        deps,
+        dataclasses.replace(
+            read_record(deps, job_id),
+            state=JobState.COMMIT_PENDING,
+            decision=JobDecision.COMMIT,
+            config_receipt_id=job_id,
+            phase_deadline_at=deadline_at,
+        ),
+    )
+
+
+def test_finalization_waits_for_a_slow_api_start(tmp_path):
+    """Finding 3 (PR #180 review): the recreated api opens its socket only
+    after its PostgreSQL wait and migrations (docker/entrypoint-api.sh), so a
+    refused connection in that window is a normal restart. Finalization polls
+    within the phase budget instead of failing on the first probe."""
+    deps = make_engine(tmp_path)
+    record = admit_job(deps)
+    job_id = record.job_id
+    _admit_at_commit_pending_with_receipt(
+        deps, job_id, deadline_at=datetime.now(UTC) + timedelta(seconds=600)
+    )
+    ok = verify_ok_http()
+    attempts = {"health": 0}
+
+    def handler(method, url, payload):
+        if url.endswith("/api/v1/health"):
+            attempts["health"] += 1
+            if attempts["health"] < 3:
+                return (0, None)  # refused during the restart window
+        return ok.handler(method, url, payload)
+
+    object.__setattr__(deps, "http", FakeHttp(handler=handler))
+    assert executor_module.run_job(deps, job_id) == 0
+    assert read_record(deps, job_id).state is JobState.SUCCEEDED
+    assert attempts["health"] == 3
+
+
+def test_finalization_readiness_wait_is_clipped_to_the_phase_budget(tmp_path):
+    """Attempts stop when the phase budget is spent; the job lands in the
+    documented forward-repair state, never a false success."""
+    deps = make_engine(tmp_path)
+    record = admit_job(deps)
+    job_id = record.job_id
+    _admit_at_commit_pending_with_receipt(
+        deps, job_id, deadline_at=datetime.now(UTC) + timedelta(seconds=8)
+    )
+    ok = verify_ok_http()
+    calls = {"health": 0}
+
+    def handler(method, url, payload):
+        if url.endswith("/api/v1/health"):
+            calls["health"] += 1
+            return (0, None)  # the api never becomes ready
+        return ok.handler(method, url, payload)
+
+    object.__setattr__(deps, "http", FakeHttp(handler=handler))
+    sleeps: list[float] = []
+    object.__setattr__(deps, "sleep", sleeps.append)
+    assert executor_module.run_job(deps, job_id) == 1
+    current = read_record(deps, job_id)
+    assert current.state is JobState.COMMIT_REPAIR_REQUIRED
+    # One attempt (timeout clipped to the 8 s budget) + one gap-fitting
+    # attempt; the next 5 s gap no longer fits, so the wait stops.
+    assert calls["health"] == 2
+    assert sleeps == [verification_module.ATTEMPT_GAP_SECONDS]
+
+
+def test_finalization_fallback_horizon_is_bounded_without_budget(tmp_path):
+    """A late receipt leaves no phase budget: at most MAX_ATTEMPTS complete
+    attempts on the bounded fallback horizon, then the documented failure
+    state - never an unbounded loop and never a false success."""
+    deps = make_engine(tmp_path)
+    record = admit_job(deps)
+    job_id = record.job_id
+    _admit_at_commit_pending_with_receipt(deps, job_id, deadline_at=past(60.0))
+    ok = verify_ok_http()
+    calls = {"health": 0}
+
+    def handler(method, url, payload):
+        if url.endswith("/api/v1/health"):
+            calls["health"] += 1
+            return (0, None)  # the api never becomes ready
+        return ok.handler(method, url, payload)
+
+    object.__setattr__(deps, "http", FakeHttp(handler=handler))
+    sleeps: list[float] = []
+    object.__setattr__(deps, "sleep", sleeps.append)
+    assert executor_module.run_job(deps, job_id) == 1
+    current = read_record(deps, job_id)
+    assert current.state is JobState.COMMIT_REPAIR_REQUIRED
+    assert calls["health"] == verification_module.MAX_ATTEMPTS
+    assert sleeps == [verification_module.ATTEMPT_GAP_SECONDS] * (
+        verification_module.MAX_ATTEMPTS - 1
+    )
 
 
 # --- restore paths --------------------------------------------------------------------------

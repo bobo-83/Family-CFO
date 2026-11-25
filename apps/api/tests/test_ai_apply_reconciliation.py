@@ -245,6 +245,36 @@ def test_a_committed_receipt_reacks_without_recommitting(demo_engine: Engine) ->
     assert _configs(demo_engine)[0]["model"] == NEW_MODEL
 
 
+def test_a_landed_receipt_is_acked_even_when_evidence_is_stale(demo_engine: Engine) -> None:
+    """Finding 2 (PR #180 review): the receipt is the durable decision record,
+    so it is acknowledged regardless of evidence age. Freshness gates only
+    the DECISION to commit; gating the acknowledgement on a stale clock
+    strands a committed job in commit_pending forever."""
+    _seed_config(demo_engine)
+    job_id = str(uuid4())
+    stale = (datetime.now(UTC) - timedelta(seconds=120)).isoformat()
+    manager = ScriptedManager(_job_document(job_id=job_id, verified_at=stale))
+    # The commit landed earlier, while the evidence was still fresh.
+    repository.commit_ai_runtime_apply(
+        demo_engine,
+        job_id=job_id,
+        runtime_key=RUNTIME_KEY,
+        plan_hash=PLAN_HASH,
+        committed_model=NEW_MODEL,
+        provider="vllm",
+        base_url=BASE_URL,
+        initiator_household_id=fixtures.DEMO_HOUSEHOLD_ID,
+        initiator_user_id=fixtures.DEMO_USER_ID,
+        source="api",
+    )
+    outcome = _reconciler(demo_engine, manager).run_once()
+    assert outcome == "already_committed"
+    assert [ack["plan_hash"] for ack in manager.acks] == [PLAN_HASH]
+    # One audit, one commit: the acknowledgement wrote nothing new.
+    assert [a["action"] for a in _apply_audits(demo_engine)] == ["ai_runtime.model_applied"]
+    assert _configs(demo_engine)[0]["model"] == NEW_MODEL
+
+
 def test_missing_manager_identity_refuses_to_commit_blind(demo_engine: Engine) -> None:
     """Without the frozen runtime key + plan hash the receipt could not name
     an auditable identity, so the reconciler refuses and waits."""
@@ -455,6 +485,42 @@ def test_postgresql_commit_ambiguity_replay_is_safe(pg_engine: Engine) -> None:
     )
     assert _reconciler(pg_engine, restarted).run_once() == "already_committed"
     assert [ack["plan_hash"] for ack in restarted.acks] == [PLAN_HASH]
+    assert len(_apply_audits(pg_engine)) == 1
+    assert _configs(pg_engine)[0]["model"] == NEW_MODEL
+    receipt = repository.get_ai_runtime_apply_receipt(pg_engine, job_id)
+    assert receipt is not None and receipt.plan_hash == PLAN_HASH
+
+
+def test_postgresql_landed_receipt_is_acked_with_stale_evidence(pg_engine: Engine) -> None:
+    """The commit landed while the evidence was fresh; the evidence then went
+    stale (the executor's re-verification is briefly unavailable) before the
+    acknowledgement was delivered. The receipt is the durable decision
+    record: the reconciler acknowledges it under the exactly-once rules -
+    one audit, no recommit, no rollback - instead of stranding the committed
+    job in commit_pending."""
+    household_id = _pg_household(pg_engine)
+    _seed_config(pg_engine, household_id)
+    job_id = str(uuid4())
+    result = repository.commit_ai_runtime_apply(
+        pg_engine,
+        job_id=job_id,
+        runtime_key=RUNTIME_KEY,
+        plan_hash=PLAN_HASH,
+        committed_model=NEW_MODEL,
+        provider="vllm",
+        base_url=BASE_URL,
+        initiator_household_id=household_id,
+        initiator_user_id=None,
+        source="api",
+    )
+    assert result.committed
+
+    stale = (datetime.now(UTC) - timedelta(seconds=120)).isoformat()
+    manager = ScriptedManager(
+        _job_document(job_id=job_id, verified_at=stale, initiator_household_id=household_id)
+    )
+    assert _reconciler(pg_engine, manager).run_once() == "already_committed"
+    assert [ack["plan_hash"] for ack in manager.acks] == [PLAN_HASH]
     assert len(_apply_audits(pg_engine)) == 1
     assert _configs(pg_engine)[0]["model"] == NEW_MODEL
     receipt = repository.get_ai_runtime_apply_receipt(pg_engine, job_id)

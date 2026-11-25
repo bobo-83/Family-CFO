@@ -26,6 +26,7 @@ recovery scan. Importable without FastAPI/Pydantic.
 from __future__ import annotations
 
 import contextlib
+import http.client
 import json
 import os
 import signal
@@ -116,16 +117,31 @@ class ExecutorRefusal(Exception):
 
 
 class UrllibRuntimeHttp:
-    """The real RuntimeHttp against the managed runtime (internal network)."""
+    """The real RuntimeHttp against the managed runtime (internal network).
+
+    Contract: a KNOWN HTTP status returns (status, body-or-None). An empty or
+    unparseable body on a 2xx is body=None, NOT a transport failure - vLLM's
+    /health answers 200 with an empty body, and collapsing that into (0, None)
+    made healthy deployments fail baseline verification. Only genuine
+    transport errors (URLError, timeout, OS errors, HTTP errors, malformed
+    HTTP responses) return (0, None). Consumers decide per endpoint whether
+    the body is required."""
+
+    @staticmethod
+    def _parse_body(response: Any) -> Any:
+        body = response.read(CHECKER_OUTPUT_BYTES)
+        try:
+            return json.loads(body.decode())
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            return None  # the status is still known; the body is simply unusable
 
     def get_json(self, url: str, timeout: float) -> tuple[int, Any]:
         try:
             with urllib.request.urlopen(url, timeout=timeout) as response:
-                body = response.read(CHECKER_OUTPUT_BYTES)
-                return response.status, json.loads(body.decode())
+                return response.status, self._parse_body(response)
         except urllib.error.HTTPError as exc:
             return exc.code, None
-        except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError):
+        except (urllib.error.URLError, TimeoutError, OSError, http.client.HTTPException):
             return 0, None
 
     def post_json(self, url: str, payload: dict[str, Any], timeout: float) -> tuple[int, Any]:
@@ -137,11 +153,10 @@ class UrllibRuntimeHttp:
         )
         try:
             with urllib.request.urlopen(request, timeout=timeout) as response:
-                body = response.read(CHECKER_OUTPUT_BYTES)
-                return response.status, json.loads(body.decode())
+                return response.status, self._parse_body(response)
         except urllib.error.HTTPError as exc:
             return exc.code, None
-        except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError):
+        except (urllib.error.URLError, TimeoutError, OSError, http.client.HTTPException):
             return 0, None
 
 
@@ -1445,7 +1460,22 @@ def _phase_commit_pending(
     """Await configuration acknowledgement. NEVER rolls back: the durable
     commit decision is monotonic. The executor keeps the verification evidence
     fresh (<= 30 s) so the reconciler can commit safely, runs post-commit
-    finalization once the receipt is recorded, then persists succeeded."""
+    finalization once the receipt is recorded, then persists succeeded.
+
+    The wait is bounded by the PERSISTED phase deadline (inherited from the
+    launch phase). When it expires without a receipt - for example the
+    candidate died while the API was unavailable - the job lands in
+    commit_repair_required (an explicit forward-repair state) instead of
+    stranding commit_pending forever; the decision itself is never reversed."""
+    if record.phase_deadline_at is None:
+        # Only an explicit forward-repair retry can arrive here without a
+        # deadline; the retry is a NEW bounded attempt, not a restart (a
+        # restart never grants a fresh budget).
+        record = _transition(
+            deps,
+            record,
+            phase_deadline_at=_deadline_at(LAUNCH_DEADLINE_SECONDS),
+        )
     while True:
         current = deps.journal.read_job_record(record.job_id)
         if current is None:
@@ -1454,6 +1484,17 @@ def _phase_commit_pending(
             return 0
         if current.config_receipt_id:
             return _phase_finalize(deps, current)
+        if _remaining(current) <= 0:
+            # The deadline expired before the household configuration was
+            # acknowledged. The durable commit decision stands (monotonic,
+            # never rolled back); the job needs explicit forward repair.
+            return _mark_repair_required(
+                deps,
+                current,
+                "the commit acknowledgement deadline expired before the "
+                "household configuration was acknowledged; the durable commit "
+                "decision stands and needs forward repair",
+            )
         # Keep the evidence fresh while waiting for the reconciler.
         plan = _load_plan(deps, record.job_id)
         outcome = _verify_target_once(deps, plan)
@@ -1502,7 +1543,9 @@ def _phase_finalize(deps: ExecutorDeps, record: JobRecord) -> int:
         )
     except DeploymentError as exc:
         return _mark_repair_required(deps, record, str(exc))
-    routing_ok, message = _verify_application_routing(deps, plan)
+    routing_ok, message = _verify_application_routing(
+        deps, plan, budget_seconds=_remaining(record) or None
+    )
     if not routing_ok:
         return _mark_repair_required(deps, record, message or "routing verification failed")
     _transition(
@@ -1517,7 +1560,7 @@ def _phase_finalize(deps: ExecutorDeps, record: JobRecord) -> int:
 
 
 def _verify_application_routing(
-    deps: ExecutorDeps, plan: LaunchPlan
+    deps: ExecutorDeps, plan: LaunchPlan, *, budget_seconds: float | None
 ) -> tuple[bool, str | None]:
     try:
         services = deployment.routing_services(
@@ -1541,10 +1584,36 @@ def _verify_application_routing(
         os.environ.get("FAMILY_CFO_API_HEALTH_URL", "").strip()
         or "http://api:8000/api/v1/health"
     )
-    status, _payload = deps.http.get_json(api_health, 30.0)
-    if status != 200:
-        return False, "the application api health check failed"
-    return True, None
+    # Bounded readiness wait, same probe discipline as verification: the
+    # recreated api waits for PostgreSQL and runs migrations before it opens
+    # its socket (docker/entrypoint-api.sh), so a refused connection during
+    # that window is a normal restart, not a failure. Requests use the 30 s
+    # probe timeout, 5 s apart, within the remaining phase budget; when no
+    # budget remains (a late acknowledgement), at most MAX_ATTEMPTS complete
+    # attempts give explicit forward repair a real window instead of failing
+    # on a stale deadline. An exhausted budget ends in commit_repair_required
+    # - never a false success and never an unbounded loop.
+    budget = budget_seconds
+    attempts = 0
+    while True:
+        timeout = (
+            verification_module.PROBE_TIMEOUT_SECONDS
+            if budget is None
+            else min(verification_module.PROBE_TIMEOUT_SECONDS, max(1.0, budget))
+        )
+        status, _payload = deps.http.get_json(api_health, timeout)
+        if status == 200:
+            return True, None
+        attempts += 1
+        gap = verification_module.ATTEMPT_GAP_SECONDS
+        if budget is None:
+            if attempts >= verification_module.MAX_ATTEMPTS:
+                return False, "the application api health check failed"
+        else:
+            if gap >= budget:
+                return False, "the application api health check failed"
+            budget -= gap
+        deps.sleep(gap)
 
 
 def _mark_repair_required(deps: ExecutorDeps, record: JobRecord, message: str) -> int:
@@ -1564,6 +1633,20 @@ def _phase_forward_repair(deps: ExecutorDeps, record: JobRecord) -> int:
         return 3
     if current.decision is not JobDecision.COMMIT:
         return 1
+    if not current.config_receipt_id:
+        # The SQL commit never landed (for example the reconciler could not
+        # reach the manager before the deadline expired). Finalizing now would
+        # report succeeded while the household settings were never written -
+        # the exact lie ADR 0081 forbids. Re-await the acknowledgement
+        # instead: back to commit_pending with a fresh bounded window so the
+        # reconciler can still execute the durable commit decision.
+        current = _transition(
+            deps,
+            current,
+            state=JobState.COMMIT_PENDING,
+            phase_deadline_at=_deadline_at(LAUNCH_DEADLINE_SECONDS),
+        )
+        return _phase_commit_pending(deps, current, {"interrupted": False})
     return _phase_finalize(deps, current)
 
 

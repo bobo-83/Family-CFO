@@ -164,6 +164,13 @@ deployment-owned facts:
   recovered PID. `api`/`worker` are recreated only during post-commit
   finalization, using their currently deployed application images (never
   pulled or upgraded); a failed candidate never touches application routing.
+  Finalization's routing/health verification polls readiness (30 s requests,
+  5 s apart) inside the phase budget — time-bounded, not the verification
+  attempt cap — because the recreated `api` opens its socket only after its
+  PostgreSQL wait and migrations; when no budget remains (a late
+  acknowledgement) at most 3 attempts run on a bounded fallback horizon, and
+  an exhausted budget reports `commit_repair_required`, never a false
+  success.
 - **Transport.** The reverse-proxy read timeout must be verified ≥ 210 s in
   the deployment spec so the 180 s synchronous preflight cannot be severed by
   the proxy.

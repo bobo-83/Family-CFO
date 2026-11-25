@@ -185,7 +185,11 @@ in practice:
   are recreated once to flip routing; if that finalization fails the job
   reports `commit_repair_required` and **Retry recovery** re-runs only the
   finalization — household settings and routing are never silently reverted
-  to a model PostgreSQL no longer names.
+  to a model PostgreSQL no longer names. The wait for the settings commit
+  itself is bounded by the apply's phase deadline: if it expires before the
+  commit lands, the job reports `commit_repair_required` and **Retry
+  recovery** re-awaits the commit (the durable decision is never rolled
+  back).
 
 ## Testing the logic without a GPU
 

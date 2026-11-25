@@ -79,7 +79,12 @@ no older than 30 s → the manager is acknowledged → finalization recreates
 routing/health (`succeeded`; a failure here is forward-repairable
 `commit_repair_required`, never automatic rollback). The decision is
 monotonic — a committed decision never becomes restore — and SQL commits
-happen only for durable decisions. There is no atomic transaction across
+happen only for durable decisions. The acknowledgement wait is bounded by
+the persisted phase deadline: expiry without a receipt lands in
+`commit_repair_required` (forward repair re-awaits the receipt instead of
+finalizing an uncommitted decision), and a receipt that has already landed
+is acknowledged regardless of evidence age — freshness gates only the
+decision to commit. There is no atomic transaction across
 Docker and PostgreSQL; the durable decision + receipt provide restart-safe
 ordering, not instantaneous cross-system atomicity.
 
