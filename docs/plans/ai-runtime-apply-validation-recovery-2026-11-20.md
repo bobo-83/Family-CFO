@@ -724,3 +724,15 @@ Branch: `fix/170-ai-runtime-apply-validation-recovery` (stacked on `fix/168-ai-r
 - [x] Item 4: API layer + contract activation — reconciler, model_manager_client.py, generated clients, VERSION/BUILD, compatibility fixtures (commit 0b5ffbe1: apps/api 1340 passed on PG 17, manager 211, web 482/482, check-openapi/versions/fixtures OK)
 - [x] Item 5: Web + iOS presentation + full verification matrix (runnable portions)
 - [x] PR opened against main: bobo-83/Family-CFO#180 (branch pushed 2026-11-22; two-Spark evidence gates pending hardware per docs/investigations/ai-runtime-170-deployment-validation.md)
+
+### Review round (PR #180, fixes landed 2026-11-25)
+
+Reviewer (bobo-83) held the PR at `059b8df1` with four findings; all fixed:
+
+- [x] Finding 1 [P1]: healthy-vLLM empty-body `/health` collapsed into transport failure → adapter contract split (known status → `(status, body-or-None)`; transport loss only → `(0, None)`); baseline/candidate/restoration consumers fixed (`2636a829`)
+- [x] Finding 2 [P1]: commit-phase stranding → deadline-honoring commit wait, expiry → `commit_repair_required` (durable decision is commit; never rolls back), receipt-aware forward repair, reconciler acks a landed receipt regardless of evidence age (`2636a829`)
+- [x] Finding 3 [P1]: finalization single-immediate-probe false failure during API restart → bounded readiness polling clipped to the phase budget (`2636a829`)
+- [x] Finding 4 [P2]: launch args omitted `--max-num-seqs` → pinned to the planned concurrency cap end-to-end (plan field → compose args → readiness arg comparison) (`4329911b`)
+- [x] Two flaky test harnesses introduced by the finding-1 work made deterministic (RST-on-undrained-body + readiness gate; flock-free wait per ADR 0081 S5) (`2032ce62`)
+
+Spec amendments: ADR 0081 §3 (bounded ack wait), spec 07 (`/health` status-only), spec 10 (bounded finalization polling), guides/ai-advisor.md.
