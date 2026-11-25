@@ -12,6 +12,9 @@ import os
 import signal
 import socket
 import threading
+import time
+import urllib.error
+import urllib.request
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import Mock
@@ -137,6 +140,12 @@ class _ShapeServer(http.server.BaseHTTPRequestHandler):
             self.end_headers()
 
     def do_POST(self):
+        # Consume the request body BEFORE responding: closing the socket
+        # with unread request data sends RST, which the client can observe
+        # instead of the response - a spurious transport failure (0, None).
+        length = int(self.headers.get("Content-Length") or 0)
+        if length:
+            self.rfile.read(length)
         self.send_response(200)
         self.end_headers()
 
@@ -148,7 +157,25 @@ def _shape_http_server():
     server = http.server.HTTPServer(("127.0.0.1", 0), _ShapeServer)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
-    return server, f"http://127.0.0.1:{server.server_port}"
+    base = f"http://127.0.0.1:{server.server_port}"
+    # Deterministic readiness: the kernel completes the handshake into the
+    # listen backlog before serve_forever() polls accept(), so a client call
+    # issued immediately can race the server thread's first poll. Gate on a
+    # real round trip so the assertions below are served responses, never a
+    # connect/reset artifact masquerading as (0, None).
+    deadline = time.monotonic() + 10.0
+    while True:
+        try:
+            with urllib.request.urlopen(f"{base}/empty", timeout=1.0) as response:
+                if response.status == 200:
+                    break
+        except urllib.error.HTTPError:
+            break  # the server answers; that is all readiness requires
+        except OSError:
+            if time.monotonic() >= deadline:
+                raise
+            time.sleep(0.02)
+    return server, base
 
 
 def _closed_port() -> int:

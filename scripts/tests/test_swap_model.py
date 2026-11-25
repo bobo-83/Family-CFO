@@ -726,6 +726,25 @@ def test_retry_after_compose_failure(deployment, manager, owner):
     assert_env(project, VLLM_MODEL="synthetic/RetryDashboard-7B")
 
 
+def swap_lock_is_free(project: Path) -> bool:
+    """True only when the deployment directory flock can actually be taken.
+
+    ADR 0081 S5: a terminal record whose lock is still held keeps admission
+    at 409 until ownership actually closes. The restored record becomes
+    visible while the orphaned executor is still winding down (terminal write
+    -> current-pointer clear -> process exit releases the inherited flock),
+    so a retry must wait for THIS, not race the record's visibility."""
+    fd = os.open(project, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        return True
+    except OSError:
+        return False
+    finally:
+        os.close(fd)
+
+
 def test_retry_after_cli_interruption(deployment, manager):
     project, _env, cli, _processes = deployment
     (project / "hold").touch()
@@ -743,6 +762,9 @@ def test_retry_after_cli_interruption(deployment, manager):
     # The launch had already pinned VLLM_REVISION; the restore must remove
     # keys that were absent from the snapshot, not just rewrite values.
     assert "VLLM_REVISION" not in (project / ".env").read_text()
+    # The 409 wind-down window is by design (ADR 0081 S5): wait for the
+    # executor to actually close the flock instead of racing its exit.
+    eventually(lambda: swap_lock_is_free(project))
     status, _body = submit_job(manager, "synthetic/Retry-7B")
     assert status == 202
     wait_and_ack(manager)
