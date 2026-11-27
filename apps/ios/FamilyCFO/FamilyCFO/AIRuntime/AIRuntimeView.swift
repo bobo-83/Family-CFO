@@ -22,19 +22,23 @@ struct AIRuntimeView: View {
             statusSection
             answerStatsSection
             usageSection
-            if let banner = viewModel.applyBanner {
-                Section {
-                    Label(banner, systemImage: viewModel.isApplying ? "arrow.triangle.2.circlepath" : "info.circle")
-                        .font(.callout)
-                }
-            }
+            applyProgressSection
             hardwareSection
             clusterModelsSection
             modelsSection
         }
         .navigationTitle("AI runtime")
         .navigationBarTitleDisplayMode(.inline)
-        .task { await viewModel.load() }
+        .task {
+            await viewModel.load()
+            // #170: observation is view-model-owned — adopt the current/latest
+            // job on presentation and resume observing it.
+            await viewModel.attachObservation()
+        }
+        .onDisappear {
+            // Stop OBSERVING, never the server job (#170).
+            viewModel.detachObservation()
+        }
         .refreshable { await viewModel.load() }
         .searchable(text: $searchText, prompt: "Search models (e.g. Qwen)")
         .onSubmit(of: .search) {
@@ -58,9 +62,62 @@ struct AIRuntimeView: View {
             }
             Button("Cancel", role: .cancel) { confirmingApply = nil }
         } message: { candidate in
+            // #170: explain verification and possible interruption — no
+            // duration promise, no uninterrupted-service promise.
             Text(
-                "Downloads \(candidate.label) if needed (~\(Int(candidate.estDiskGb)) GB) and restarts the AI. The advisor answers with deterministic snapshots until the new model finishes loading — usually a few minutes, longer on first download."
+                "Downloads \(candidate.label) if needed (~\(Int(candidate.estDiskGb)) GB), then validates the new deployment before switching. Serving may be briefly interrupted while the replacement is verified; if validation fails, the previous configuration is restored."
             )
+        }
+    }
+
+    /// #170: server-job progress, distinct per lifecycle phase, with the
+    /// recovery action where the server offers it.
+    @ViewBuilder private var applyProgressSection: some View {
+        if viewModel.applyPhase != nil || viewModel.progressUnavailable {
+            Section {
+                if let banner = viewModel.applyBanner {
+                    Label(banner, systemImage: Self.applyBannerIcon(viewModel.applyPhase))
+                        .font(.callout)
+                        .foregroundStyle(viewModel.applyBannerIsFailure ? Color.red : Color.primary)
+                }
+                if viewModel.applyBannerIsFailure, let cause = viewModel.applyFailureDetail {
+                    Text(verbatim: cause)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                if viewModel.recoveryAvailable {
+                    Button {
+                        Task { await viewModel.retryRecovery() }
+                    } label: {
+                        Label(
+                            viewModel.isRetryingRecovery
+                                ? String(localized: "Retrying…")
+                                : String(localized: "Retry recovery"),
+                            systemImage: "arrow.clockwise")
+                    }
+                    .disabled(viewModel.isRetryingRecovery)
+                }
+                if viewModel.progressUnavailable {
+                    Label(
+                        "Progress unavailable; the operation may still be running.",
+                        systemImage: "clock.badge.exclamationmark")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private static func applyBannerIcon(_ phase: AIRuntimeViewModel.ApplyPhase?) -> String {
+        switch phase {
+        case .preflight, .preparing, .replacing, .commitPending, .restoring:
+            "arrow.triangle.2.circlepath"
+        case .succeeded, .restored:
+            "checkmark.circle.fill"
+        case .failed, .recovery:
+            "exclamationmark.triangle.fill"
+        case nil:
+            "info.circle"
         }
     }
 
@@ -265,7 +322,8 @@ struct AIRuntimeView: View {
     }
 
     @ViewBuilder private func modelRow(_ info: Components.Schemas.AiModelInfo) -> some View {
-        let isCurrent = info.id == viewModel.status?.model
+        // "answering now" is the SERVED model, not the configured one (#170).
+        let isCurrent = info.id == viewModel.status?.servedModel
         // The row is a drill-down (user request 2026-07-22); the trailing Use
         // button keeps the one-tap swap for people who already know the model.
         NavigationLink {
@@ -296,10 +354,12 @@ struct AIRuntimeView: View {
                 Spacer()
                 if isCurrent {
                     Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-                } else if canManage && viewModel.fit(of: info) != .tooBig {
+                } else if canManage {
+                    // #170: a "too big" badge is a name-derived ESTIMATE — it
+                    // must not block the authoritative server preflight.
                     Button("Use") { confirmingApply = info }
                         .buttonStyle(.bordered)
-                        .disabled(viewModel.isApplying)
+                        .disabled(viewModel.isApplying || viewModel.replacementInFlight)
                 }
             }
         }

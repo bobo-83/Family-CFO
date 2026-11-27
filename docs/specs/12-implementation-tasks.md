@@ -2104,3 +2104,25 @@ The Docker spec (`docs/specs/10-docker-spec.md`) plans a `family-cfo-vector` (Qd
 - [x] Run browser, simulator and PostgreSQL acceptance gates.
 - [ ] Run the physical paired iPhone/Watch expiry and reconnect smoke test.
 - [ ] Coordinate the contract release.
+
+## Issue #170: AI runtime apply validation and recovery
+
+Ordered, testable work items per [ADR 0081](../adr/0081-ai-runtime-apply-transactions.md)
+and `docs/plans/ai-runtime-apply-validation-recovery-2026-11-20.md`. Items
+2–5 in the plan's execution log map onto WI-2 through WI-9 below; bounds are
+fixed by the M23 #170 amendment gate (preflight 180 s; staging 60 min;
+launch+readiness 30 min; restore+verify 30 min; probes ≤32/128/64 tokens
+@30 s, ≤3 attempts; poll 5 s; reconciler 5 s; one-shot admission).
+
+- [x] WI-1 — Spec Kit documentation gate: ADR 0081; ADR 0013/0071/0074 amendments; PRD/domain/OpenAPI/database/security/AI-orchestration/mobile/dashboard/docker/roadmap sections; README gate; advisor guide; deployment-validation checklist. Docs only.
+- [ ] WI-2 — Freeze contracts + schema: author `shared/openapi/family-cfo.v1.yaml` request/status/recovery shapes, `shared/schemas/model-manager-v2-contract.json` (v1 fixture untouched), journal/state-transition fixtures, migration `0099_ai_runtime_apply_receipts` + tests. Testable: fixture round-trips; migration up/down on PostgreSQL 17.
+- [ ] WI-3 — Journal + planning foundations: `contracts.py`, `journal.py` (atomic writes, tombstones, retention, corruption fail-closed), `planning.py` (immutable `LaunchPlan`, resolver, evidence classifications, memory policy), `profiles.json`. Testable: pure resolver matrix; no active runtime mutation on refusal; unknown evidence never fits.
+- [ ] WI-4 — Installed-image/hardware verification: `runtime_check.py` adapters (0.24.x, 0.32.x minimum), checker confinement (2 CPU/4 GiB, read-only root, no socket), pinned images. Testable: unsupported architecture on installed 0.24.x rejected 422 before any `.env` change; Transformers-backend fallback accepted; old runtime untouched on refusal.
+- [ ] WI-5 — Staging + exact verification: `deployment.py` (inspection, snapshot capture, atomic runtime-key updates, launch, restore), `verification.py` (identity/routing/rank checks, bounded synthetic probes). Testable: snapshot restore + re-verify; photo mode exactness; TP2 rank verification; probe bounds.
+- [ ] WI-6 — Executor + recovery: `executor.py` (durable state machine, deadlines, crash points, lock inheritance, orphan exclusion, terminal persistence), v2 routes + capabilities, startup/periodic recovery scan. Testable: crash after `launching` restores safely; restart-with-orphan keeps 409; terminal-record-with-held-lock blocks admission; mixed-version pairs fail safely without mutation.
+- [ ] WI-7 — CLI unification: `cli.py` + `swap-model.sh` delegation to the shared engine with `swap_lock.py` supervision; remove shell duplicate parser/memory/topology/mutation logic. Testable: #167 contention/inheritance/reap tests preserved across the new seams; argument compatibility.
+- [ ] WI-8 — SQL receipt + reconciliation: `ai_runtime_apply_reconciliation.py` (lifespan-owned, 5 s), advisory-lock election, transaction-scoped commit helper, `model_manager_client.py` (no legacy fallback), managed-config PUT exclusion, audit actions registered irreversible. Testable: two-replica single-receipt; ambiguous SQL commit reloads receipt; Advanced PUT races Apply serialized; cluster toggle never changes.
+- [ ] WI-9 — Contract activation: remove immediate repointing + legacy mutation fallback; backend DTOs, authoritative OpenAPI, generated clients, `VERSION` + component `BUILD` + manager `BUILD` land atomically under ADR 0074. Testable: compatibility fixtures both directions within v2; `manager_upgrade_required` 503 against old manager.
+- [ ] WI-10 — Web presentation: shared apply lane, UUID identity, server states, sequence/session guards, single-flight polling, resume, recovery UI, localization (vi/lt), accessibility, #168 search preserved. Testable: updated ai-runtime spec suite; no main-ID success inference.
+- [ ] WI-11 — iOS presentation (macOS/Xcode): `AIRuntimeAPI`/view-model interface changes, owned observation task, recovery action, honest copy, long-timeout URLSession (≥210 s). Testable: decode matrix, polling/race injection, stale-session protection.
+- [ ] WI-12 — Integration + deployment gates: full verification matrix runnable portions; ordered rollout drill; record the two-Spark regression evidence in `docs/investigations/ai-runtime-170-deployment-validation.md`; enable Apply only after protocol, baseline, and deployment smoke gates pass.

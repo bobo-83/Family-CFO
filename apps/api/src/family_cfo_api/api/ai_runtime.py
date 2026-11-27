@@ -1,29 +1,53 @@
+import dataclasses
 import logging
 import os
 import re
+import uuid
 from dataclasses import asdict
 from urllib.parse import urlparse
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import JSONResponse
 from sqlalchemy.engine import Engine
+from sqlalchemy.exc import IntegrityError
 
-from family_cfo_api import ai_study, audit, household_crypto, repository, rights, undo_actions
-from family_cfo_api.ai_catalog import MODEL_CATALOG, hardware_profile
+from family_cfo_api import (
+    ai_study,
+    audit,
+    household_crypto,
+    models,
+    repository,
+    rights,
+    undo_actions,
+)
+from family_cfo_api.ai_catalog import MODEL_CATALOG, cluster_peer_status, hardware_profile
 from family_cfo_api.ai_runtime_selection import resolve_ai_config
 from family_cfo_api.config import Settings
 from family_cfo_api.deps import get_app_settings, get_current_session, get_engine, require_right
+from family_cfo_api.error_envelope import error_response
+from family_cfo_api.model_manager_client import (
+    ManagerJobError,
+    ManagerJobStatus,
+    ManagerProtocolError,
+    ManagerTransportError,
+    ModelManagerClient,
+    monotonic,
+)
 from family_cfo_api.schemas import (
+    AiApplyJobStatus,
+    AiApplyPlanSummary,
     AiApplyRequest,
+    AiApplySelectionSummary,
     AiHardwareProfile,
     AiModelCatalog,
     AiModelDetail,
     AiModelInfo,
+    AiRetryRecoveryRequest,
     AiRuntimeConfig,
     AiRuntimeStatus,
     AiStudyInsight,
     AiStudyStatus,
-    AiSwapStatus,
     AiUsageResponse,
     ErrorResponse,
     HouseholdUsage,
@@ -186,9 +210,7 @@ async def get_ai_runtime_status(
     # Felt-latency history is evidence regardless of the runtime's state.
     answer_stats = [
         ModelAnswerStats(model=model, median_ms=median_ms, samples=samples)
-        for model, median_ms, samples in repository.answer_time_stats(
-            engine, session.household_id
-        )
+        for model, median_ms, samples in repository.answer_time_stats(engine, session.household_id)
     ]
     if not config.is_usable:
         return AiRuntimeStatus(
@@ -213,8 +235,7 @@ async def get_ai_runtime_status(
         detail = f"AI model '{served_model or config.model}' is loaded and answering."
     else:
         detail = (
-            "AI model is starting up (still loading); answers are deterministic "
-            "until it is ready."
+            "AI model is starting up (still loading); answers are deterministic until it is ready."
         )
         # M50: say what "loading" actually means (or that it crashed).
         if config.provider == "vllm":
@@ -391,6 +412,14 @@ async def update_ai_runtime_config(
 ) -> AiRuntimeConfig:
     _validate_base_url(payload.base_url, settings)
     before = repository.get_ai_runtime_config(engine, session.household_id)
+    # Issue #170 (ADR 0081): a delayed apply commit must never race an
+    # Advanced save. PUTs affecting the managed runtime selection or the
+    # household's cluster consent are refused while a replacement is
+    # unfinished (detection cached <=1 s; fail closed when the manager state
+    # cannot be established), and every config PUT serializes with the
+    # receipt-commit transaction on the same advisory lock.
+    if _affects_managed_deployment(payload, before, settings):
+        _refuse_while_replacement_in_flight(settings)
     audit.write_audit(
         engine,
         session.household_id,
@@ -409,8 +438,72 @@ async def update_ai_runtime_config(
         model=payload.model,
         enabled=payload.enabled,
         cluster_enabled=payload.cluster_enabled,
+        deployment_locked=True,
     )
     return _to_schema(record)
+
+
+# --- managed-deployment write exclusion (issue #170, ADR 0081) -----------------
+
+_DEPLOYMENT_STATE_CACHE_TTL_SECONDS = 1.0
+_deployment_state_cache: tuple[float, str] | None = None
+
+
+def _affects_managed_deployment(
+    payload: AiRuntimeConfig, before: repository.AiRuntimeConfigRecord | None, settings: Settings
+) -> bool:
+    """Whether this PUT touches the managed runtime selection or cluster consent."""
+    if payload.provider == "vllm" and payload.base_url == settings.ai_default_base_url:
+        return True
+    return before is not None and payload.cluster_enabled != before.cluster_enabled
+
+
+def _managed_deployment_state(settings: Settings) -> str:
+    """`busy`/`free`/`unknown` — is a replacement transaction in flight?
+
+    Cached <=1 s in this process (bounded added latency in the PUT path).
+    A mixed protocol pair (`manager_upgrade_required`) cannot establish v2
+    state and therefore reads as `unknown`: fail closed, never guess.
+    """
+    global _deployment_state_cache
+    if not settings.model_manager_url:
+        return "free"  # no manager configured: no managed deployment can run
+    now = monotonic()
+    if (
+        _deployment_state_cache is not None
+        and now - _deployment_state_cache[0] < _DEPLOYMENT_STATE_CACHE_TTL_SECONDS
+    ):
+        return _deployment_state_cache[1]
+    state = "unknown"
+    try:
+        client = _manager_client(settings)
+        client.verify_protocol()
+        current = client.current_job()
+        state = "busy" if current is not None and current.is_unfinished else "free"
+    except (ManagerTransportError, ManagerProtocolError, ManagerJobError):
+        state = "unknown"
+    _deployment_state_cache = (now, state)
+    return state
+
+
+def _refuse_while_replacement_in_flight(settings: Settings) -> None:
+    state = _managed_deployment_state(settings)
+    if state == "busy":
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "A model replacement is in progress; runtime settings are "
+                "locked until it commits or is restored"
+            ),
+        )
+    if state == "unknown":
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "The model manager's apply state could not be established; "
+                "runtime settings fail closed until it answers"
+            ),
+        )
 
 
 # --- Hugging Face search + one-click apply (ADR 0013) -------------------------
@@ -424,7 +517,10 @@ _HF_TIMEOUT_SECONDS = 6.0
 def _bytes_per_param(model_id: str) -> tuple[float, str]:
     """GB-per-billion-params from quantization markers in the name (M49)."""
     lower = model_id.lower()
-    if any(marker in lower for marker in ("awq", "gptq", "int4", "4bit", "4-bit", "nvfp4", "mxfp4", "fp4")):
+    if any(
+        marker in lower
+        for marker in ("awq", "gptq", "int4", "4bit", "4-bit", "nvfp4", "mxfp4", "fp4")
+    ):
         return 0.65, "4-bit"
     if any(marker in lower for marker in ("fp8", "int8", "8bit", "8-bit")):
         return 1.1, "8-bit"
@@ -442,18 +538,6 @@ def _vision_slot_gb(settings: Settings) -> float | None:
     if node_gb is None or settings.vision_gpu_fraction <= 0:
         return None
     return node_gb * settings.vision_gpu_fraction
-
-
-def _model_estimate_gb(model_id: str) -> float | None:
-    """Weights estimate for a model id: catalog truth, else name-derived."""
-    for model in MODEL_CATALOG:
-        if model.id == model_id:
-            return model.est_memory_gb
-    match = _PARAMS_IN_NAME.search(model_id.rsplit("/", 1)[-1])
-    if not match:
-        return None
-    gb_per_b, _precision = _bytes_per_param(model_id)
-    return float(match.group(1)) * gb_per_b
 
 
 def _estimate_from_hf(item: dict, pipeline: str) -> AiModelInfo | None:
@@ -546,11 +630,13 @@ async def search_ai_models(
     if pipeline not in ("any", "text-generation", "image-text-to-text"):
         raise HTTPException(status_code=422, detail="invalid pipeline")
     limit = max(1, min(limit, 30))
-    pipelines = (
-        ("text-generation", "image-text-to-text") if pipeline == "any" else (pipeline,)
-    )
-    queries: tuple[str, ...] = (q,) if not deep else tuple(
-        dict.fromkeys((q, *_DEEP_HINTS))  # user's q first, deduped, order kept
+    pipelines = ("text-generation", "image-text-to-text") if pipeline == "any" else (pipeline,)
+    queries: tuple[str, ...] = (
+        (q,)
+        if not deep
+        else tuple(
+            dict.fromkeys((q, *_DEEP_HINTS))  # user's q first, deduped, order kept
+        )
     )
 
     models: list[AiModelInfo] = []
@@ -579,156 +665,447 @@ async def search_ai_models(
     return AiModelCatalog(models=models[:120])
 
 
+# --- one-shot apply admission, read-only status, recovery (issue #170) ---------
+
+
+def _manager_client(settings: Settings) -> ModelManagerClient:
+    """The typed v2 transport with the dedicated apply budget (spec 04)."""
+    return ModelManagerClient(
+        settings.model_manager_url,
+        settings.model_manager_credential,
+        apply_timeout_seconds=settings.model_manager_apply_timeout_seconds,
+    )
+
+
+def _apply_error(status_code: int, code: str, message: str) -> JSONResponse:
+    """A structured apply error: the stable reason lives in error.code (spec 04)."""
+    return JSONResponse(status_code=status_code, content=error_response(code, message))
+
+
+def _manager_failure(exc: Exception) -> JSONResponse:
+    """Safe conversion of a manager failure to the public error envelope.
+
+    Specific safe causes pass through with their stable codes; anything else
+    is a 503 that preserves the current configuration."""
+    if isinstance(exc, ManagerJobError):
+        if exc.status_code in (404, 409, 422):
+            return _apply_error(exc.status_code, exc.code, exc.message)
+        return _apply_error(503, exc.code, exc.message)
+    if isinstance(exc, ManagerProtocolError):
+        return _apply_error(503, "manager_upgrade_required", str(exc))
+    return _apply_error(503, "manager_unavailable", "Model manager unreachable")
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class _NormalizedSelection:
+    """The API-internal normalized request — exactly what the manager receives.
+
+    `photo_mode` may still be `auto`: the MANAGER resolves it authoritatively
+    from installed metadata (its `normalize_photo_mode`). The public
+    `AiApplySelectionSummary` is resolved-only by contract, so the request
+    shape never rides through it.
+    """
+
+    main_model: str
+    vision_model: str | None
+    photo_mode: str
+    topology: str
+
+
+def _synthesize_request_id(selection: _NormalizedSelection) -> uuid.UUID:
+    """The idempotency identity for a legacy body without request_id.
+
+    Deterministic in the NORMALIZED request: the same selection replayed
+    resolves to the same identity (the manager replays it as a read, never a
+    second launch); different content is genuinely a different request."""
+    identity = "|".join(
+        (
+            selection.main_model,
+            selection.vision_model or "",
+            selection.photo_mode,
+            selection.topology,
+        )
+    )
+    return uuid.uuid5(uuid.NAMESPACE_URL, f"family-cfo-ai-apply|{identity}")
+
+
+def _validate_apply_selection(payload: AiApplyRequest, settings: Settings) -> _NormalizedSelection:
+    """Preflight input guards that stay API-side (spec 04's safe causes)."""
+    if not _REPO_ID.match(payload.main_model):
+        raise _ApplyRefusal(422, "invalid_model_id", "invalid main model id")
+    if payload.vision_model is not None and not _REPO_ID.match(payload.vision_model):
+        raise _ApplyRefusal(422, "invalid_model_id", "invalid vision model id")
+    # M66: a typo'd id would tear the containers down and then fail at
+    # download. Verify each repo exists on the hub first; when the hub is
+    # unreachable the check is skipped (offline-tolerant — the manager
+    # resolves pinned metadata and refuses with model_not_found itself).
+    for model_id in (payload.main_model, payload.vision_model):
+        if model_id is not None and _hf_model_exists(settings.hf_hub_url, model_id) is False:
+            raise _ApplyRefusal(
+                422, "model_not_found", f"'{model_id}' was not found on Hugging Face"
+            )
+    vision_model = payload.vision_model
+    photo_mode = payload.photo_mode
+    # M51: never run two instances of the same model. Identical main+vision
+    # normalizes to one dual-capable instance with photos routed to it; the
+    # manager refuses when the model cannot actually accept images.
+    if vision_model == payload.main_model:
+        vision_model = None
+        photo_mode = "main"
+    # The selected mode controls routing — it never contradicts itself.
+    if photo_mode in ("main", "off") and vision_model is not None:
+        raise _ApplyRefusal(
+            422,
+            "unsupported_photo_mode",
+            f"photo_mode '{photo_mode}' cannot be combined with a separate vision model",
+        )
+    if photo_mode == "separate" and vision_model is None:
+        raise _ApplyRefusal(
+            422, "unsupported_photo_mode", "photo_mode 'separate' requires a distinct vision model"
+        )
+    # Memory fit is the MANAGER's admission call (ADR 0081): its evidence-based
+    # planning refuses a photo model that cannot run. The API host may not be a
+    # GPU box (two-Spark: peers hold them), so host-memory math here is not
+    # placement evidence — it only produced false refusals (#170).
+    return _NormalizedSelection(
+        main_model=payload.main_model,
+        vision_model=vision_model,
+        photo_mode=photo_mode,
+        topology=payload.topology,
+    )
+
+
+class _ApplyRefusal(Exception):
+    """A structured preflight refusal with a stable public reason."""
+
+    def __init__(self, status_code: int, code: str, message: str) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+        self.code = code
+        self.message = message
+
+
+def _cluster_consent(engine: Engine, household_id: str, topology: str) -> bool:
+    """The household's stored cluster consent — never the public request (ADR 0071/0081)."""
+    if topology != "cluster":
+        # auto/single: consent rides along as authorization evidence the
+        # manager may only use for a VALID two-node plan.
+        config = repository.get_ai_runtime_config(engine, household_id)
+        return bool(config.cluster_enabled) if config else False
+    config = repository.get_ai_runtime_config(engine, household_id)
+    consent = bool(config.cluster_enabled) if config else False
+    if not consent:
+        raise _ApplyRefusal(
+            409,
+            "cluster_consent_required",
+            "cluster serving needs the household's second-box setting",
+        )
+    # ADR 0071: a cluster apply is refused while the peer is down — a TP=2
+    # engine with one node would crash-loop exactly like the first bring-up.
+    _, peer_reachable = cluster_peer_status()
+    if not peer_reachable:
+        raise _ApplyRefusal(
+            409,
+            "cluster_peer_unreachable",
+            "The second box is not reachable; cluster serving needs it",
+        )
+    return consent
+
+
+def _write_apply_audit_once(
+    engine: Engine,
+    household_id: str,
+    actor_user_id: str | None,
+    action: str,
+    job_id: str,
+    summary: str,
+) -> None:
+    """One apply audit per job + action (the 0099 partial unique index).
+
+    Replays (transport-ambiguous retries, reconciler races) hit the index and
+    are swallowed — the operational record exists exactly once."""
+    try:
+        audit.write_audit(
+            engine,
+            household_id,
+            actor_user_id,
+            action,
+            models.AI_RUNTIME_APPLY_JOB_ENTITY,
+            job_id,
+            summary,
+        )
+    except IntegrityError:
+        logger.info("apply audit %s for job %s already recorded", action, job_id)
+
+
+def _selection_schema(document: dict | None) -> AiApplySelectionSummary | None:
+    if not document:
+        return None
+    try:
+        return AiApplySelectionSummary(
+            main_model=document.get("main_model") or "",
+            vision_model=document.get("vision_model"),
+            photo_mode=document.get("photo_mode") or "off",
+            topology=document.get("topology") or "auto",
+        )
+    except ValueError:
+        # A skewed manager version must degrade the summary, not 500 a read.
+        logger.warning("unrecognized apply selection document: %s", document)
+        return None
+
+
+def _plan_schema(document: dict | None) -> AiApplyPlanSummary | None:
+    if not document:
+        return None
+    try:
+        return AiApplyPlanSummary(
+            main_model=document.get("main_model") or "",
+            main_revision=document.get("main_revision") or "",
+            vision_model=document.get("vision_model"),
+            vision_revision=document.get("vision_revision"),
+            photo_mode=document.get("photo_mode") or "off",
+            topology=document.get("topology") or "single",
+            runtime_version=document.get("runtime_version") or "",
+            image_digest=document.get("image_digest") or "",
+            context_limit=int(document.get("context_limit") or 0),
+            concurrency_limit=int(document.get("concurrency_limit") or 0),
+            node_requirements=document.get("node_requirements") or [],
+            warnings=list(document.get("warnings") or ()),
+        )
+    except (TypeError, ValueError):
+        logger.warning("unrecognized apply plan document: %s", document)
+        return None
+
+
+def _projected_status(status: ManagerJobStatus) -> AiApplyJobStatus:
+    """The additive legacy projection (ADR 0074 Decision 5): the coarse
+    `state` enum plus the full lifecycle additively. Never mutates anything."""
+    selection = status.requested_selection or status.previous_selection or {}
+    return AiApplyJobStatus(
+        job_id=status.job_id,
+        request_id=status.request_id,
+        sequence=status.sequence,
+        state=status.coarse_state,
+        lifecycle_state=status.state or None,
+        main_model=selection.get("main_model"),
+        vision_model=selection.get("vision_model"),
+        log_tail=status.message or "",
+        requested_selection=_selection_schema(status.requested_selection),
+        resolved_plan=_plan_schema(status.resolved_plan),
+        previous_selection=_selection_schema(status.previous_selection),
+        created_at=status.created_at,
+        updated_at=status.updated_at,
+        deadline_at=status.deadline_at,
+        reason_code=status.reason_code,
+        message=status.message,
+        recovery_available=status.recovery_available,
+    )
+
+
+def _no_job_status(
+    state: str, *, reason_code: str | None = None, message: str | None = None
+) -> AiApplyJobStatus:
+    """The explicit idle/unavailable read: no job has been admitted."""
+    return AiApplyJobStatus(
+        job_id=None,
+        request_id=None,
+        sequence=None,
+        state=state,
+        lifecycle_state=None,
+        main_model=None,
+        vision_model=None,
+        log_tail=message or "",
+        requested_selection=None,
+        resolved_plan=None,
+        previous_selection=None,
+        created_at=None,
+        updated_at=None,
+        deadline_at=None,
+        reason_code=reason_code,
+        message=message,
+        recovery_available=False,
+    )
+
+
 @router.post(
     "/ai/runtime/apply",
     operation_id="applyAiModelSelection",
-    response_model=AiSwapStatus,
+    response_model=AiApplyJobStatus,
     status_code=202,
     responses={
         401: {"description": "Unauthorized", "model": ErrorResponse},
         403: {"description": "Role does not permit this action", "model": ErrorResponse},
-        409: {"description": "A swap is already running", "model": ErrorResponse},
-        503: {"description": "Model manager unavailable", "model": ErrorResponse},
+        409: {
+            "description": "A replacement is in flight or consent is missing",
+            "model": ErrorResponse,
+        },
+        422: {
+            "description": "The selection was rejected before any mutation",
+            "model": ErrorResponse,
+        },
+        503: {"description": "Model manager unavailable or protocol skew", "model": ErrorResponse},
     },
-    summary="Apply a model selection: download and switch the served models",
+    summary="Apply a model selection: validated launch, verified swap, committed settings",
 )
 def apply_ai_model_selection(
     payload: AiApplyRequest,
     session: repository.SessionContext = Depends(require_right(rights.AI_RUNTIME_MANAGE)),
     engine: Engine = Depends(get_engine),
     settings: Settings = Depends(get_app_settings),
-) -> AiSwapStatus:
+) -> AiApplyJobStatus | JSONResponse:
     if not settings.model_manager_url:
-        raise HTTPException(
-            status_code=503,
-            detail="Model manager is not available; use scripts/swap-model.sh on the server",
+        return _apply_error(
+            503,
+            "manager_unavailable",
+            "Model manager is not available; use scripts/swap-model.sh on the server",
         )
-    if not _REPO_ID.match(payload.main_model):
-        raise HTTPException(status_code=422, detail="invalid main model id")
-    if payload.vision_model is not None and not _REPO_ID.match(payload.vision_model):
-        raise HTTPException(status_code=422, detail="invalid vision model id")
-    # M66: a typo'd id would tear the containers down and then fail at
-    # download. Verify each repo exists on the hub first; when the hub is
-    # unreachable the check is skipped (offline-tolerant).
-    for model_id in (payload.main_model, payload.vision_model):
-        if model_id is not None and _hf_model_exists(settings.hf_hub_url, model_id) is False:
-            raise HTTPException(
-                status_code=422,
-                detail=f"'{model_id}' was not found on Hugging Face — check the model id",
-            )
-    # M51: never run two instances of the same model. Identical main+vision
-    # collapses to the single-instance path (the swap script serves one
-    # container; photos work iff the model is actually vision-capable).
-    if payload.vision_model == payload.main_model:
-        payload.vision_model = None
-
-    # The photo-model slot is a FIXED memory share (VLLM_VISION_GPU_FRACTION):
-    # a describer whose weights exceed it crash-loops silently after the swap
-    # (found live when a text-only main inherited a 35B as its photo model).
-    # Unknown estimates pass — this guard only refuses the provably absurd.
-    if payload.vision_model is not None:
-        slot_gb = _vision_slot_gb(settings)
-        est_gb = _model_estimate_gb(payload.vision_model)
-        if slot_gb is not None and est_gb is not None and est_gb > slot_gb:
-            raise HTTPException(
-                status_code=422,
-                detail=(
-                    f"'{payload.vision_model}' needs ~{est_gb:.0f} GB but the "
-                    f"photo-model slot has ~{slot_gb:.0f} GB "
-                    f"(VLLM_VISION_GPU_FRACTION) — pick a smaller vision model"
-                ),
-            )
-
+    if not settings.model_manager_credential.strip():
+        # v2 mutators require the deployment-scoped credential; without it
+        # nothing may mutate, so apply fails closed (ADR 0081 S7).
+        return _apply_error(
+            503,
+            "manager_unavailable",
+            "The model-manager deployment credential is not configured",
+        )
     try:
-        # ADR 0071: a cluster apply is refused while the peer is down — a TP=2
-        # engine with one node would crash-loop exactly like the first bring-up.
-        if payload.cluster:
-            from family_cfo_api.ai_catalog import cluster_peer_status
+        selection = _validate_apply_selection(payload, settings)
+        topology = "cluster" if payload.cluster else payload.topology
+        cluster_consent = _cluster_consent(engine, session.household_id, topology)
+    except _ApplyRefusal as refusal:
+        return _apply_error(refusal.status_code, refusal.code, refusal.message)
 
-            _, peer_reachable = cluster_peer_status()
-            if not peer_reachable:
-                raise HTTPException(
-                    status_code=409,
-                    detail="The second box is not reachable; cluster serving needs it",
-                )
-        response = httpx.post(
-            f"{settings.model_manager_url.rstrip('/')}/swap",
-            json={
-                "main_model": payload.main_model,
-                "vision_model": payload.vision_model,
-                "cluster": payload.cluster,
-            },
-            timeout=_HF_TIMEOUT_SECONDS,
+    request_id = payload.request_id or _synthesize_request_id(selection)
+    client = _manager_client(settings)
+    try:
+        client.verify_protocol()
+        status = client.admit(
+            {
+                "request_id": str(request_id),
+                "main_model": selection.main_model,
+                "vision_model": selection.vision_model,
+                "photo_mode": selection.photo_mode,
+                "topology": topology,
+                "cluster_consent": cluster_consent,
+                "origin": "api",
+                "runtime_key": f"vllm+{settings.ai_default_base_url}",
+                "initiator_household_id": session.household_id,
+                "initiator_user_id": session.user_id,
+            }
         )
-    except httpx.HTTPError as exc:
-        raise HTTPException(status_code=503, detail="Model manager unreachable") from exc
-    if response.status_code == 409:
-        raise HTTPException(status_code=409, detail="A model swap is already in progress")
-    if response.status_code >= 400:
-        raise HTTPException(status_code=503, detail="Model manager rejected the request")
+    except (ManagerProtocolError, ManagerTransportError, ManagerJobError) as exc:
+        return _manager_failure(exc)
 
-    # Keep the household config in sync so status/mismatch reflect the new target.
-    # A model swap must not flip the cluster toggle (ADR 0071) — preserve it.
-    existing_config = repository.get_ai_runtime_config(engine, session.household_id)
-    repository.upsert_ai_runtime_config(
-        engine,
-        household_id=session.household_id,
-        provider="vllm",
-        base_url=settings.ai_default_base_url,
-        model=payload.main_model,
-        enabled=True,
-        cluster_enabled=existing_config.cluster_enabled if existing_config else False,
-    )
-    # The swap replaces the model for the WHOLE box: every other household's
-    # config on this runtime must follow, or their chats silently fall back
-    # to deterministic answers requesting a model vLLM no longer serves.
-    repointed = repository.repoint_ai_runtime_configs(
-        engine,
-        provider="vllm",
-        base_url=settings.ai_default_base_url,
-        model=payload.main_model,
-    )
-    if repointed > 1:
-        logger.info("model apply repointed %d household configs", repointed)
-    logger.info(
-        "model apply started household_id=%s main=%s vision=%s",
-        session.household_id,
-        payload.main_model,
-        payload.vision_model,
-    )
-    audit.write_audit(
+    # After durable acceptance: one idempotent operational audit. NO household
+    # settings change here — the reconciler commits them exactly once after
+    # verified readiness (ADR 0081 S3), so a failed candidate never repoints.
+    _write_apply_audit_once(
         engine,
         session.household_id,
         session.user_id,
-        "ai_runtime.model_applied",
-        "ai_runtime_config",
-        session.household_id,
-        f"Model swap started: main={payload.main_model} vision={payload.vision_model or 'none'}",
+        "ai_runtime.model_apply_started",
+        str(status.job_id),
+        f"Model apply accepted: job={status.job_id} main={selection.main_model} "
+        f"vision={selection.vision_model or 'none'}",
     )
-    return AiSwapStatus(**response.json())
+    logger.info(
+        "model apply accepted household_id=%s job=%s main=%s vision=%s",
+        session.household_id,
+        status.job_id,
+        selection.main_model,
+        selection.vision_model,
+    )
+    return _projected_status(status)
 
 
 @router.get(
     "/ai/runtime/apply/status",
     operation_id="getAiApplyStatus",
-    response_model=AiSwapStatus,
-    responses={401: {"description": "Unauthorized", "model": ErrorResponse}},
-    summary="Report the state of the last model apply",
+    response_model=AiApplyJobStatus,
+    responses={
+        401: {"description": "Unauthorized", "model": ErrorResponse},
+        404: {"description": "Unknown retained job id", "model": ErrorResponse},
+    },
+    summary="Report apply-job status (read-only)",
 )
 def get_ai_apply_status(
+    job_id: uuid.UUID | None = None,
     session: repository.SessionContext = Depends(get_current_session),
     settings: Settings = Depends(get_app_settings),
-) -> AiSwapStatus:
+) -> AiApplyJobStatus | JSONResponse:
+    """Read-only: never commits settings, launches recovery, acknowledges
+    jobs, or creates rows. With `job_id` it reports that exact job; without
+    it the manager's current/latest job, else an explicit idle."""
     if not settings.model_manager_url:
-        return AiSwapStatus(state="unavailable")
+        return _no_job_status("unavailable", message="Model manager is not configured")
+    client = _manager_client(settings)
     try:
-        response = httpx.get(
-            f"{settings.model_manager_url.rstrip('/')}/status", timeout=_HF_TIMEOUT_SECONDS
+        client.verify_protocol()
+        if job_id is not None:
+            status = client.job(str(job_id))
+        else:
+            status = client.current_job()
+    except ManagerJobError as exc:
+        if exc.status_code == 404:
+            return _apply_error(404, "unknown_job", "No retained apply job with that id")
+        return _manager_failure(exc)
+    except (ManagerProtocolError, ManagerTransportError) as exc:
+        # Reads degrade loudly instead of erroring the poll loop (spec 04).
+        code = "manager_upgrade_required" if isinstance(exc, ManagerProtocolError) else None
+        return _no_job_status("unavailable", reason_code=code, message=str(exc))
+    if status is None:
+        return _no_job_status("idle")
+    return _projected_status(status)
+
+
+@router.post(
+    "/ai/runtime/apply/{job_id}/retry-recovery",
+    operation_id="retryAiApplyRecovery",
+    response_model=AiApplyJobStatus,
+    status_code=202,
+    responses={
+        401: {"description": "Unauthorized", "model": ErrorResponse},
+        403: {"description": "Role does not permit this action", "model": ErrorResponse},
+        404: {"description": "Unknown retained job id", "model": ErrorResponse},
+        409: {"description": "The job is not in a recoverable state", "model": ErrorResponse},
+        503: {"description": "Model manager unavailable or protocol skew", "model": ErrorResponse},
+    },
+    summary="Re-run the frozen direction of a durable apply decision",
+)
+def retry_ai_apply_recovery(
+    job_id: uuid.UUID,
+    payload: AiRetryRecoveryRequest,
+    session: repository.SessionContext = Depends(require_right(rights.AI_RUNTIME_MANAGE)),
+    settings: Settings = Depends(get_app_settings),
+) -> AiApplyJobStatus | JSONResponse:
+    """Direction-aware recovery (ADR 0081): `restore` re-runs the frozen
+    restore plan for `recovery_failed`; `commit` re-runs post-commit
+    forward repair only for `commit_repair_required`. Never a new model,
+    never an image upgrade. The new `request_id` identifies the attempt."""
+    if not settings.model_manager_url:
+        return _apply_error(
+            503,
+            "manager_unavailable",
+            "Model manager is not available; use scripts/swap-model.sh on the server",
         )
-        response.raise_for_status()
-        return AiSwapStatus(**response.json())
-    except (httpx.HTTPError, ValueError):
-        return AiSwapStatus(state="unavailable")
+    if not settings.model_manager_credential.strip():
+        return _apply_error(
+            503,
+            "manager_unavailable",
+            "The model-manager deployment credential is not configured",
+        )
+    client = _manager_client(settings)
+    try:
+        client.verify_protocol()
+        status = client.recover(str(job_id))
+    except (ManagerProtocolError, ManagerTransportError, ManagerJobError) as exc:
+        return _manager_failure(exc)
+    logger.info(
+        "apply recovery re-run job=%s request_id=%s by household=%s",
+        job_id,
+        payload.request_id,
+        session.household_id,
+    )
+    return _projected_status(status)
 
 
 @router.get(

@@ -360,3 +360,60 @@ identity, endpoint and trust. Check expiry before and after biometrics. Renew
 with the existing device's key and the member's password. Phone-managed Watch
 access uses ordered invalidation and local expiry. See
 [ADR 0080](../adr/0080-session-expiry-reauthentication.md).
+
+## AI Runtime Apply on iOS (issue #170, ADR 0081)
+
+The AI Runtime screen keeps its operator-facing home on the dashboard; iOS
+keeps parity for apply, status, and recovery through the generated client.
+
+### Request construction
+
+`apply(request:)` sends `AiApplyRequest` with one `request_id` UUID per user
+confirmation — retained across transport-ambiguous retries, never regenerated
+for a possibly accepted request. Role intent is built server-compatible:
+vision-only model pairs with the current main; dual-capable main uses
+`photo_mode=main`; text-only main preserves the explicit current photo mode;
+ordinary selections send `topology=auto`. Apply requires
+`ai_runtime.manage`-equivalent permission as surfaced by the existing rights
+model. The apply call uses an explicit long-timeout URLSession configuration
+(≥ 210 s) so a legal preflight is not severed by the 60 s default.
+
+### Lifecycle and observation
+
+- On screen entry, fetch the current/latest job and resume observation; poll
+  by job ID every 5 s with at most one poll in flight; accept only matching
+  job IDs and increasing `sequence` numbers.
+- Observation lives in a view-model-owned cancellable task, independent of
+  the initiating button task; attach on presentation, detach on dismissal,
+  and resume via current-job lookup on return. `CancellationError` is
+  observation cancellation, never replacement failure; stale-session
+  completions must not update a new session.
+- Destroying a view stops observation — never the server job. A transient
+  status error shows "Progress unavailable; the operation may still be
+  running" and retains the known job.
+- New Apply is enabled only after an allowed terminal state; refresh runtime
+  config and live runtime status after terminal completion. Use `servedModel`,
+  not configured `status.model`, for "answering now".
+
+### Progress, recovery, and honest copy
+
+- Server states map to user-facing meaning (validation → loading → verifying
+  → commit-wait → succeeded; `restoring` → previous runtime being restored;
+  `restored` → previous configuration verified and running;
+  `recovery_failed` → recovery needs attention, with a **Retry recovery**
+  action calling `retryRecovery(jobID:requestID:)` with a new `request_id`).
+- Never infer success from main-model equality alone; replace any
+  serving-based success inference with job ID + sequence + state.
+- Confirmation copy explains verification and possible interruption without
+  promising duration or uninterrupted service; "Tight fit — it will load"
+  becomes estimated language; fit badges stay labeled estimates and never
+  block requesting authoritative preflight.
+
+### Generated-client dependency and platform
+
+All request/status/recovery DTOs come from the regenerated Swift client —
+never hand-edited `APIClient/Generated/`. Shipped builds keep decoding the
+legacy coarse `AiSwapStatus` projection additively (ADR 0074 Decision 5).
+Implementation and validation run only on macOS with the Swift toolchain,
+Xcode, and installed iOS/watchOS platforms; tests cover every new enum and
+nullable combination plus deterministic polling/race injection.

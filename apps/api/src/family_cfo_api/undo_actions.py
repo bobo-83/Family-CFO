@@ -126,6 +126,13 @@ UNDO_POLICY: dict[str, str] = {
     # AI runtime
     "ai_runtime.updated": UNDOABLE,
     "ai_runtime.model_applied": IRREVERSIBLE,  # an operational model swap ran (vLLM reload)
+    # Issue #170 (ADR 0081): apply lifecycle records — operational evidence of
+    # a validated/recovered deployment transaction, never user-undoable state
+    # changes, and deliberately never an UNDOABLE default.
+    "ai_runtime.model_apply_started": IRREVERSIBLE,
+    "ai_runtime.model_apply_failed": IRREVERSIBLE,
+    "ai_runtime.model_apply_restored": IRREVERSIBLE,
+    "ai_runtime.model_apply_recovery_failed": IRREVERSIBLE,
     # bank connections
     "connection.created": UNDOABLE,
     "connection.deleted": IRREVERSIBLE,  # re-linking needs re-authorizing with the provider

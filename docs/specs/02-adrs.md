@@ -38,6 +38,7 @@ Architecture Decision Records live in `docs/adr`.
 - [0079: Account-only device sign-in; retire QR UI and protocol together](../adr/0079-account-only-device-sign-in.md)
 
 - [0080: Session expiry and reauthentication](../adr/0080-session-expiry-reauthentication.md)
+- [0081: AI runtime Apply as a validated, recoverable transaction; manager protocol v2](../adr/0081-ai-runtime-apply-transactions.md)
 
 ## ADR Rules
 

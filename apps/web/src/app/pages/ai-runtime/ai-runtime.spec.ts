@@ -14,6 +14,33 @@ function response(data: unknown, error?: unknown) {
   } as never;
 }
 
+/** A #170 apply-job status with job identity and sane defaults. */
+function jobData(overrides: Record<string, unknown> = {}) {
+  return {
+    job_id: 'job-1',
+    request_id: 'req-1',
+    sequence: 1,
+    state: 'running',
+    lifecycle_state: 'accepted',
+    main_model: 'Qwen/Qwen2.5-32B-Instruct',
+    vision_model: 'Qwen/Qwen2.5-VL-7B-Instruct',
+    log_tail: '',
+    requested_selection: {
+      main_model: 'Qwen/Qwen2.5-32B-Instruct',
+      vision_model: 'Qwen/Qwen2.5-VL-7B-Instruct',
+      photo_mode: 'separate',
+      topology: 'auto',
+    },
+    created_at: '2026-11-21T00:00:00Z',
+    updated_at: '2026-11-21T00:00:00Z',
+    recovery_available: false,
+    ...overrides,
+  };
+}
+
+/** One macrotask turn — lets the constructor's floating resume fetch settle. */
+const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
 const CATALOG = [
   {
     id: 'Qwen/Qwen2.5-32B-Instruct',
@@ -64,6 +91,7 @@ describe('AiRuntime', () => {
     getAiModelDetail: ReturnType<typeof vi.fn>;
     applyAiModelSelection: ReturnType<typeof vi.fn>;
     getAiApplyStatus: ReturnType<typeof vi.fn>;
+    retryAiApplyRecovery: ReturnType<typeof vi.fn>;
     getAiStudyStatus: ReturnType<typeof vi.fn>;
     getAiUsage: ReturnType<typeof vi.fn>;
   };
@@ -104,7 +132,23 @@ describe('AiRuntime', () => {
       searchAiModels: vi.fn().mockResolvedValue(response({ models: [] })),
       getAiModelDetail: vi.fn().mockResolvedValue(response({ info: { id: 'x' } })),
       applyAiModelSelection: vi.fn(),
-      getAiApplyStatus: vi.fn().mockResolvedValue(response({ state: 'idle', log_tail: '' })),
+      // #170: the explicit idle read (no job admitted) — the constructor's
+      // screen-entry lookup resolves to this by default.
+      getAiApplyStatus: vi.fn().mockResolvedValue(
+        response({
+          job_id: null,
+          request_id: null,
+          sequence: null,
+          state: 'idle',
+          lifecycle_state: null,
+          log_tail: '',
+          requested_selection: null,
+          created_at: null,
+          updated_at: null,
+          recovery_available: false,
+        }),
+      ),
+      retryAiApplyRecovery: vi.fn(),
       getAiStudyStatus: vi.fn().mockResolvedValue(
         response({
           total_months: 17,
@@ -208,44 +252,333 @@ describe('AiRuntime', () => {
 
   // --- Apply from an expanded row (M48) ---------------------------------------
 
-  it('applyModel posts the plan and reaches active when serving matches', async () => {
+  it('applyModel sends one explicit selection and observes the job to success', async () => {
     apiMock.applyAiModelSelection.mockResolvedValue(
-      response({ state: 'running', main_model: 'Qwen/Qwen2.5-32B-Instruct', log_tail: '' }),
+      response(jobData({ lifecycle_state: 'accepted', sequence: 1 })),
     );
     const fixture = await create();
     const component = fixture.componentInstance;
 
     await component['applyModel'](CATALOG[0] as never);
+    // Photo-blind main: the current photo model is kept EXPLICITLY, topology
+    // is the server's to resolve, and one request_id rides the confirmation.
     expect(apiMock.applyAiModelSelection).toHaveBeenCalledWith({
       main_model: 'Qwen/Qwen2.5-32B-Instruct',
       vision_model: 'Qwen/Qwen2.5-VL-7B-Instruct',
+      photo_mode: 'separate',
+      topology: 'auto',
+      request_id: expect.stringMatching(/^[0-9a-f-]{36}$/),
     });
-    expect(component['applyLive']()?.phase).toBe('working');
+    expect(component['applyPhase']()).toBe('preparing');
+    expect(component['applyJob']()?.job_id).toBe('job-1');
 
     apiMock.getAiApplyStatus.mockResolvedValue(
-      response({ state: 'succeeded', main_model: 'Qwen/Qwen2.5-32B-Instruct', log_tail: 'ok' }),
+      response(jobData({ lifecycle_state: 'verifying', sequence: 2 })),
+    );
+    await component['pollOnce']();
+    expect(component['applyPhase']()).toBe('replacing');
+
+    apiMock.getAiApplyStatus.mockResolvedValue(
+      response(jobData({ lifecycle_state: 'succeeded', state: 'succeeded', sequence: 3 })),
+    );
+    await component['pollOnce']();
+    expect(component['applyPhase']()).toBe('succeeded');
+    // Terminal: observation ended — a further poll cannot restart it.
+    expect(component['observationJobId']).toBeNull();
+  });
+
+  it('a terminal job refreshes the runtime config and live status (#170)', async () => {
+    apiMock.applyAiModelSelection.mockResolvedValue(
+      response(jobData({ lifecycle_state: 'accepted', sequence: 1 })),
+    );
+    const fixture = await create();
+    const component = fixture.componentInstance;
+    await component['applyModel'](CATALOG[0] as never);
+    apiMock.getAiRuntimeConfig.mockClear();
+    apiMock.getAiRuntimeStatus.mockClear();
+
+    apiMock.getAiApplyStatus.mockResolvedValue(
+      response(jobData({ lifecycle_state: 'succeeded', state: 'succeeded', sequence: 3 })),
     );
     await component['pollOnce']();
     await fixture.whenStable();
-    expect(component['applyLive']()?.phase).toBe('active');
-    component['stopPolling']();
+
+    expect(apiMock.getAiRuntimeConfig).toHaveBeenCalled();
+    expect(apiMock.getAiRuntimeStatus).toHaveBeenCalled();
   });
 
-  it('surfaces a failed swap with its log tail', async () => {
+  it('surfaces a failed replacement as an alert with its safe cause', async () => {
     apiMock.applyAiModelSelection.mockResolvedValue(
-      response({ state: 'running', main_model: 'Qwen/Qwen2.5-32B-Instruct', log_tail: '' }),
+      response(jobData({ lifecycle_state: 'accepted', sequence: 1 })),
     );
     const fixture = await create();
     const component = fixture.componentInstance;
     await component['applyModel'](CATALOG[0] as never);
 
     apiMock.getAiApplyStatus.mockResolvedValue(
-      response({ state: 'failed', main_model: 'Qwen/Qwen2.5-32B-Instruct', log_tail: 'boom' }),
+      response(
+        jobData({
+          lifecycle_state: 'failed',
+          state: 'failed',
+          sequence: 2,
+          reason_code: 'insufficient_memory',
+          message: 'The model needs more memory than the box has.',
+        }),
+      ),
     );
     await component['pollOnce']();
-    expect(component['applyLive']()?.phase).toBe('failed');
-    expect(component['applyLive']()?.detail).toBe('boom');
-    component['stopPolling']();
+    fixture.detectChanges();
+    expect(component['applyPhase']()).toBe('failed');
+    expect(component['applyFailureDetail']()).toBe(
+      'The model needs more memory than the box has.',
+    );
+    const alert = (fixture.nativeElement as HTMLElement).querySelector(
+      '.apply-live[role="alert"]',
+    );
+    expect(alert?.textContent).toContain('failed before anything was changed');
+  });
+
+  it('shows the restored state after a failed replacement recovers', async () => {
+    apiMock.applyAiModelSelection.mockResolvedValue(
+      response(jobData({ lifecycle_state: 'accepted', sequence: 1 })),
+    );
+    const fixture = await create();
+    const component = fixture.componentInstance;
+    await component['applyModel'](CATALOG[0] as never);
+
+    apiMock.getAiApplyStatus.mockResolvedValue(
+      response(
+        jobData({
+          lifecycle_state: 'restored',
+          state: 'failed', // legacy coarse projection
+          sequence: 6,
+          reason_code: 'verification_failed',
+        }),
+      ),
+    );
+    await component['pollOnce']();
+    expect(component['applyPhase']()).toBe('restored');
+    // Terminal — new applies are allowed again.
+    expect(component['replacementInFlight']()).toBe(false);
+  });
+
+  it('offers Retry recovery for recovery_failed and re-observes the new attempt', async () => {
+    apiMock.applyAiModelSelection.mockResolvedValue(
+      response(jobData({ lifecycle_state: 'accepted', sequence: 1 })),
+    );
+    const fixture = await create();
+    const component = fixture.componentInstance;
+    await component['applyModel'](CATALOG[0] as never);
+
+    apiMock.getAiApplyStatus.mockResolvedValue(
+      response(
+        jobData({
+          lifecycle_state: 'recovery_failed',
+          state: 'failed',
+          sequence: 5,
+          reason_code: 'restore_failed',
+          message: 'The previous runtime failed to come back.',
+          recovery_available: true,
+        }),
+      ),
+    );
+    await component['pollOnce']();
+    expect(component['applyPhase']()).toBe('recovery');
+    expect(component['replacementInFlight']()).toBe(false);
+
+    apiMock.retryAiApplyRecovery.mockResolvedValue(
+      response(jobData({ lifecycle_state: 'restoring', sequence: 6 })),
+    );
+    await component['retryRecovery']();
+    expect(apiMock.retryAiApplyRecovery).toHaveBeenCalledWith('job-1', {
+      request_id: expect.stringMatching(/^[0-9a-f-]{36}$/),
+    });
+    // The returned job replaced the observation target.
+    expect(component['applyPhase']()).toBe('restoring');
+    expect(component['observationJobId']).toBe('job-1');
+  });
+
+  it('polls accept only the observed job with an increasing sequence', async () => {
+    apiMock.applyAiModelSelection.mockResolvedValue(
+      response(jobData({ lifecycle_state: 'accepted', sequence: 7 })),
+    );
+    const fixture = await create();
+    const component = fixture.componentInstance;
+    await component['applyModel'](CATALOG[0] as never);
+    expect(component['applyJob']()?.sequence).toBe(7);
+
+    // Same sequence (no server-side change) — dropped.
+    apiMock.getAiApplyStatus.mockResolvedValue(
+      response(jobData({ lifecycle_state: 'launching', sequence: 7 })),
+    );
+    await component['pollOnce']();
+    expect(component['applyPhase']()).toBe('preparing');
+
+    // A different job's status can never replace the observed one.
+    apiMock.getAiApplyStatus.mockResolvedValue(
+      response(jobData({ job_id: 'job-other', lifecycle_state: 'succeeded', state: 'succeeded', sequence: 99 })),
+    );
+    await component['pollOnce']();
+    expect(component['applyPhase']()).toBe('preparing');
+
+    apiMock.getAiApplyStatus.mockResolvedValue(
+      response(jobData({ lifecycle_state: 'launching', sequence: 8 })),
+    );
+    await component['pollOnce']();
+    expect(component['applyPhase']()).toBe('replacing');
+    component['stopObservation']();
+  });
+
+  it('a thrown network failure is transient: the job is retained, the loop continues', async () => {
+    apiMock.applyAiModelSelection.mockResolvedValue(
+      response(jobData({ lifecycle_state: 'accepted', sequence: 1 })),
+    );
+    const fixture = await create();
+    const component = fixture.componentInstance;
+    await component['applyModel'](CATALOG[0] as never);
+
+    apiMock.getAiApplyStatus.mockRejectedValue(new Error('offline'));
+    await component['pollOnce']();
+    expect(component['applyPollError']()).toBeTruthy();
+    expect(component['applyJob']()?.lifecycle_state).toBe('accepted');
+
+    apiMock.getAiApplyStatus.mockResolvedValue(
+      response(jobData({ lifecycle_state: 'staging', sequence: 2 })),
+    );
+    await component['pollOnce']();
+    expect(component['applyPollError']()).toBeNull();
+    component['stopObservation']();
+  });
+
+  it('at most one poll is in flight; overlapping ticks are dropped', async () => {
+    const fixture = await create();
+    const component = fixture.componentInstance;
+    component['beginObservation'](jobData({ lifecycle_state: 'accepted', sequence: 1 }) as never);
+    let release!: (value: unknown) => void;
+    apiMock.getAiApplyStatus.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          release = resolve;
+        }),
+    );
+    const first = component['pollOnce']();
+    const second = component['pollOnce']();
+    await tick();
+    release(response(jobData({ lifecycle_state: 'launching', sequence: 2 })));
+    await first;
+    await second;
+    // The constructor's entry lookup plus exactly ONE poll.
+    expect(apiMock.getAiApplyStatus).toHaveBeenCalledTimes(2);
+    component['stopObservation']();
+  });
+
+  it('screen entry adopts a running job and resumes observation (#170)', async () => {
+    apiMock.getAiApplyStatus.mockResolvedValue(
+      response(jobData({ lifecycle_state: 'verifying', sequence: 4 })),
+    );
+    const fixture = await create();
+    await tick();
+    const component = fixture.componentInstance;
+    expect(component['applyPhase']()).toBe('replacing');
+    expect(component['observationJobId']).toBe('job-1');
+    component['stopObservation']();
+  });
+
+  it('screen entry shows a terminal job without polling it (#170)', async () => {
+    apiMock.getAiApplyStatus.mockResolvedValue(
+      response(
+        jobData({
+          lifecycle_state: 'recovery_failed',
+          state: 'failed',
+          sequence: 9,
+          recovery_available: true,
+        }),
+      ),
+    );
+    const fixture = await create();
+    await tick();
+    const component = fixture.componentInstance;
+    expect(component['applyPhase']()).toBe('recovery');
+    apiMock.getAiApplyStatus.mockClear();
+    await tick();
+    // No observation loop was started for a terminal job.
+    expect(apiMock.getAiApplyStatus).not.toHaveBeenCalled();
+  });
+
+  it('a name-derived "too big" estimate still allows the apply request (#170)', async () => {
+    apiMock.getAiHardwareProfile.mockResolvedValue(
+      response({ gpu_memory_gb: 24, system_memory_gb: 64, disk_free_gb: 30, source: 'env' }),
+    );
+    apiMock.applyAiModelSelection.mockResolvedValue(
+      response(jobData({ lifecycle_state: 'accepted', sequence: 1 })),
+    );
+    const fixture = await create();
+    const component = fixture.componentInstance;
+    // VL-32B is not the served model and its 70 GB estimate is far over the
+    // 24 GB budget — the badge says "no" while Apply stays enabled.
+    expect(component['fitOf'](CATALOG[1] as never)).toBe('no');
+
+    // 'all' — the default recommended filter hides tool-less models.
+    component['quickFilter'].set('all');
+    component['toggleExpand']('Qwen/Qwen2.5-VL-32B-Instruct');
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const applyButton = (
+      fixture.nativeElement as HTMLElement
+    ).querySelector<HTMLButtonElement>('.model-detail__actions .picker__apply');
+    expect(applyButton).toBeTruthy();
+    expect(applyButton!.disabled).toBe(false);
+
+    await component['applyModel'](CATALOG[1] as never);
+    expect(apiMock.applyAiModelSelection).toHaveBeenCalled();
+    component['stopObservation']();
+  });
+
+  it('blocks Advanced writes while a replacement is unfinished (#170)', async () => {
+    apiMock.applyAiModelSelection.mockResolvedValue(
+      response(jobData({ lifecycle_state: 'verifying', sequence: 2 })),
+    );
+    const fixture = await create();
+    const component = fixture.componentInstance;
+    await component['applyModel'](CATALOG[0] as never);
+    expect(component['replacementInFlight']()).toBe(true);
+
+    await component['submit']();
+    await component['setClusterEnabled'](true);
+    component['visionModelInput'].set('Qwen/Qwen2.5-VL-3B-Instruct');
+    await component['applyVisionModel']();
+    expect(apiMock.updateAiRuntimeConfig).not.toHaveBeenCalled();
+    expect(apiMock.applyAiModelSelection).toHaveBeenCalledTimes(1);
+
+    // Terminal: writes are allowed again.
+    apiMock.getAiApplyStatus.mockResolvedValue(
+      response(jobData({ lifecycle_state: 'succeeded', state: 'succeeded', sequence: 3 })),
+    );
+    await component['pollOnce']();
+    expect(component['replacementInFlight']()).toBe(false);
+  });
+
+  it('Apply never resets the #168 browse/search state', async () => {
+    apiMock.searchAiModels.mockResolvedValue(
+      response({ models: [CATALOG[1]] }),
+    );
+    apiMock.applyAiModelSelection.mockResolvedValue(
+      response(jobData({ lifecycle_state: 'accepted', sequence: 1 })),
+    );
+    const fixture = await create();
+    const component = fixture.componentInstance;
+
+    component['searchQuery'].set('VL-32B');
+    await component['runSearch']();
+    expect(component['submittedQuery']()).toBe('VL-32B');
+    const resultsBefore = component['filteredSearchModels']().length;
+    expect(resultsBefore).toBeGreaterThan(0);
+
+    await component['applyModel'](CATALOG[0] as never);
+
+    expect(component['submittedQuery']()).toBe('VL-32B');
+    expect(component['filteredSearchModels']().length).toBe(resultsBefore);
+    component['stopObservation']();
   });
 
   it('toggles row expansion', async () => {
@@ -564,7 +897,7 @@ describe('AiRuntime', () => {
 
   it('applyAsVision keeps the current chat model and swaps only photos', async () => {
     apiMock.applyAiModelSelection.mockResolvedValue(
-      response({ state: 'running', main_model: 'Qwen/Qwen2.5-32B-Instruct', log_tail: '' }),
+      response(jobData({ lifecycle_state: 'accepted', sequence: 1 })),
     );
     const fixture = await create();
     const component = fixture.componentInstance;
@@ -573,8 +906,29 @@ describe('AiRuntime', () => {
     expect(apiMock.applyAiModelSelection).toHaveBeenCalledWith({
       main_model: 'Qwen/Qwen2.5-32B-Instruct', // current served main, unchanged
       vision_model: 'Qwen/Qwen2.5-VL-32B-Instruct',
+      photo_mode: 'separate',
+      topology: 'auto',
+      request_id: expect.any(String),
     });
-    component['stopPolling']();
+    component['stopObservation']();
+  });
+
+  it('a dual-capable main applies as ONE instance with photos routed to it', async () => {
+    apiMock.applyAiModelSelection.mockResolvedValue(
+      response(jobData({ lifecycle_state: 'accepted', sequence: 1 })),
+    );
+    const fixture = await create();
+    const component = fixture.componentInstance;
+
+    await component['applyModel'](CATALOG[1] as never); // VL-32B, role both
+    expect(apiMock.applyAiModelSelection).toHaveBeenCalledWith({
+      main_model: 'Qwen/Qwen2.5-VL-32B-Instruct',
+      vision_model: null, // no separate describer — one instance
+      photo_mode: 'main',
+      topology: 'auto',
+      request_id: expect.any(String),
+    });
+    component['stopObservation']();
   });
 
   // --- Advanced section ---------------------------------------------------------
@@ -686,17 +1040,22 @@ describe('AiRuntime', () => {
     expect(component['fitOf'](big)).toBe('fits');
     expect(component['filteredModels']().map((m) => m.id)).not.toContain(big.id);
 
-    // Applying it from the cluster section carries cluster: true.
+    // #170: applying it from the cluster section sends topology 'auto' — the
+    // server resolves the two-node plan from the household's consent; the
+    // deprecated cluster flag is never sent. The response is terminal so the
+    // follow-on cluster toggle below is not blocked by an unfinished swap.
     apiMock.applyAiModelSelection.mockResolvedValue(
-      response({ state: 'running', main_model: big.id, log_tail: '' }),
+      response(jobData({ lifecycle_state: 'succeeded', state: 'succeeded', sequence: 1 })),
     );
     await component['applyModel'](big);
     expect(apiMock.applyAiModelSelection).toHaveBeenCalledWith({
       main_model: 'Qwen/Qwen2.5-72B-Instruct',
       vision_model: 'Qwen/Qwen2.5-VL-7B-Instruct', // current photo model kept
-      cluster: true,
+      photo_mode: 'separate',
+      topology: 'auto',
+      request_id: expect.any(String),
     });
-    component['stopPolling']();
+    component['stopObservation']();
 
     // Toggle off: the section disappears.
     apiMock.getAiRuntimeConfig.mockResolvedValue(
@@ -722,7 +1081,7 @@ describe('AiRuntime', () => {
 
   it('applies a vision model change from the Advanced section via the swap', async () => {
     apiMock.applyAiModelSelection.mockResolvedValue(
-      response({ state: 'running', main_model: 'Qwen/Qwen2.5-32B-Instruct', log_tail: '' }),
+      response(jobData({ lifecycle_state: 'accepted', sequence: 1 })),
     );
     const fixture = await create();
     const component = fixture.componentInstance;
@@ -734,8 +1093,31 @@ describe('AiRuntime', () => {
     expect(apiMock.applyAiModelSelection).toHaveBeenCalledWith({
       main_model: 'Qwen/Qwen2.5-32B-Instruct',
       vision_model: 'Qwen/Qwen2.5-VL-3B-Instruct',
+      photo_mode: 'separate',
+      topology: 'auto',
+      request_id: expect.any(String),
     });
-    component['stopPolling']();
+    component['stopObservation']();
+  });
+
+  it('clearing the Advanced vision field applies photos-off explicitly (#170)', async () => {
+    apiMock.applyAiModelSelection.mockResolvedValue(
+      response(jobData({ lifecycle_state: 'accepted', sequence: 1 })),
+    );
+    const fixture = await create();
+    const component = fixture.componentInstance;
+
+    component['visionModelInput'].set('');
+    await component['applyVisionModel']();
+
+    expect(apiMock.applyAiModelSelection).toHaveBeenCalledWith({
+      main_model: 'Qwen/Qwen2.5-32B-Instruct',
+      vision_model: null,
+      photo_mode: 'off',
+      topology: 'auto',
+      request_id: expect.any(String),
+    });
+    component['stopObservation']();
   });
 
   it('hides the configuration for a non-owner', async () => {
@@ -1108,8 +1490,10 @@ describe('AiRuntime', () => {
       response({ models: [clusterMatch, unrelatedModel, exactModel] }),
     );
     enableCluster();
+    // Terminal apply response: the cluster toggle below must not be blocked
+    // by an unfinished replacement (#170).
     apiMock.applyAiModelSelection.mockResolvedValue(
-      response({ state: 'running', main_model: 'org/Qwen3.8-Vision-200B', log_tail: '' }),
+      response(jobData({ lifecycle_state: 'succeeded', state: 'succeeded', sequence: 1 })),
     );
     const fixture = await create();
     const component = fixture.componentInstance;
@@ -1128,7 +1512,8 @@ describe('AiRuntime', () => {
     const host = fixture.nativeElement as HTMLElement;
     expect(host.querySelector('.search-results')?.textContent).toContain('GB combined');
 
-    // The matching cluster row's Apply posts the existing cluster payload.
+    // #170: the matching cluster row's Apply sends topology 'auto' — the
+    // deprecated cluster flag is never sent from ordinary selections.
     const clusterRowEl = [...host.querySelectorAll('.search-results .model-row')].find((el) =>
       el.textContent?.includes('org/Qwen3.8-Vision-200B'),
     );
@@ -1137,9 +1522,14 @@ describe('AiRuntime', () => {
     applyBtn.click();
     await fixture.whenStable();
     expect(apiMock.applyAiModelSelection).toHaveBeenCalledWith(
-      expect.objectContaining({ main_model: 'org/Qwen3.8-Vision-200B', cluster: true }),
+      expect.objectContaining({
+        main_model: 'org/Qwen3.8-Vision-200B',
+        topology: 'auto',
+        request_id: expect.any(String),
+      }),
     );
-    component['stopPolling']();
+    expect(apiMock.applyAiModelSelection.mock.calls.at(-1)?.[0].cluster).toBeUndefined();
+    component['stopObservation']();
 
     // Toggling the cluster off hides min_nodes >= 2 rows; the exact stays.
     // The PUT succeeds and the reload reads back the disabled config.

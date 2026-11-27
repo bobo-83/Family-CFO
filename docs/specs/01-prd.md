@@ -180,3 +180,58 @@ Web and iPhone automatically remove authenticated content on expiry or current
 session rejection. Successful sign-in returns to Overview. An existing iPhone
 can reauthenticate the same device. Companion recovery remains phone-managed
 under this milestone. See [ADR 0080](../adr/0080-session-expiry-reauthentication.md).
+
+## Safe AI runtime apply with validation and recovery (#170)
+
+A model replacement must never be reported as successful unless the requested
+configuration is actually serving, and a failed replacement must return the
+household to a verified previous runtime instead of leaving it broken. Family
+CFO therefore resolves a launch plan on the server before touching the running
+deployment, tracks the swap through a verified-ready state, and only then
+commits household settings. See [ADR 0081](../adr/0081-ai-runtime-apply-transactions.md).
+
+Product requirements:
+
+- Apply validates before it mutates: the server resolves the requested chat and
+  photo configuration against the installed runtime and hardware and rejects
+  selections that cannot be served — before any container, environment value,
+  or household setting changes.
+- Readiness is verified, not assumed: the target must serve the exact requested
+  chat and photo configuration — including bounded synthetic inference — before
+  household settings commit.
+- A failed launch or verification automatically restores the previous working
+  runtime and verifies it answers; recovery that also fails is reported as its
+  own distinct state, never as success or as ordinary failure.
+- Household settings change exactly once, only after verified readiness, and
+  stay in step with application routing — no repoint-before-verified ordering.
+- Progress is observable and truthful: validation, loading, verification,
+  commit-wait, restored, and recovery-failed are distinct user-facing states;
+  the old "containers recreated = success" reporting is gone.
+
+Availability limits, stated honestly:
+
+- Replacement is staged, not blue/green: memory-constrained swaps may interrupt
+  AI serving while the candidate is staged and started; the advisor temporarily
+  answers from the deterministic fallback. Nothing promises the current model
+  keeps answering throughout.
+- Apply is exclusive: one replacement at a time; another apply is refused until
+  the current one commits or is restored.
+- Validation adds a bounded pre-acceptance wait (preflight up to ~3 minutes);
+  the flow is bounded by per-phase deadlines (staging ≤ 60 min, launch +
+  readiness ≤ 30 min, restore + verification ≤ 30 min).
+- Recovery is bounded too: disk failure, an unavailable peer, or a damaged image
+  can defeat restoration; that outcome is reported, never papered over.
+
+Scope: the apply flow end to end — public API, model-manager sidecar, CLI,
+dashboard, and iPhone. Non-goals: no user-initiated cancel of an in-flight job
+this issue (recourse is interruption and recovery), no blue/green
+uninterrupted-serving guarantee, no visual-accuracy certification of photo
+answers, and no change to financial determinism or advisor tool access
+(explicit N/A).
+
+Acceptance requires the Spec Kit gate (ADR 0081 and the ADR/spec amendments),
+a frozen public contract with idempotent apply requests, a durable manager
+journal with snapshot-based verified restoration, a receipt-gated exactly-once
+settings commit, distinct failure/recovery states in both clients, and the
+two-Spark regression evidence for the issue's checkpoint recorded in
+docs/investigations/ai-runtime-170-deployment-validation.md.

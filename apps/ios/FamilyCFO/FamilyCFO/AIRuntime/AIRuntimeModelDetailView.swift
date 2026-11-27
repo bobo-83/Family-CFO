@@ -13,7 +13,8 @@ struct AIRuntimeModelDetailView: View {
     @State private var confirmingApply = false
 
     private var canManage: Bool { model.rolePolicy.canManageAiRuntime }
-    private var isCurrent: Bool { info.id == runtime.status?.model }
+    // "answering now" is the SERVED model, not the configured one (#170).
+    private var isCurrent: Bool { info.id == runtime.status?.servedModel }
 
     var body: some View {
         List {
@@ -44,8 +45,10 @@ struct AIRuntimeModelDetailView: View {
             }
             Button("Cancel", role: .cancel) { confirmingApply = false }
         } message: {
+            // #170: explain verification and possible interruption — no
+            // duration promise, no uninterrupted-service promise.
             Text(
-                "Downloads \(info.label) if needed (~\(Int(info.estDiskGb)) GB) and restarts the AI. The advisor answers with deterministic snapshots until the new model finishes loading — usually a few minutes, longer on first download."
+                "Downloads \(info.label) if needed (~\(Int(info.estDiskGb)) GB), then validates the new deployment before switching. Serving may be briefly interrupted while the replacement is verified; if validation fails, the previous configuration is restored."
             )
         }
     }
@@ -87,7 +90,11 @@ struct AIRuntimeModelDetailView: View {
                 )
                 .foregroundStyle(.green)
             case .tight:
-                Label("Tight fit — it will load, with little headroom", systemImage: "exclamationmark.circle")
+                // #170: a fit verdict is an ESTIMATE from the model's name —
+                // the server verifies against the installed runtime first.
+                Label(
+                    "Tight fit (estimated) — the server verifies before switching",
+                    systemImage: "exclamationmark.circle")
                     .foregroundStyle(.orange)
             case .tooBig:
                 Label(
@@ -154,13 +161,34 @@ struct AIRuntimeModelDetailView: View {
                 } label: {
                     Label("Use this model", systemImage: "arrow.triangle.2.circlepath")
                 }
-                .disabled(runtime.isApplying || runtime.fit(of: info) == .tooBig)
+                // #170: a "too big" estimate never blocks the authoritative
+                // preflight; only in-flight state disables the button.
+                .disabled(runtime.isApplying || runtime.replacementInFlight)
                 if let banner = runtime.applyBanner {
-                    Text(banner).font(.caption).foregroundStyle(.secondary)
+                    Text(banner)
+                        .font(.caption)
+                        .foregroundStyle(runtime.applyBannerIsFailure ? Color.red : Color.secondary)
+                }
+                if runtime.applyBannerIsFailure, let cause = runtime.applyFailureDetail {
+                    Text(verbatim: cause).font(.caption2).foregroundStyle(.secondary)
+                }
+                if runtime.recoveryAvailable {
+                    Button {
+                        Task { await runtime.retryRecovery() }
+                    } label: {
+                        Label(
+                            runtime.isRetryingRecovery
+                                ? String(localized: "Retrying…")
+                                : String(localized: "Retry recovery"),
+                            systemImage: "arrow.clockwise")
+                    }
+                    .disabled(runtime.isRetryingRecovery)
                 }
             } footer: {
                 if runtime.fit(of: info) == .tooBig {
-                    Text("This model's estimated memory exceeds the box — switching is disabled.")
+                    Text(
+                        "This model's estimated memory exceeds the box — the server validates before switching."
+                    )
                 }
             }
         }

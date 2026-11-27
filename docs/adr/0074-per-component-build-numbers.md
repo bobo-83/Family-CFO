@@ -4,6 +4,10 @@
 
 Accepted. Amends ADR 0029 (one monorepo version) by separating the two questions
 its single version string was answering at once.
+Amended 2026-11-21 (issue #170,
+[ADR 0081](0081-ai-runtime-apply-transactions.md)): model-manager is promoted
+to a versioned operational component with an explicit protocol-v1 transition
+exception — see Decision 4's amendment.
 
 ## Context
 
@@ -73,6 +77,19 @@ how often we shipped *anything*, not what is compatible with what.
    are both integration-test cases. An incompatible change requires a follow-up
    ADR that first promotes model-manager to a versioned component and defines an
    ordered rollout; shipping both in one non-atomic Compose patch is not enough.
+   **Amended 2026-11-21 (issue #170, ADR 0081):** that follow-up ADR is now
+   accepted and model-manager is promoted to a versioned operational component:
+   its protocol gains major version 2 and `services/model-manager/BUILD`
+   records its build identity. The v1→v2 transition is the deliberate,
+   accepted exception to the both-ways compatibility expectation above: during
+   the ordered migration a mixed v1/v2 pair must **fail safely without
+   mutation** — legacy `POST /swap` performs none, and a new API against an
+   old manager disables Apply with `manager_upgrade_required` — replacing the
+   former "both mixed versions can apply" test expectation. Legacy read-only
+   status projects the new lifecycle additively so shipped clients keep
+   decoding it. The v1 contract fixture remains immutable as historical
+   evidence beside a v2 fixture. Within protocol v2, the rolling-deploy and
+   rollback compatibility expectation resumes.
    Third-party/runtime infrastructure such as vLLM, Qdrant, SearXNG, and
    monitoring is outside this product-version scheme.
 
@@ -120,7 +137,9 @@ reviewer noticing every unsafe change.
    the trigger for the promoting ADR Decision 4 requires. Both suites replay
    `shared/schemas/model-manager-v1-contract.json`: the API suite behaves as the
    current API against the prior sidecar contract, and the model-manager suite
-   behaves as the prior API against the current sidecar.
+   behaves as the prior API against the current sidecar. The #170 transition
+   (ADR 0081) replaces this both-ways expectation for the v1→v2 boundary with
+   fail-safe mutation refusal; within v2 the both-ways coverage resumes.
 
 ## Invariant
 
@@ -129,8 +148,11 @@ reviewer noticing every unsafe change.
 > while requiring a capability absent from any released counterpart carrying that
 > contract. A contract mismatch is surfaced automatically — in the app, on the
 > OTA page, in the dashboard footer, and in the deploy terminal — regardless of
-> build numbers. Operational sidecars outside this scheme remain bidirectionally
-> compatible across rolling deploys and rollback.
+> build numbers. model-manager was promoted into the versioned scheme by
+> ADR 0081 (protocol major 2 + `services/model-manager/BUILD`); its one-time
+> v1→v2 transition deliberately breaks mutation compatibility and mixed pairs
+> fail safely without mutation. Other operational sidecars outside this scheme
+> remain bidirectionally compatible across rolling deploys and rollback.
 
 ## Rejected
 

@@ -19289,7 +19289,10 @@ public struct Client: APIProtocol {
             }
         )
     }
-    /// Apply a model selection: download and switch the served models
+    /// Apply a model selection: validated launch, verified swap, committed settings
+    ///
+    /// Issue #170 (ADR 0081): the server resolves a launch plan and validates it against the installed runtime and hardware BEFORE touching the running deployment, then tracks the swap through verified readiness and only then commits household settings. A 202 is returned only after successful preflight and durable acceptance; repeated `request_id` with an identical normalized request returns the existing job (never a second launch) and different content is a 409. Clients generate one `request_id` per user confirmation and retain it across transport-ambiguous retries; legacy bodies without `request_id` are accepted and the server synthesizes the identity from the normalized request.
+    /// Stable rejection reasons (in the `error.code` field of the envelope): 409 `swap_in_progress`, `cluster_consent_required`, `cluster_peer_unreachable`, `deployment_drift`, `previous_runtime_not_ready`, `request_id_conflict`, `recovery_required`; 422 `invalid_model_id`, `model_not_found`, `model_access_denied`, `runtime_incompatible`, `hardware_incompatible`, `unsupported_photo_mode`, `insufficient_memory`, `insufficient_disk`, `insufficient_evidence`; 503 `manager_unavailable`, `manager_upgrade_required`, `preflight_unavailable`, `journal_unavailable`, `executor_start_failed`. 409/422 never change household settings or write an apply audit; 503 preserves the current configuration.
     ///
     /// - Remark: HTTP `POST /ai/runtime/apply`.
     /// - Remark: Generated from `#/paths//ai/runtime/apply/post(applyAiModelSelection)`.
@@ -19336,7 +19339,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas.AiSwapStatus.self,
+                            Components.Schemas.AiApplyJobStatus.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -19412,6 +19415,28 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .conflict(.init(body: body))
+                case 422:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Components.Responses._Error.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas.ErrorResponse.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .unprocessableContent(.init(body: body))
                 case 503:
                     let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
                     let body: Components.Responses._Error.Body
@@ -19448,6 +19473,8 @@ public struct Client: APIProtocol {
     }
     /// Report the state of the last model apply
     ///
+    /// Read-only: this endpoint never commits settings, launches recovery, acknowledges jobs, or creates rows. With `job_id` it reports that exact job (a 404 names an unknown retained job and never substitutes another); without `job_id` it resolves the current job, then the latest retained terminal job, then an explicit idle. The `state` field keeps the coarse legacy enum so shipped clients keep decoding `AiSwapStatus` (ADR 0074 Decision 5): in-flight lifecycle states project to `running`, `restored`/`recovery_failed` project to `failed`, `succeeded` projects to `succeeded`, and an unreachable manager reports `unavailable`. The full lifecycle is carried additively in `lifecycle_state` on `AiApplyJobStatus`.
+    ///
     /// - Remark: HTTP `GET /ai/runtime/apply/status`.
     /// - Remark: Generated from `#/paths//ai/runtime/apply/status/get(getAiApplyStatus)`.
     public func getAiApplyStatus(_ input: Operations.GetAiApplyStatus.Input) async throws -> Operations.GetAiApplyStatus.Output {
@@ -19464,6 +19491,13 @@ public struct Client: APIProtocol {
                     method: .get
                 )
                 suppressMutabilityWarning(&request)
+                try converter.setQueryItemAsURI(
+                    in: &request,
+                    style: .form,
+                    explode: true,
+                    name: "job_id",
+                    value: input.query.jobId
+                )
                 converter.setAcceptHeader(
                     in: &request.headerFields,
                     contentTypes: input.headers.accept
@@ -19484,7 +19518,7 @@ public struct Client: APIProtocol {
                     switch chosenContentType {
                     case "application/json":
                         body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas.AiSwapStatus.self,
+                            Components.Schemas.AiApplyJobStatus.self,
                             from: responseBody,
                             transforming: { value in
                                 .json(value)
@@ -19516,6 +19550,211 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .unauthorized(.init(body: body))
+                case 404:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.GetAiApplyStatus.Output.NotFound.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas.ErrorResponse.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .notFound(.init(body: body))
+                default:
+                    return .undocumented(
+                        statusCode: response.status.code,
+                        .init(
+                            headerFields: response.headerFields,
+                            body: responseBody
+                        )
+                    )
+                }
+            }
+        )
+    }
+    /// Re-run the frozen direction of a durable apply decision
+    ///
+    /// Issue #170 (ADR 0081): re-runs the frozen direction of the durable decision recorded for the job — a `restore` decision re-runs the same frozen restore plan (offered for `recovery_failed`); a `commit` decision re-runs post-commit forward repair only, never a restore (offered for `commit_repair_required`). It never accepts a new model, upgrades an image, or changes the frozen plan. A new `request_id` identifies the recovery attempt; repeating it returns the existing job rather than overlapping work. Requires `ai_runtime.manage`.
+    ///
+    /// - Remark: HTTP `POST /ai/runtime/apply/{job_id}/retry-recovery`.
+    /// - Remark: Generated from `#/paths//ai/runtime/apply/{job_id}/retry-recovery/post(retryAiApplyRecovery)`.
+    public func retryAiApplyRecovery(_ input: Operations.RetryAiApplyRecovery.Input) async throws -> Operations.RetryAiApplyRecovery.Output {
+        try await client.send(
+            input: input,
+            forOperation: Operations.RetryAiApplyRecovery.id,
+            serializer: { input in
+                let path = try converter.renderedPath(
+                    template: "/ai/runtime/apply/{}/retry-recovery",
+                    parameters: [
+                        input.path.jobId
+                    ]
+                )
+                var request: HTTPTypes.HTTPRequest = .init(
+                    soar_path: path,
+                    method: .post
+                )
+                suppressMutabilityWarning(&request)
+                converter.setAcceptHeader(
+                    in: &request.headerFields,
+                    contentTypes: input.headers.accept
+                )
+                let body: OpenAPIRuntime.HTTPBody?
+                switch input.body {
+                case let .json(value):
+                    body = try converter.setRequiredRequestBodyAsJSON(
+                        value,
+                        headerFields: &request.headerFields,
+                        contentType: "application/json; charset=utf-8"
+                    )
+                }
+                return (request, body)
+            },
+            deserializer: { response, responseBody in
+                switch response.status.code {
+                case 202:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.RetryAiApplyRecovery.Output.Accepted.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas.AiApplyJobStatus.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .accepted(.init(body: body))
+                case 401:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Components.Responses._Error.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas.ErrorResponse.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .unauthorized(.init(body: body))
+                case 403:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Components.Responses._Error.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas.ErrorResponse.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .forbidden(.init(body: body))
+                case 404:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.RetryAiApplyRecovery.Output.NotFound.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas.ErrorResponse.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .notFound(.init(body: body))
+                case 409:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.RetryAiApplyRecovery.Output.Conflict.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas.ErrorResponse.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .conflict(.init(body: body))
+                case 503:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.RetryAiApplyRecovery.Output.ServiceUnavailable.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas.ErrorResponse.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .serviceUnavailable(.init(body: body))
                 default:
                     return .undocumented(
                         statusCode: response.status.code,

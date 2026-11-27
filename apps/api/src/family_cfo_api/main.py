@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from typing import Any
@@ -10,25 +11,14 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.engine import Engine
 
 from family_cfo_api import household_crypto, localization, sealed_worker
+from family_cfo_api.ai_runtime_apply_reconciliation import ApplyReconciler
 from family_cfo_api.api.routes import api_router
 from family_cfo_api.config import Settings, get_settings
 from family_cfo_api.db import create_database_engine
+from family_cfo_api.error_envelope import error_response
 from family_cfo_api.logging import configure_logging
 from family_cfo_api.openapi_compat import make_swift_generator_compatible_openapi
 from family_cfo_api.ratelimit import AuthRateLimiter
-from family_cfo_api.schemas import ApiError, ErrorResponse
-
-
-def error_response(
-    code: str, message: str, details: dict[str, Any] | None = None
-) -> dict[str, Any]:
-    return ErrorResponse(
-        error=ApiError(
-            code=code,
-            message=message,
-            details=details or {},
-        )
-    ).model_dump()
 
 
 def create_app(settings: Settings | None = None, engine: Engine | None = None) -> FastAPI:
@@ -56,9 +46,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
             work_scheduler.add_job(
                 Job(
                     name="sealed-household-work",
-                    func=lambda: sealed_worker.run_due_work_once(
-                        app.state.db_engine, settings
-                    ),
+                    func=lambda: sealed_worker.run_due_work_once(app.state.db_engine, settings),
                     interval_seconds=sealed_worker.WORK_INTERVAL_SECONDS,
                 )
             )
@@ -75,12 +63,34 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
                 "sealed-household work runs here every %ss and on each unlock",
                 sealed_worker.WORK_INTERVAL_SECONDS,
             )
+        # Issue #170 (ADR 0081 S5): the apply reconciler is owned by the
+        # lifespan — it runs immediately and every few seconds, with or
+        # without a client polling. It needs the deployment-scoped credential
+        # for v2 mutators (ack); without one it fails closed and says so.
+        reconciler_task: asyncio.Task | None = None
+        if settings.model_manager_url:
+            if settings.model_manager_credential.strip():
+                reconciler_task = asyncio.create_task(
+                    ApplyReconciler(app.state.db_engine, settings).run_forever()
+                )
+                logging.getLogger(__name__).info(
+                    "apply reconciliation runs every %ss",
+                    settings.apply_reconcile_interval_seconds,
+                )
+            else:
+                logging.getLogger(__name__).warning(
+                    "FAMILY_CFO_MODEL_MANAGER_URL is set without the deployment "
+                    "credential; apply reconciliation is disabled (v2 mutators "
+                    "would fail closed)"
+                )
         try:
             yield
         finally:
             household_crypto.set_unlock_listener(None)
             if work_scheduler is not None:
                 work_scheduler.shutdown(wait=False)
+            if reconciler_task is not None:
+                reconciler_task.cancel()
 
     # Swagger UI and the OpenAPI schema are disabled in production to avoid
     # exposing the API surface (ADR 0010); they remain on in dev/test.
@@ -141,9 +151,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         )
 
     @app.exception_handler(household_crypto.SealedAmountUnreadableError)
-    async def amount_unreadable_handler(
-        request, exc: household_crypto.SealedAmountUnreadableError
-    ):
+    async def amount_unreadable_handler(request, exc: household_crypto.SealedAmountUnreadableError):
         # #110: a stored amount will not decrypt. 409, not 423 — signing in
         # again cannot fix a damaged record, and the client must not offer that
         # as the remedy. Refusing is the point: the alternative is a total that
@@ -178,10 +186,19 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         exc: RequestValidationError,
     ) -> JSONResponse:
         errors = exc.errors()
-        if request.url.path.endswith((
-            "/pairing/reauthentication",
-            "/pairing/reauthentication/challenge",
-        )):
+        # Pydantic v2 puts the raised exception object in `ctx` (a
+        # model_validator's ValueError is not JSON-serializable), and `url` is
+        # noise. Clients need the field, the type, and the message.
+        errors = [
+            {key: value for key, value in error.items() if key not in ("ctx", "url")}
+            for error in errors
+        ]
+        if request.url.path.endswith(
+            (
+                "/pairing/reauthentication",
+                "/pairing/reauthentication/challenge",
+            )
+        ):
             # For missing fields Pydantic's input can be the entire request.
             errors = [{key: error[key] for key in ("type", "loc", "msg")} for error in errors]
         return JSONResponse(

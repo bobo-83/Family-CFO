@@ -238,3 +238,122 @@ Add public POST operations for issuing a challenge and completing it under
 shape. Follow [ADR 0080](../adr/0080-session-expiry-reauthentication.md) for proof
 encoding, authorization, and transaction boundaries. Regenerate Swift and
 TypeScript from the authoritative YAML before releasing a dependent client.
+
+## AI Runtime Apply Contract (issue #170, ADR 0081)
+
+The authoritative OpenAPI change lands in the later server/contract work item;
+this section defines its required shape. OpenAPI precedes implementation and
+generation, per the header rule.
+
+### Apply request and idempotency
+
+`POST /ai/runtime/apply` keeps its route and 202 success but returns
+`AiApplyJobStatus` only after successful preflight and durable acceptance:
+
+```text
+AiApplyRequest
+  request_id: UUID            required; idempotency identity
+  main_model: string          required; repository ID
+  vision_model: string | null
+  photo_mode: auto | main | separate | off    default auto
+  topology: auto | single | cluster           default auto
+  cluster: boolean            deprecated alias; 422 when it contradicts topology
+```
+
+- `request_id` is one UUID per user confirmation, retained across
+  transport-ambiguous retries. The same `request_id` with an identical
+  normalized request returns the existing job (never a second launch);
+  different content is `409 request_id_conflict`. Legacy bodies without
+  `request_id` are accepted and the server synthesizes the identity from the
+  normalized request, so shipped clients keep working.
+- Photo and topology semantics are server-resolved: `auto` with a distinct
+  vision model is `separate`; `auto` without one is `main` when the installed
+  runtime metadata verifies multimodal support, else `off`. Equal main/vision
+  IDs normalize to one instance (`photo_mode=main`), rejecting a model that
+  cannot support images. `separate` requires a distinct vision ID with
+  verified image-input support. `topology` never grants cluster permission:
+  `cluster` requires household consent plus peer readiness plus a valid
+  two-node plan; `single` prohibits automatic escalation. A vision-only
+  selection with no current chat model is an actionable error, never a
+  vision-model-as-main fallback.
+
+### Status and reads
+
+`GET /ai/runtime/apply/status?job_id=<UUID>` returns that job; without
+`job_id` it resolves current job → latest retained terminal job → explicit
+idle. **GET is read-only**: it never commits settings, launches recovery,
+acknowledges jobs, or creates rows.
+
+```text
+AiApplyJobStatus
+  job_id, request_id: UUID
+  sequence: integer            monotonically increasing
+  state: accepted | staging | launching | verifying | commit_pending
+       | restoring | succeeded | failed | restored | recovery_failed
+       | commit_repair_required
+  requested_selection
+  resolved_plan: safe summary | null     null before resolution
+  previous_selection: safe summary | null
+  created_at, updated_at, deadline_at: UTC timestamps
+  reason_code: nullable stable code
+  message: nullable redacted diagnostic (bounded, ≤2 KiB)
+  recovery_available: boolean
+```
+
+Safe plan summaries carry IDs and immutable revisions, photo mode and
+placement, selected topology, installed runtime version and safe image
+digest, context/concurrency limits, and per-node memory/disk requirements
+with evidence classifications — never `.env` values, tokens, SSH details,
+raw checker tracebacks, or arbitrary container logs.
+
+### Recovery
+
+`POST /ai/runtime/apply/{job_id}/retry-recovery` (new `request_id`) re-runs
+the frozen direction of the durable decision: `restore` → the same frozen
+restore plan (for `recovery_failed`); `commit` → post-commit forward repair
+(finalization only, for `commit_repair_required`). It never accepts a new
+model or upgrades images. All apply mutations require `ai_runtime.manage`;
+job diagnostics require the same right.
+
+### Errors
+
+Structured envelope with stable reasons:
+
+- `409`: `swap_in_progress`, `cluster_consent_required`,
+  `cluster_peer_unreachable`, `deployment_drift`,
+  `previous_runtime_not_ready`, `request_id_conflict`, `recovery_required` —
+  no household-setting or apply-audit changes.
+- `422` (rejected before any active-deployment mutation): `invalid_model_id`,
+  `model_not_found`, `model_access_denied`, `runtime_incompatible`,
+  `hardware_incompatible`, `unsupported_photo_mode`, `insufficient_memory`,
+  `insufficient_disk`, `insufficient_evidence`.
+- `503`: `manager_unavailable`, `manager_upgrade_required`,
+  `preflight_unavailable`, `journal_unavailable`, `executor_start_failed` —
+  preserve current configuration; retry per request identity when acceptance
+  is ambiguous.
+- `404`: unknown retained job ID — never a substituted job.
+
+### Transport budget chain
+
+The 180 s synchronous preflight requires client timeout ≥ 210 s (iOS needs an
+explicit long-timeout URLSession configuration — its 60 s default would sever
+a legal preflight), API→manager ≈ 190 s (a dedicated setting, not the shared
+6 s HF timeout), and a reverse-proxy read timeout verified ≥ 210 s in the
+deployment spec. A severed transport is safe — the request identity makes the
+retry idempotent — but every severed apply re-runs the full preflight, so the
+chain is a prerequisite of contract activation.
+
+### Legacy additive projection and release
+
+The status response keeps the coarse legacy enum additively
+(`staging/launching/verifying/commit_pending → running`;
+`restored/recovery_failed → failed`; `succeeded → succeeded`; manager
+unreachable → `unavailable`) so shipped iOS/web builds keep decoding
+`AiSwapStatus`; new fields are additive (ADR 0074 Decision 5). Full-shape
+consumers are new clients only.
+
+The contract is bumped to the next unused minor at release time under ADR
+0074 (`VERSION` reads `0.163` at this gate's acceptance — revalidate at
+release, do not guess from historical docs). OpenAPI, FastAPI schemas, the
+immutable compatibility fixture, generated clients, `VERSION`, and component
+builds land atomically; API/worker deploy before dependent web/iOS clients.

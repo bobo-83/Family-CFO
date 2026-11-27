@@ -141,6 +141,62 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d vllm
 Remember to re-run step 2 with the new `model` string so the household config
 matches what vLLM is serving.
 
+### What a swap guarantees (issue #170)
+
+An Apply is a validated, recoverable transaction, not a container restart
+([ADR 0081](../adr/0081-ai-runtime-apply-transactions.md)). What that means
+in practice:
+
+- **Preflight can refuse — that is the feature.** The server resolves the
+  launch plan against the installed runtime and hardware *before* touching
+  the deployment. A selection the installed vLLM cannot serve, that will not
+  fit memory/disk, or that lacks required evidence is rejected up front with
+  a named reason (`runtime_incompatible`, `insufficient_memory`,
+  `insufficient_evidence`, …) and nothing changes. Expect up to ~3 minutes
+  for this validation before acceptance; clients keep a long timeout so the
+  wait is not severed.
+- **Progress states are truthful.** After acceptance the job reports
+  preparing → replacing/validating → verified-waiting-to-save → saved. Only a
+  *verified serving* target (exact model identity, photo routing, and bounded
+  synthetic text/tool/photo probes) lets household settings commit; the old
+  "containers recreated = success" reporting is gone.
+- **Recovery states.** If the replacement fails after the deployment was
+  touched, the previous runtime is restored automatically and re-verified
+  (`restored` — settings remain the previous ones). If restoration itself
+  fails or the restored runtime does not verify (`recovery_failed`), the AI
+  Runtime page offers **Retry recovery**, which re-runs the frozen recovery
+  direction; it never accepts a new model. A failed first deployment with no
+  previous runtime reports `failed` (no previous runtime), never a false
+  "restored".
+- **No uninterrupted-serving guarantee.** Replacement is staged, not
+  blue/green: memory-constrained swaps may stop the old runtime while the
+  candidate loads, so the advisor may temporarily answer from the
+  deterministic fallback. One apply runs at a time; another is refused until
+  it commits or is restored.
+- **CLI behaves the same.** `scripts/swap-model.sh` drives the identical
+  planning/journal/verification engine host-side under the #167 swap lock.
+  Interruption before a commit decision stops the child work and attempts
+  restoration; after the durable commit decision, interruption only detaches
+  the caller — the commit stands and cannot be rolled back by re-running the
+  command. Recovery for CLI-origin jobs waits for the manager's recovery
+  scan; if the manager service is down, that wait is deliberate, not a
+  silent failure.
+- **Post-commit repair.** After settings commit, the application containers
+  are recreated once to flip routing; finalization first re-verifies the
+  candidate fresh, so a runtime that died after the commit is never reported
+  as saved. If that finalization fails the job reports
+  `commit_repair_required` and **Retry recovery** re-runs only the
+  finalization — household settings and routing are never silently reverted
+  to a model PostgreSQL no longer names. The wait for the settings commit
+  itself is bounded by the apply's phase deadline: if it expires before the
+  commit lands (for example because the candidate stayed down), the job
+  reports `commit_repair_required` and **Retry recovery** relaunches the
+  frozen candidate from the journal (same image, revisions, and serve
+  arguments — never a new plan), re-verifies it, and then re-awaits the
+  commit (the durable decision is never rolled back, and an exhausted
+  relaunch/verification budget simply leaves the job in
+  `commit_repair_required` for another explicit retry).
+
 ## Testing the logic without a GPU
 
 The tool-calling loop, argument validation, grounding guardrail, and

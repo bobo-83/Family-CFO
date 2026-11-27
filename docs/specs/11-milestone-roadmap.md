@@ -1302,7 +1302,7 @@ This spec's Pairing Flow Details says "Dashboard creates a pairing session," but
 
 ### Non-Goals
 
-- No arbitrary command execution in the sidecar (single validated operation); no HF token management UI (env only); no download-percentage progress (state-level only: running → serving); no automatic rollback on a failed swap. An accepted swap can fail after configuration is repointed or vLLM is recreated; the existing desired-vs-serving mismatch banner and another Apply remain the recovery path, not a guarantee that the old model keeps serving.
+- No arbitrary command execution in the sidecar (single validated operation); no HF token management UI (env only); no download-percentage progress (state-level only: running → serving). ~~No automatic rollback on a failed swap~~ — **superseded for issue #170**: see the amendment below; the mismatch banner and another Apply are no longer the recovery story.
 
 ### Issue #167 amendment: shared model-swap lock (spec gate, 2026-11-19)
 
@@ -1311,9 +1311,45 @@ This spec's Pairing Flow Details says "Dashboard creates a pairing session," but
 - **Inherited ownership:** launch the script with `Popen(start_new_session=True)`, `pass_fds=(lock_fd,)`, and `FAMILY_CFO_SWAP_LOCK_FD` naming that fd. The script verifies that an inherited fd identifies its deployment directory and re-flocks the same open file description (a no-op for its existing ownership); the marker alone is not a bypass. Without the marker, the standalone shell opens and retains its own directory fd. A small `python3`/`fcntl` helper performs the same non-blocking acquisition in either path. Invalid descriptors or acquisition errors fail closed; contention exits nonzero with a retry message. Remove the manager `/status` probe: status is not a mutex, and a manager-launched script must not reject its own job.
 - **Critical section and validation:** retain ownership throughout configuration writes and Compose recreation, until the swap subprocess completes. Move vision-argument rejection and every hardware-fit “won't fit” rejection before the first `set_env` write; invalid requests must not partially rewrite `.env`. The lock does not span asynchronous model downloads/loading after the script exits, and script success is not proof that the requested model is serving.
 - **Failure lifecycle:** timeout or controlled interruption terminates the swap process group (SIGTERM, then SIGKILL after a bounded grace period if needed), reaps the subprocess, and records terminal `failed`. Thread-start failure and subprocess-launch `OSError` also record terminal `failed`, never stranded `running`. Release the manager's fd in `finally`, only after subprocess completion/termination and reaping (or immediately if none started). Close descriptors rather than explicitly unlocking an inherited open file description; ownership lasts until its last copy closes. Standalone interruption must likewise clean up its child process group and reap before releasing ownership, so a retry cannot overlap surviving swap work.
-- **Restart semantics:** manager status is process-local and resets to `idle` after restart; there is no durable job recovery or reconstructed status. If an orphaned script survives, its inherited fd keeps the lock until it exits and closes its descriptors; the restarted manager must still return 409 on contention even while status says `idle`. If the container runtime kills the script too, its descriptors close; do not promise orphan survival or successful completion. `idle` does not prove the deployment is unlocked.
-- **Explicit non-goals:** this is not a general deployment mutex. `setup-cluster.sh` remains an independent `.env` writer and is excluded; operators must not run it concurrently with a swap. No new transactional rollback/config reconciliation for accepted-but-failed swaps; retain the mismatch-banner recovery above. Advisor-tool access is N/A and explicitly out of scope: this infrastructure fix adds no family-visible data domain or M16 tool. No schema, public OpenAPI shape, or client-generation change is required; the API stays socket-free and owner-gated.
+- **Restart semantics:** manager status is process-local and resets to `idle` after restart; there is no durable job recovery or reconstructed status. (**Superseded for issue #170** by ADR 0081's durable journal + startup recovery; the surviving-orphan lock rule below stands.) If an orphaned script survives, its inherited fd keeps the lock until it exits and closes its descriptors; the restarted manager must still return 409 on contention even while status says `idle`. If the container runtime kills the script too, its descriptors close; do not promise orphan survival or successful completion. `idle` does not prove the deployment is unlocked.
+- **Explicit non-goals:** this is not a general deployment mutex. `setup-cluster.sh` remains an independent `.env` writer and is excluded; operators must not run it concurrently with a swap. ~~No new transactional rollback/config reconciliation for accepted-but-failed swaps~~ (**superseded for issue #170**, see the amendment below). Advisor-tool access is N/A and explicitly out of scope: this infrastructure fix adds no family-visible data domain or M16 tool. ~~No schema, public OpenAPI shape, or client-generation change is required~~ (**superseded for issue #170**: the coordinated contract release covers both); the API stays socket-free and owner-gated.
 - **Rollout and mixed versions:** `swap-model.sh` is bind-mounted but manager code is baked into its image; updating only one is not a supported concurrent-swap deployment. Quiesce CLI/dashboard swaps and let active jobs finish before rollout. With the manager stopped, install the matching script, rebuild/recreate the matching manager image against the same deployment directory, then re-enable swaps only after both are verified. A legacy manager cannot pass inherited ownership to the new script; a new manager with the legacy script can still self-reject on `/status`; a legacy CLI script does not honor the new lock. No mixed-version mutual-exclusion guarantee is made. Rollback likewise requires quiescence and restoring the script and manager image as a matched pair; do not replace the deployment directory or bypass a held lock to force an upgrade/rollback.
+
+### Issue #170 amendment: validated, recoverable apply (spec gate, 2026-11-21)
+
+Accepted for implementation per [ADR 0081](../adr/0081-ai-runtime-apply-transactions.md)
+and the plan `docs/plans/ai-runtime-apply-validation-recovery-2026-11-20.md`.
+This supersedes the no-recovery/no-rollback non-goals above: an Apply becomes
+a validated, journaled transaction — server-resolved launch planning with an
+installed-image compatibility gate, durable manager journal + exactly-once
+SQL receipt, verified restoration from an immutable snapshot, and manager
+protocol major 2 with `services/model-manager/BUILD` under ADR 0074's
+promotion. The #167 directory-flock ownership now spans the whole lifecycle
+(validation through commit acknowledgement); `setup-cluster.sh` stays an
+excluded writer; interruption/recourse replaces user-initiated cancel (an
+explicit non-goal); legacy clients keep decoding an additive coarse status
+projection; advisor access remains N/A (no family-visible data domain, no M16
+tool).
+
+**Acceptance gate.** Bounds are fixed: preflight ≤ 180 s inside the POST with
+an explicit transport budget chain (client ≥ 210 s, API→manager ≈ 190 s,
+reverse proxy ≥ 210 s verified); staging ≤ 60 min; launch + readiness ≤
+30 min; restore + verification ≤ 30 min; probes ≤ 32/128/64 tokens at 30 s,
+≤ 3 attempts, poll 5 s, reconciler 5 s; one-shot admission (no
+reserve/prepare two-phase). States `accepted`, `staging`, `launching`,
+`verifying`, `commit_pending`, `restoring`, `succeeded`, `failed`,
+`restored`, `recovery_failed`, and `commit_repair_required` are durable and
+observable; household settings
+commit exactly once, only after verified readiness, via the reconciler; the
+first deployment without a baseline reports `failed`/`no_previous_runtime`,
+never a false restoration. Verification must cover the plan's full matrix
+(idempotent replays, mixed-version fail-safe refusal both ways, journal
+corruption fail-closed, recovery retry identity, concurrent-write exclusion,
+out-of-order polls, two-replica single-receipt) plus the two-Spark
+regression evidence for `nvidia/Qwen3.8-Flash-Next-NVFP4` recorded in
+`docs/investigations/ai-runtime-170-deployment-validation.md`. Existing M23
+status/estimates surfaces stay as diagnostics; the preflight clock starts at
+POST and is surfaced to clients.
 
 ### Test Expectations
 

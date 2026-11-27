@@ -18,6 +18,9 @@ SWIFT_GENERATOR_NULLABLE_COMPONENTS = frozenset(
         "BackupDestinationRecoveryStatus",
         "BackupJob",
         "BackupRecoveryStatus",
+        "AiApplyJobStatus",
+        "AiApplyPlanSummary",
+        "AiApplySelectionSummary",
         "BackupRetentionPolicy",
         "BackupRetentionPolicyUpdate",
         "Budget",
@@ -53,6 +56,8 @@ SWIFT_GENERATOR_NULLABLE_COMPONENTS = frozenset(
 # null. These nullable copies are real union schemas. The Swift generator config
 # type-aliases them back to the corresponding existing generated Swift types.
 SWIFT_GENERATOR_NULLABLE_ALIASES = {
+    "AiApplyPlanSummary": "NullableAiApplyPlanSummary",
+    "AiApplySelectionSummary": "NullableAiApplySelectionSummary",
     "BackupJob": "NullableBackupJob",
     "BudgetSummary": "NullableBudgetSummary",
     "EmergencyFundSummary": "NullableEmergencyFundSummary",

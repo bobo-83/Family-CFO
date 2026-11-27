@@ -12,7 +12,7 @@ from datetime import UTC, date, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
-from sqlalchemy import and_, delete, func, insert, literal, or_, select, update
+from sqlalchemy import and_, delete, func, insert, literal, or_, select, text, update
 from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.exc import IntegrityError
 
@@ -3252,7 +3252,12 @@ def upsert_yearly_review(
 
 
 def repoint_ai_runtime_configs(
-    engine: Engine, *, provider: str, base_url: str, model: str
+    engine: Engine,
+    *,
+    provider: str,
+    base_url: str,
+    model: str,
+    connection: Connection | None = None,
 ) -> int:
     """Point every household config on this runtime at the newly served model.
 
@@ -3260,15 +3265,24 @@ def repoint_ai_runtime_configs(
     households — so leaving other households' rows on the old model name
     silently downgrades them to deterministic answers (found 2026-07-22 when
     the demo household kept requesting the pre-swap model). Returns the number
-    of rows updated."""
-    with engine.begin() as conn:
-        result = conn.execute(
-            update(models.ai_runtime_configs)
-            .where(models.ai_runtime_configs.c.provider == provider)
-            .where(models.ai_runtime_configs.c.base_url == base_url)
-            .values(model=model, updated_at=utcnow())
-        )
-        return result.rowcount
+    of rows updated.
+
+    ``connection`` joins the caller's transaction (issue #170: the apply
+    commit must upsert, repoint, insert the receipt and audit in ONE
+    transaction — never compose independently committed helpers). When None,
+    the statement runs in its own transaction as before."""
+    statement = (
+        update(models.ai_runtime_configs)
+        .where(models.ai_runtime_configs.c.provider == provider)
+        .where(models.ai_runtime_configs.c.base_url == base_url)
+        .values(model=model, updated_at=utcnow())
+    )
+    if connection is not None:
+        result = connection.execute(statement)
+    else:
+        with engine.begin() as conn:
+            result = conn.execute(statement)
+    return result.rowcount
 
 
 def upsert_ai_runtime_config(
@@ -3279,41 +3293,50 @@ def upsert_ai_runtime_config(
     model: str,
     enabled: bool,
     cluster_enabled: bool = False,
+    connection: Connection | None = None,
+    deployment_locked: bool = False,
 ) -> AiRuntimeConfigRecord:
+    """Create or overwrite one household's runtime config.
+
+    ``connection`` joins the caller's transaction (issue #170) instead of
+    committing independently; when None the upsert runs in its own
+    transaction, exactly as before. `deployment_locked` (issue #170,
+    ADR 0081) takes the fixed deployment advisory key inside that own
+    transaction so managed-config PUTs serialize with the receipt commit;
+    it is ignored when `connection` is supplied (the caller owns locking)."""
     now = utcnow()
-    with engine.begin() as conn:
-        existing = conn.execute(
+    existing = None
+    if connection is not None:
+        existing = connection.execute(
             select(models.ai_runtime_configs.c.id).where(
                 models.ai_runtime_configs.c.household_id == household_id
             )
         ).first()
-
-        if existing is None:
-            conn.execute(
-                insert(models.ai_runtime_configs).values(
-                    id=new_id(),
-                    household_id=household_id,
-                    provider=provider,
-                    base_url=base_url,
-                    model=model,
-                    enabled=enabled,
-                    cluster_enabled=cluster_enabled,
-                    created_at=now,
-                    updated_at=now,
+        _upsert_ai_runtime_config_values(
+            connection, household_id=household_id, provider=provider, base_url=base_url,
+            model=model, enabled=enabled, cluster_enabled=cluster_enabled, now=now,
+            existing=existing,
+        )
+    else:
+        with engine.begin() as conn:
+            if deployment_locked and engine.dialect.name == "postgresql":
+                # Issue #170 (ADR 0081): serialize managed-config PUTs with the
+                # receipt-commit transaction on the SAME fixed deployment key,
+                # so a delayed repoint can never interleave with an Advanced
+                # save (no stale full-object overwrite, no toggle race).
+                conn.execute(
+                    text("SELECT pg_advisory_xact_lock(:key)"),
+                    {"key": AI_RUNTIME_DEPLOYMENT_LOCK_KEY},
                 )
-            )
-        else:
-            conn.execute(
-                update(models.ai_runtime_configs)
-                .where(models.ai_runtime_configs.c.household_id == household_id)
-                .values(
-                    provider=provider,
-                    base_url=base_url,
-                    model=model,
-                    enabled=enabled,
-                    cluster_enabled=cluster_enabled,
-                    updated_at=now,
+            existing = conn.execute(
+                select(models.ai_runtime_configs.c.id).where(
+                    models.ai_runtime_configs.c.household_id == household_id
                 )
+            ).first()
+            _upsert_ai_runtime_config_values(
+                conn, household_id=household_id, provider=provider, base_url=base_url,
+                model=model, enabled=enabled, cluster_enabled=cluster_enabled, now=now,
+                existing=existing,
             )
 
     return AiRuntimeConfigRecord(
@@ -3324,6 +3347,271 @@ def upsert_ai_runtime_config(
         enabled=enabled,
         cluster_enabled=cluster_enabled,
     )
+
+
+def _upsert_ai_runtime_config_values(
+    conn: Connection,
+    *,
+    household_id: str,
+    provider: str,
+    base_url: str,
+    model: str,
+    enabled: bool,
+    cluster_enabled: bool,
+    now: datetime,
+    existing: Any | None,
+) -> None:
+    """The shared insert-or-update body; runs on the caller's connection."""
+    if existing is None:
+        conn.execute(
+            insert(models.ai_runtime_configs).values(
+                id=new_id(),
+                household_id=household_id,
+                provider=provider,
+                base_url=base_url,
+                model=model,
+                enabled=enabled,
+                cluster_enabled=cluster_enabled,
+                created_at=now,
+                updated_at=now,
+            )
+        )
+    else:
+        conn.execute(
+            update(models.ai_runtime_configs)
+            .where(models.ai_runtime_configs.c.household_id == household_id)
+            .values(
+                provider=provider,
+                base_url=base_url,
+                model=model,
+                enabled=enabled,
+                cluster_enabled=cluster_enabled,
+                updated_at=now,
+            )
+        )
+
+
+# --- AI runtime apply receipts (issue #170, ADR 0081) -----------------------------
+
+# The fixed deployment key serializing the receipt-commit transaction and
+# (from the reconciliation work item) managed runtime-config PUTs, so a
+# delayed repoint can never race an Advanced save. Derived from a stable name
+# rather than chosen ad hoc; the same constant must be used by both sides.
+# PostgreSQL advisory keys are SIGNED bigint: `int.from_bytes(..., "big")`
+# unsigned would overflow `pg_advisory_xact_lock(numeric)` on ~half the
+# possible digests. signed=True keeps the key in the bigint range.
+AI_RUNTIME_DEPLOYMENT_LOCK_KEY = int.from_bytes(
+    hashlib.sha256(b"family-cfo-ai-runtime-deployment").digest()[:8], "big", signed=True
+)
+
+
+@dataclass(frozen=True, slots=True)
+class AiRuntimeApplyReceiptRecord:
+    job_id: str
+    runtime_key: str
+    plan_hash: str
+    initiator_household_id: str | None
+    initiator_user_id: str | None
+    source: str
+    committed_model: str
+    committed_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class AiRuntimeApplyCommitResult:
+    receipt: AiRuntimeApplyReceiptRecord
+    # False means the receipt already existed: an idempotent replay made NO
+    # writes (no second repoint, no duplicate audit).
+    committed: bool
+    repointed_households: int
+
+
+def _apply_receipt_from_row(row: Mapping[str, Any]) -> AiRuntimeApplyReceiptRecord:
+    return AiRuntimeApplyReceiptRecord(
+        job_id=row["job_id"],
+        runtime_key=row["runtime_key"],
+        plan_hash=row["plan_hash"],
+        initiator_household_id=row["initiator_household_id"],
+        initiator_user_id=row["initiator_user_id"],
+        source=row["source"],
+        committed_model=row["committed_model"],
+        committed_at=_as_aware(row["committed_at"]),
+    )
+
+
+def first_ai_runtime_household(
+    engine: Engine, *, provider: str, base_url: str
+) -> str | None:
+    """One real household currently configured on a runtime, deterministic
+    pick — the scheduled-work convention for operational audits that have no
+    natural actor (issue #170: CLI-origin/deleted-initiator apply outcomes)."""
+    with engine.connect() as conn:
+        row = conn.execute(
+            select(models.ai_runtime_configs.c.household_id)
+            .where(models.ai_runtime_configs.c.provider == provider)
+            .where(models.ai_runtime_configs.c.base_url == base_url)
+            .order_by(models.ai_runtime_configs.c.household_id)
+            .limit(1)
+        ).first()
+    return row[0] if row else None
+
+
+def get_ai_runtime_apply_receipt(
+    engine: Engine, job_id: str
+) -> AiRuntimeApplyReceiptRecord | None:
+    """The commit receipt for a job, or None — how an ambiguous SQL outcome is
+    disambiguated before a retry (ADR 0078 discipline)."""
+    with engine.connect() as conn:
+        row = (
+            conn.execute(
+                select(models.ai_runtime_apply_receipts).where(
+                    models.ai_runtime_apply_receipts.c.job_id == job_id
+                )
+            )
+            .mappings()
+            .first()
+        )
+    return _apply_receipt_from_row(row) if row is not None else None
+
+
+def commit_ai_runtime_apply(
+    engine: Engine,
+    *,
+    job_id: str,
+    runtime_key: str,
+    plan_hash: str,
+    committed_model: str,
+    provider: str,
+    base_url: str,
+    initiator_household_id: str | None = None,
+    initiator_user_id: str | None = None,
+    source: str = "api",
+) -> AiRuntimeApplyCommitResult:
+    """The ONE transaction-scoped household commit for a verified apply job
+    (issue #170, ADR 0081): initiating-household config upsert (preserving its
+    ``cluster_enabled`` — a swap never flips the toggle), matching-household
+    repoint, receipt insert, and the successful ``ai_runtime.model_applied``
+    audit — all inside one transaction, serialized on the fixed deployment
+    advisory key against managed config PUTs.
+
+    Idempotent by receipt: when the job's receipt already exists, nothing is
+    written and ``committed=False`` is returned. A deleted initiating
+    household is tolerated (its attribution is nullable): the upsert is
+    skipped, the repoint and receipt still happen. CLI-origin commits
+    (``source="cli"``, no initiator) repoint existing matching configurations
+    without creating an arbitrary initiating config.
+
+    The audit follows the system-audit convention: a real affected household
+    carries the row and the actor is None — never a fabricated end-user actor.
+    """
+    if source not in models.AI_RUNTIME_APPLY_SOURCES:
+        raise ValueError(f"invalid apply source: {source!r}")
+    now = utcnow()
+    with engine.begin() as conn:
+        if engine.dialect.name == "postgresql":
+            conn.execute(
+                text("SELECT pg_advisory_xact_lock(:key)"),
+                {"key": AI_RUNTIME_DEPLOYMENT_LOCK_KEY},
+            )
+        existing_receipt = conn.execute(
+            select(models.ai_runtime_apply_receipts).where(
+                models.ai_runtime_apply_receipts.c.job_id == job_id
+            )
+        ).mappings().first()
+        if existing_receipt is not None:
+            return AiRuntimeApplyCommitResult(
+                receipt=_apply_receipt_from_row(existing_receipt),
+                committed=False,
+                repointed_households=0,
+            )
+
+        audit_household_id: str | None = None
+        if initiator_household_id is not None:
+            household_exists = (
+                conn.execute(
+                    select(models.households.c.id).where(
+                        models.households.c.id == initiator_household_id
+                    )
+                ).first()
+                is not None
+            )
+            if household_exists:
+                current = conn.execute(
+                    select(
+                        models.ai_runtime_configs.c.id,
+                        models.ai_runtime_configs.c.cluster_enabled,
+                    ).where(models.ai_runtime_configs.c.household_id == initiator_household_id)
+                ).first()
+                _upsert_ai_runtime_config_values(
+                    conn,
+                    household_id=initiator_household_id,
+                    provider=provider,
+                    base_url=base_url,
+                    model=committed_model,
+                    enabled=True,
+                    # ADR 0071: a model swap must never flip the cluster toggle.
+                    cluster_enabled=bool(current.cluster_enabled) if current else False,
+                    now=now,
+                    existing=current,
+                )
+                audit_household_id = initiator_household_id
+
+        repointed = conn.execute(
+            update(models.ai_runtime_configs)
+            .where(models.ai_runtime_configs.c.provider == provider)
+            .where(models.ai_runtime_configs.c.base_url == base_url)
+            .values(model=committed_model, updated_at=now)
+        ).rowcount
+
+        if audit_household_id is None:
+            # CLI-origin (or deleted-initiator) commit: attach the operational
+            # audit to one real affected household, actor None — the scheduled-
+            # work convention (banksync). Deterministic pick; no invented actor.
+            first_affected = conn.execute(
+                select(models.ai_runtime_configs.c.household_id)
+                .where(models.ai_runtime_configs.c.provider == provider)
+                .where(models.ai_runtime_configs.c.base_url == base_url)
+                .order_by(models.ai_runtime_configs.c.household_id)
+                .limit(1)
+            ).first()
+            audit_household_id = first_affected[0] if first_affected else None
+
+        receipt = AiRuntimeApplyReceiptRecord(
+            job_id=job_id,
+            runtime_key=runtime_key,
+            plan_hash=plan_hash,
+            initiator_household_id=initiator_household_id,
+            initiator_user_id=initiator_user_id,
+            source=source,
+            committed_model=committed_model,
+            committed_at=now,
+        )
+        conn.execute(
+            insert(models.ai_runtime_apply_receipts).values(
+                job_id=receipt.job_id,
+                runtime_key=receipt.runtime_key,
+                plan_hash=receipt.plan_hash,
+                initiator_household_id=receipt.initiator_household_id,
+                initiator_user_id=receipt.initiator_user_id,
+                source=receipt.source,
+                committed_model=receipt.committed_model,
+                committed_at=receipt.committed_at,
+            )
+        )
+        if audit_household_id is not None:
+            record_audit_event(
+                engine,
+                audit_household_id,
+                None,
+                "ai_runtime.model_applied",
+                models.AI_RUNTIME_APPLY_JOB_ENTITY,
+                job_id,
+                f"Model apply committed: job={job_id} main={committed_model} source={source}",
+                connection=conn,
+            )
+        return AiRuntimeApplyCommitResult(
+            receipt=receipt, committed=True, repointed_households=repointed
+        )
 
 
 # --- Imports ---------------------------------------------------------------------

@@ -71,11 +71,13 @@ services:
         esac;
         exec vllm serve
         '${VLLM_MODEL:-Qwen/Qwen2.5-32B-Instruct}'
+        ${VLLM_REVISION:+--revision '${VLLM_REVISION}'}
         --enable-auto-tool-choice
         --tool-call-parser '${VLLM_TOOL_PARSER:-hermes}'
         --reasoning-parser '${VLLM_REASONING_PARSER:-qwen3}'
         --gpu-memory-utilization '${VLLM_GPU_FRACTION:-0.60}'
         --max-model-len '${VLLM_MAX_MODEL_LEN:-32768}'
+        ${VLLM_MAX_NUM_SEQS:+--max-num-seqs '${VLLM_MAX_NUM_SEQS}'}
         ${VLLM_EXTRA_ARGS:-}
 
   # In-app model applies run swap-model.sh INSIDE this container; without the

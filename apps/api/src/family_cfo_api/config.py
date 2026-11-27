@@ -133,6 +133,19 @@ class Settings:
     # One-click model apply (ADR 0013): the model-manager sidecar URL; empty
     # disables the in-app Apply flow (fall back to scripts/swap-model.sh).
     model_manager_url: str = ""
+    # Issue #170 (ADR 0081 S7): the deployment-scoped internal credential every
+    # manager v2 mutator requires — ONE env-provided shared secret held by the
+    # API and the local CLI (the manager reads the same variable), never stored
+    # in job state, journals, or the public status. Empty = fail closed.
+    model_manager_credential: str = ""
+    # Issue #170 (spec 04): the dedicated API→manager budget for the ~180 s
+    # synchronous preflight — one link of the transport budget chain (client
+    # >= 210 s, reverse proxy >= 210 s). Deliberately NOT _HF_TIMEOUT_SECONDS,
+    # which bounds Hub metadata calls.
+    model_manager_apply_timeout_seconds: float = 190.0
+    # Issue #170 (ADR 0081 S5): the reconciliation pass cadence, matching the
+    # client poll cadence.
+    apply_reconcile_interval_seconds: float = 5.0
     # Hugging Face Hub base URL for model search (overridable for tests).
     hf_hub_url: str = "https://huggingface.co"
     # Live-data chat tools (ADR 0014): exchange rates on by default (only ISO
@@ -269,6 +282,17 @@ class Settings:
                 os.getenv("FAMILY_CFO_MAX_UPLOAD_BYTES", str(cls.max_upload_bytes))
             ),
             model_manager_url=os.getenv("FAMILY_CFO_MODEL_MANAGER_URL", cls.model_manager_url),
+            model_manager_credential=os.getenv(
+                "FAMILY_CFO_MANAGER_CREDENTIAL", cls.model_manager_credential
+            ),
+            model_manager_apply_timeout_seconds=_env_float(
+                "FAMILY_CFO_MODEL_MANAGER_APPLY_TIMEOUT_SECONDS",
+                cls.model_manager_apply_timeout_seconds,
+            ),
+            apply_reconcile_interval_seconds=_env_float(
+                "FAMILY_CFO_APPLY_RECONCILE_INTERVAL_SECONDS",
+                cls.apply_reconcile_interval_seconds,
+            ),
             hf_hub_url=os.getenv("FAMILY_CFO_HF_HUB_URL", cls.hf_hub_url),
             live_data_enabled=_env_bool("FAMILY_CFO_LIVE_DATA_ENABLED", cls.live_data_enabled),
             searxng_url=os.getenv("FAMILY_CFO_SEARXNG_URL", cls.searxng_url),

@@ -47,6 +47,7 @@ xcuserdata/
 
 # Docker / local runtime
 docker/.runtime/
+.runtime-swap/
 data/
 postgres-data/
 qdrant-data/

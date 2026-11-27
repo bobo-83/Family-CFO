@@ -262,3 +262,54 @@ an endpoint per question, the direction — recorded in
 
 This extends "the LLM explains, the financial engine calculates" to a multi-step
 flow; it does not weaken it.
+
+## AI Runtime Apply Verification and the Advisor (issue #170, ADR 0081)
+
+A model replacement becomes the advisor's brain only after exact verification,
+and the verification machinery itself stays financial-neutral.
+
+### Exact chat/photo verification
+
+Before a swap can commit, the target must satisfy, in order: expected
+containers/ranks running; image, revision arguments, structured options,
+topology, and job/config hash matching the frozen plan; main `/health` (the
+status alone is the signal — a 2xx response passes even with an empty body,
+while a transport failure still fails closed); main `/v1/models` advertising
+the exact requested served name (the payload is required and fails closed
+when missing or unparseable); photo mode matching
+exactly (`off` = no managed separate describer + application photo routing
+disabled; `main` = routing targets main, no separate describer; `separate` =
+exact describer identity and endpoint ready, routing targets it); TP2
+verified as two expected GPU ranks on the declared nodes (not merely
+node-exporter reachability); identities/restart counters unchanged across the
+verification sequence.
+
+### Bounded synthetic probes
+
+Synthetic inference runs only after identity/health prerequisites pass:
+text completion (deterministic request, ≤ 32 generated tokens); tool call
+(one synthetic no-op tool, ≤ 128 generated tokens — the parsed function name
+and schema-valid arguments are validated **without executing any household
+tool**); photo (one embedded synthetic PNG, ≤ 64 generated tokens, on the
+exact intended photo route). Probe timeout 30 s per request; at most 3
+complete attempts, 5 s apart, within the phase deadline. Photo smoke verifies
+accepted image inference and a nonempty structurally valid answer — never
+visual accuracy, and never a particular color word. A valid text answer and a
+parsed tool response are required for advisor-main admission; a reviewed
+profile that establishes a model/architecture has no working tool protocol
+refuses the advisor-main role at planning time (the probe remains final
+authority for everything the profile cannot establish — a known tool-less
+model may serve photos but is never silently accepted as advisor main).
+
+### Unchanged financial determinism
+
+Synthetic probes invoke no financial tool, no LLM output becomes a sole
+calculator or financial ground truth, and no financial calculation reads the
+apply domain. Deterministic fallback remains available whenever serving is
+interrupted or degraded.
+
+### Advisor access: N/A (explicit non-goal)
+
+This is an infrastructure fix: it adds no family-visible data domain and no
+M16 grounded tool, mirroring the #167 gate wording. Tests must not assert
+that a tool is absent; the documented non-goal defines the boundary.

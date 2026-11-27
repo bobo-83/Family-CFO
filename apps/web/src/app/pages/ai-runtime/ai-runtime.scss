@@ -29,6 +29,13 @@
   }
 }
 
+/* #170: fit verdicts are client estimates — say so where they're shown. */
+.fit__note {
+  margin: 0.5rem 0 0;
+  font-size: 0.8rem;
+  color: var(--color-text-muted, inherit);
+}
+
 .fit__rows {
   display: flex;
   flex-direction: column;
@@ -130,6 +137,18 @@
       font-size: 0.75rem;
     }
   }
+}
+
+/* #170: transient poll-failure notice — retains the known job. */
+.apply-live__poll {
+  margin: 0.4rem 0 0;
+  font-size: 0.85rem;
+  color: var(--color-text-muted, inherit);
+}
+
+/* #170: re-run the frozen recovery direction for a failed replacement. */
+.apply-live__retry {
+  margin-top: 0.5rem;
 }
 
 .apply-live__spinner {

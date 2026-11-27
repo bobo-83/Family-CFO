@@ -83,7 +83,10 @@ FAMILY_CFO_REQUIRE_DOCKER=1 apps/api/.venv/bin/python -m pytest scripts/tests/te
 The portable tests run the real script and a separate manager server with
 synthetic `.env` data and PATH stubs for Docker, offline model inspection,
 128-GB memory reporting, and GNU-style `sed -i` (so BSD-sed contributors can run
-the suite too). They do not claim native macOS production-script compatibility.
+the suite too). The suite also pins the manager's node-memory evidence with
+`FAMILY_CFO_NODE_MEMORY_GB` (GiB; operator-declared, so classified as estimated,
+not verified — it overrides the `/proc/meminfo`/`sysctl` probe) so admission
+does not depend on the runner's RAM; production keeps the measured probe. They do not claim native macOS production-script compatibility.
 The Docker test uses `--pull=never`, no network, and no Docker socket mount;
 it checks both contention orders and release across a real bind mount. Missing
 Docker skips only when `FAMILY_CFO_REQUIRE_DOCKER` is unset; installed-but-broken

@@ -17,7 +17,13 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
-import type { AiModelDetail, AiModelInfo, AiRuntimeConfig, AiSwapStatus } from '../../api-client';
+import type {
+  AiApplyJobStatus,
+  AiApplyRequest,
+  AiModelDetail,
+  AiModelInfo,
+  AiRuntimeConfig,
+} from '../../api-client';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { apiErrorMessage } from '../../shared/api-error';
@@ -39,6 +45,64 @@ const PAGE_SIZE = 6;
 const LIVE_LIMIT = 20;
 
 const PARAMS_IN_NAME = /(\d+(?:\.\d+)?)\s*[bB](?:[-_.]|$)/;
+
+/** #170: poll cadence for the observation loop (plan §6: 5 s, one in flight). */
+const POLL_INTERVAL_MS = 5000;
+
+/**
+ * #170: user-facing phase of the observed apply job. The server's
+ * 'lifecycle_state' is authoritative; these groups only shape the wording
+ * (plan §6 table — validation / loading / active / failed / restored /
+ * recovery failed stay distinct).
+ */
+export type ApplyPhase =
+  | 'preflight' // the apply POST itself is in flight — the authoritative check
+  | 'preparing' // accepted | staging — the current deployment is not replaced yet
+  | 'replacing' // launching | verifying — the advisor may briefly fall back
+  | 'commit_pending' // verified target; waiting to save the household selection
+  | 'succeeded'
+  | 'failed'
+  | 'restoring'
+  | 'restored'
+  | 'recovery'; // recovery_failed | commit_repair_required
+
+/**
+ * #170: states that end observation and re-enable Apply (ADR 0081 terminal
+ * set). 'commit_repair_required' is terminal in outcome but forward-repairable
+ * — its selection is already saved; only the finalization needs a retry.
+ */
+const TERMINAL_LIFECYCLE_STATES: ReadonlySet<
+  NonNullable<AiApplyJobStatus['lifecycle_state']>
+> = new Set([
+  'succeeded',
+  'failed',
+  'restored',
+  'recovery_failed',
+  'commit_repair_required',
+]);
+
+/**
+ * #170: one request_id per user confirmation. crypto.randomUUID needs a
+ * secure context; the dashboard may be served over plain HTTP on the LAN, so
+ * fall back to getRandomValues (still a valid v4 UUID).
+ */
+function newRequestId(): string {
+  const globalCrypto = globalThis.crypto;
+  if (typeof globalCrypto?.randomUUID === 'function') {
+    return globalCrypto.randomUUID();
+  }
+  const bytes = globalCrypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0'));
+  return [
+    hex.slice(0, 4).join(''),
+    hex.slice(4, 6).join(''),
+    hex.slice(6, 8).join(''),
+    hex.slice(8, 10).join(''),
+    hex.slice(10).join(''),
+  ].join('-');
+}
 
 /** Known-obsolete families: size ranking is generation-blind, so a 2024-era
  *  110B would outrank a modern 72B. Excluded from the ranked recommendations
@@ -400,7 +464,9 @@ export class AiRuntime {
   /** Flip cluster_enabled through the existing runtime-config PUT (full object). */
   protected async setClusterEnabled(on: boolean): Promise<void> {
     const current = this.config.value();
-    if (!current || this.savingCluster()) {
+    // #170: a replacement owns the managed config while unfinished — the
+    // server would 409 the PUT anyway; don't offer a doomed toggle.
+    if (!current || this.savingCluster() || this.replacementInFlight()) {
       return;
     }
     this.savingCluster.set(true);
@@ -556,52 +622,144 @@ export class AiRuntime {
     return Number.isNaN(date.getTime()) ? iso : date.toLocaleDateString();
   }
 
-  protected readonly applyState = signal<AiSwapStatus | null>(null);
+  /** The server job being observed; null before the first observation. */
+  protected readonly applyJob = signal<AiApplyJobStatus | null>(null);
+  /** The apply POST itself is in flight — the authoritative preflight. */
   protected readonly applying = signal(false);
+  /** Start/retry failures: the request was refused or the transport failed. */
   protected readonly applyError = signal<string | null>(null);
-  /** The main model the last apply targeted — drives the "active" phase. */
-  protected readonly lastAppliedMain = signal<string | null>(null);
-  private applyTimer: ReturnType<typeof setInterval> | null = null;
+  /** Transient poll failure; the known job is retained (#170). */
+  protected readonly applyPollError = signal<string | null>(null);
+  /** The Retry-recovery POST is in flight. */
+  protected readonly retryingRecovery = signal(false);
 
-  protected readonly applyLive = computed(() => {
-    const state = this.applyState();
-    const status = this.status.value();
-    if (!state) {
-      return null;
+  private observationJobId: string | null = null;
+  /** Monotonic; every new observation intent invalidates outstanding polls. */
+  private observationGeneration = 0;
+  /** Highest accepted sequence for the observed job (out-of-order guard). */
+  private lastSequence = 0;
+  private pollInFlight = false;
+  private pollTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /** The user-facing phase for the observed job (plan §6 table). */
+  protected readonly applyPhase = computed<ApplyPhase | null>(() => {
+    if (this.applying()) {
+      return 'preflight';
     }
-    if (state.state === 'failed') {
-      return { phase: 'failed' as const, detail: state.log_tail };
+    switch (this.applyJob()?.lifecycle_state ?? null) {
+      case 'accepted':
+      case 'staging':
+        return 'preparing';
+      case 'launching':
+      case 'verifying':
+        return 'replacing';
+      case 'commit_pending':
+        return 'commit_pending';
+      case 'restoring':
+        return 'restoring';
+      case 'succeeded':
+        return 'succeeded';
+      case 'failed':
+        return 'failed';
+      case 'restored':
+        return 'restored';
+      case 'recovery_failed':
+      case 'commit_repair_required':
+        return 'recovery';
+      default:
+        // The explicit idle/unavailable read — nothing to show.
+        return null;
     }
-    if (
-      status?.ready &&
-      status.served_model === this.lastAppliedMain() &&
-      state.state !== 'running'
-    ) {
-      return { phase: 'active' as const, detail: status.served_model ?? '' };
-    }
-    if (state.state === 'running' || state.state === 'succeeded') {
-      // succeeded = containers recreated; the model may still be downloading/loading.
-      return {
-        phase: 'working' as const,
-        detail: $localize`:Model swap detail|The swap is running: the weights are being downloaded or loaded:Downloading / loading the model…`,
-      };
-    }
-    return null;
   });
 
-  protected async applyModel(model: AiModelInfo): Promise<void> {
+  /**
+   * A replacement is unfinished until a terminal state: new applies and all
+   * Advanced writes are blocked while it runs (plan §6; the server answers
+   * 409 to racing managed-config PUTs — ADR 0081).
+   */
+  protected readonly replacementInFlight = computed(() => {
     if (this.applying()) {
-      return;
+      return true;
     }
-    const plan = this.planFor(model);
-    // ADR 0071: applies from the cluster section serve across both boxes; the
-    // server answers 409 (surfaced via applyError) if the peer is down.
-    await this.postApply(plan.mainId, plan.visionId ?? undefined, this.servesOnCluster(model));
+    const lifecycle = this.applyJob()?.lifecycle_state ?? null;
+    return lifecycle !== null && !TERMINAL_LIFECYCLE_STATES.has(lifecycle);
+  });
+
+  /** Failed outcomes render as alerts (role=alert); progress as status. */
+  protected isFailurePhase(phase: ApplyPhase): boolean {
+    return phase === 'failed' || phase === 'recovery';
   }
 
-  /** M51: pair a vision-capable model with the CURRENT chat model (photos only). */
+  /** In-progress phases share the working tone (spinner + soft warning). */
+  protected isProgressPhase(phase: ApplyPhase): boolean {
+    return (
+      phase === 'preflight' ||
+      phase === 'preparing' ||
+      phase === 'replacing' ||
+      phase === 'commit_pending' ||
+      phase === 'restoring'
+    );
+  }
+
+  /** Settled-good phases share the success tone. */
+  protected isSuccessPhase(phase: ApplyPhase): boolean {
+    return phase === 'succeeded' || phase === 'restored';
+  }
+
+  /** Safe cause for a failed/recovery job: the redacted message, else the code. */
+  protected applyFailureDetail(): string {
+    const job = this.applyJob();
+    return job?.message || job?.reason_code || job?.log_tail || '';
+  }
+
+  /**
+   * The single request lane (#170): browse rows, photo pairing, and the
+   * Advanced vision field all send an explicit selection here and observe the
+   * returned job. Ordinary selections send topology 'auto' — the server
+   * resolves single vs two-node serving from the household's consent and the
+   * plan (this page's cluster placement indicators stay advisory).
+   */
+  protected async applyModel(model: AiModelInfo): Promise<void> {
+    if (this.replacementInFlight()) {
+      return;
+    }
+    if (model.role === 'vision') {
+      // A dedicated photo model pairs with the current chat model (M48); with
+      // none configured the old plan made it both roles — equal ids normalize
+      // server-side to one instance, so preserve that.
+      const main = this.currentMainId() ?? model.id;
+      const sameModel = main === model.id;
+      await this.startApply({
+        main_model: main,
+        vision_model: sameModel ? null : model.id,
+        photo_mode: sameModel ? 'main' : 'separate',
+        topology: 'auto',
+      });
+      return;
+    }
+    if (model.supports_vision) {
+      // Dual-capable: ONE instance answers chat and sees photos (M48).
+      await this.startApply({
+        main_model: model.id,
+        vision_model: null,
+        photo_mode: 'main',
+        topology: 'auto',
+      });
+      return;
+    }
+    // Photo-blind main: keep the current photo model — or none, explicitly.
+    const keptVision = this.status.value()?.vision_model ?? null;
+    await this.startApply({
+      main_model: model.id,
+      vision_model: keptVision,
+      photo_mode: keptVision ? 'separate' : 'off',
+      topology: 'auto',
+    });
+  }
+
+  /** M51: pair a photo-capable model with the CURRENT chat model (photos only). */
   protected async applyAsVision(model: AiModelInfo): Promise<void> {
-    if (this.applying()) {
+    if (this.replacementInFlight()) {
       return;
     }
     const main = this.currentMainId();
@@ -616,60 +774,227 @@ export class AiRuntime {
       await this.applyModel(model);
       return;
     }
-    await this.postApply(main, model.id);
+    await this.startApply({
+      main_model: main,
+      vision_model: model.id,
+      photo_mode: 'separate',
+      topology: 'auto',
+    });
   }
 
-  private async postApply(
-    mainId: string,
-    visionId: string | undefined,
-    cluster = false,
+  /**
+   * POST the selection and hand the returned job to the observation loop.
+   * One request_id per user confirmation, retained across transport-ambiguous
+   * retries (§6) — but we never auto-retry: a failed POST is surfaced to the
+   * user, whose next click is a new confirmation. A possibly-admitted first
+   * request stays safe: a request_id replay is a read, and a second admission
+   * answers 409 swap_in_progress.
+   */
+  private async startApply(
+    request: Omit<AiApplyRequest, 'request_id'>,
+    errorSink: 'picker' | 'advanced' = 'picker',
   ): Promise<void> {
+    if (this.applying()) {
+      return;
+    }
     this.applying.set(true);
     this.applyError.set(null);
-    const { data, error } = await this.api.applyAiModelSelection({
-      main_model: mainId,
-      vision_model: visionId,
-      // Single-box applies omit the flag (same as cluster: false).
-      ...(cluster ? { cluster: true } : {}),
-    });
+    this.visionApplyError.set(null);
+    let data: AiApplyJobStatus | null = null;
+    let error: unknown = null;
+    try {
+      const result = await this.api.applyAiModelSelection({
+        ...request,
+        request_id: newRequestId(),
+      });
+      data = result.data ?? null;
+      error = result.error;
+    } catch (transportError) {
+      // Thrown network failures are start failures too, not silent no-ops.
+      error = transportError;
+    }
     this.applying.set(false);
-    if (error || !data) {
+    if (error || !data?.job_id) {
+      const message = apiErrorMessage(
+        error,
+        $localize`:Error message|The model swap request failed to start:Could not start the model swap. Is the model manager running?`,
+      );
+      if (errorSink === 'advanced') {
+        this.visionApplyError.set(message);
+      } else {
+        this.applyError.set(message);
+      }
+      return;
+    }
+    this.beginObservation(data);
+  }
+
+  /**
+   * Anchor observation to a job: server state is authoritative from here on
+   * (#170). Any earlier observation loop is superseded.
+   */
+  private beginObservation(job: AiApplyJobStatus): void {
+    if (!job.job_id) {
+      return;
+    }
+    const generation = ++this.observationGeneration;
+    this.observationJobId = job.job_id;
+    this.lastSequence = job.sequence ?? 0;
+    this.applyJob.set(job);
+    this.applyPollError.set(null);
+    this.schedulePoll(generation);
+  }
+
+  /** 5 s cadence, completion-scheduled: the next tick starts when the last settles. */
+  private schedulePoll(generation: number): void {
+    if (this.destroyed || generation !== this.observationGeneration) {
+      return;
+    }
+    if (this.pollTimer !== null) {
+      clearTimeout(this.pollTimer);
+    }
+    this.pollTimer = setTimeout(() => void this.pollOnce(), POLL_INTERVAL_MS);
+  }
+
+  /**
+   * One poll. At most one in flight; only the observed job's own, strictly
+   * increasing sequence numbers are accepted, so out-of-order or duplicate
+   * completions never move the state backwards. Thrown network failures are
+   * transient too: the known job is retained and the loop continues.
+   */
+  protected async pollOnce(): Promise<void> {
+    const generation = this.observationGeneration;
+    const jobId = this.observationJobId;
+    if (this.destroyed || !jobId || generation !== this.observationGeneration) {
+      return;
+    }
+    if (this.pollInFlight) {
+      return; // the in-flight poll reschedules the loop on completion
+    }
+    this.pollInFlight = true;
+    let next: AiApplyJobStatus | null = null;
+    let transient = false;
+    try {
+      const { data, error } = await this.api.getAiApplyStatus(jobId);
+      if (error || !data) {
+        transient = true;
+      } else {
+        next = data;
+      }
+    } catch {
+      // Offline/aborted transport — transient, not a dead job.
+      transient = true;
+    }
+    this.pollInFlight = false;
+    if (this.destroyed || generation !== this.observationGeneration) {
+      return; // superseded or destroyed — commit nothing
+    }
+    if (transient) {
+      this.applyPollError.set(
+        $localize`:Apply progress notice|A status poll failed but the operation continues server-side:Progress unavailable; the operation may still be running.`,
+      );
+    } else if (next?.job_id === jobId) {
+      const sequence = next.sequence ?? 0;
+      if (sequence > this.lastSequence) {
+        this.lastSequence = sequence;
+        this.applyJob.set(next);
+        this.applyPollError.set(null);
+      }
+      // Only the OBSERVED job's own terminal state ends the loop — another
+      // job's status must never finish this observation (job-id guard).
+      if (this.isTerminal(next)) {
+        this.finishObservation();
+        return;
+      }
+    }
+    this.schedulePoll(generation);
+  }
+
+  /** A terminal state ends observation and refreshes what the page shows. */
+  private finishObservation(): void {
+    this.stopObservation();
+    this.config.reload();
+    this.status.reload();
+  }
+
+  /** Stop observing. Destroying the view never stops the server job (#170). */
+  private stopObservation(): void {
+    this.observationGeneration += 1;
+    this.observationJobId = null;
+    if (this.pollTimer !== null) {
+      clearTimeout(this.pollTimer);
+      this.pollTimer = null;
+    }
+    this.pollInFlight = false;
+  }
+
+  /** Terminal per ADR 0081; commit_repair_required stays forward-repairable. */
+  private isTerminal(job: AiApplyJobStatus): boolean {
+    const lifecycle = job.lifecycle_state;
+    return lifecycle !== null && TERMINAL_LIFECYCLE_STATES.has(lifecycle);
+  }
+
+  /**
+   * Screen entry: adopt the current/latest job and resume observing it (#170).
+   * A terminal job is shown (its recovery may still need attention) without
+   * polling; a fresh apply replaces it.
+   */
+  private async resumeObservation(): Promise<void> {
+    const generation = ++this.observationGeneration;
+    let latest: AiApplyJobStatus | null = null;
+    try {
+      const { data } = await this.api.getAiApplyStatus();
+      latest = data ?? null;
+    } catch {
+      return; // no job known; Apply stays enabled
+    }
+    if (this.destroyed || generation !== this.observationGeneration) {
+      return;
+    }
+    if (!latest?.job_id) {
+      return; // explicit idle read
+    }
+    if (this.isTerminal(latest)) {
+      this.applyJob.set(latest);
+      return;
+    }
+    this.beginObservation(latest);
+  }
+
+  /**
+   * Retry recovery: re-runs the job's frozen decision direction (a restore
+   * for recovery_failed, forward repair for commit_repair_required) — never a
+   * new model. A NEW request_id per attempt; the returned job is re-observed.
+   */
+  protected async retryRecovery(): Promise<void> {
+    const job = this.applyJob();
+    if (!job?.job_id || this.retryingRecovery() || this.applying()) {
+      return;
+    }
+    this.retryingRecovery.set(true);
+    this.applyError.set(null);
+    let data: AiApplyJobStatus | null = null;
+    let error: unknown = null;
+    try {
+      const result = await this.api.retryAiApplyRecovery(job.job_id, {
+        request_id: newRequestId(),
+      });
+      data = result.data ?? null;
+      error = result.error;
+    } catch (transportError) {
+      error = transportError;
+    }
+    this.retryingRecovery.set(false);
+    if (error || !data?.job_id) {
       this.applyError.set(
         apiErrorMessage(
           error,
-          $localize`:Error message|The model swap request failed to start:Could not start the model swap. Is the model manager running?`,
+          $localize`:Error message|The recovery retry could not start:Could not retry recovery. Is the model manager running?`,
         ),
       );
       return;
     }
-    this.lastAppliedMain.set(mainId);
-    this.applyState.set(data);
-    this.startPolling();
-  }
-
-  /** Poll swap + serving status every 5s until the selection is active or fails. */
-  protected startPolling(): void {
-    this.stopPolling();
-    this.applyTimer = setInterval(() => void this.pollOnce(), 5000);
-  }
-
-  protected stopPolling(): void {
-    if (this.applyTimer !== null) {
-      clearInterval(this.applyTimer);
-      this.applyTimer = null;
-    }
-  }
-
-  protected async pollOnce(): Promise<void> {
-    const { data } = await this.api.getAiApplyStatus();
-    if (data) {
-      this.applyState.set(data);
-    }
-    this.status.reload();
-    const live = this.applyLive();
-    if (live?.phase === 'active' || live?.phase === 'failed') {
-      this.stopPolling();
-    }
+    this.beginObservation(data);
   }
 
   // --- Live quick filters + search (M48) ---------------------------------------
@@ -1089,34 +1414,38 @@ export class AiRuntime {
   // M47: the vision model is deployment-level (swap path, ADR 0013), so the
   // Advanced section changes it through the apply endpoint — not the raw PUT.
   protected readonly visionModelInput = signal('');
-  protected readonly applyingVision = signal(false);
   protected readonly visionApplyError = signal<string | null>(null);
 
+  /**
+   * The Advanced photo-model field rides the same lane (#170) with an explicit
+   * photo mode: 'separate' with the entered model, 'main' when it equals the
+   * main (one instance, never two copies), 'off' when the field is cleared.
+   */
   protected async applyVisionModel(): Promise<void> {
     const main = this.config.value()?.model;
-    if (!main || this.applyingVision()) {
+    if (!main || this.replacementInFlight()) {
       return;
     }
-    this.applyingVision.set(true);
-    this.visionApplyError.set(null);
     const vision = this.visionModelInput().trim();
-    const { data, error } = await this.api.applyAiModelSelection({
-      main_model: main,
-      vision_model: vision || undefined,
-    });
-    this.applyingVision.set(false);
-    if (error || !data) {
-      this.visionApplyError.set(
-        apiErrorMessage(
-          error,
-          $localize`:Error message|The photo model swap request failed to start:Could not start the vision swap. Is the model manager running?`,
-        ),
+    if (!vision) {
+      // Cleared input = photo analysis off — explicit, not a forgotten field.
+      await this.startApply(
+        { main_model: main, vision_model: null, photo_mode: 'off', topology: 'auto' },
+        'advanced',
       );
       return;
     }
-    this.lastAppliedMain.set(main);
-    this.applyState.set(data);
-    this.startPolling();
+    if (vision === main) {
+      await this.startApply(
+        { main_model: main, vision_model: null, photo_mode: 'main', topology: 'auto' },
+        'advanced',
+      );
+      return;
+    }
+    await this.startApply(
+      { main_model: main, vision_model: vision, photo_mode: 'separate', topology: 'auto' },
+      'advanced',
+    );
   }
 
   constructor() {
@@ -1124,7 +1453,8 @@ export class AiRuntime {
       // #168: a pending fetch must never commit after destruction.
       this.destroyed = true;
       this.liveGeneration += 1;
-      this.stopPolling();
+      // #170: destroying the view stops OBSERVATION, never the server job.
+      this.stopObservation();
     });
     effect(() => {
       const value = this.config.value();
@@ -1149,10 +1479,15 @@ export class AiRuntime {
       this.clusterActive();
       this.resetModelWindow();
     });
+    // #170: adopt the current/latest job on entry and resume observing it —
+    // a replacement keeps running server-side while the page was closed.
+    void this.resumeObservation();
   }
 
   protected async submit(): Promise<void> {
-    if (this.form.invalid || this.submitting()) {
+    // #170: the Advanced form is a managed-config write — blocked while a
+    // replacement is unfinished (the server would 409 it, ADR 0081).
+    if (this.form.invalid || this.submitting() || this.replacementInFlight()) {
       this.form.markAllAsTouched();
       return;
     }

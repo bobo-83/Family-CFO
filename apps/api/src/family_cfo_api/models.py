@@ -68,6 +68,12 @@ CALCULATION_TYPES = (
 TRANSACTION_REVIEW_STATES = ("pending", "reviewed")
 EXPLANATION_SOURCES = ("deterministic_stub", "llm", "agentic_tool_calling")
 AI_RUNTIME_PROVIDERS = ("vllm", "ollama", "llama_cpp", "openai_compatible")
+# Issue #170 (ADR 0081): where an apply was admitted from. CLI-origin receipts
+# carry no invented household/user identity.
+AI_RUNTIME_APPLY_SOURCES = ("api", "cli")
+# The audit entity type that carries apply-job identity: every apply outcome
+# audit writes entity_type=AI_RUNTIME_APPLY_JOB_ENTITY, entity_id=<job id>.
+AI_RUNTIME_APPLY_JOB_ENTITY = "ai_runtime_apply_job"
 IMPORT_SOURCE_TYPES = ("csv", "pdf", "ofx", "qfx")
 IMPORT_STATUSES = ("pending", "processing", "needs_review", "completed", "discarded", "failed")
 DOCUMENT_EXTRACTION_TYPES = ("pdf_text", "ocr")
@@ -633,6 +639,35 @@ ai_runtime_configs = Table(
     ),
 )
 
+# Issue #170 (ADR 0081): the exactly-once commit receipt for an apply job —
+# the only SQL record of a replacement. The manager's filesystem journal owns
+# execution state; this table records THAT a (and which) configuration commit
+# happened, not how the deployment progressed. No mutable status column.
+ai_runtime_apply_receipts = Table(
+    "ai_runtime_apply_receipts",
+    metadata,
+    # Job identity IS the primary key: a receipt exists once per job.
+    Column("job_id", String(36), primary_key=True),
+    Column("runtime_key", String(255), nullable=False),
+    Column("plan_hash", String(64), nullable=False),
+    # Opaque initiator attribution — deliberately no FK: household deletion
+    # mid-swap tolerates nulls at commit time and must never cascade into the
+    # operational record.
+    Column("initiator_household_id", String(36), nullable=True),
+    Column("initiator_user_id", String(36), nullable=True),
+    Column(
+        "source",
+        String(10),
+        nullable=False,
+    ),
+    Column("committed_model", String(255), nullable=False),
+    Column("committed_at", DateTime(timezone=True), nullable=False),
+    CheckConstraint(
+        f"source in {_sql_in(AI_RUNTIME_APPLY_SOURCES)}",
+        name="ck_ai_runtime_apply_receipts_source",
+    ),
+)
+
 imports = Table(
     "imports",
     metadata,
@@ -894,6 +929,18 @@ audit_events = Table(
     # #61: and by whom. Null for events never reverted, and for reversals
     # recorded before the column existed — there is no honest answer for those.
     Column("reverted_by", String(36), ForeignKey("users.id"), nullable=True),
+    # Issue #170 (ADR 0081): final apply outcome audits are deduplicated by
+    # job ID + action. Apply audits carry entity_type=AI_RUNTIME_APPLY_JOB_ENTITY
+    # and entity_id=<job id>, so this partial index is the internal uniqueness
+    # key reconciler races and retries rely on. Mirrors migration 0099.
+    Index(
+        "uq_audit_apply_outcome_job_action",
+        "action",
+        "entity_id",
+        unique=True,
+        sqlite_where=text(f"entity_type = '{AI_RUNTIME_APPLY_JOB_ENTITY}'"),
+        postgresql_where=text(f"entity_type = '{AI_RUNTIME_APPLY_JOB_ENTITY}'"),
+    ),
 )
 
 conversations = Table(

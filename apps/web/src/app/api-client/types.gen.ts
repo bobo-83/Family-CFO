@@ -3105,13 +3105,36 @@ export type SystemAdminGrantRequest = {
     email: string;
 };
 
+/**
+ * Issue #170 (ADR 0081): one user confirmation. The server resolves photo placement and topology authoritatively; clients send desired roles, never launch flags or memory numbers. `request_id` is the idempotency identity — one UUID per user confirmation, retained across transport-ambiguous retries.
+ */
 export type AiApplyRequest = {
+    /**
+     * Idempotency identity for this apply attempt. Shipped legacy clients may omit it: the server then synthesizes the identity from the normalized request, so a replay is a read, never a second launch. New clients always send one UUID per user confirmation.
+     */
+    request_id?: string;
+    /**
+     * Repository ID of the requested chat (advisor) model.
+     */
     main_model: string;
     /**
-     * ADR 0071: serve tensor-parallel across the paired second box. The client sets this for models exceeding one node; the server verifies the peer is reachable.
+     * Repository ID of the requested photo model, or null for none.
+     */
+    vision_model?: string | null;
+    /**
+     * Desired photo placement. `auto` resolves to `separate` when a distinct vision model is present, else `main` when the installed runtime metadata verifies multimodal support, else `off`. Equal main/vision ids normalize to one instance with `main`.
+     */
+    photo_mode?: 'auto' | 'main' | 'separate' | 'off';
+    /**
+     * Desired serving topology. `auto` prefers a valid single-node plan and only considers the two-node tensor-parallel plan when the household's cluster consent is on; `single` prohibits automatic escalation; `cluster` requires consent, peer readiness and a valid two-node plan. Topology never grants cluster permission.
+     */
+    topology?: 'auto' | 'single' | 'cluster';
+    /**
+     * Deprecated alias for `topology: cluster` (ADR 0071). Contradicting values with `topology` are rejected with a 422; new clients send `topology` only.
+     *
+     * @deprecated
      */
     cluster?: boolean;
-    vision_model?: string | null;
 };
 
 export type AiSwapStatus = {
@@ -3119,6 +3142,193 @@ export type AiSwapStatus = {
     main_model?: string | null;
     vision_model?: string | null;
     log_tail?: string;
+};
+
+/**
+ * Issue #170 (ADR 0081): durable apply-job status. `state` keeps the coarse legacy enum (idle/running/succeeded/failed/unavailable) so shipped clients keep decoding `AiSwapStatus`; the full lifecycle is additive in `lifecycle_state`. `idle` is a read representation, never a stored state.
+ */
+export type AiApplyJobStatus = {
+    /**
+     * Null exactly on the explicit idle/unavailable read.
+     */
+    job_id: string | null;
+    /**
+     * The idempotency identity that admitted this job; null on idle.
+     */
+    request_id: string | null;
+    /**
+     * Monotonically increasing per job; polls accept only increasing values. Null on the explicit idle/unavailable read.
+     */
+    sequence: number | null;
+    /**
+     * Coarse legacy projection (ADR 0074 Decision 5).
+     */
+    state: 'idle' | 'running' | 'succeeded' | 'failed' | 'unavailable';
+    /**
+     * Full lifecycle. `commit_repair_required` means the commit occurred and forward convergence failed (repair only, never rollback). Null on the explicit idle/unavailable read.
+     */
+    lifecycle_state: 'accepted' | 'staging' | 'launching' | 'verifying' | 'commit_pending' | 'restoring' | 'succeeded' | 'failed' | 'restored' | 'recovery_failed' | 'commit_repair_required' | null;
+    /**
+     * Legacy projection of the requested (or previous) main model.
+     */
+    main_model?: string | null;
+    /**
+     * Legacy projection of the requested (or previous) vision model.
+     */
+    vision_model?: string | null;
+    /**
+     * Redacted bounded diagnostic summary; never raw container output.
+     */
+    log_tail?: string;
+    /**
+     * The normalized selection; null on the explicit idle/unavailable read.
+     */
+    requested_selection: NullableAiApplySelectionSummary;
+    /**
+     * Safe summary of the frozen plan; null before resolution.
+     */
+    resolved_plan?: NullableAiApplyPlanSummary;
+    /**
+     * Safe summary of the previous deployment; null on a first deployment.
+     */
+    previous_selection?: NullableAiApplySelectionSummary;
+    /**
+     * Null on the explicit idle/unavailable read.
+     */
+    created_at: string | null;
+    /**
+     * Null on the explicit idle/unavailable read.
+     */
+    updated_at: string | null;
+    /**
+     * Current phase deadline; null outside a deadline-bounded phase.
+     */
+    deadline_at?: string | null;
+    /**
+     * Stable rejection/failure code (the error vocabulary above, plus job-level codes such as `no_previous_runtime`, `request_expired`, `runtime_state_corrupt`); null while progressing normally.
+     */
+    reason_code?: string | null;
+    /**
+     * Redacted diagnostic, bounded to 2 KiB; never raw logs or secrets.
+     */
+    message?: string | null;
+    /**
+     * True when `POST /ai/runtime/apply/{job_id}/retry-recovery` can re-run the frozen decision direction (recovery_failed, commit_repair_required).
+     */
+    recovery_available: boolean;
+};
+
+/**
+ * Normalized selection for a request, or a safe summary of the previous deployment (whose topology is always resolved, never `auto`).
+ */
+export type AiApplySelectionSummary = {
+    main_model: string;
+    vision_model?: string | null;
+    photo_mode: 'main' | 'separate' | 'off';
+    topology: 'auto' | 'single' | 'cluster';
+};
+
+/**
+ * Safe summary of the frozen launch plan: identities and immutable revisions, resolved photo mode, selected topology, installed runtime identity, limits, and per-node requirements with evidence classifications. Never `.env` values, tokens, SSH details, raw checker output, or container logs.
+ */
+export type AiApplyPlanSummary = {
+    main_model: string;
+    /**
+     * Immutable resolved revision of the main model.
+     */
+    main_revision: string;
+    vision_model?: string | null;
+    vision_revision?: string | null;
+    /**
+     * Resolved photo routing placement; never `auto` in a plan.
+     */
+    photo_mode: 'main' | 'separate' | 'off';
+    /**
+     * Selected topology; never `auto` in a plan.
+     */
+    topology: 'single' | 'cluster';
+    /**
+     * Installed serving-runtime version the plan targets.
+     */
+    runtime_version: string;
+    /**
+     * Safe digest of the exact serving image the plan pins.
+     */
+    image_digest: string;
+    context_limit: number;
+    concurrency_limit: number;
+    node_requirements: Array<AiApplyNodeRequirement>;
+    /**
+     * Non-fatal planning warnings (estimates, degraded evidence).
+     */
+    warnings?: Array<string>;
+};
+
+/**
+ * Normalized selection for a request, or a safe summary of the previous deployment (whose topology is always resolved, never `auto`).
+ */
+export type NullableAiApplySelectionSummary = {
+    main_model: string;
+    vision_model?: string | null;
+    photo_mode: 'main' | 'separate' | 'off';
+    topology: 'auto' | 'single' | 'cluster';
+} | null;
+
+/**
+ * Safe summary of the frozen launch plan: identities and immutable revisions, resolved photo mode, selected topology, installed runtime identity, limits, and per-node requirements with evidence classifications. Never `.env` values, tokens, SSH details, raw checker output, or container logs.
+ */
+export type NullableAiApplyPlanSummary = {
+    main_model: string;
+    /**
+     * Immutable resolved revision of the main model.
+     */
+    main_revision: string;
+    vision_model?: string | null;
+    vision_revision?: string | null;
+    /**
+     * Resolved photo routing placement; never `auto` in a plan.
+     */
+    photo_mode: 'main' | 'separate' | 'off';
+    /**
+     * Selected topology; never `auto` in a plan.
+     */
+    topology: 'single' | 'cluster';
+    /**
+     * Installed serving-runtime version the plan targets.
+     */
+    runtime_version: string;
+    /**
+     * Safe digest of the exact serving image the plan pins.
+     */
+    image_digest: string;
+    context_limit: number;
+    concurrency_limit: number;
+    node_requirements: Array<AiApplyNodeRequirement>;
+    /**
+     * Non-fatal planning warnings (estimates, degraded evidence).
+     */
+    warnings?: Array<string>;
+} | null;
+
+/**
+ * One node's admission requirement. Every figure carries its evidence class — unknown evidence is never zero and never "fits".
+ */
+export type AiApplyNodeRequirement = {
+    /**
+     * Placement label, e.g. `primary` or `peer`.
+     */
+    node: string;
+    memory_gb: number;
+    memory_evidence: 'verified' | 'estimated' | 'unknown';
+    disk_gb: number;
+    disk_evidence: 'verified' | 'estimated' | 'unknown';
+};
+
+/**
+ * One recovery attempt identity; repeat it to replay, never to overlap.
+ */
+export type AiRetryRecoveryRequest = {
+    request_id: string;
 };
 
 export type AiHardwareProfile = {
@@ -8659,6 +8869,10 @@ export type ApplyAiModelSelectionErrors = {
     /**
      * Error response
      */
+    422: ErrorResponse;
+    /**
+     * Error response
+     */
     503: ErrorResponse;
 };
 
@@ -8666,9 +8880,9 @@ export type ApplyAiModelSelectionError = ApplyAiModelSelectionErrors[keyof Apply
 
 export type ApplyAiModelSelectionResponses = {
     /**
-     * Swap started
+     * Durable acceptance: the launch plan resolved and validated, the job is persisted, and the executor is starting. Household settings are NOT changed here — the reconciler commits them exactly once after verified readiness.
      */
-    202: AiSwapStatus;
+    202: AiApplyJobStatus;
 };
 
 export type ApplyAiModelSelectionResponse = ApplyAiModelSelectionResponses[keyof ApplyAiModelSelectionResponses];
@@ -8676,7 +8890,12 @@ export type ApplyAiModelSelectionResponse = ApplyAiModelSelectionResponses[keyof
 export type GetAiApplyStatusData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * A specific apply job to report; omit for current/latest/idle.
+         */
+        job_id?: string;
+    };
     url: '/ai/runtime/apply/status';
 };
 
@@ -8685,18 +8904,68 @@ export type GetAiApplyStatusErrors = {
      * Error response
      */
     401: ErrorResponse;
+    /**
+     * Unknown retained job id — never a substituted job.
+     */
+    404: ErrorResponse;
 };
 
 export type GetAiApplyStatusError = GetAiApplyStatusErrors[keyof GetAiApplyStatusErrors];
 
 export type GetAiApplyStatusResponses = {
     /**
-     * Swap status
+     * Apply-job status. The identity fields are null exactly on the explicit idle/unavailable read (no job has been admitted).
      */
-    200: AiSwapStatus;
+    200: AiApplyJobStatus;
 };
 
 export type GetAiApplyStatusResponse = GetAiApplyStatusResponses[keyof GetAiApplyStatusResponses];
+
+export type RetryAiApplyRecoveryData = {
+    body: AiRetryRecoveryRequest;
+    path: {
+        /**
+         * The apply job whose frozen decision should re-run.
+         */
+        job_id: string;
+    };
+    query?: never;
+    url: '/ai/runtime/apply/{job_id}/retry-recovery';
+};
+
+export type RetryAiApplyRecoveryErrors = {
+    /**
+     * Error response
+     */
+    401: ErrorResponse;
+    /**
+     * Error response
+     */
+    403: ErrorResponse;
+    /**
+     * Unknown retained job id
+     */
+    404: ErrorResponse;
+    /**
+     * The job is not in a recoverable state (`recovery_required`), another operation owns the deployment (`swap_in_progress`), or the recovery `request_id` was reused with different content (`request_id_conflict`).
+     */
+    409: ErrorResponse;
+    /**
+     * Manager/journal/executor unavailable
+     */
+    503: ErrorResponse;
+};
+
+export type RetryAiApplyRecoveryError = RetryAiApplyRecoveryErrors[keyof RetryAiApplyRecoveryErrors];
+
+export type RetryAiApplyRecoveryResponses = {
+    /**
+     * Recovery re-run accepted
+     */
+    202: AiApplyJobStatus;
+};
+
+export type RetryAiApplyRecoveryResponse = RetryAiApplyRecoveryResponses[keyof RetryAiApplyRecoveryResponses];
 
 export type ListConnectionsData = {
     body?: never;
