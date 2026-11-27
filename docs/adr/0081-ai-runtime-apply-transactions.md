@@ -74,17 +74,26 @@ The only path to a settings change is: the target passes exact verification
 records `decision=commit` (`commit_pending`) → an API reconciler commits
 the household transaction (config upsert, matching-household repoint, receipt
 insert, audit) under a PostgreSQL advisory lock, reading verification evidence
-no older than 30 s → the manager is acknowledged → finalization recreates
-`api`/`worker` with their current application images and verifies
-routing/health (`succeeded`; a failure here is forward-repairable
-`commit_repair_required`, never automatic rollback). The decision is
+no older than 30 s → the manager is acknowledged → finalization re-verifies the frozen
+candidate with a fresh bounded runtime verification (bounded by the
+remaining phase budget, or the ≤3-attempt fallback horizon when none
+remains) before recreating `api`/`worker` with their current application
+images and verifying routing/health (`succeeded`; a failure here is
+forward-repairable `commit_repair_required`, never automatic rollback).
+The fresh verification is what keeps the replay path honest: a candidate
+that died after the SQL commit is never reported `succeeded`. The decision is
 monotonic — a committed decision never becomes restore — and SQL commits
 happen only for durable decisions. The acknowledgement wait is bounded by
 the persisted phase deadline: expiry without a receipt lands in
-`commit_repair_required` (forward repair re-awaits the receipt instead of
-finalizing an uncommitted decision), and a receipt that has already landed
-is acknowledged regardless of evidence age — freshness gates only the
-decision to commit. There is no atomic transaction across
+`commit_repair_required` (forward repair relaunches the frozen candidate
+from the journal's durable target/plan record when it stays down,
+re-verifies it bounded, and then re-awaits the receipt — never finalizing
+an uncommitted decision and never rolling back; an exhausted relaunch/verify
+budget remains `commit_repair_required` with recovery available), and a
+receipt that has already landed is acknowledged regardless of evidence age —
+freshness gates only the decision to commit. Forward repair is
+forward-only in every case: restore remains exclusively the pre-decision
+failure path. There is no atomic transaction across
 Docker and PostgreSQL; the durable decision + receipt provide restart-safe
 ordering, not instantaneous cross-system atomicity.
 

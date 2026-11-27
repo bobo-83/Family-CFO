@@ -182,14 +182,20 @@ in practice:
   scan; if the manager service is down, that wait is deliberate, not a
   silent failure.
 - **Post-commit repair.** After settings commit, the application containers
-  are recreated once to flip routing; if that finalization fails the job
-  reports `commit_repair_required` and **Retry recovery** re-runs only the
+  are recreated once to flip routing; finalization first re-verifies the
+  candidate fresh, so a runtime that died after the commit is never reported
+  as saved. If that finalization fails the job reports
+  `commit_repair_required` and **Retry recovery** re-runs only the
   finalization — household settings and routing are never silently reverted
   to a model PostgreSQL no longer names. The wait for the settings commit
   itself is bounded by the apply's phase deadline: if it expires before the
-  commit lands, the job reports `commit_repair_required` and **Retry
-  recovery** re-awaits the commit (the durable decision is never rolled
-  back).
+  commit lands (for example because the candidate stayed down), the job
+  reports `commit_repair_required` and **Retry recovery** relaunches the
+  frozen candidate from the journal (same image, revisions, and serve
+  arguments — never a new plan), re-verifies it, and then re-awaits the
+  commit (the durable decision is never rolled back, and an exhausted
+  relaunch/verification budget simply leaves the job in
+  `commit_repair_required` for another explicit retry).
 
 ## Testing the logic without a GPU
 

@@ -1137,6 +1137,11 @@ def _dispatch(deps: ExecutorDeps, record: JobRecord, state: dict[str, bool]) -> 
     if record.state in (JobState.ACCEPTED, JobState.STAGING):
         return _phase_staging(deps, record, state)
     if record.state in (JobState.LAUNCHING, JobState.VERIFYING):
+        if record.decision is JobDecision.COMMIT:
+            # A forward-repair relaunch was interrupted mid-launch: the
+            # durable commit decision stands, so resume repair - never
+            # restore after a decision (ADR 0081 S3).
+            return _phase_forward_repair(deps, record)
         if record.decision is JobDecision.UNDECIDED:
             # Conservative recovery: no mutation completed before the crash is
             # provable; choose restore (plan: Restart and interruption).
@@ -1507,7 +1512,9 @@ def _phase_commit_pending(
         state["interrupted"] = False
 
 
-def _verify_target_once(deps: ExecutorDeps, plan: LaunchPlan):
+def _verify_target_once(
+    deps: ExecutorDeps, plan: LaunchPlan, *, deadline: float | None = None
+):
     verifier = Verifier(
         http=deps.http,
         compose_services=lambda: deployment.routing_services(
@@ -1522,19 +1529,45 @@ def _verify_target_once(deps: ExecutorDeps, plan: LaunchPlan):
     expected = ExpectedRuntime.from_plan(
         plan, image_id=_runtime_image_id_or_refuse(deps), peer_host=_peer_host(deps)
     )
-    deadline = deps.clock() + verification_module.PROBE_TIMEOUT_SECONDS * (
-        verification_module.MAX_ATTEMPTS + 1
-    )
+    if deadline is None:
+        deadline = deps.clock() + verification_module.PROBE_TIMEOUT_SECONDS * (
+            verification_module.MAX_ATTEMPTS + 1
+        )
     return verifier.verify(expected, deadline=deadline)
 
 
 def _phase_finalize(deps: ExecutorDeps, record: JobRecord) -> int:
-    """Post-commit finalization: promote env by recreating api/worker with
-    their CURRENT application images, then verify routing/health.
+    """Post-commit finalization: verify the candidate FRESH, then promote env
+    by recreating api/worker with their CURRENT application images, then
+    verify routing/health.
 
-    Failure is concrete and forward-repairable: commit_repair_required - never
-    an automatic rollback while PostgreSQL points at the new runtime."""
+    The receipt is authoritative for the SQL/household side - the commit
+    stands either way - but the JOB STATE must reflect reality: every
+    finalization (the replay path arrives here without having just verified)
+    re-verifies the frozen candidate first, so a runtime that died after the
+    SQL commit is never marked succeeded. Failure is concrete and
+    forward-repairable: commit_repair_required - never an automatic rollback
+    while PostgreSQL points at the new runtime."""
     plan = _load_plan(deps, record.job_id)
+    # Fresh bounded runtime verification BEFORE reporting success: bounded by
+    # the remaining phase budget; when no budget remains (a late
+    # acknowledgement), the existing <= MAX_ATTEMPTS bounded fallback horizon.
+    budget = _remaining(record)
+    horizon = (
+        budget
+        if budget > 0
+        else verification_module.PROBE_TIMEOUT_SECONDS
+        * (verification_module.MAX_ATTEMPTS + 1)
+    )
+    outcome = _verify_target_once(deps, plan, deadline=deps.clock() + horizon)
+    if not (outcome.passed and outcome.evidence is not None):
+        return _mark_repair_required(
+            deps,
+            record,
+            outcome.message
+            or "the committed runtime failed fresh verification before finalization",
+        )
+    _persist_evidence(deps, record.job_id, outcome.evidence.to_dict())
     try:
         deps.compose.up(
             deps.project_dir,
@@ -1589,33 +1622,43 @@ def _verify_application_routing(
     # Bounded readiness wait, same probe discipline as verification: the
     # recreated api waits for PostgreSQL and runs migrations before it opens
     # its socket (docker/entrypoint-api.sh), so a refused connection during
-    # that window is a normal restart, not a failure. Requests use the 30 s
-    # probe timeout, 5 s apart, within the remaining phase budget; when no
-    # budget remains (a late acknowledgement), at most MAX_ATTEMPTS complete
-    # attempts give explicit forward repair a real window instead of failing
-    # on a stale deadline. An exhausted budget ends in commit_repair_required
-    # - never a false success and never an unbounded loop.
-    budget = budget_seconds
+    # that window is a normal restart, not a failure.
+    #
+    # Monotonic deadline: the remaining budget is recomputed from the
+    # deadline before EVERY request (the wait ends - a request never begins -
+    # when none remains) and before every sleep (the sleep is clipped to
+    # what remains). Time spent INSIDE an HTTP request therefore counts
+    # against the budget, so a slow or timing-out probe can no longer push
+    # the wait past the phase deadline. When no budget remains (a late
+    # acknowledgement), at most MAX_ATTEMPTS complete attempts give explicit
+    # forward repair a real window instead of failing on a stale deadline.
+    # An exhausted budget ends in commit_repair_required - never a false
+    # success and never an unbounded loop.
+    deadline = None if budget_seconds is None else deps.clock() + budget_seconds
     attempts = 0
     while True:
+        remaining = None if deadline is None else deadline - deps.clock()
+        if remaining is not None and remaining <= 0:
+            return False, "the application api health check failed"
         timeout = (
             verification_module.PROBE_TIMEOUT_SECONDS
-            if budget is None
-            else min(verification_module.PROBE_TIMEOUT_SECONDS, max(1.0, budget))
+            if remaining is None
+            else min(verification_module.PROBE_TIMEOUT_SECONDS, remaining)
         )
         status, _payload = deps.http.get_json(api_health, timeout)
         if status == 200:
             return True, None
         attempts += 1
         gap = verification_module.ATTEMPT_GAP_SECONDS
-        if budget is None:
+        remaining = None if deadline is None else deadline - deps.clock()
+        if remaining is None:
             if attempts >= verification_module.MAX_ATTEMPTS:
                 return False, "the application api health check failed"
+            deps.sleep(gap)
         else:
-            if gap >= budget:
+            if remaining <= 0:
                 return False, "the application api health check failed"
-            budget -= gap
-        deps.sleep(gap)
+            deps.sleep(min(gap, remaining))
 
 
 def _mark_repair_required(deps: ExecutorDeps, record: JobRecord, message: str) -> int:
@@ -1629,27 +1672,116 @@ def _mark_repair_required(deps: ExecutorDeps, record: JobRecord, message: str) -
 
 
 def _phase_forward_repair(deps: ExecutorDeps, record: JobRecord) -> int:
-    """Forward repair only - never a rollback of a committed decision."""
+    """Forward repair only - never a rollback of a committed decision.
+
+    The SQL receipt is checked BEFORE any rollback consideration, and the
+    durable journal decision is commit in every case (ADR 0081 S3:
+    commit_pending never rolls back), so repair is forward-only both ways:
+    the receipt branch finalizes (after fresh runtime verification), and the
+    no-receipt branch relaunches the frozen candidate and re-awaits the
+    acknowledgement. Restore remains exclusively the pre-decision failure
+    path - never this one."""
     current = deps.journal.read_job_record(record.job_id)
     if current is None:
         return 3
     if current.decision is not JobDecision.COMMIT:
         return 1
-    if not current.config_receipt_id:
-        # The SQL commit never landed (for example the reconciler could not
-        # reach the manager before the deadline expired). Finalizing now would
-        # report succeeded while the household settings were never written -
-        # the exact lie ADR 0081 forbids. Re-await the acknowledgement
-        # instead: back to commit_pending with a fresh bounded window so the
-        # reconciler can still execute the durable commit decision.
-        current = _transition(
-            deps,
-            current,
-            state=JobState.COMMIT_PENDING,
-            phase_deadline_at=_deadline_at(LAUNCH_DEADLINE_SECONDS),
+    if current.config_receipt_id:
+        # The SQL commit landed (the receipt is durable even when the
+        # acknowledgement was delayed): forward-only finalization. The fresh
+        # candidate verification inside _phase_finalize keeps the job state
+        # honest - never a false success.
+        return _phase_finalize(deps, current)
+    # The SQL commit never landed (for example the reconciler could not
+    # reach the manager before the deadline expired). Finalizing now would
+    # report succeeded while the household settings were never written - the
+    # exact lie ADR 0081 forbids. And re-probing a candidate that STAYS down
+    # can never succeed: forward repair must be able to CHANGE the
+    # deployment. Relaunch the frozen candidate from the journal's durable
+    # target/plan record, re-verify it bounded, then re-enter the commit wait
+    # so the reconciler can still execute the durable commit decision.
+    current = _repair_relaunch_candidate(deps, current)
+    if current is None:
+        # Bounded relaunch+verify exhausted: stay commit_repair_required with
+        # recovery available and safe diagnostics - never a false success,
+        # never a rollback, and never an unbounded relaunch loop (one
+        # relaunch attempt per explicit repair invocation, inside one fresh
+        # persisted launch+readiness budget shared with the commit wait).
+        return 1
+    current = _transition(deps, current, state=JobState.COMMIT_PENDING)
+    return _phase_commit_pending(deps, current, {"interrupted": False})
+
+
+def _repair_relaunch_candidate(
+    deps: ExecutorDeps, record: JobRecord
+) -> JobRecord | None:
+    """Relaunch the FROZEN candidate from the journal's durable target/plan
+    record and re-verify it, bounded by the fresh persisted launch+readiness
+    budget set here (a restart never grants a fresh budget - this explicit
+    repair does, exactly like the original launch phase).
+
+    The relaunch never re-plans: the frozen plan (model revisions, image
+    digest, serve options) is read back from the journal and the same launch
+    path the executor already drives installs it again. Every failure lands
+    back in commit_repair_required with safe diagnostics - never restore
+    (restore is the pre-decision path), never failed, never a false success."""
+    plan = _load_plan(deps, record.job_id)
+    record = _transition(
+        deps,
+        record,
+        state=JobState.LAUNCHING,
+        phase_deadline_at=_deadline_at(LAUNCH_DEADLINE_SECONDS),
+    )
+    env_file = EnvFile.read(os.path.join(deps.project_dir, ".env"))
+    values = launch_values(
+        plan,
+        node_memory_gb=_primary_memory_gb(deps),
+        photo_node_memory_gb=_primary_memory_gb(deps),
+        profile=deps.profiles.policy_for(plan.main_model, None),
+    )
+    if plan.photo_mode is PhotoMode.SEPARATE and values.get("VLLM_VISION_GPU_FRACTION") is None:
+        return _stay_in_repair(
+            deps, record, "the photo model's GPU fraction could not be assigned "
+            "within the node budget"
         )
-        return _phase_commit_pending(deps, current, {"interrupted": False})
-    return _phase_finalize(deps, current)
+    if plan.topology is Topology.SINGLE and values.get("VLLM_GPU_FRACTION") is None:
+        return _stay_in_repair(
+            deps, record, "the main model's GPU fraction could not be assigned "
+            "within the node budget"
+        )
+    try:
+        env_file.write_runtime_keys(os.path.join(deps.project_dir, ".env"), values)
+    except DeploymentError as exc:
+        return _stay_in_repair(deps, record, str(exc))
+    try:
+        launch_target(
+            deps.compose,
+            deps.project_dir,
+            plan,
+            deployment.compose_files_for(deps.project_dir, plan.topology),
+        )
+    except DeploymentError as exc:
+        return _stay_in_repair(deps, record, f"the candidate relaunch failed: {exc}")
+    if _remaining(record) <= 0:
+        return _stay_in_repair(
+            deps, record, "the repair deadline expired before verification"
+        )
+    outcome = _verify_target_once(
+        deps, plan, deadline=deps.clock() + _remaining(record)
+    )
+    if not (outcome.passed and outcome.evidence is not None):
+        return _stay_in_repair(
+            deps,
+            record,
+            outcome.message or "the relaunched candidate failed verification",
+        )
+    _persist_evidence(deps, record.job_id, outcome.evidence.to_dict())
+    return record
+
+
+def _stay_in_repair(deps: ExecutorDeps, record: JobRecord, message: str) -> None:
+    """End this repair attempt in the durable forward-repair state."""
+    _mark_repair_required(deps, record, message)
 
 
 def _phase_restore(deps: ExecutorDeps, record: JobRecord) -> int:

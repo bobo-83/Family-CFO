@@ -166,11 +166,16 @@ deployment-owned facts:
   pulled or upgraded); a failed candidate never touches application routing.
   Finalization's routing/health verification polls readiness (30 s requests,
   5 s apart) inside the phase budget — time-bounded, not the verification
-  attempt cap — because the recreated `api` opens its socket only after its
-  PostgreSQL wait and migrations; when no budget remains (a late
-  acknowledgement) at most 3 attempts run on a bounded fallback horizon, and
-  an exhausted budget reports `commit_repair_required`, never a false
-  success.
+  attempt cap; the remaining budget is recomputed from a monotonic deadline
+  before every request and sleep, so time spent inside a slow or timing-out
+  request counts against the budget and no request begins once it is spent —
+  because the recreated `api` opens its socket only after its
+  PostgreSQL wait and migrations. Finalization also re-verifies the frozen
+  candidate fresh before recreating anything (a candidate that died after
+  the SQL commit is never reported `succeeded`). When no budget remains (a
+  late acknowledgement) at most 3 attempts run on a bounded fallback
+  horizon, and an exhausted budget reports `commit_repair_required`, never a
+  false success.
 - **Transport.** The reverse-proxy read timeout must be verified ≥ 210 s in
   the deployment spec so the 180 s synchronous preflight cannot be severed by
   the proxy.

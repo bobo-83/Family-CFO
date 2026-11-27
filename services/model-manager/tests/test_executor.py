@@ -483,8 +483,10 @@ def test_commit_pending_never_rolls_back_on_failure(tmp_path):
             config_receipt_id=job_id,
         ),
     )
-    # The routing check will fail: the api service does not route to the
-    # committed model. The executor must go FORWARD (repair), never back.
+    # The running runtime serves a different main model, so the FRESH
+    # candidate verification finalization now runs first (finding 1: never
+    # finalize a dead or wrong candidate) fails - and either way the
+    # executor must go FORWARD (repair), never back.
     deps.compose.services = previous_runtime_services(
         main_model=PREVIOUS_MAIN, vision_model=VISION
     )
@@ -493,7 +495,48 @@ def test_commit_pending_never_rolls_back_on_failure(tmp_path):
     current = read_record(deps, job_id)
     assert current.state is JobState.COMMIT_REPAIR_REQUIRED
     assert current.decision is JobDecision.COMMIT  # monotonic
-    assert "routing" in current.safe_message or "chat routing" in current.safe_message
+    assert "serves a different main model" in current.safe_message
+
+
+def test_commit_pending_never_rolls_back_on_routing_failure(tmp_path):
+    """The candidate itself verifies, but application routing was never
+    repointed: the routing check still guards finalization."""
+    deps = make_engine(tmp_path, with_previous=True)
+    record = admit_job(deps, main_model=MAIN, vision_model=None)
+    job_id = record.job_id
+    write_record(
+        deps,
+        dataclasses.replace(
+            read_record(deps, job_id),
+            state=JobState.COMMIT_PENDING,
+            decision=JobDecision.COMMIT,
+            config_receipt_id=job_id,
+        ),
+    )
+    # The candidate serves the committed model (verification passes), but
+    # the api service still routes to the previous model.
+    services = list(previous_runtime_services(main_model=MAIN, vision_model=None))
+    api = next(s for s in services if s.name == "api")
+    stale_api = dataclasses.replace(
+        api, env={**api.env, "FAMILY_CFO_AI_MODEL": PREVIOUS_MAIN}
+    )
+    deps.compose.services = tuple(
+        stale_api if s.name == "api" else s for s in services
+    )
+    ok = verify_ok_http()
+
+    def handler(method, url, payload):
+        if url.endswith("/api/v1/health"):
+            return (200, {"status": "ok"})
+        return ok.handler(method, url, payload)
+
+    object.__setattr__(deps, "http", FakeHttp(handler=handler))
+    exit_code = executor_module.run_job(deps, job_id)
+    assert exit_code == 1
+    current = read_record(deps, job_id)
+    assert current.state is JobState.COMMIT_REPAIR_REQUIRED
+    assert current.decision is JobDecision.COMMIT  # monotonic
+    assert "chat routing" in current.safe_message
 
 
 def test_commit_pending_keeps_evidence_fresh_while_waiting(tmp_path):
@@ -672,6 +715,224 @@ def test_forward_repair_without_a_receipt_reawaits_the_ack(tmp_path):
     assert observed_deadline[0] > datetime.now(UTC)
 
 
+# --- replay verification + forward-repair relaunch (PR #180 review findings 1+2) ---------
+
+
+def _admit_in_repair_state(deps, job_id):
+    """A job whose commit window expired without a receipt: the durable
+    commit decision stands, the job waits for explicit forward repair."""
+    write_record(
+        deps,
+        dataclasses.replace(
+            read_record(deps, job_id),
+            state=JobState.COMMIT_REPAIR_REQUIRED,
+            decision=JobDecision.COMMIT,
+            phase_deadline_at=past(60.0),
+        ),
+    )
+
+
+def test_replay_with_a_dead_candidate_is_never_succeeded(tmp_path):
+    """Finding 1: the replay path (receipt landed, original ack lost) must
+    re-verify the frozen candidate BEFORE reporting success. A candidate
+    that died after the SQL commit lands in commit_repair_required - the
+    receipt stays authoritative for the SQL side, but the job state reflects
+    reality and recovery stays available."""
+    deps = make_engine(tmp_path)
+    record = admit_job(deps)
+    job_id = record.job_id
+    write_record(
+        deps,
+        dataclasses.replace(
+            read_record(deps, job_id),
+            state=JobState.COMMIT_PENDING,
+            decision=JobDecision.COMMIT,
+            config_receipt_id=job_id,
+            phase_deadline_at=None,
+        ),
+    )
+    ok = verify_ok_http()
+    probes = {"count": 0}
+
+    def handler(method, url, payload):
+        if url.endswith("/health"):
+            probes["count"] += 1
+            return (0, None)  # the candidate is DOWN
+        return ok.handler(method, url, payload)
+
+    object.__setattr__(deps, "http", FakeHttp(handler=handler))
+    assert executor_module.run_job(deps, job_id) == 1
+    current = read_record(deps, job_id)
+    assert current.state is not JobState.SUCCEEDED
+    assert current.state is JobState.COMMIT_REPAIR_REQUIRED
+    assert current.decision is JobDecision.COMMIT  # monotonic: never rolled back
+    assert current.state.recoverable  # recovery available
+    assert deps.journal.read_current().job_id == job_id  # ownership held for repair
+    # The failure came from FRESH runtime verification, not just the routing
+    # check: the candidate's health endpoint was actually probed.
+    assert probes["count"] > 0
+
+
+def test_replay_with_a_live_candidate_finalizes(tmp_path):
+    """Finding 1, the healthy side: fresh verification passes, so the replay
+    path finalizes to succeeded exactly as before."""
+    deps = make_engine(tmp_path)
+    record = admit_job(deps)
+    job_id = record.job_id
+    write_record(
+        deps,
+        dataclasses.replace(
+            read_record(deps, job_id),
+            state=JobState.COMMIT_PENDING,
+            decision=JobDecision.COMMIT,
+            config_receipt_id=job_id,
+            phase_deadline_at=None,
+        ),
+    )
+    assert executor_module.run_job(deps, job_id) == 0
+    final = read_record(deps, job_id)
+    assert final.state is JobState.SUCCEEDED
+    assert deps.journal.read_current().job_id is None
+    # Fresh evidence was persisted by the pre-finalization verification.
+    evidence = deps.journal.read_verification_evidence(job_id)
+    assert evidence is not None
+    assert evidence["main_served_name"] == MAIN
+
+
+def test_forward_repair_relaunches_the_frozen_candidate(tmp_path):
+    """Finding 2: a candidate that stays down before the SQL commit cannot
+    be recovered by re-probing - forward repair relaunches the frozen
+    candidate from the journal's durable target/plan record (never re-plans),
+    re-verifies it, and re-enters the commit wait."""
+    deps = make_engine(tmp_path)
+    record = admit_job(deps)
+    job_id = record.job_id
+    _admit_in_repair_state(deps, job_id)
+    # The frozen plan's revision is "8b5e6c1f". Point the metadata source at
+    # a DIFFERENT revision: if repair re-planned, the relaunch would install
+    # the new revision; the journal-frozen relaunch must keep the old one.
+    from family_cfo_model_manager.contracts import Evidence
+    from family_cfo_model_manager.planning import ModelFacts
+
+    class DriftedMetadata:
+        def facts_for(self, repo_id):
+            return ModelFacts(
+                repo_id=repo_id,
+                revision="deadbeef",
+                architecture="Qwen2ForCausalLM",
+                resident_weight_bytes=8_000_000_000,
+                multimodal=False,
+                model_context_limit=32768,
+                kv_bytes_per_token=1_000_000,
+                evidence=Evidence.VERIFIED,
+            )
+
+    object.__setattr__(deps, "metadata", DriftedMetadata())
+    # The candidate is DOWN until the relaunch recreates it: verification
+    # probes fail until the managed services have been (re)launched.
+    ok = verify_ok_http()
+
+    def handler(method, url, payload):
+        if not any(
+            call[0] == ("vllm", "vllm-vision") for call in deps.compose.up_calls
+        ):
+            return (0, None)  # down before the relaunch
+        return ok.handler(method, url, payload)
+
+    object.__setattr__(deps, "http", FakeHttp(handler=handler))
+
+    # The reconciler acks during the re-entered commit wait.
+    def ack_during_wait(seconds):
+        current = read_record(deps, job_id)
+        if current.state is JobState.COMMIT_PENDING:
+            write_record(
+                deps, dataclasses.replace(current, config_receipt_id=job_id)
+            )
+
+    object.__setattr__(deps, "sleep", ack_during_wait)
+    assert executor_module.run_job(deps, job_id) == 0
+    final = read_record(deps, job_id)
+    assert final.state is JobState.SUCCEEDED
+    assert final.decision is JobDecision.COMMIT
+    # The relaunch drove the SAME compose launch path with the frozen plan:
+    # managed services recreated (scale from the plan) and the journal's
+    # frozen revision installed - not the drifted metadata's revision.
+    relaunch_calls = [
+        call for call in deps.compose.up_calls if call[0] == ("vllm", "vllm-vision")
+    ]
+    assert len(relaunch_calls) == 1
+    from family_cfo_model_manager.deployment import EnvFile
+
+    env = EnvFile.read(Path(deps.project_dir) / ".env")
+    assert env.value("VLLM_MODEL") == MAIN
+    assert env.value("VLLM_REVISION") == "8b5e6c1f"  # frozen, not "deadbeef"
+
+
+def test_forward_repair_relaunch_failure_stays_bounded(tmp_path):
+    """Finding 2: when the relaunch keeps failing, exactly ONE relaunch
+    attempt happens per repair invocation and the job stays in
+    commit_repair_required - never a false success, never a rollback, never
+    an unbounded relaunch loop."""
+    deps = make_engine(tmp_path)
+    record = admit_job(deps)
+    job_id = record.job_id
+    _admit_in_repair_state(deps, job_id)
+
+    class BrokenRelaunchCompose(FakeCompose):
+        def up(self, project_dir, files, services, *, scale, no_deps=False):
+            if "vllm" in services:  # every relaunch attempt fails
+                # The attempt happened (recorded) even though compose failed.
+                self.up_calls.append((services, dict(scale), no_deps))
+                raise deployment.DeploymentError("docker up failed")
+            return super().up(project_dir, files, services, scale=scale, no_deps=no_deps)
+
+    object.__setattr__(deps, "compose", BrokenRelaunchCompose(services=deps.compose.services))
+    sleeps: list[float] = []
+    object.__setattr__(deps, "sleep", sleeps.append)
+    assert executor_module.run_job(deps, job_id) == 1
+    current = read_record(deps, job_id)
+    assert current.state is JobState.COMMIT_REPAIR_REQUIRED
+    assert current.decision is JobDecision.COMMIT  # never rolled back
+    assert "relaunch failed" in current.safe_message
+    assert current.state.recoverable
+    # One bounded attempt - no relaunch loop.
+    assert len(deps.compose.up_calls) == 1
+    # No household settings were touched: no receipt exists and the executor
+    # never finalized.
+    assert current.config_receipt_id is None
+    assert not any(call[0] == ("api", "worker") for call in deps.compose.up_calls)
+
+
+def test_forward_repair_verification_failure_stays_bounded(tmp_path):
+    """Finding 2: a relaunched candidate that still fails verification is
+    bounded too - one relaunch, one bounded verification, then the durable
+    forward-repair state with safe diagnostics."""
+    deps = make_engine(tmp_path)
+    record = admit_job(deps)
+    job_id = record.job_id
+    _admit_in_repair_state(deps, job_id)
+    ok = verify_ok_http()
+
+    def handler(method, url, payload):
+        if url.endswith("/health"):
+            return (0, None)  # the relaunched candidate never comes up
+        return ok.handler(method, url, payload)
+
+    object.__setattr__(deps, "http", FakeHttp(handler=handler))
+    sleeps: list[float] = []
+    object.__setattr__(deps, "sleep", sleeps.append)
+    assert executor_module.run_job(deps, job_id) == 1
+    current = read_record(deps, job_id)
+    assert current.state is JobState.COMMIT_REPAIR_REQUIRED
+    assert current.decision is JobDecision.COMMIT
+    assert current.state.recoverable
+    relaunch_calls = [
+        call for call in deps.compose.up_calls if call[0] == ("vllm", "vllm-vision")
+    ]
+    assert len(relaunch_calls) == 1  # bounded: no loop
+    assert not any(call[0] == ("api", "worker") for call in deps.compose.up_calls)
+
+
 # --- finalization readiness (PR #180 review finding 3) ----------------------------------
 
 
@@ -715,6 +976,21 @@ def test_finalization_waits_for_a_slow_api_start(tmp_path):
     assert attempts["health"] == 3
 
 
+class _AdvancingClock:
+    """Injectable monotonic clock; simulated time only moves when something
+    advances it - sleeps, or a handler modeling a slow request."""
+
+
+    def __init__(self, start: float = 0.0) -> None:
+        self.now = start
+
+    def __call__(self) -> float:
+        return self.now
+
+    def advance(self, seconds: float) -> None:
+        self.now += seconds
+
+
 def test_finalization_readiness_wait_is_clipped_to_the_phase_budget(tmp_path):
     """Attempts stop when the phase budget is spent; the job lands in the
     documented forward-repair state, never a false success."""
@@ -726,6 +1002,7 @@ def test_finalization_readiness_wait_is_clipped_to_the_phase_budget(tmp_path):
     )
     ok = verify_ok_http()
     calls = {"health": 0}
+    clock = _AdvancingClock()
 
     def handler(method, url, payload):
         if url.endswith("/api/v1/health"):
@@ -734,15 +1011,64 @@ def test_finalization_readiness_wait_is_clipped_to_the_phase_budget(tmp_path):
         return ok.handler(method, url, payload)
 
     object.__setattr__(deps, "http", FakeHttp(handler=handler))
+    object.__setattr__(deps, "clock", clock)
+    sleeps: list[float] = []
+
+    def advance_on_sleep(seconds):
+        clock.advance(seconds)  # simulated time passes while the loop sleeps
+        sleeps.append(seconds)
+
+    object.__setattr__(deps, "sleep", advance_on_sleep)
+    assert executor_module.run_job(deps, job_id) == 1
+    current = read_record(deps, job_id)
+    assert current.state is JobState.COMMIT_REPAIR_REQUIRED
+    # One attempt (timeout clipped to the 8 s budget) + one gap-fitting
+    # attempt; then the budget is spent and NO further request begins
+    # (remaining <= 0). The sleeps are clipped to what remains: a full 5 s
+    # gap, then exactly what was left of the budget.
+    assert calls["health"] == 2
+    assert sleeps[0] == verification_module.ATTEMPT_GAP_SECONDS
+    assert 0 < sleeps[1] < verification_module.ATTEMPT_GAP_SECONDS
+    assert sum(sleeps) <= 8.0
+
+
+def test_finalization_slow_probe_cannot_exceed_the_phase_budget(tmp_path):
+    """Finding 3: a probe that consumes its whole timeout must not push the
+    readiness wait past the phase deadline - time INSIDE the request counts
+    against the budget, and no request may begin when nothing remains."""
+    deps = make_engine(tmp_path)
+    record = admit_job(deps)
+    job_id = record.job_id
+    _admit_at_commit_pending_with_receipt(
+        deps, job_id, deadline_at=datetime.now(UTC) + timedelta(seconds=8)
+    )
+    ok = verify_ok_http()
+    calls = {"health": 0}
+    clock = _AdvancingClock()
+
+    def handler(method, url, payload):
+        if url.endswith("/api/v1/health"):
+            calls["health"] += 1
+            if calls["health"] == 1:
+                # One full-timeout probe: the request consumes the ENTIRE
+                # remaining 8 s budget before it returns a failure.
+                clock.advance(8.0)
+            return (0, None)
+        return ok.handler(method, url, payload)
+
+    object.__setattr__(deps, "http", FakeHttp(handler=handler))
+    object.__setattr__(deps, "clock", clock)
     sleeps: list[float] = []
     object.__setattr__(deps, "sleep", sleeps.append)
     assert executor_module.run_job(deps, job_id) == 1
     current = read_record(deps, job_id)
     assert current.state is JobState.COMMIT_REPAIR_REQUIRED
-    # One attempt (timeout clipped to the 8 s budget) + one gap-fitting
-    # attempt; the next 5 s gap no longer fits, so the wait stops.
-    assert calls["health"] == 2
-    assert sleeps == [verification_module.ATTEMPT_GAP_SECONDS]
+    assert clock.now <= 8.0  # total stays within the phase budget
+    # The over-budget probe was the LAST request: no further sleep and no
+    # further request ever begin. (The old loop slept 5 s and started
+    # another request past the 8 s deadline.)
+    assert calls["health"] == 1
+    assert sleeps == []
 
 
 def test_finalization_fallback_horizon_is_bounded_without_budget(tmp_path):
